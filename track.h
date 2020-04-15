@@ -451,6 +451,8 @@ struct aircraft *trackUpdateFromMessage (struct modesMessage *mm);
 /* Call periodically */
 void trackPeriodicUpdate ();
 
+void from_state_all(struct state_all *in, struct aircraft *a , uint64_t ts);
+
 /* Convert from a (hex) mode A value to a 0-4095 index */
 static inline unsigned
 modeAToIndex (unsigned modeA)

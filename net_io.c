@@ -2163,7 +2163,7 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
             int leg_marker = trace->flags.leg_marker;
 
                 // in the air
-                p = safe_snprintf(p, end, "[%.1f,%f,%f",
+                p = safe_snprintf(p, end, "\n[%.1f,%f,%f",
                         (trace->timestamp - (a->trace + start)->timestamp) / 1000.0, trace->lat / 1E6, trace->lon / 1E6);
 
                 if (on_ground)
@@ -2191,6 +2191,18 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
                 else
                     p = safe_snprintf(p, end, ",null");
 
+                /*
+                if (i % 4 == 0) {
+                    p = safe_snprintf(p, end, ",");
+                    uint64_t now = trace->timestamp;
+                    struct state_all *all = &(a->trace_all[i/4]);
+                    struct aircraft b = (struct aircraft) { 0 };
+                    struct aircraft *ac = &b;
+                    from_state_all(all, ac, now);
+
+                    p = sprintAircraftObject(p, end, ac, now, 1);
+                }
+                */
                 p = safe_snprintf(p, end, "],");
         }
 
@@ -3128,8 +3140,10 @@ static void *pthreadGetaddrinfo(void *param) {
 }
 
 static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now, int printState) {
-    p = safe_snprintf(p, end, "\n{\"hex\":\"%s%06x\"", (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
-    p = safe_snprintf(p, end, ",\"type\":\"%s\"", addrtype_enum_string(a));
+    p = safe_snprintf(p, end, "\n{");
+    if (!printState)
+        p = safe_snprintf(p, end, "\"hex\":\"%s%06x\",", (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
+    p = safe_snprintf(p, end, "\"type\":\"%s\"", addrtype_enum_string(a));
     if (trackDataValid(&a->callsign_valid)) {
         char buf[128];
         p = safe_snprintf(p, end, ",\"flight\":\"%s\"", jsonEscapeString(a->callsign, buf, sizeof(buf)));
@@ -3231,15 +3245,19 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
         p = safe_snprintf(p, end, ",\"sbs_other\": true");
     */
 
-    p = safe_snprintf(p, end, ",\"mlat\":");
-    p = append_flags(p, end, a, SOURCE_MLAT);
-    p = safe_snprintf(p, end, ",\"tisb\":");
-    p = append_flags(p, end, a, SOURCE_TISB);
+    if (!printState) {
+        p = safe_snprintf(p, end, ",\"mlat\":");
+        p = append_flags(p, end, a, SOURCE_MLAT);
+        p = safe_snprintf(p, end, ",\"tisb\":");
+        p = append_flags(p, end, a, SOURCE_TISB);
 
-    p = safe_snprintf(p, end, ",\"messages\":%u,\"seen\":%.1f,\"rssi\":%.1f}",
-            a->messages, (now < a->seen) ? 0 : ((now - a->seen) / 1000.0),
-            10 * log10((a->signalLevel[0] + a->signalLevel[1] + a->signalLevel[2] + a->signalLevel[3] +
-                    a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7] + 1e-5) / 8));
+        p = safe_snprintf(p, end, ",\"messages\":%u,\"seen\":%.1f,\"rssi\":%.1f}",
+                a->messages, (now < a->seen) ? 0 : ((now - a->seen) / 1000.0),
+                10 * log10((a->signalLevel[0] + a->signalLevel[1] + a->signalLevel[2] + a->signalLevel[3] +
+                        a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7] + 1e-5) / 8));
+    } else {
+        p = safe_snprintf(p, end, "}");
+    }
 
     return p;
 }

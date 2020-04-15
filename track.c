@@ -2161,6 +2161,16 @@ void to_state_all(struct aircraft *a, struct state_all *new, uint64_t now) {
             new->tisb_version = a->tisb_version;
             new->sil_type = a->sil_type;
 
+            new->nic_a = a->nic_a;
+            new->nic_c = a->nic_c;
+            new->nic_baro = a->nic_baro;
+            new->nac_p = a->nac_p;
+            new->nac_v = a->nac_v;
+            new->sil = a->sil;
+            new->gva = a->gva;
+            new->sda = a->sda;
+            new->alert = a->alert;
+            new->spi = a->spi;
 
 #define F(f) do { new->f = (now < a->f.updated + 30000); } while (0)
            F(callsign_valid);
@@ -2315,6 +2325,17 @@ void from_state_all(struct state_all *in, struct aircraft *a , uint64_t ts) {
             a->adsr_version = in->adsr_version;
             a->tisb_version = in->tisb_version;
             a->sil_type = in->sil_type;
+
+            a->nic_a = in->nic_a;
+            a->nic_c = in->nic_c;
+            a->nic_baro = in->nic_baro;
+            a->nac_p = in->nac_p;
+            a->nac_v = in->nac_v;
+            a->sil = in->sil;
+            a->gva = in->gva;
+            a->sda = in->sda;
+            a->alert = in->alert;
+            a->spi = in->spi;
 
 
             // giving this a timestamp is kinda hacky, do it anyway
