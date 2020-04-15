@@ -454,7 +454,7 @@ static void *decodeThreadEntryPoint(void *arg) {
 
             background_cpu_millis = (int64_t) Modes.stats_current.background_cpu.tv_sec * 1000UL +
                 Modes.stats_current.background_cpu.tv_nsec / 1000000UL;
-            sleep_millis = sleep_millis - (background_cpu_millis + prev_cpu_millis) / 4;
+            sleep_millis -= (background_cpu_millis - prev_cpu_millis);
             sleep_millis = (sleep_millis <= 5) ? 5 : sleep_millis;
 
             //fprintf(stderr, "%ld\n", sleep_millis);
