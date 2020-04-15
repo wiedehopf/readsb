@@ -342,7 +342,8 @@ static void *jsonThreadEntryPoint(void *arg) {
         uint64_t now = mstime();
 
         struct char_buffer cb = generateAircraftJson(-1);
-        writeJsonToGzip(Modes.json_dir, "aircraft.json.gz", cb, 3);
+        if (Modes.json_gzip)
+            writeJsonToGzip(Modes.json_dir, "aircraft.json.gz", cb, 3);
         writeJsonToFile(Modes.json_dir, "aircraft.json", cb);
 
         if ((ALL_JSON) && now >= next_history) {
@@ -850,6 +851,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptJsonLocAcc:
             Modes.json_location_accuracy = atoi(arg);
+            break;
+        case OptJsonGzip:
+            Modes.json_gzip = 1;
             break;
         case OptJsonGlobeIndex:
             Modes.json_globe_index = 1;

@@ -426,6 +426,7 @@ struct
   volatile int json_globe_index; // Enable extra globe indexed json files.
   int json_globe_ac_count;
   struct tile *json_globe_special_tiles;
+  int json_gzip; // Enable extra globe indexed json files.
   char *beast_serial; // Modes-S Beast device path
 #if defined(__arm__)
   uint32_t padding;
@@ -707,6 +708,7 @@ enum {
   OptQuiet,
   OptShowOnly,
   OptJsonDir,
+  OptJsonGzip,
   OptGlobeHistoryDir,
   OptJsonTime,
   OptJsonLocAcc,
