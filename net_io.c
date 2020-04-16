@@ -2086,7 +2086,7 @@ struct char_buffer generateAircraftJson(int globe_index){
                 if (a->globe_index != globe_index) {
                     continue;
                 }
-                if (!trackDataValid(&a->position_valid)) {
+                if (now > a->seen_pos + TRACK_EXPIRE_JAERO) {
                     continue;
                 }
             }
