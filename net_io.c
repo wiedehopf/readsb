@@ -1807,6 +1807,8 @@ __attribute__ ((format(printf, 3, 4))) static char *safe_snprintf(char *p, char 
     va_list ap;
     va_start(ap, format);
     p += vsnprintf(p < end ? p : NULL, p < end ? (size_t) (end - p) : 0, format, ap);
+    if (p > end)
+        p = end;
     va_end(ap);
     return p;
 }
@@ -2025,7 +2027,7 @@ const char *nav_altitude_source_enum_string(nav_altitude_source_t src) {
 
 /*
 static void check_state_all(struct aircraft *test, uint64_t now) {
-    int buflen = 4096;
+    size_t buflen = 4096;
     char buffer1[buflen];
     char buffer2[buflen];
     char *buf, *p, *end;
@@ -2064,7 +2066,7 @@ struct char_buffer generateAircraftJson(int globe_index){
     struct char_buffer cb;
     uint64_t now = mstime();
     struct aircraft *a;
-    int buflen = 6*1024*1024; // The initial buffer is resized as needed
+    size_t buflen = 6*1024*1024; // The initial buffer is resized as needed
     if (globe_index >= 0)
         buflen = 1024 * 1024;
     char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
@@ -2159,6 +2161,8 @@ retry:
 
     //if (globe_index == -1)
     //    fprintf(stderr, "%u\n", ac_counter);
+    if (p >= end)
+        fprintf(stderr, "buffer overrun aircraft json\n");
 
     cb.len = p - buf;
     cb.buffer = buf;
@@ -2167,7 +2171,7 @@ retry:
 
 struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
     struct char_buffer cb;
-    int buflen = a->trace_len * 300 + 1024;
+    size_t buflen = a->trace_len * 300 + 1024;
 
     if (last < 0)
         last = a->trace_len - 1;
@@ -2255,6 +2259,11 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
 
     cb.len = p - buf;
     cb.buffer = buf;
+
+    if (p >= end) {
+        fprintf(stderr, "buffer overrun trace json %zu %zu\n", cb.len, buflen);
+    }
+
     return cb;
 }
 
@@ -2398,7 +2407,8 @@ struct char_buffer generateStatsJson() {
     p = appendStatsJson(p, end, &add, "total");
     p = safe_snprintf(p, end, "\n}\n");
 
-    assert(p < end);
+    if (p >= end)
+        fprintf(stderr, "buffer overrun stats json\n");
 
     cb.len = p - buf;
     cb.buffer = buf;
@@ -2411,45 +2421,48 @@ struct char_buffer generateStatsJson() {
 struct char_buffer generateReceiverJson() {
     struct char_buffer cb;
     size_t buflen = 4096;
-    char *buf = (char *) malloc(buflen), *p = buf;
+    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
 
-    p += snprintf(p, buflen, "{ " \
+    p = safe_snprintf(p, end, "{ " \
             "\"refresh\" : %.0f, "
             "\"history\" : %d",
             1.0 * Modes.json_interval, Modes.json_aircraft_history_next + 1);
 
     if (Modes.json_globe_index) {
-        p += snprintf(p, buflen, ", \"globeIndexGrid\" : %d", GLOBE_INDEX_GRID);
+        p = safe_snprintf(p, end, ", \"globeIndexGrid\" : %d", GLOBE_INDEX_GRID);
 
-        p += snprintf(p, buflen, ", \"globeIndexSpecialTiles\" : [ ");
+        p = safe_snprintf(p, end, ", \"globeIndexSpecialTiles\" : [ ");
         struct tile *tiles = Modes.json_globe_special_tiles;
 
         for (int i = 0; tiles[i].south != 0 || tiles[i].north != 0; i++) {
             struct tile tile = tiles[i];
-            p += snprintf(p, buflen, "{ \"south\" : %d, ", tile.south);
-            p += snprintf(p, buflen, "\"east\" : %d, ", tile.east);
-            p += snprintf(p, buflen, "\"north\" : %d, ", tile.north);
-            p += snprintf(p, buflen, "\"west\" : %d }, ", tile.west);
+            p = safe_snprintf(p, end, "{ \"south\" : %d, ", tile.south);
+            p = safe_snprintf(p, end, "\"east\" : %d, ", tile.east);
+            p = safe_snprintf(p, end, "\"north\" : %d, ", tile.north);
+            p = safe_snprintf(p, end, "\"west\" : %d }, ", tile.west);
         }
         p -= 2; // get rid of comma and space at the end
-        p += snprintf(p, buflen, " ]");
+        p = safe_snprintf(p, end, " ]");
     }
 
     if (Modes.json_location_accuracy && (Modes.fUserLat != 0.0 || Modes.fUserLon != 0.0)) {
         if (Modes.json_location_accuracy == 1) {
-            p += snprintf(p, buflen, ", "                \
+            p = safe_snprintf(p, end, ", "                \
                     "\"lat\" : %.2f, "
                     "\"lon\" : %.2f",
                     Modes.fUserLat, Modes.fUserLon); // round to 2dp - about 0.5-1km accuracy - for privacy reasons
         } else {
-            p += snprintf(p, buflen, ", "                \
+            p = safe_snprintf(p, end, ", "                \
                     "\"lat\" : %.6f, "
                     "\"lon\" : %.6f",
                     Modes.fUserLat, Modes.fUserLon); // exact location
         }
     }
 
-    p += snprintf(p, 1024, ", \"version\" : \"%s\" }\n", MODES_READSB_VERSION);
+    p = safe_snprintf(p, end, ", \"version\" : \"%s\" }\n", MODES_READSB_VERSION);
+
+    if (p >= end)
+        fprintf(stderr, "buffer overrun receiver json\n");
 
     cb.len = p - buf;
     cb.buffer = buf;
@@ -2985,7 +2998,7 @@ struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {
     struct char_buffer cb;
     uint64_t now = mstime();
     struct aircraft *a;
-    int buflen = 256*1024; // The initial buffer is resized as needed
+    size_t buflen = 256*1024; // The initial buffer is resized as needed
     char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
     char *line_start;
     int first = 1;
@@ -3149,6 +3162,9 @@ skip_fields:
     }
 
     p = safe_snprintf(p, end, "]}\n");
+
+    if (p >= end)
+        fprintf(stderr, "buffer overrun vrs json\n");
 
     cb.len = p - buf;
     cb.buffer = buf;
