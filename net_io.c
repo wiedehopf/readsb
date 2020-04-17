@@ -2167,7 +2167,7 @@ retry:
 
 struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
     struct char_buffer cb;
-    int buflen = a->trace_len * 80 + 1024;
+    int buflen = a->trace_len * 300 + 1024;
 
     if (last < 0)
         last = a->trace_len - 1;
@@ -2200,6 +2200,7 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
             int gs_valid = trace->flags.gs_valid;
             int track_valid = trace->flags.track_valid;
             int leg_marker = trace->flags.leg_marker;
+            int altitude_geom = trace->flags.altitude_geom;
 
                 // in the air
                 p = safe_snprintf(p, end, "\n[%.1f,%f,%f",
@@ -2222,7 +2223,7 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
                 else
                     p = safe_snprintf(p, end, ",null");
 
-                int bitfield = (rate_geom << 2) | (leg_marker << 1) | (stale << 0);
+                int bitfield = (altitude_geom << 3) | (rate_geom << 2) | (leg_marker << 1) | (stale << 0);
                 p = safe_snprintf(p, end, ",%d", bitfield);
 
                 if (rate_valid)

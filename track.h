@@ -88,6 +88,7 @@
 // 33 minutes
 #define TRACK_EXPIRE_JAERO (33*60*1000)
 
+
 // data moves through three states:
 //  fresh: data is valid. Updates from a less reliable source are not accepted.
 //  stale: data is valid. Updates from a less reliable source are accepted.
@@ -112,7 +113,8 @@ struct state_flags
     unsigned track_valid:1;
     unsigned rate_valid:1;
     unsigned rate_geom:1;
-    int padding:8;
+    unsigned altitude_geom:1;
+    int padding:7;
 } __attribute__ ((__packed__));
 
 /* Structure representing one point in the aircraft trace */
@@ -425,6 +427,17 @@ static inline int
 trackDataValid (const data_validity *v)
 {
   return (v->source != SOURCE_INVALID);
+}
+
+
+static inline int
+trackVState (uint64_t now, const data_validity *v, const data_validity *pos_valid)
+{
+    // source is valid, allow normal expiration time for shitty position sources
+    if (pos_valid->source > SOURCE_JAERO)
+        return (v->source != SOURCE_INVALID && now < v->updated + TRACK_EXPIRE_LONG);
+
+    return (v->source != SOURCE_INVALID);
 }
 
 /* what's the age of this data, in milliseconds? */
