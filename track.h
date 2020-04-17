@@ -139,8 +139,8 @@ struct state_all
   int16_t geom_rate;
 
   uint16_t squawk; // Squawk
-  int16_t nav_altitude_mcp; // FCU/MCP selected altitude
-  int16_t nav_altitude_fms; // FMS selected altitude
+  uint16_t nav_altitude_mcp; // FCU/MCP selected altitude
+  uint16_t nav_altitude_fms; // FMS selected altitude
 
   int16_t nav_qnh; // Altimeter setting (QNH/QFE), millibars
   int16_t nav_heading; // target heading, degrees (0-359)
@@ -159,7 +159,7 @@ struct state_all
   unsigned pos_rc:16; // Rc of last computed position
   emergency_t emergency:4; // Emergency/priority status
   addrtype_t addrtype:4; // highest priority address type seen for this aircraft
-  nav_modes_t nav_modes:8; // enabled modes (autopilot, vnav, etc)
+  nav_modes_t nav_modes:7; // enabled modes (autopilot, vnav, etc)
   airground_t airground:2; // air/ground status
   nav_altitude_source_t nav_altitude_src:3;  // source of altitude used by automation
   sil_type_t sil_type:3; // SIL supplement from TSS or opstatus
@@ -167,9 +167,9 @@ struct state_all
   unsigned tas:12;
   unsigned ias:12;
 
-  unsigned adsb_version:3; // ADS-B version (from ADS-B operational status); -1 means no ADS-B messages seen
-  unsigned adsr_version:3; // As above, for ADS-R messages
-  unsigned tisb_version:3; // As above, for TIS-B messages
+  unsigned adsb_version:4; // ADS-B version (from ADS-B operational status); -1 means no ADS-B messages seen
+  unsigned adsr_version:4; // As above, for ADS-R messages
+  unsigned tisb_version:4; // As above, for TIS-B messages
 
   unsigned nic_a : 1; // NIC supplement A from opstatus
   unsigned nic_c : 1; // NIC supplement C from opstatus
@@ -311,7 +311,7 @@ struct aircraft
   float mag_heading; // Magnetic heading
 
   float true_heading; // True heading
-  float calc_track; // Calculated Ground track
+  float calc_track; // Calculated Ground track (unused)
   uint64_t next_reduce_forward_DF11;
   char callsign[16]; // Flight number
 

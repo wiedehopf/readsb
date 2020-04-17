@@ -2023,6 +2023,43 @@ const char *nav_altitude_source_enum_string(nav_altitude_source_t src) {
     }
 }
 
+/*
+static void check_state_all(struct aircraft *test, uint64_t now) {
+    int buflen = 4096;
+    char buffer1[buflen];
+    char buffer2[buflen];
+    char *buf, *p, *end;
+
+    struct aircraft abuf = *test;
+    struct aircraft *a = &abuf;
+
+    buf = buffer1;
+    p = buf;
+    end = buf + buflen;
+    p = sprintAircraftObject(p, end, a, now, 1);
+
+    buf = buffer2;
+    p = buf;
+    end = buf + buflen;
+
+
+    struct state_all state_buf = (struct state_all) { 0 };
+    struct state_all *new_all = &state_buf;
+    to_state_all(a, new_all, now);
+
+    struct aircraft bbuf = (struct aircraft) { 0 };
+    struct aircraft *b = &bbuf;
+
+    from_state_all(new_all, b, now);
+
+    p = sprintAircraftObject(p, end, b, now, 1);
+
+    if (strncmp(buffer1, buffer2, buflen)) {
+        fprintf(stderr, "%s\n%s\n", buffer1, buffer2);
+    }
+}
+*/
+
 struct char_buffer generateAircraftJson(int globe_index){
     struct char_buffer cb;
     uint64_t now = mstime();
@@ -2103,6 +2140,8 @@ retry:
             line_start = p;
 
             p = sprintAircraftObject(p, end, a, now, 0);
+
+            //check_state_all(a, now);
 
             if ((p + 100) >= end) { // +100 to leave some space for the final line
                 // overran the buffer
@@ -3148,14 +3187,16 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
         char buf[128];
         p = safe_snprintf(p, end, ",\"flight\":\"%s\"", jsonEscapeString(a->callsign, buf, sizeof(buf)));
     }
-    if (trackDataValid(&a->airground_valid) && a->airground_valid.source >= SOURCE_MODE_S_CHECKED && a->airground == AG_GROUND)
-        p = safe_snprintf(p, end, ",\"alt_baro\":\"ground\"");
-    else {
-        if (!printState && trackDataValid(&a->altitude_baro_valid) && a->altitude_baro_reliable >= 3)
-            p = safe_snprintf(p, end, ",\"alt_baro\":%d", a->altitude_baro);
-        if (trackDataValid(&a->altitude_geom_valid))
-            p = safe_snprintf(p, end, ",\"alt_geom\":%d", a->altitude_geom);
+    if (!printState) {
+        if (trackDataValid(&a->airground_valid) && a->airground_valid.source >= SOURCE_MODE_S_CHECKED && a->airground == AG_GROUND)
+            p = safe_snprintf(p, end, ",\"alt_baro\":\"ground\"");
+        else {
+            if (trackDataValid(&a->altitude_baro_valid) && a->altitude_baro_reliable >= 3)
+                p = safe_snprintf(p, end, ",\"alt_baro\":%d", a->altitude_baro);
+        }
     }
+    if (trackDataValid(&a->altitude_geom_valid))
+        p = safe_snprintf(p, end, ",\"alt_geom\":%d", a->altitude_geom);
     if (!printState && trackDataValid(&a->gs_valid))
         p = safe_snprintf(p, end, ",\"gs\":%.1f", a->gs);
     if (trackDataValid(&a->ias_valid))
@@ -3164,22 +3205,23 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
         p = safe_snprintf(p, end, ",\"tas\":%u", a->tas);
     if (trackDataValid(&a->mach_valid))
         p = safe_snprintf(p, end, ",\"mach\":%.3f", a->mach);
-    if (now < a->wind_updated + TRACK_EXPIRE && abs(a->wind_altitude - a->altitude_baro) < 500) {
-        p = safe_snprintf(p, end, ",\"wd\":%.0f", a->wind_direction);
-        p = safe_snprintf(p, end, ",\"ws\":%.0f", a->wind_speed);
-    }
-    if (now < a->oat_updated + TRACK_EXPIRE)
-        p = safe_snprintf(p, end, ",\"oat\":%.1f", a->oat);
     if (!printState) {
-        if (trackDataValid(&a->track_valid))
-            p = safe_snprintf(p, end, ",\"track\":%.2f", a->track);
-        else if (a->calc_track != 0)
-            p = safe_snprintf(p, end, ",\"calc_track\":%.1f", a->calc_track);
+        if (now < a->wind_updated + TRACK_EXPIRE && abs(a->wind_altitude - a->altitude_baro) < 500) {
+            p = safe_snprintf(p, end, ",\"wd\":%.0f", a->wind_direction);
+            p = safe_snprintf(p, end, ",\"ws\":%.0f", a->wind_speed);
+        }
+        if (now < a->oat_updated + TRACK_EXPIRE)
+            p = safe_snprintf(p, end, ",\"oat\":%.1f", a->oat);
     }
+
+    if (trackDataValid(&a->track_valid))
+        p = safe_snprintf(p, end, ",\"track\":%.2f", a->track);
+    //else if (a->calc_track != 0)
+    //    p = safe_snprintf(p, end, ",\"calc_track\":%.0f", a->calc_track);
     if (trackDataValid(&a->track_rate_valid))
         p = safe_snprintf(p, end, ",\"track_rate\":%.2f", a->track_rate);
     if (trackDataValid(&a->roll_valid))
-        p = safe_snprintf(p, end, ",\"roll\":%.1f", a->roll);
+        p = safe_snprintf(p, end, ",\"roll\":%.2f", a->roll);
     if (trackDataValid(&a->mag_heading_valid))
         p = safe_snprintf(p, end, ",\"mag_heading\":%.2f", a->mag_heading);
     if (trackDataValid(&a->true_heading_valid))

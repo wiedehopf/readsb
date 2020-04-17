@@ -1716,12 +1716,11 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
     a->addrtype_updated = now;
 
 
-    if (trackDataAge(now, &a->track_valid) >= 10000 && a->pos_set) {
+    // disable calc_track
+    if (0 && trackDataAge(now, &a->track_valid) >= 10000 && a->pos_set) {
         double distance = greatcircle(a->lat, a->lon, new_lat, new_lon);
         if (distance > 100)
             a->calc_track = bearing(a->lat, a->lon, new_lat, new_lon);
-    } else {
-        a->calc_track = 0;
     }
 
     if (a->addr == Modes.cpr_focus) {
@@ -1952,10 +1951,7 @@ save_state:
         if (track_valid) {
             new->track = (int16_t) (10 * track);
             new->flags.track_valid = 1;
-        } else {
-            new->track = (int16_t) (10 * a->calc_track);
         }
-
         // trace_all stuff:
 
         if (a->trace_len % 4 == 0) {
@@ -2124,42 +2120,58 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
 }
 
 void to_state_all(struct aircraft *a, struct state_all *new, uint64_t now) {
+            MODES_NOTUSED(now);
             for (int i = 0; i < 8; i++)
                 new->callsign[i] = a->callsign[i];
 
             new->pos_nic = a->pos_nic;
             new->pos_rc = a->pos_rc;
 
-            new->altitude_geom = (int16_t) (a->altitude_geom / 25);
-            new->baro_rate = (int16_t) (a->baro_rate / 32);
-            new->geom_rate = (int16_t) (a->geom_rate / 32);
+            new->altitude_geom = (int16_t) nearbyint(a->altitude_geom / 25.0);
+            new->baro_rate = (int16_t) nearbyint(a->baro_rate / 8.0);
+            new->geom_rate = (int16_t) nearbyint(a->geom_rate / 8.0);
             new->ias = a->ias;
             new->tas = a->tas;
 
             new->squawk = a->squawk;
-            new->category =  a->category; // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
-            new->nav_altitude_mcp = (int16_t) (a->nav_altitude_mcp / 32);
-            new->nav_altitude_fms = (int16_t) (a->nav_altitude_fms / 32);
+            new->category = a->category; // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
+            new->nav_altitude_mcp = (uint16_t) nearbyint(a->nav_altitude_mcp / 4.0);
+            new->nav_altitude_fms = (uint16_t) nearbyint(a->nav_altitude_fms / 4.0);
 
-            new->nav_qnh = (int16_t) (a->nav_qnh * 10);
-            new->nav_heading = (int16_t) (a->nav_heading * 10);
-            new->gs = (int16_t) (a->gs * 10);
-            new->mach = (int16_t) (a->mach * 1000);
-            new->track = (int16_t) (10 * a->track);
-            new->track_rate = (int16_t) (100 * a->track_rate);
-            new->roll = (int16_t) (100 * a->roll);
-            new->mag_heading = (int16_t) (10 * a->mag_heading);
-            new->true_heading = (int16_t) (10 * a->true_heading);
+            new->nav_qnh = (int16_t) nearbyint(a->nav_qnh * 10.0);
+            new->nav_heading = (int16_t) nearbyint(a->nav_heading * 10.0);
+            new->gs = (int16_t) nearbyint(a->gs * 10.0);
+            new->mach = (int16_t) nearbyint(a->mach * 1000.0);
+
+            new->track_rate = (int16_t) nearbyint(a->track_rate * 100.0);
+            new->roll = (int16_t) nearbyint(a->roll * 100.0);
+
+            new->track = (int16_t) nearbyint(a->track * 90.0);
+            new->mag_heading = (int16_t) nearbyint(a->mag_heading * 90.0);
+            new->true_heading = (int16_t) nearbyint(a->true_heading * 90.0);
 
             new->emergency = a->emergency;
             new->airground = a->airground;
             new->addrtype = a->addrtype;
             new->nav_modes = a->nav_modes;
             new->nav_altitude_src = a->nav_altitude_src;
-            new->adsb_version = a->adsb_version;
-            new->adsr_version = a->adsr_version;
-            new->tisb_version = a->tisb_version;
             new->sil_type = a->sil_type;
+
+
+            if (a->adsb_version < 0)
+                new->adsb_version = 15;
+            else
+                new->adsb_version = a->adsb_version;
+
+            if (a->adsr_version < 0)
+                new->adsr_version = 15;
+            else
+                new->adsr_version = a->adsr_version;
+
+            if (a->tisb_version < 0)
+                new->tisb_version = 15;
+            else
+                new->tisb_version = a->tisb_version;
 
             new->nic_a = a->nic_a;
             new->nic_c = a->nic_c;
@@ -2172,7 +2184,7 @@ void to_state_all(struct aircraft *a, struct state_all *new, uint64_t now) {
             new->alert = a->alert;
             new->spi = a->spi;
 
-#define F(f) do { new->f = (now < a->f.updated + 30000); } while (0)
+#define F(f) do { new->f = trackDataValid(&a->f); } while (0)
            F(callsign_valid);
            F(altitude_baro_valid);
            F(altitude_geom_valid);
@@ -2296,35 +2308,50 @@ void from_state_all(struct state_all *in, struct aircraft *a , uint64_t ts) {
             a->pos_rc = in->pos_rc;
 
             a->altitude_geom = in->altitude_geom * 25;
-            a->baro_rate = in->baro_rate * 32;
-            a->geom_rate = in->geom_rate * 32;
+            a->baro_rate = in->baro_rate * 8;
+            a->geom_rate = in->geom_rate * 8;
             a->ias = in->ias;
             a->tas = in->tas;
 
             a->squawk = in->squawk;
             a->category =  in->category; // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
-            a->nav_altitude_mcp = in->nav_altitude_mcp * 32;
-            a->nav_altitude_fms = in->nav_altitude_fms * 32;
+            a->nav_altitude_mcp = in->nav_altitude_mcp * 4;
+            a->nav_altitude_fms = in->nav_altitude_fms * 4;
 
             a->nav_qnh = in->nav_qnh / 10.0;
             a->nav_heading = in->nav_heading / 10.0;
             a->gs = in->gs / 10.0;
             a->mach = in->mach / 1000.0;
-            a->track = in->track / 10.0;
+
             a->track_rate = in->track_rate / 100.0;
             a->roll = in->roll / 100.0;
-            a->mag_heading = in->mag_heading / 10.0;
-            a->true_heading = in->true_heading / 10.0;
+
+            a->track = in->track / 90.0;
+            a->mag_heading = in->mag_heading / 90.0;
+            a->true_heading = in->true_heading / 90.0;
 
             a->emergency = in->emergency;
             a->airground = in->airground;
             a->addrtype = in->addrtype;
             a->nav_modes = in->nav_modes;
             a->nav_altitude_src = in->nav_altitude_src;
-            a->adsb_version = in->adsb_version;
-            a->adsr_version = in->adsr_version;
-            a->tisb_version = in->tisb_version;
             a->sil_type = in->sil_type;
+
+
+            if (in->adsb_version == 15)
+                a->adsb_version = -1;
+            else
+                a->adsb_version = in->adsb_version;
+
+            if (in->adsr_version == 15)
+                a->adsr_version = -1;
+            else
+                a->adsr_version = in->adsr_version;
+
+            if (in->tisb_version == 15)
+                a->tisb_version = -1;
+            else
+                a->tisb_version = in->tisb_version;
 
             a->nic_a = in->nic_a;
             a->nic_c = in->nic_c;
