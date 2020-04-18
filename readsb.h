@@ -284,7 +284,7 @@ typedef enum {
 
 #define MODES_NOTUSED(V) ((void) V)
 
-#define AIRCRAFTS_BUCKETS (1<<15)
+#define AIRCRAFTS_BUCKETS (1<<16)
 
 #define GLOBE_TRACE_SIZE 32768
 #define GLOBE_OVERLAP 3600

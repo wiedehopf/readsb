@@ -2066,7 +2066,9 @@ struct char_buffer generateAircraftJson(int globe_index){
     struct char_buffer cb;
     uint64_t now = mstime();
     struct aircraft *a;
-    size_t buflen = 6*1024*1024; // The initial buffer is resized as needed
+    size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
+    if (globe_index == -1)
+        buflen *= 6;
     if (globe_index >= 0)
         buflen = 1024 * 1024;
     char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
@@ -2235,18 +2237,18 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
                 else
                     p = safe_snprintf(p, end, ",null");
 
-                /*
-                if (i % 4 == 0) {
-                    p = safe_snprintf(p, end, ",");
+                if (0 && i % 4 == 0) {
                     uint64_t now = trace->timestamp;
                     struct state_all *all = &(a->trace_all[i/4]);
                     struct aircraft b = (struct aircraft) { 0 };
                     struct aircraft *ac = &b;
                     from_state_all(all, ac, now);
 
+                    p = safe_snprintf(p, end, ",");
                     p = sprintAircraftObject(p, end, ac, now, 1);
+                } else {
+                    p = safe_snprintf(p, end, ",null");
                 }
-                */
                 p = safe_snprintf(p, end, "],");
         }
 
