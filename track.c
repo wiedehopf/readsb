@@ -1612,6 +1612,10 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                     resize_trace(a, now);
                 }
 
+                if (a->globe_index >= 0 && now > a->seen_pos + 30 * 60 * 1000) {
+                    set_globe_index(a, -5);
+                }
+
 
                 prev = a;
                 a = a->next;
@@ -1769,7 +1773,7 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
 
     if (Modes.json_globe_index) {
 
-        a->globe_index = globe_index(new_lat, new_lon);
+        set_globe_index(a, globe_index(new_lat, new_lon));
 
         if (!a->trace) {
             pthread_mutex_lock(&a->trace_mutex);

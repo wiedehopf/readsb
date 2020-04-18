@@ -369,6 +369,7 @@ struct
   int beast_fd; // Local Modes-S Beast handler
   struct net_service *services; // Active services
   struct aircraft * volatile aircrafts[AIRCRAFTS_BUCKETS]; // pointers are volatile
+  struct craftArray globeLists[GLOBE_MAX_INDEX+1];
   struct net_writer raw_out; // Raw output
   struct net_writer beast_out; // Beast-format output
   struct net_writer beast_reduce_out; // Reduced data Beast-format output

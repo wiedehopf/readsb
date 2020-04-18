@@ -2072,8 +2072,6 @@ struct char_buffer generateAircraftJson(int globe_index){
     if (globe_index >= 0)
         buflen = 1024 * 1024;
     char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
-    char *line_start;
-    int first = 1;
 
     p = safe_snprintf(p, end,
             "{ \"now\" : %.1f,\n"
@@ -2119,45 +2117,66 @@ struct char_buffer generateAircraftJson(int globe_index){
 
     p = safe_snprintf(p, end, "  \"aircraft\" : [");
 
-    for (int j = 0; j < AIRCRAFTS_BUCKETS; j++) {
-        for (a = Modes.aircrafts[j]; a; a = a->next) {
+    if (globe_index >= 0) {
+        struct craftArray *ca = NULL;
+        int good;
+        if (globe_index <= GLOBE_MAX_INDEX) {
+            ca = &Modes.globeLists[globe_index];
+            good = 1;
+        } else {
+            fprintf(stderr, "generateAircraftJson: bad globe_index: %d\n", globe_index);
+            good = 0;
+        }
+        if (ca->list && good) {
+            for (int i = 0; i < ca->len; i++) {
+                a = ca->list[i];
 
-            //fprintf(stderr, "a: %05x\n", a->addr);
-            if (globe_index >= 0) {
-                if (a->globe_index != globe_index) {
+                if (a == NULL)
                     continue;
-                }
-                if (now > a->seen_pos + TRACK_EXPIRE_JAERO) {
-                    continue;
-                }
-            }
-            // don't include stale aircraft in the JSON
-            if (a->position_valid.source != SOURCE_JAERO && now > a->seen + 60 * 1000)
-                continue;
 
-            if (first)
-                first = 0;
-            else
+                if (now > a->seen_pos + TRACK_EXPIRE_JAERO)
+                    continue;
+
+                // check if we have enough space
+                if ((p + 1000) >= end) {
+                    int used = p - buf;
+                    buflen *= 2;
+                    buf = (char *) realloc(buf, buflen);
+                    p = buf + used;
+                    end = buf + buflen;
+                }
+
+                p = sprintAircraftObject(p, end, a, now, 0);
+
                 *p++ = ',';
+            }
+        }
+    } else {
+        for (int j = 0; j < AIRCRAFTS_BUCKETS; j++) {
+            for (a = Modes.aircrafts[j]; a; a = a->next) {
+                //fprintf(stderr, "a: %05x\n", a->addr);
 
-retry:
-            line_start = p;
+                // don't include stale aircraft in the JSON
+                if (a->position_valid.source != SOURCE_JAERO && now > a->seen + 60 * 1000)
+                    continue;
 
-            p = sprintAircraftObject(p, end, a, now, 0);
+                // check if we have enough space
+                if ((p + 1000) >= end) {
+                    int used = p - buf;
+                    buflen *= 2;
+                    buf = (char *) realloc(buf, buflen);
+                    p = buf + used;
+                    end = buf + buflen;
+                }
 
-            //check_state_all(a, now);
+                p = sprintAircraftObject(p, end, a, now, 0);
 
-            if ((p + 100) >= end) { // +100 to leave some space for the final line
-                // overran the buffer
-                int used = line_start - buf;
-                buflen *= 2;
-                buf = (char *) realloc(buf, buflen);
-                p = buf + used;
-                end = buf + buflen;
-                goto retry;
+                *p++ = ',';
             }
         }
     }
+    if (*(p-1) == ',')
+        p--;
 
     p = safe_snprintf(p, end, "\n  ]\n}\n");
 

@@ -493,6 +493,9 @@ keep_trace:
                 exit(1);
             }
 
+            if (a->globe_index > GLOBE_MAX_INDEX)
+                a->globe_index = -5;
+
             a->first_message = NULL;
             if (a->seen > now)
                 a->seen = 0;
@@ -827,5 +830,80 @@ static void mark_legs(struct aircraft *a) {
     if (last_leg != new_leg) {
         a->trace_full_write = 9999;
         //fprintf(stderr, "%06x\n", a->addr);
+    }
+}
+
+void ca_init (struct craftArray *ca) {
+    *ca = (struct craftArray) {0};
+}
+
+void ca_destroy (struct craftArray *ca) {
+    if (ca->list)
+        free(ca->list);
+    *ca = (struct craftArray) {0};
+}
+
+void ca_add (struct craftArray *ca, struct aircraft *a) {
+    if (ca->alloc == 0) {
+        ca->alloc = 64;
+        ca->list = realloc(ca->list, ca->alloc * sizeof(struct aircraft *));
+    }
+    if (ca->len == ca->alloc) {
+        ca->alloc *= 2;
+        ca->list = realloc(ca->list, ca->alloc * sizeof(struct aircraft *));
+    }
+    if (!ca->list) {
+        fprintf(stderr, "ca_add(): out of memory!\n");
+        exit(1);
+    }
+    for (int i = 0; i < ca->len; i++) {
+        if (a == ca->list[i]) {
+            fprintf(stderr, "ca_add(): double add!\n");
+            return;
+        }
+    }
+    for (int i = 0; i < ca->len; i++) {
+        if (ca->list[i] == NULL) {
+            ca->list[i] = a;
+            return; // added, len stays the same
+        }
+    }
+    ca->list[ca->len] = a;  // added, len is incremented
+    ca->len++;
+    return;
+}
+
+void ca_remove (struct craftArray *ca, struct aircraft *a) {
+    if (!ca->list)
+        return;
+    for (int i = 0; i < ca->len; i++) {
+        if (ca->list[i] == a) {
+            ca->list[i] = NULL;
+
+            if (i == ca->len - 1)
+                ca->len--;
+
+            return;
+        }
+    }
+    fprintf(stderr, "ca_remove(): pointer not in array!\n");
+    return;
+}
+
+void set_globe_index (struct aircraft *a, int new_index) {
+
+    int old_index = a->globe_index;
+    a->globe_index = new_index;
+
+    if (old_index == new_index)
+        return;
+    if (new_index > GLOBE_MAX_INDEX || old_index > GLOBE_MAX_INDEX) {
+        fprintf(stderr, "hex: %06x,old_index: %d, new_index: %d, GLOBE_MAX_INDEX: %d\n", a->addr, Modes.globeLists[new_index].len, new_index, GLOBE_MAX_INDEX );
+        return;
+    }
+    if (old_index >= 0)
+        ca_remove(&Modes.globeLists[old_index], a);
+    if (new_index >= 0) {
+        ca_add(&Modes.globeLists[new_index], a);
     }
 }

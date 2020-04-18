@@ -734,6 +734,10 @@ static void cleanup_and_exit(int code) {
     /* Cleanup network setup */
     cleanupNetwork();
 
+    for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
+        ca_destroy(&Modes.globeLists[i]);
+    }
+
 #ifndef _WIN32
     exit(code);
 #else
@@ -1120,6 +1124,13 @@ int main(int argc, char **argv) {
         }
         for (int i = 0; i < 8; i++) {
             pthread_join(threads[i], NULL);
+        }
+        for (int j = 0; j < AIRCRAFTS_BUCKETS; j++) {
+            for (struct aircraft *a = Modes.aircrafts[j]; a; a = a->next) {
+                int new_index = a->globe_index;
+                a->globe_index = -5;
+                set_globe_index(a, new_index);
+            }
         }
         fprintf(stderr, " .......... done!\n");
     }
