@@ -1125,14 +1125,16 @@ int main(int argc, char **argv) {
         for (int i = 0; i < 8; i++) {
             pthread_join(threads[i], NULL);
         }
+        uint32_t count_ac = 0;
         for (int j = 0; j < AIRCRAFTS_BUCKETS; j++) {
             for (struct aircraft *a = Modes.aircrafts[j]; a; a = a->next) {
                 int new_index = a->globe_index;
                 a->globe_index = -5;
                 set_globe_index(a, new_index);
+                count_ac++;
             }
         }
-        fprintf(stderr, " .......... done!\n");
+        fprintf(stderr, " .......... done, loaded %u aircraft!\n", count_ac);
     }
 
     pthread_create(&Modes.decodeThread, NULL, decodeThreadEntryPoint, NULL);

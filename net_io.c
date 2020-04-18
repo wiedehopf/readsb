@@ -2127,7 +2127,7 @@ struct char_buffer generateAircraftJson(int globe_index){
             fprintf(stderr, "generateAircraftJson: bad globe_index: %d\n", globe_index);
             good = 0;
         }
-        if (ca->list && good) {
+        if (good && ca->list) {
             for (int i = 0; i < ca->len; i++) {
                 a = ca->list[i];
 

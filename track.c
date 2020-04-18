@@ -1545,6 +1545,9 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
 
                 //fprintf(stderr, "del: %06x\n", a->addr);
 
+                // remove from the globeList
+                set_globe_index(a, -5);
+
                 // Remove the element from the linked list, with care
                 // if we are removing the first element
                 struct aircraft *del = a;
