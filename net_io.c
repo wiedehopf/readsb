@@ -2256,7 +2256,7 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
                 else
                     p = safe_snprintf(p, end, ",null");
 
-                if (0 && i % 4 == 0) {
+                if (i % 4 == 0) {
                     uint64_t now = trace->timestamp;
                     struct state_all *all = &(a->trace_all[i/4]);
                     struct aircraft b = (struct aircraft) { 0 };
@@ -3281,7 +3281,7 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
     if (trackDataValid(&a->nav_altitude_fms_valid))
         p = safe_snprintf(p, end, ",\"nav_altitude_fms\":%d", a->nav_altitude_fms);
     if (trackDataValid(&a->nav_heading_valid))
-        p = safe_snprintf(p, end, ",\"nav_heading\":%.1f", a->nav_heading);
+        p = safe_snprintf(p, end, ",\"nav_heading\":%.2f", a->nav_heading);
     if (trackDataValid(&a->nav_modes_valid)) {
         p = safe_snprintf(p, end, ",\"nav_modes\":[");
         p = append_nav_modes(p, end, a->nav_modes, "\"", ",");

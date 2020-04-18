@@ -2160,7 +2160,6 @@ void to_state_all(struct aircraft *a, struct state_all *new, uint64_t now) {
             new->nav_altitude_fms = (uint16_t) nearbyint(a->nav_altitude_fms / 4.0);
 
             new->nav_qnh = (int16_t) nearbyint(a->nav_qnh * 10.0);
-            new->nav_heading = (int16_t) nearbyint(a->nav_heading * 10.0);
             new->gs = (int16_t) nearbyint(a->gs * 10.0);
             new->mach = (int16_t) nearbyint(a->mach * 1000.0);
 
@@ -2170,6 +2169,7 @@ void to_state_all(struct aircraft *a, struct state_all *new, uint64_t now) {
             new->track = (int16_t) nearbyint(a->track * 90.0);
             new->mag_heading = (int16_t) nearbyint(a->mag_heading * 90.0);
             new->true_heading = (int16_t) nearbyint(a->true_heading * 90.0);
+            new->nav_heading = (int16_t) nearbyint(a->nav_heading * 90.0);
 
             new->emergency = a->emergency;
             new->airground = a->airground;
@@ -2340,7 +2340,6 @@ void from_state_all(struct state_all *in, struct aircraft *a , uint64_t ts) {
             a->nav_altitude_fms = in->nav_altitude_fms * 4;
 
             a->nav_qnh = in->nav_qnh / 10.0;
-            a->nav_heading = in->nav_heading / 10.0;
             a->gs = in->gs / 10.0;
             a->mach = in->mach / 1000.0;
 
@@ -2350,6 +2349,7 @@ void from_state_all(struct state_all *in, struct aircraft *a , uint64_t ts) {
             a->track = in->track / 90.0;
             a->mag_heading = in->mag_heading / 90.0;
             a->true_heading = in->true_heading / 90.0;
+            a->nav_heading = in->nav_heading / 90.0;
 
             a->emergency = in->emergency;
             a->airground = in->airground;
