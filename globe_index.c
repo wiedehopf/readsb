@@ -223,16 +223,16 @@ void write_trace(struct aircraft *a, uint64_t now) {
     recent = generateTraceJson(a, start_recent, -1);
     // write recent trace to /run
 
-    if (now > a->trace_next_mw || a->trace_full_write > 15 || now > a->trace_next_fw) {
+    if (now > a->trace_next_mw || a->trace_full_write > 35 || now > a->trace_next_fw) {
         // write full trace to /run
         int write_perm = 0;
 
         full = generateTraceJson(a, start24, -1);
 
         if (a->trace_full_write == 0xc0ffee) {
-            a->trace_next_mw = now + 1 * 60 * 1000 + rand() % (5 * 60 * 1000);
+            a->trace_next_mw = now + 1 * 60 * 1000 + rand() % (10 * 60 * 1000);
         } else {
-            a->trace_next_mw = now + 5 * 60 * 1000 + rand() % (1 * 60 * 1000);
+            a->trace_next_mw = now + 10 * 60 * 1000 + rand() % (1 * 60 * 1000);
         }
 
         if (now > a->trace_next_fw || a->trace_full_write == 0xc0ffee) {
@@ -548,8 +548,8 @@ void *jsonTraceThreadEntryPoint(void *arg) {
     int section_len = thread_section_len / n_parts;
 
     struct timespec slp = {0, 0};
-    // write each part every 25 seconds
-    uint64_t sleep = 25 * 1000 / n_parts;
+    // write each part every 10 seconds
+    uint64_t sleep = 10 * 1000 / n_parts;
 
     slp.tv_sec =  (sleep / 1000);
     slp.tv_nsec = (sleep % 1000) * 1000 * 1000;
