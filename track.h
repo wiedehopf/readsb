@@ -248,7 +248,7 @@ struct aircraft
   pthread_mutex_t trace_mutex; // 5*8bytes
   struct state *trace; // array of positions representing the aircrafts trace/trail
   struct state_all *trace_all;
-  double padding1_01;
+  uint64_t trace_next_mw; // timestamp for next full trace write to /run (tmpfs)
 
   // ----
 
@@ -259,7 +259,7 @@ struct aircraft
   double trace_llat; // last saved lat
   double trace_llon; // last saved lon
 
-  uint64_t trace_next_fw;
+  uint64_t trace_next_fw; // timestamp for next full trace write to history_dir (disk)
   uint64_t addrtype_updated;
   double padding2_02;
   double padding2_03;

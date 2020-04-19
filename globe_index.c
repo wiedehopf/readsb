@@ -210,7 +210,7 @@ void write_trace(struct aircraft *a, uint64_t now) {
 
     int start24 = 0;
     for (int i = 0; i < a->trace_len; i++) {
-        if (a->trace[i].timestamp > now - 24 * 3600 * 1000) {
+        if (a->trace[i].timestamp > now - 25 * 3600 * 1000) {
             start24 = i;
             break;
         }
@@ -223,66 +223,87 @@ void write_trace(struct aircraft *a, uint64_t now) {
     recent = generateTraceJson(a, start_recent, -1);
     // write recent trace to /run
 
-    if (a->trace_full_write > 103 || now > a->trace_next_fw) {
+    if (now > a->trace_next_mw || a->trace_full_write > 15 || now > a->trace_next_fw) {
         // write full trace to /run
+        int write_perm = 0;
 
         full = generateTraceJson(a, start24, -1);
 
         if (a->trace_full_write == 0xc0ffee) {
-            a->trace_next_fw = now + 1000 * (rand() % (GLOBE_OVERLAP - 60 - GLOBE_OVERLAP / 16));
-        } else if (!Modes.json_globe_index)  {
-            a->trace_next_fw = now + 6 * (GLOBE_OVERLAP - 60 - rand() % GLOBE_OVERLAP / 16) * 1000;
+            a->trace_next_mw = now + 1 * 60 * 1000 + rand() % (5 * 60 * 1000);
         } else {
-            a->trace_next_fw = now + (GLOBE_OVERLAP - 60 - rand() % GLOBE_OVERLAP / 16) * 1000;
+            a->trace_next_mw = now + 5 * 60 * 1000 + rand() % (1 * 60 * 1000);
         }
 
+        if (now > a->trace_next_fw || a->trace_full_write == 0xc0ffee) {
+
+            write_perm = 1;
+
+            if (a->trace_full_write == 0xc0ffee) {
+                a->trace_next_fw = now + 1000 * (rand() % (GLOBE_OVERLAP - 60 - GLOBE_OVERLAP / 16));
+            } else if (!Modes.json_globe_index)  {
+                a->trace_next_fw = now + 6 * (GLOBE_OVERLAP - 60 - rand() % GLOBE_OVERLAP / 16) * 1000;
+            } else {
+                a->trace_next_fw = now + (GLOBE_OVERLAP - 60 - rand() % GLOBE_OVERLAP / 16) * 1000;
+            }
+        }
         a->trace_full_write = 0;
+
         //fprintf(stderr, "%06x\n", a->addr);
-        if (a->pos_set && Modes.globe_history_dir && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
-            int size_state = a->trace_len * sizeof(struct state);
-            int size_all = (a->trace_len + 3) / 4 * sizeof(struct state_all);
-            shadow_size = sizeof(struct aircraft) + size_state + size_all;
 
-            shadow = malloc(shadow_size);
-            char *start = shadow;
-
-            memcpy(start, a, sizeof(struct aircraft));
-            start += sizeof(struct aircraft);
-            if (a->trace_len > 0) {
-                memcpy(start, a->trace, size_state);
-                start += size_state;
-                memcpy(start, a->trace_all, size_all);
-                start += size_all;
+        // prepare stuff to be written to disk
+        // written to memory, then to disk outside the trace_mutex
+        if (write_perm) {
+            // if the trace length is zero, the trace is written once more
+            // and not written again until a new position is received
+            if (a->trace_len == 0) {
+                a->trace_full_write = 0xdead;
             }
-        }
-        if (a->trace_len == 0) {
-            a->trace_full_write = 0xdead;
-        }
 
-        if (a->trace_len > 0 &&
-                Modes.globe_history_dir && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
-            // write to permanent storage
+            // prepare writing internal state
+            if (a->pos_set && Modes.globe_history_dir && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
+                int size_state = a->trace_len * sizeof(struct state);
+                int size_all = (a->trace_len + 3) / 4 * sizeof(struct state_all);
+                shadow_size = sizeof(struct aircraft) + size_state + size_all;
 
-            struct tm utc;
-            gmtime_r(&nowish, &utc);
-            utc.tm_sec = 0;
-            utc.tm_min = 0;
-            utc.tm_hour = 0;
-            uint64_t start_of_day = 1000 * (uint64_t) (timegm(&utc));
-            uint64_t end_of_day = 1000 * (uint64_t) (timegm(&utc) + 86400);
+                shadow = malloc(shadow_size);
+                char *start = shadow;
 
-            int start = -1;
-            int end = -1;
-            for (int i = 0; i < a->trace_len; i++) {
-                if (start == -1 && a->trace[i].timestamp > start_of_day) {
-                    start = i;
-                }
-                if (a->trace[i].timestamp < end_of_day) {
-                    end = i;
+                memcpy(start, a, sizeof(struct aircraft));
+                start += sizeof(struct aircraft);
+                if (a->trace_len > 0) {
+                    memcpy(start, a->trace, size_state);
+                    start += size_state;
+                    memcpy(start, a->trace_all, size_all);
+                    start += size_all;
                 }
             }
-            if (start >= 0 && end >= 0)
-                hist = generateTraceJson(a, start, end);
+
+            // prepare writing the permanent history
+            if (a->trace_len > 0 &&
+                    Modes.globe_history_dir && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
+
+                struct tm utc;
+                gmtime_r(&nowish, &utc);
+                utc.tm_sec = 0;
+                utc.tm_min = 0;
+                utc.tm_hour = 0;
+                uint64_t start_of_day = 1000 * (uint64_t) (timegm(&utc));
+                uint64_t end_of_day = 1000 * (uint64_t) (timegm(&utc) + 86400);
+
+                int start = -1;
+                int end = -1;
+                for (int i = 0; i < a->trace_len; i++) {
+                    if (start == -1 && a->trace[i].timestamp > start_of_day) {
+                        start = i;
+                    }
+                    if (a->trace[i].timestamp < end_of_day) {
+                        end = i;
+                    }
+                }
+                if (start >= 0 && end >= 0)
+                    hist = generateTraceJson(a, start, end);
+            }
         }
     }
 
