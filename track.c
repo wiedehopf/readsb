@@ -1122,12 +1122,25 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         if (mm->source == SOURCE_SBS || mm->source == SOURCE_MLAT || mm->source ==SOURCE_JAERO)
             good_crc = ALTITUDE_BARO_RELIABLE_MAX/2 - 1;
 
-        if (a->altitude_baro_reliable <= 0  || abs(delta) < 300
-                || (fpm < max_fpm && fpm > min_fpm)
-                || (good_crc && a->altitude_baro_reliable <= (ALTITUDE_BARO_RELIABLE_MAX/2 + 2))
-                || mm->source > a->altitude_baro_valid.source
-                || (mm->source == SOURCE_JAERO && a->altitude_baro_valid.source == SOURCE_JAERO)
-           ) {
+        if (a->altitude_baro > 50175 && mm->alt_q_bit && a->altitude_baro_reliable > ALTITUDE_BARO_RELIABLE_MAX/4) {
+            good_crc = 0;
+            //fprintf(stderr, "q_bit == 1 && a->alt > 50175: %06x\n", a->addr);
+            goto discard_alt;
+        }
+
+        if (a->altitude_baro_reliable <= 0  || abs(delta) < 300)
+            goto accept_alt;
+        if (fpm < max_fpm && fpm > min_fpm)
+            goto accept_alt;
+        if (good_crc && a->altitude_baro_reliable <= (ALTITUDE_BARO_RELIABLE_MAX/2 + 2))
+            goto accept_alt;
+        if (mm->source > a->altitude_baro_valid.source)
+            goto accept_alt;
+        if (mm->source == SOURCE_JAERO && a->altitude_baro_valid.source == SOURCE_JAERO)
+            goto accept_alt;
+
+        goto discard_alt;
+accept_alt:
             if (accept_data(&a->altitude_baro_valid, mm->source, mm, 1)) {
                 a->altitude_baro_reliable = min(ALTITUDE_BARO_RELIABLE_MAX , a->altitude_baro_reliable + (good_crc+1));
                 /*if (abs(delta) > 2000 && delta != alt) {
@@ -1136,7 +1149,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                 }*/
                 a->altitude_baro = alt;
             }
-        } else {
+            goto end_alt;
+discard_alt:
             a->altitude_baro_reliable = a->altitude_baro_reliable - (good_crc+1);
             //fprintf(stderr, "Alt check F: %06x: %d   %d -> %d, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
             //        a->addr, a->altitude_baro_reliable, a->altitude_baro, alt, min_fpm/1000.0, max_fpm/1000.0, fpm/1000.0);
@@ -1145,7 +1159,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                 a->altitude_baro_reliable = 0;
                 a->altitude_baro_valid.source = SOURCE_INVALID;
             }
-        }
+end_alt:
+            ;
     }
 
     if (mm->squawk_valid && accept_data(&a->squawk_valid, mm->source, mm, 0)) {

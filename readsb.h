@@ -533,7 +533,8 @@ struct modesMessage
   unsigned alert : 1;
   unsigned emergency_valid : 1;
   unsigned sbs_pos_valid : 1;
-  unsigned padding : 12;
+  unsigned alt_q_bit : 1;
+  unsigned padding : 11;
 
   // valid if altitude_baro_valid:
   int altitude_baro; // Altitude in either feet or meters

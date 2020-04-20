@@ -149,9 +149,12 @@ static int decodeID13Field(int ID13Field) {
 // Returns the altitude, and set 'unit' to either UNIT_METERS or UNIT_FEET.
 //
 
-static int decodeAC13Field(int AC13Field, altitude_unit_t *unit) {
+static int decodeAC13Field(int AC13Field, altitude_unit_t *unit, unsigned *mm_q_bit) {
     int m_bit = AC13Field & 0x0040; // set = meters, clear = feet
     int q_bit = AC13Field & 0x0010; // set = 25 ft encoding, clear = Gillham Mode C encoding
+
+    if (q_bit)
+        *mm_q_bit = 1;
 
     if (!m_bit) {
         *unit = UNIT_FEET;
@@ -184,8 +187,11 @@ static int decodeAC13Field(int AC13Field, altitude_unit_t *unit) {
 // Decode the 12 bit AC altitude field (in DF 17 and others).
 //
 
-static int decodeAC12Field(int AC12Field, altitude_unit_t *unit) {
+static int decodeAC12Field(int AC12Field, altitude_unit_t *unit, unsigned *mm_q_bit) {
     int q_bit = AC12Field & 0x10; // Bit 48 = Q
+
+    if (q_bit)
+        *mm_q_bit = 1;
 
     *unit = UNIT_FEET;
     if (q_bit) {
@@ -565,9 +571,12 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
     if (mm->msgtype == 0 || mm->msgtype == 4 || mm->msgtype == 16 || mm->msgtype == 20) {
         mm->AC = getbits(msg, 20, 32);
         if (mm->AC) { // Only attempt to decode if a valid (non zero) altitude is present
-            mm->altitude_baro = decodeAC13Field(mm->AC, &mm->altitude_baro_unit);
-            if (mm->altitude_baro != INVALID_ALTITUDE)
+            unsigned q_bit = 0;
+            mm->altitude_baro = decodeAC13Field(mm->AC, &mm->altitude_baro_unit, &q_bit);
+            if (mm->altitude_baro != INVALID_ALTITUDE) {
+                mm->alt_q_bit = q_bit;
                 mm->altitude_baro_valid = 1;
+            }
         }
     }
 
@@ -1008,8 +1017,10 @@ static void decodeESAirbornePosition(struct modesMessage *mm, int check_imf) {
 
     if (AC12Field && mm->airground != AG_GROUND) {// Only attempt to decode if a valid (non zero) altitude is present and not on ground
         altitude_unit_t unit;
-        int alt = decodeAC12Field(AC12Field, &unit);
+        unsigned q_bit = 0;
+        int alt = decodeAC12Field(AC12Field, &unit, &q_bit);
         if (alt != INVALID_ALTITUDE) {
+            mm->alt_q_bit = q_bit;
             if (mm->metype == 20 || mm->metype == 21 || mm->metype == 22) {
                 mm->altitude_geom = alt;
                 mm->altitude_geom_unit = unit;
