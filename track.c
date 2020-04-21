@@ -1858,7 +1858,11 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
             goto no_save_state;
         }
 
-        if (elapsed > 101 * 1000 )
+        if (elapsed > 31 * 1000 )
+            goto save_state;
+
+        // save a point if reception is spotty so we can mark track as spotty on display
+        if (now > a->seen_pos + 20 * 1000)
             goto save_state;
 
         if (on_ground) {
