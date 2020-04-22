@@ -2272,10 +2272,10 @@ static void calc_wind(struct aircraft *a, uint64_t now) {
     if (!trackDataValid(&a->position_valid) || a->airground == AG_GROUND)
         return;
 
-    if (trackDataAge(now, &a->tas_valid) > 5000
-            || trackDataAge(now, &a->gs_valid) > 5000
-            || trackDataAge(now, &a->track_valid) > 5000
-            || trackDataAge(now, &a->true_heading_valid) > 5000
+    if (trackDataAge(now, &a->tas_valid) > TRACK_WT_TIMEOUT
+            || trackDataAge(now, &a->gs_valid) > TRACK_WT_TIMEOUT
+            || trackDataAge(now, &a->track_valid) > TRACK_WT_TIMEOUT
+            || trackDataAge(now, &a->true_heading_valid) > TRACK_WT_TIMEOUT
        ) {
         return;
     }
@@ -2310,7 +2310,7 @@ static void calc_wind(struct aircraft *a, uint64_t now) {
 static void calc_temp(struct aircraft *a, uint64_t now) {
     if (a->airground == AG_GROUND)
         return;
-    if (trackDataAge(now, &a->tas_valid) > 5000 || trackDataAge(now, &a->mach_valid) > 5000)
+    if (trackDataAge(now, &a->tas_valid) > TRACK_WT_TIMEOUT || trackDataAge(now, &a->mach_valid) > TRACK_WT_TIMEOUT)
         return;
 
     double fraction = a->tas / 661.47 / a->mach;

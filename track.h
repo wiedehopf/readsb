@@ -88,6 +88,8 @@
 // 33 minutes
 #define TRACK_EXPIRE_JAERO (33*60*1000)
 
+// 2.5 seconds maximum between messages used for calculating wind / temperature
+#define TRACK_WT_TIMEOUT (2500)
 
 // data moves through three states:
 //  fresh: data is valid. Updates from a less reliable source are not accepted.
