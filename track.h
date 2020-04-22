@@ -157,6 +157,11 @@ struct state_all
   int16_t mag_heading; // Magnetic heading
   int16_t true_heading; // True heading
 
+  int wind_direction:10;
+  int wind_speed:10;
+  int oat:10;
+  int tat:10;
+
   unsigned category:8; // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
 
   unsigned pos_nic:8; // NIC of last computed position
@@ -221,6 +226,10 @@ struct state_all
   unsigned position_valid:1;
   unsigned alert_valid:1;
   unsigned spi_valid:1;
+  unsigned wind_valid:1;
+  unsigned temp_valid:1;
+
+  unsigned padding:22;
 } __attribute__ ((__packed__));
 
 /* Structure used to describe the state of one tracked aircraft */

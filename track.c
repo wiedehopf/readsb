@@ -2197,6 +2197,16 @@ void to_state_all(struct aircraft *a, struct state_all *new, uint64_t now) {
             new->nav_altitude_src = a->nav_altitude_src;
             new->sil_type = a->sil_type;
 
+            if (now < a->wind_updated + TRACK_EXPIRE && abs(a->wind_altitude - a->altitude_baro) < 500) {
+                new->wind_direction = (int) nearbyint(a->wind_direction);
+                new->wind_speed = (int) nearbyint(a->wind_speed);
+                new->wind_valid = 1;
+            }
+            if (now < a->oat_updated + TRACK_EXPIRE) {
+                new->oat = (int) nearbyint(a->oat);
+                new->tat = (int) nearbyint(a->tat);
+                new->temp_valid = 1;
+            }
 
             if (a->adsb_version < 0)
                 new->adsb_version = 15;
@@ -2379,6 +2389,17 @@ void from_state_all(struct state_all *in, struct aircraft *a , uint64_t ts) {
             a->nav_altitude_src = in->nav_altitude_src;
             a->sil_type = in->sil_type;
 
+            if (in->wind_valid) {
+                a->wind_direction = in->wind_direction;
+                a->wind_speed = in->wind_speed;
+                a->wind_updated = ts - 5000;
+                a->wind_altitude = a->altitude_baro;
+            }
+            if (in->temp_valid) {
+                a->oat = in->oat;
+                a->tat = in->tat;
+                a->oat_updated = ts - 5000;
+            }
 
             if (in->adsb_version == 15)
                 a->adsb_version = -1;
