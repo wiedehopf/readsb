@@ -261,7 +261,8 @@ struct aircraft
 
   uint64_t trace_next_fw; // timestamp for next full trace write to history_dir (disk)
   uint64_t addrtype_updated;
-  double padding2_02;
+  float tat;
+  float padding2_02;
   double padding2_03;
 
   // ----

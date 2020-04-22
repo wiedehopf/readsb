@@ -3248,8 +3248,10 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
             p = safe_snprintf(p, end, ",\"wd\":%.0f", a->wind_direction);
             p = safe_snprintf(p, end, ",\"ws\":%.0f", a->wind_speed);
         }
-        if (now < a->oat_updated + TRACK_EXPIRE)
-            p = safe_snprintf(p, end, ",\"oat\":%.1f", a->oat);
+        if (now < a->oat_updated + TRACK_EXPIRE) {
+            p = safe_snprintf(p, end, ",\"oat\":%.0f", a->oat);
+            p = safe_snprintf(p, end, ",\"tat\":%.0f", a->tat);
+        }
     }
 
     if (trackDataValid(&a->track_valid))

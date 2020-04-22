@@ -2314,9 +2314,11 @@ static void calc_temp(struct aircraft *a, uint64_t now) {
         return;
 
     double fraction = a->tas / 661.47 / a->mach;
-    double temp = fraction * fraction * 288.15 - 273.15;
+    double oat = (fraction * fraction * 288.15) - 273.15;
+    double tat = -273.15 + ((oat + 273.15) * (1 + 0.2 * a->mach * a->mach));
 
-    a->oat = temp;
+    a->oat = oat;
+    a->tat = tat;
     a->oat_updated = now;
 }
 
