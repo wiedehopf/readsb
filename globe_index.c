@@ -173,14 +173,14 @@ int globe_index(double lat_in, double lon_in) {
     int i = (lat + 90) / grid;
     int j = (lon + 180) / grid;
 
-    return (i * GLOBE_LAT_MULT + j + 1000);
+    return (i * GLOBE_LAT_MULT + j + GLOBE_MIN_INDEX);
     // highest number returned: globe_index(90, 180)
     // first 1000 are reserved for special use
 }
 
 int globe_index_index(int index) {
-    double lat = ((index - 1000) /  GLOBE_LAT_MULT) * GLOBE_INDEX_GRID - 90;
-    double lon = ((index - 1000) % GLOBE_LAT_MULT) * GLOBE_INDEX_GRID - 180;
+    double lat = ((index - GLOBE_MIN_INDEX) /  GLOBE_LAT_MULT) * GLOBE_INDEX_GRID - 90;
+    double lon = ((index - GLOBE_MIN_INDEX) % GLOBE_LAT_MULT) * GLOBE_INDEX_GRID - 180;
     return globe_index(lat, lon);
 }
 
@@ -907,7 +907,7 @@ void ca_remove (struct craftArray *ca, struct aircraft *a) {
             return;
         }
     }
-    fprintf(stderr, "ca_remove(): pointer not in array!\n");
+    //fprintf(stderr, "hex: %06x, ca_remove(): pointer not in array!\n", a->addr);
     return;
 }
 
@@ -919,7 +919,7 @@ void set_globe_index (struct aircraft *a, int new_index) {
     if (old_index == new_index)
         return;
     if (new_index > GLOBE_MAX_INDEX || old_index > GLOBE_MAX_INDEX) {
-        fprintf(stderr, "hex: %06x,old_index: %d, new_index: %d, GLOBE_MAX_INDEX: %d\n", a->addr, Modes.globeLists[new_index].len, new_index, GLOBE_MAX_INDEX );
+        fprintf(stderr, "hex: %06x, old_index: %d, new_index: %d, GLOBE_MAX_INDEX: %d\n", a->addr, Modes.globeLists[new_index].len, new_index, GLOBE_MAX_INDEX );
         return;
     }
     if (old_index >= 0)
