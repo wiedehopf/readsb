@@ -1006,6 +1006,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         a->first_message = NULL;
     }
 
+    if (mm->source == SOURCE_MLAT)
+        mm->addrtype = ADDR_MLAT;
     // update addrtype
     if (a->addrtype_updated > now
             || (mm->addrtype > a->addrtype && now > 90 * 1000 + a->addrtype_updated)
