@@ -1922,9 +1922,12 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
 
         if (last->flags.track_valid && track_valid) {
             if (track_diff > 0.5
-                    && (now > last->timestamp + (uint64_t) (100.0 * 1000.0 / turn_density / track_diff))
+                    && (elapsed > (uint64_t) (100.0 * 1000.0 / turn_density / track_diff))
                ) {
                 //fprintf(stderr, "t");
+                goto save_state;
+            }
+            if (mm->source >= SOURCE_TISB && track_diff > 0.5 && elapsed > 4 * 1000) {
                 goto save_state;
             }
         }
@@ -2292,6 +2295,18 @@ static void calc_wind(struct aircraft *a, uint64_t now) {
        ) {
         return;
     }
+
+    // don't use this code for now
+    /*
+    if (a->trace && a->trace_len >= 2) {
+        struct state *last = &(a->trace[a->trace_len-1]);
+        if (now + 1500 < last->timestamp)
+            last = &(a->trace[a->trace_len-2]);
+        float track_diff = fabs(a->track - last->track / 10.0);
+        if (last->flags.track_valid && track_diff > 0.5)
+            return;
+    }
+    */
 
     double trk = (M_PI / 180) * a->track;
     double hdg = (M_PI / 180) * a->true_heading;
