@@ -1223,7 +1223,9 @@ end_alt:
             double dec;
             int err = declination(a, &dec);
             if (accept_data(&a->mag_heading_valid, mm->source, mm, 1)) {
-                // don't accept more than 45 degree crab
+                a->mag_heading = mm->heading;
+
+                // don't accept more than 45 degree crab when deriving the true heading
                 if (
                         (!trackDataValid(&a->track_valid) || fabs(norm_diff(mm->heading + dec - a->track, 180)) < 45)
                         && !err && accept_data(&a->true_heading_valid, SOURCE_INDIRECT, mm, 1)
@@ -1231,7 +1233,6 @@ end_alt:
                     a->true_heading = norm_angle(mm->heading + dec, 180);
                     calc_wind(a, now);
                 }
-                a->mag_heading = mm->heading;
             }
         } else if (htype == HEADING_TRUE && accept_data(&a->true_heading_valid, mm->source, mm, 1)) {
             a->true_heading = mm->heading;
@@ -2286,8 +2287,8 @@ static void calc_wind(struct aircraft *a, uint64_t now) {
 
     if (trackDataAge(now, &a->tas_valid) > TRACK_WT_TIMEOUT
             || trackDataAge(now, &a->gs_valid) > TRACK_WT_TIMEOUT
-            || trackDataAge(now, &a->track_valid) > TRACK_WT_TIMEOUT
-            || trackDataAge(now, &a->true_heading_valid) > TRACK_WT_TIMEOUT
+            || trackDataAge(now, &a->track_valid) > TRACK_WT_TIMEOUT / 2
+            || trackDataAge(now, &a->true_heading_valid) > TRACK_WT_TIMEOUT / 2
        ) {
         return;
     }
