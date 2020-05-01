@@ -1927,9 +1927,6 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
                 //fprintf(stderr, "t");
                 goto save_state;
             }
-            if (mm->source >= SOURCE_TISB && track_diff > 0.5 && elapsed > 4 * 1000) {
-                goto save_state;
-            }
         }
 
         if (trackDataValid(&a->gs_valid) && last->flags.gs_valid && fabs(last->gs / 10.0 - a->gs) > 8) {
