@@ -1,5 +1,5 @@
 PROGNAME=readsb
-READSB_VERSION='v3.8.1'
+READSB_VERSION := "$(shell git describe --abbrev --dirty --always; git show -s --format=format:"%cd: %s")"
 
 RTLSDR ?= no
 BLADERF ?= no
@@ -7,7 +7,7 @@ PLUTOSDR ?= no
 AGGRESSIVE ?= no
 HAVE_BIASTEE ?= no
 
-CPPFLAGS += -DMODES_READSB_VERSION=\"$(READSB_VERSION)\" -DMODES_READSB_VARIANT=\"Mictronics\" -D_GNU_SOURCE
+CPPFLAGS += -DMODES_READSB_VERSION=\"$(READSB_VERSION)\" -D_GNU_SOURCE
 
 DIALECT = -std=c11
 CFLAGS += $(DIALECT) -O2 -march=native -g -W -D_DEFAULT_SOURCE -Wall -Werror
@@ -55,6 +55,15 @@ ifeq ($(PLUTOSDR), yes)
 endif
 
 all: readsb viewadsb
+
+ifneq ($(shell cat .version 2>/dev/null),prefix $(READSB_VERSION))
+.PHONY: .version
+.version:
+	@(echo 'prefix $(READSB_VERSION)' >.version &)
+endif
+
+readsb.o: readsb.c *.h .version
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 %.o: %.c *.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@

@@ -62,7 +62,7 @@
 #endif
 
 #ifndef MODES_READSB_VARIANT
-#define MODES_READSB_VARIANT     "Mictronics"
+#define MODES_READSB_VARIANT     "wiedehopf dev"
 #endif
 
 // ============================= Include files ==========================
