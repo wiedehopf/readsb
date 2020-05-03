@@ -3376,7 +3376,10 @@ void cleanupNetwork(void) {
     for (int i = 0; i < Modes.net_connectors_count; i++) {
         struct net_connector *con = Modes.net_connectors[i];
         free(con->address);
-        freeaddrinfo(con->addr_info);
+        if (con->addr_info) {
+            freeaddrinfo(con->addr_info);
+            con->addr_info = NULL;
+        }
         pthread_mutex_unlock(&con->mutex);
         pthread_mutex_destroy(&con->mutex);
         free(con);
