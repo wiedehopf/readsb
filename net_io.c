@@ -2159,6 +2159,8 @@ struct char_buffer generateAircraftJson(int globe_index){
                 // don't include stale aircraft in the JSON
                 if (a->position_valid.source != SOURCE_JAERO && now > a->seen + 60 * 1000)
                     continue;
+                if (a->messages < 2)
+                    continue;
 
                 // check if we have enough space
                 if ((p + 1000) >= end) {
