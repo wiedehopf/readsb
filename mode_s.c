@@ -738,6 +738,11 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
     if (mm->remote && mm->timestampMsg == MAGIC_MLAT_TIMESTAMP)
         mm->source = SOURCE_MLAT;
 
+    if (mm->remote && mm->timestampMsg == 0 && mm->source != SOURCE_ADSR && mm->source != SOURCE_TISB) {
+        mm->source = SOURCE_SBS;
+        mm->addrtype = ADDR_OTHER;
+    }
+
     // all done
     return 0;
 }
