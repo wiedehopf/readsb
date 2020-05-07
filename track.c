@@ -2338,6 +2338,9 @@ static void calc_temp(struct aircraft *a, uint64_t now) {
     if (trackDataAge(now, &a->tas_valid) > TRACK_WT_TIMEOUT || trackDataAge(now, &a->mach_valid) > TRACK_WT_TIMEOUT)
         return;
 
+    if (a->mach < 0.395)
+        return;
+
     double fraction = a->tas / 661.47 / a->mach;
     double oat = (fraction * fraction * 288.15) - 273.15;
     double tat = -273.15 + ((oat + 273.15) * (1 + 0.2 * a->mach * a->mach));
