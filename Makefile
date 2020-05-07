@@ -1,5 +1,5 @@
 PROGNAME=readsb
-READSB_VERSION := "$(shell git describe --abbrev --dirty --always; git show -s --format=format:"%cd: %s")"
+READSB_VERSION := "$(shell git describe --abbrev --dirty --always; git show -s --format=format:"%cd: %s" | tr -cd '[a-z],[A-Z],[0-9],:, ,\-,_')"
 
 RTLSDR ?= no
 BLADERF ?= no
