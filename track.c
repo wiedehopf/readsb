@@ -160,6 +160,8 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
     else
         d->source = source;
 
+    d->last_source = d->source;
+
     d->updated = receiveTime;
     d->stale = 0;
 
@@ -192,6 +194,7 @@ static void combine_validity(data_validity *to, const data_validity *from1, cons
     }
 
     to->source = (from1->source < from2->source) ? from1->source : from2->source; // the worse of the two input sources
+    to->last_source = to->source;
     to->updated = (from1->updated > from2->updated) ? from1->updated : from2->updated; // the *later* of the two update times
     to->stale = (now > to->updated + TRACK_STALE);
 }
@@ -280,7 +283,7 @@ static void update_range_histogram(double lat, double lon) {
 // return true if it's OK for the aircraft to have travelled from its last known position
 // to a new position at (lat,lon,surface) at a time of now.
 
-static int speed_check(struct aircraft *a, datasource_t source, double lat, double lon, int surface) {
+static int speed_check(struct aircraft *a, datasource_t source, double lat, double lon, struct modesMessage *mm) {
     uint64_t elapsed;
     double distance;
     double range;
@@ -288,16 +291,18 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     int inrange;
     uint64_t now = a->seen;
 
-    if (!trackDataValid(&a->position_valid))
-        return 1; // no reference, assume OK
-    if (source > a->position_valid.source)
+    int surface = (mm->cpr_type == CPR_SURFACE) && a->pos_surface;
+
+    if (now > a->position_valid.updated + (120 * 1000))
+        return 1; // no reference or older than 120 seconds, assume OK
+    if (source > a->position_valid.last_source)
         return 1; // data is better quality, OVERRIDE
 
     elapsed = trackDataAge(now, &a->position_valid);
 
-    speed = surface ? 100 : 700; // guess
+    speed = surface ? 150 : 900; // guess
 
-    if (a->position_valid.source > SOURCE_MLAT) {
+    if (a->position_valid.last_source > SOURCE_MLAT) {
         if (trackDataValid(&a->gs_valid)) {
             // use the larger of the current and earlier speed
             speed = (a->gs_last_pos > a->gs) ? a->gs_last_pos : a->gs;
@@ -309,7 +314,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
             speed = a->ias * 2;
         }
     } else {
-        speed = 1100;
+        speed = 1000;
     }
 
     // Work out a reasonable speed to use:
@@ -416,7 +421,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
     // check speed limit
     if (
             (a->pos_reliable_odd > 0 || a->pos_reliable_even > 0)
-            && !speed_check(a, mm->source, *lat, *lon, surface)
+            && !speed_check(a, mm->source, *lat, *lon, mm)
        ) {
         Modes.stats_current.cpr_global_speed_checks++;
         return -2;
@@ -510,7 +515,7 @@ static int doLocalCPR(struct aircraft *a, struct modesMessage *mm, double *lat, 
     }
 
     // check speed limit
-    if (!speed_check(a, mm->source, *lat, *lon, surface)) {
+    if (!speed_check(a, mm->source, *lat, *lon, mm)) {
         if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
             fprintf(stderr, "Speed check for %06X with local decoding failed\n", a->addr);
         }
@@ -651,6 +656,8 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
         a->lon = new_lon;
         a->pos_nic = new_nic;
         a->pos_rc = new_rc;
+
+        a->pos_surface = (mm->cpr_type == CPR_SURFACE);
 
         if (a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2 && mm->source == SOURCE_ADSB) {
             update_range_histogram(new_lat, new_lon);
@@ -1082,7 +1089,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     
     if (mm->altitude_baro_valid &&
             (mm->source >= a->altitude_baro_valid.source ||
-             (trackDataAge(now, &a->baro_rate_valid) > 10
+             (trackDataAge(now, &a->baro_rate_valid) > 10 * 1000
               && a->altitude_baro_valid.source != SOURCE_JAERO
               && a->altitude_baro_valid.source != SOURCE_SBS)
             )
@@ -1413,7 +1420,7 @@ end_alt:
         } else if (
                 mm->source != SOURCE_JAERO
                 && mm->source != SOURCE_PRIO
-                && !speed_check(a, mm->source, mm->decoded_lat, mm->decoded_lon, 0)
+                && !speed_check(a, mm->source, mm->decoded_lat, mm->decoded_lon, mm)
            )
         {
             if (mm->source >= a->position_valid.source) {
@@ -1619,8 +1626,8 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                     with_pos++;
                 }
 
-                // reset position reliability when the position has expired
-                if (a->position_valid.source == SOURCE_INVALID) {
+                // reset position reliability when no position was received for 120 seconds
+                if (trackDataAge(now, &a->position_valid) > 120 * 1000) {
                     a->pos_reliable_odd = 0;
                     a->pos_reliable_even = 0;
                 }

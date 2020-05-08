@@ -102,7 +102,8 @@ typedef struct
   uint64_t next_reduce_forward; /* when to next forward the data for reduced beast output */
   uint32_t stale; /* if it's stale 1 / 0 */
   datasource_t source; /* where the data came from */
-  uint64_t padding;
+  datasource_t last_source; /* where the data came from */
+  uint32_t padding;
 } data_validity;
 
 struct state_flags
@@ -359,7 +360,7 @@ struct aircraft
   unsigned sda : 2; // SDA from opstatus
   unsigned alert : 1; // FS Flight status alert bit
   unsigned spi : 1; // FS Flight status SPI (Special Position Identification) bit
-  unsigned trace_pos_discarded : 1; // unused
+  unsigned pos_surface : 1; // (mm->cpr_type == CPR_SURFACE) associated with current position
   // 19 bit ??
   unsigned padding_b : 13;
   // 32 bit !!
@@ -456,8 +457,6 @@ trackVState (uint64_t now, const data_validity *v, const data_validity *pos_vali
 static inline uint64_t
 trackDataAge (uint64_t now, const data_validity *v)
 {
-  if (v->source == SOURCE_INVALID)
-    return ~(uint64_t) 0;
   if (v->updated >= now)
     return 0;
   return (now - v->updated);
