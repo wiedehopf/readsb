@@ -326,7 +326,7 @@ struct aircraft
   float mag_heading; // Magnetic heading
 
   float true_heading; // True heading
-  float calc_track; // Calculated Ground track (unused)
+  float calc_track; // Calculated Ground track
   uint64_t next_reduce_forward_DF11;
   char callsign[16]; // Flight number
 

@@ -1751,8 +1751,7 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
     a->addrtype_updated = now;
 
 
-    // disable calc_track
-    if (0 && trackDataAge(now, &a->track_valid) >= 10000 && a->pos_set) {
+    if (trackDataAge(now, &a->track_valid) >= 10000 && a->pos_set) {
         double distance = greatcircle(a->lat, a->lon, new_lat, new_lon);
         if (distance > 100)
             a->calc_track = bearing(a->lat, a->lon, new_lat, new_lon);

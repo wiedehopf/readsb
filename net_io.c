@@ -3256,8 +3256,10 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
 
     if (trackDataValid(&a->track_valid))
         p = safe_snprintf(p, end, ",\"track\":%.2f", a->track);
-    //else if (a->calc_track != 0)
-    //    p = safe_snprintf(p, end, ",\"calc_track\":%.0f", a->calc_track);
+    else if (!printState && trackDataValid(&a->position_valid) &&
+        !(trackDataValid(&a->airground_valid) && a->airground == AG_GROUND))
+        p = safe_snprintf(p, end, ",\"calc_track\":%.0f", a->calc_track);
+
     if (trackDataValid(&a->track_rate_valid))
         p = safe_snprintf(p, end, ",\"track_rate\":%.2f", a->track_rate);
     if (trackDataValid(&a->roll_valid))
