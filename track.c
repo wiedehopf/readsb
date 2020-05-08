@@ -340,9 +340,12 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     distance = greatcircle(a->lat, a->lon, lat, lon);
 
     inrange = (distance <= range);
-    if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
-      if (!inrange) {
-        fprintf(stderr, "Speed check failed: %06x: %.3f,%.3f -> %.3f,%.3f in %.1f seconds, max speed %d kt, range %.1fkm, actual %.1fkm\n",
+    if (a->addr == Modes.cpr_focus || Modes.debug_cpr || Modes.debug_speed_check) {
+      if (!inrange || (a->addr == Modes.cpr_focus && distance > 1)) {
+
+        fprintf(stderr, "SC %s %s: %06X: %7.3f,%8.3f -> %7.3f,%8.3f in %4.1f seconds, max speed %4d kt, range %4.1fkm, actual %7.2fkm\n",
+                (inrange ? "    ok" : "failed"),
+                (surface ? "S" : "A"),
                 a->addr, a->lat, a->lon, lat, lon, elapsed / 1000.0, speed, range / 1000.0, distance / 1000.0);
       }
     }
