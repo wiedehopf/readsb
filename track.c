@@ -287,12 +287,16 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     uint64_t elapsed;
     double distance;
     double range;
-    int speed;
+    double speed;
     int inrange;
     uint64_t now = a->seen;
 
-    int surface = (mm->cpr_type == CPR_SURFACE) && a->pos_surface;
+    MODES_NOTUSED(mm);
 
+    int surface = trackDataValid(&a->airground_valid) && a->airground == AG_GROUND && a->pos_surface;
+
+    if (a->pos_reliable_odd < 1 && a->pos_reliable_even < 1)
+        return 1;
     if (now > a->position_valid.updated + (120 * 1000))
         return 1; // no reference or older than 120 seconds, assume OK
     if (source > a->position_valid.last_source)
@@ -302,26 +306,22 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
     speed = surface ? 150 : 900; // guess
 
-    if (a->position_valid.last_source > SOURCE_MLAT) {
-        if (trackDataValid(&a->gs_valid)) {
-            // use the larger of the current and earlier speed
-            speed = (a->gs_last_pos > a->gs) ? a->gs_last_pos : a->gs;
-            // add 2 knots for every second we haven't known the speed
-            speed = speed + (2*trackDataAge(now, &a->gs_valid)/1000.0);
-        } else if (trackDataValid(&a->tas_valid)) {
-            speed = a->tas * 4 / 3;
-        } else if (trackDataValid(&a->ias_valid)) {
-            speed = a->ias * 2;
-        }
-    } else {
-        speed = 1000;
+    if (trackDataValid(&a->gs_valid)) {
+        // use the larger of the current and earlier speed
+        speed = (a->gs_last_pos > a->gs) ? a->gs_last_pos : a->gs;
+        // add 2 knots for every second we haven't known the speed
+        speed = speed + (2*trackDataAge(now, &a->gs_valid)/1000.0);
+    } else if (trackDataValid(&a->tas_valid)) {
+        speed = a->tas * 4 / 3;
+    } else if (trackDataValid(&a->ias_valid)) {
+        speed = a->ias * 2;
     }
 
     // Work out a reasonable speed to use:
     //  current speed + 1/3
     //  surface speed min 20kt, max 150kt
     //  airborne speed min 200kt, no max
-    speed = speed * 4 / 3;
+    speed = speed * 1.3;
     if (surface) {
         if (speed < 20)
             speed = 20;
@@ -332,6 +332,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
             speed = 200;
     }
 
+    if (source <= SOURCE_MLAT) {
+        speed = speed * 1.7;
+    }
+
     // 100m (surface) or 500m (airborne) base distance to allow for minor errors,
     // plus distance covered at the given speed for the elapsed time + 1 second.
     range = (surface ? 0.1e3 : 0.5e3) + ((elapsed + 1000.0) / 1000.0) * (speed * 1852.0 / 3600.0);
@@ -340,10 +344,12 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     distance = greatcircle(a->lat, a->lon, lat, lon);
 
     inrange = (distance <= range);
+    //if (source != SOURCE_MLAT)
+    //    return inrange;
     if (a->addr == Modes.cpr_focus || Modes.debug_cpr || Modes.debug_speed_check) {
       if (!inrange || (a->addr == Modes.cpr_focus && distance > 1)) {
 
-        fprintf(stderr, "SC %s %s: %06X: %7.3f,%8.3f -> %7.3f,%8.3f in %4.1f seconds, max speed %4d kt, range %4.1fkm, actual %7.2fkm\n",
+        fprintf(stderr, "SC %s %s: %06X: %7.3f,%8.3f -> %7.3f,%8.3f in %4.1f seconds, max speed %4.0f kt, range %4.1fkm, actual %7.2fkm\n",
                 (inrange ? "    ok" : "failed"),
                 (surface ? "S" : "A"),
                 a->addr, a->lat, a->lon, lat, lon, elapsed / 1000.0, speed, range / 1000.0, distance / 1000.0);
@@ -422,10 +428,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
         return result;
 
     // check speed limit
-    if (
-            (a->pos_reliable_odd > 0 || a->pos_reliable_even > 0)
-            && !speed_check(a, mm->source, *lat, *lon, mm)
-       ) {
+    if (!speed_check(a, mm->source, *lat, *lon, mm)) {
         Modes.stats_current.cpr_global_speed_checks++;
         return -2;
     }
@@ -660,7 +663,7 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
         a->pos_nic = new_nic;
         a->pos_rc = new_rc;
 
-        a->pos_surface = (mm->cpr_type == CPR_SURFACE);
+        a->pos_surface = trackDataValid(&a->airground_valid) && a->airground == AG_GROUND;
 
         if (a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2 && mm->source == SOURCE_ADSB) {
             update_range_histogram(new_lat, new_lon);
