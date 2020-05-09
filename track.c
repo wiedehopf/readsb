@@ -346,7 +346,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     // find actual distance
     distance = greatcircle(oldLat, oldLon, lat, lon);
 
-    if (distance > 1 && source > SOURCE_MLAT && trackDataAge(now, &a->track_valid) < 5 * 1000) {
+    if (distance > 1 && source > SOURCE_MLAT
+            && trackDataAge(now, &a->track_valid) < 5 * 1000
+            && trackDataAge(now, &a->position_valid) < 5 * 1000
+       ) {
         calc_track = bearing(a->lat, a->lon, lat, lon);
         track_diff = fabs(norm_diff(a->track - calc_track, 180));
         track_bonus = speed * (90.0 - track_diff) / 90.0;
