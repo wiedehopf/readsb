@@ -315,7 +315,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         // use the larger of the current and earlier speed
         speed = (a->gs_last_pos > a->gs) ? a->gs_last_pos : a->gs;
         // add 2 knots for every second we haven't known the speed
-        speed = speed + (2*trackDataAge(now, &a->gs_valid)/1000.0);
+        speed = speed + (3*trackDataAge(now, &a->gs_valid)/1000.0);
     } else if (trackDataValid(&a->tas_valid)) {
         speed = a->tas * 4 / 3;
     } else if (trackDataValid(&a->ias_valid)) {
@@ -1445,8 +1445,7 @@ end_alt:
         // avoid using already received positions
         if (old_jaero || greatcircle(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon) < 1) {
         } else if (
-                mm->source != SOURCE_JAERO
-                && mm->source != SOURCE_PRIO
+                mm->source != SOURCE_PRIO
                 && !speed_check(a, mm->source, mm->decoded_lat, mm->decoded_lon, mm)
            )
         {
@@ -1770,6 +1769,12 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
             || (mm->source <= SOURCE_JAERO && now > a->seen_pos + 60 * 1000)) {
         //keep this data point
     } else {
+        return;
+    }
+
+    if (now < a->seen_pos + 3 * 1000 && a->lat == new_lat && a->lon == new_lon) {
+        a->position_valid.updated = a->seen_pos;
+        mm->reduce_forward = 0;
         return;
     }
 
