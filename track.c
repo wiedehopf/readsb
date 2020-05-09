@@ -1496,6 +1496,8 @@ end_alt:
         mm->reduce_forward = 1;
     }
 
+    a->speed_check_ignore = 0;
+
     return (a);
 }
 
