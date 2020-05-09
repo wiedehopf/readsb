@@ -368,11 +368,9 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     range = (surface ? 0.1e3 : 0.0e3) + ((elapsed + 1000.0) / 1000.0) * (speed * 1852.0 / 3600.0);
 
     inrange = (distance <= range);
-    //if (source != SOURCE_MLAT)
-    //    return inrange;
     if (a->addr == Modes.cpr_focus || (track_diff < 190 && (Modes.debug_cpr || Modes.debug_speed_check))) {
         //if (a->addr == 0x42435f) {
-        if (!inrange || (a->addr == Modes.cpr_focus && distance > 1)) {
+        if ((!inrange && source > SOURCE_INVALID) || (a->addr == Modes.cpr_focus && distance > 1)) {
 
             //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
             fprintf(stderr, "%s %s %s R%2d tD%3.0f: %06X: %7.2fkm/%7.2fkm in %4.1f s, max %4.0f kt, %9.5f,%10.5f -> %9.5f,%10.5f\n",
