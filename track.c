@@ -290,7 +290,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     double range;
     double speed;
     double calc_track = 0;
-    double track_diff = 0;
+    double track_diff = -1;
     double track_bonus = 0;
     int inrange;
     uint64_t now = a->seen;
@@ -346,17 +346,21 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     // find actual distance
     distance = greatcircle(oldLat, oldLon, lat, lon);
 
-    if (distance > 1 && source > SOURCE_MLAT
+    if (!surface && distance > 1 && source > SOURCE_MLAT
             && trackDataAge(now, &a->track_valid) < 5 * 1000
             && trackDataAge(now, &a->position_valid) < 5 * 1000
+            && (oldLat != lat || oldLon != lon)
        ) {
         calc_track = bearing(a->lat, a->lon, lat, lon);
         track_diff = fabs(norm_diff(a->track - calc_track, 180));
         track_bonus = speed * (90.0 - track_diff) / 90.0;
         speed += track_bonus * (1.1 - trackDataAge(now, &a->track_valid) / 5000);
         // don't use positions going backwards for beastReduce
-        if (track_diff > 120)
+        // also don't decrement pos_reliable
+        if (track_diff > 170) {
+            a->speed_check_ignore = 1;
             mm->reduce_forward = 0;
+        }
     }
 
     // 100m (surface) or 500m (airborne) base distance to allow for minor errors,
@@ -366,11 +370,12 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     inrange = (distance <= range);
     //if (source != SOURCE_MLAT)
     //    return inrange;
-    if (a->addr == Modes.cpr_focus || (track_diff < 120 && (Modes.debug_cpr || Modes.debug_speed_check))) {
+    if (a->addr == Modes.cpr_focus || (track_diff < 190 && (Modes.debug_cpr || Modes.debug_speed_check))) {
         //if (a->addr == 0x42435f) {
         if (!inrange || (a->addr == Modes.cpr_focus && distance > 1)) {
 
-            fprintf(stderr, "%s %s %s R%2d tD%3.0f: %06X: %7.2fkm/%7.2fkm in %4.1f seconds, max speed %4.0f kt, %7.3f,%8.3f -> %7.3f,%8.3f\n",
+            //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
+            fprintf(stderr, "%s %s %s R%2d tD%3.0f: %06X: %7.2fkm/%7.2fkm in %4.1f s, max %4.0f kt, %9.5f,%10.5f -> %9.5f,%10.5f\n",
                     source >= a->position_valid.last_source ? "SC" : "LQ",
                     (inrange ? "    ok" : "failed"),
                     (surface ? "S" : "A"),
@@ -2125,6 +2130,10 @@ static void adjustExpire(struct aircraft *a, uint64_t timeout) {
 */
 
 static void position_bad(struct aircraft *a) {
+    if (a->speed_check_ignore) {
+        a->speed_check_ignore = 0;
+        return;
+    }
     Modes.stats_current.cpr_global_bad++;
 
     a->cpr_odd_valid.source = SOURCE_INVALID;
