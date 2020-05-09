@@ -288,8 +288,13 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     double distance;
     double range;
     double speed;
+    double calc_track = 0;
+    double track_diff = 0;
+    double track_bonus = 0;
     int inrange;
     uint64_t now = a->seen;
+    double oldLat = a->lat;
+    double oldLon = a->lon;
 
     MODES_NOTUSED(mm);
 
@@ -337,29 +342,39 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
             speed = 200;
     }
 
+    // find actual distance
+    distance = greatcircle(oldLat, oldLon, lat, lon);
+
+    if (distance > 1 && source > SOURCE_MLAT && trackDataAge(now, &a->track_valid) < 5 * 1000) {
+        calc_track = bearing(a->lat, a->lon, lat, lon);
+        track_diff = fabs(norm_diff(a->track - calc_track, 180));
+        track_bonus = speed * (90.0 - track_diff) / 90.0;
+        speed += track_bonus * (1.1 - trackDataAge(now, &a->track_valid) / 5000);
+    }
+
     // 100m (surface) or 500m (airborne) base distance to allow for minor errors,
     // plus distance covered at the given speed for the elapsed time + 1 second.
-    range = (surface ? 0.1e3 : 0.5e3) + ((elapsed + 1000.0) / 1000.0) * (speed * 1852.0 / 3600.0);
-
-    // find actual distance
-    distance = greatcircle(a->lat, a->lon, lat, lon);
+    range = (surface ? 0.1e3 : 0.0e3) + ((elapsed + 1000.0) / 1000.0) * (speed * 1852.0 / 3600.0);
 
     inrange = (distance <= range);
     //if (source != SOURCE_MLAT)
     //    return inrange;
-    if (a->addr == Modes.cpr_focus || Modes.debug_cpr || Modes.debug_speed_check) {
-      if (!inrange || (a->addr == Modes.cpr_focus && distance > 1)) {
+    if (a->addr == Modes.cpr_focus || (track_diff < 120 && (Modes.debug_cpr || Modes.debug_speed_check))) {
+        //if (a->addr == 0x42435f) {
+        if (!inrange || (a->addr == Modes.cpr_focus && distance > 1)) {
 
-        fprintf(stderr, "SC %s %s R%2d: %06X: %7.2fkm/%4.0fkm in %4.1f seconds, max speed %4.0f kt, %7.3f,%8.3f -> %7.3f,%8.3f\n",
-                (inrange ? "    ok" : "failed"),
-                (surface ? "S" : "A"),
-                a->pos_reliable_odd + a->pos_reliable_even,
-                a->addr,
-                distance / 1000.0,
-                range / 1000.0,
-                elapsed / 1000.0, speed,
-                a->lat, a->lon, lat, lon);
-      }
+            fprintf(stderr, "SC %s %s R%2d tD%3.0f: %06X: %7.2fkm/%7.2fkm in %4.1f seconds, max speed %4.0f kt, %7.3f,%8.3f -> %7.3f,%8.3f\n",
+                    (inrange ? "    ok" : "failed"),
+                    (surface ? "S" : "A"),
+                    a->pos_reliable_odd + a->pos_reliable_even,
+                    track_diff,
+                    a->addr,
+                    distance / 1000.0,
+                    range / 1000.0,
+                    elapsed / 1000.0,
+                    speed,
+                    a->lat, a->lon, lat, lon);
+        }
     }
 
     return inrange;
