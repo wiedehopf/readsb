@@ -317,6 +317,11 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         speed = a->ias * 2;
     }
 
+    if (source <= SOURCE_MLAT) {
+        speed = speed * 2;
+        speed = min(speed, 1200);
+    }
+
     // Work out a reasonable speed to use:
     //  current speed + 1/3
     //  surface speed min 20kt, max 150kt
@@ -332,10 +337,6 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
             speed = 200;
     }
 
-    if (source <= SOURCE_MLAT) {
-        speed = speed * 1.7;
-    }
-
     // 100m (surface) or 500m (airborne) base distance to allow for minor errors,
     // plus distance covered at the given speed for the elapsed time + 1 second.
     range = (surface ? 0.1e3 : 0.5e3) + ((elapsed + 1000.0) / 1000.0) * (speed * 1852.0 / 3600.0);
@@ -349,10 +350,15 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     if (a->addr == Modes.cpr_focus || Modes.debug_cpr || Modes.debug_speed_check) {
       if (!inrange || (a->addr == Modes.cpr_focus && distance > 1)) {
 
-        fprintf(stderr, "SC %s %s: %06X: %7.3f,%8.3f -> %7.3f,%8.3f in %4.1f seconds, max speed %4.0f kt, range %4.1fkm, actual %7.2fkm\n",
+        fprintf(stderr, "SC %s %s R%2d: %06X: %7.2fkm/%4.0fkm in %4.1f seconds, max speed %4.0f kt, %7.3f,%8.3f -> %7.3f,%8.3f\n",
                 (inrange ? "    ok" : "failed"),
                 (surface ? "S" : "A"),
-                a->addr, a->lat, a->lon, lat, lon, elapsed / 1000.0, speed, range / 1000.0, distance / 1000.0);
+                a->pos_reliable_odd + a->pos_reliable_even,
+                a->addr,
+                distance / 1000.0,
+                range / 1000.0,
+                elapsed / 1000.0, speed,
+                a->lat, a->lon, lat, lon);
       }
     }
 
@@ -1745,9 +1751,12 @@ static void cleanupAircraft(struct aircraft *a) {
 
 static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_lat, double new_lon, uint64_t now) {
 
-    if ((a->pos_reliable_odd < 2 || a->pos_reliable_even < 2)
-            && (mm->source > SOURCE_JAERO || now < a->seen_pos + 60 * 1000))
+    if ((a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2)
+            || (mm->source <= SOURCE_JAERO && now > a->seen_pos + 60 * 1000)) {
+        //keep this data point
+    } else {
         return;
+    }
 
     // update addrtype, we use the type from the accepted position.
     a->addrtype = mm->addrtype;
