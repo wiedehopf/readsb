@@ -351,6 +351,9 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         track_diff = fabs(norm_diff(a->track - calc_track, 180));
         track_bonus = speed * (90.0 - track_diff) / 90.0;
         speed += track_bonus * (1.1 - trackDataAge(now, &a->track_valid) / 5000);
+        // don't use positions going backwards for beastReduce
+        if (track_diff > 120)
+            mm->reduce_forward = 0;
     }
 
     // 100m (surface) or 500m (airborne) base distance to allow for minor errors,
@@ -1783,6 +1786,7 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
 
     if (now < a->seen_pos + 3 * 1000 && a->lat == new_lat && a->lon == new_lon) {
         a->position_valid.updated = a->seen_pos;
+        // don't use duplicate positions for beastReduce
         mm->reduce_forward = 0;
         return;
     }
