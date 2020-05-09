@@ -247,7 +247,7 @@ struct aircraft
   int destroy; // aircraft is being deleted
   int signalNext; // next index of signalLevel to use
   int altitude_baro; // Altitude (Baro)
-  int altitude_baro_reliable;
+  int alt_reliable;
   int altitude_geom; // Altitude (Geometric)
   int geom_delta; // Difference between Geometric and Baro altitudes
 

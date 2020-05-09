@@ -3059,7 +3059,7 @@ retry:
                 //p = safe_snprintf(p, end, ",\"PosTime\":%"PRIu64, a->position_valid.updated);
             }
 
-            if (trackDataValid(&a->altitude_baro_valid) && a->altitude_baro_reliable >= 3)
+            if (trackDataValid(&a->altitude_baro_valid) && a->alt_reliable >= 3)
                 p = safe_snprintf(p, end, ",\"Alt\":%d", a->altitude_baro);
 
             if (trackDataValid(&a->geom_rate_valid)) {
@@ -3231,7 +3231,7 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
         if (trackDataValid(&a->airground_valid) && a->airground_valid.source >= SOURCE_MODE_S_CHECKED && a->airground == AG_GROUND)
             p = safe_snprintf(p, end, ",\"alt_baro\":\"ground\"");
         else {
-            if (trackDataValid(&a->altitude_baro_valid) && a->altitude_baro_reliable >= 3)
+            if (trackDataValid(&a->altitude_baro_valid) && a->alt_reliable >= 3)
                 p = safe_snprintf(p, end, ",\"alt_baro\":%d", a->altitude_baro);
         }
     }

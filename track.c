@@ -67,6 +67,7 @@ static void resize_trace(struct aircraft *a, uint64_t now);
 static void calc_wind(struct aircraft *a, uint64_t now);
 static void calc_temp(struct aircraft *a, uint64_t now);
 static inline int declination (struct aircraft *a, double *dec);
+static const char *source_string(datasource_t source);
 
 //
 // Return a new aircraft structure for the linked list of tracked
@@ -1114,10 +1115,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             mm->accuracy.sil = computed_sil;
         }
     }
-    
+
     if (mm->altitude_baro_valid &&
             (mm->source >= a->altitude_baro_valid.source ||
-             (trackDataAge(now, &a->baro_rate_valid) > 10 * 1000
+             (trackDataAge(now, &a->altitude_baro_valid) > 10 * 1000
               && a->altitude_baro_valid.source != SOURCE_JAERO
               && a->altitude_baro_valid.source != SOURCE_SBS)
             )
@@ -1147,11 +1148,11 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                 max_fpm = a->baro_rate + 1500 + min(11000, ((int)trackDataAge(now, &a->baro_rate_valid)/2));
             }
             if (trackDataValid(&a->altitude_baro_valid) && trackDataAge(now, &a->altitude_baro_valid) < 30000) {
-                a->altitude_baro_reliable = min(
+                a->alt_reliable = min(
                         ALTITUDE_BARO_RELIABLE_MAX - (ALTITUDE_BARO_RELIABLE_MAX*trackDataAge(now, &a->altitude_baro_valid)/30000),
-                        a->altitude_baro_reliable);
+                        a->alt_reliable);
             } else {
-                a->altitude_baro_reliable = 0;
+                a->alt_reliable = 0;
             }
         }
         int good_crc = (mm->crc == 0 && mm->source >= SOURCE_JAERO) ? 4 : 0;
@@ -1159,17 +1160,17 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         if (mm->source == SOURCE_SBS || mm->source == SOURCE_MLAT)
             good_crc = ALTITUDE_BARO_RELIABLE_MAX/2 - 1;
 
-        if (a->altitude_baro > 50175 && mm->alt_q_bit && a->altitude_baro_reliable > ALTITUDE_BARO_RELIABLE_MAX/4) {
+        if (a->altitude_baro > 50175 && mm->alt_q_bit && a->alt_reliable > ALTITUDE_BARO_RELIABLE_MAX/4) {
             good_crc = 0;
             //fprintf(stderr, "q_bit == 1 && a->alt > 50175: %06x\n", a->addr);
             goto discard_alt;
         }
 
-        if (a->altitude_baro_reliable <= 0  || abs(delta) < 300)
+        if (a->alt_reliable <= 0  || abs(delta) < 300)
             goto accept_alt;
         if (fpm < max_fpm && fpm > min_fpm)
             goto accept_alt;
-        if (good_crc > a->altitude_baro_reliable)
+        if (good_crc > a->alt_reliable)
             goto accept_alt;
         if (mm->source > a->altitude_baro_valid.source)
             goto accept_alt;
@@ -1179,21 +1180,28 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         goto discard_alt;
 accept_alt:
             if (accept_data(&a->altitude_baro_valid, mm->source, mm, 1)) {
-                a->altitude_baro_reliable = min(ALTITUDE_BARO_RELIABLE_MAX , a->altitude_baro_reliable + (good_crc+1));
-                /*if (abs(delta) > 2000 && delta != alt) {
-                    fprintf(stderr, "Alt change B: %06x: %d   %d -> %d, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
-                        a->addr, a->altitude_baro_reliable, a->altitude_baro, alt, min_fpm/1000.0, max_fpm/1000.0, fpm/1000.0);
-                }*/
+                a->alt_reliable = min(ALTITUDE_BARO_RELIABLE_MAX , a->alt_reliable + (good_crc+1));
+                if (0 && a->addr == 0x4b2917 && abs(delta) > -1 && delta != alt) {
+                    fprintf(stderr, "Alt check S: %06x: %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
+                            a->addr, a->alt_reliable, a->altitude_baro, alt,
+                            source_string(a->altitude_baro_valid.source),
+                            source_string(mm->source),
+                            min_fpm/1000.0, max_fpm/1000.0, fpm/1000.0);
+                }
                 a->altitude_baro = alt;
             }
             goto end_alt;
 discard_alt:
-            a->altitude_baro_reliable = a->altitude_baro_reliable - (good_crc+1);
-            //fprintf(stderr, "Alt check F: %06x: %d   %d -> %d, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
-            //        a->addr, a->altitude_baro_reliable, a->altitude_baro, alt, min_fpm/1000.0, max_fpm/1000.0, fpm/1000.0);
-            if (a->altitude_baro_reliable <= 0) {
+            a->alt_reliable = a->alt_reliable - (good_crc+1);
+            if (0 && a->addr == 0x4b2917)
+                fprintf(stderr, "Alt check F: %06x: %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
+                        a->addr, a->alt_reliable, a->altitude_baro, alt,
+                        source_string(a->altitude_baro_valid.source),
+                        source_string(mm->source),
+                        min_fpm/1000.0, max_fpm/1000.0, fpm/1000.0);
+            if (a->alt_reliable <= 0) {
                 //fprintf(stderr, "Altitude INVALIDATED: %06x\n", a->addr);
-                a->altitude_baro_reliable = 0;
+                a->alt_reliable = 0;
                 a->altitude_baro_valid.source = SOURCE_INVALID;
             }
 end_alt:
@@ -1423,7 +1431,7 @@ end_alt:
     // Now handle derived data
 
     // derive geometric altitude if we have baro + delta
-    if (a->altitude_baro_reliable >= 3 && compare_validity(&a->altitude_baro_valid, &a->altitude_geom_valid) > 0 &&
+    if (a->alt_reliable >= 3 && compare_validity(&a->altitude_baro_valid, &a->altitude_geom_valid) > 0 &&
             compare_validity(&a->geom_delta_valid, &a->altitude_geom_valid) > 0) {
         // Baro and delta are both more recent than geometric, derive geometric from baro + delta
         a->altitude_geom = a->altitude_baro + a->geom_delta;
@@ -1660,7 +1668,7 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                 }
 
                 if (a->altitude_baro_valid.source == SOURCE_INVALID)
-                    a->altitude_baro_reliable = 0;
+                    a->alt_reliable = 0;
 
                 if (a->pos_set && now > a->trace_next_fw && a->trace_alloc != 0) {
                     a->trace_write = 1;
@@ -1919,7 +1927,7 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
         }
 
         if (trackVState(now, &a->altitude_baro_valid, &a->position_valid)
-                && a->altitude_baro_reliable >= ALTITUDE_BARO_RELIABLE_MAX / 5) {
+                && a->alt_reliable >= ALTITUDE_BARO_RELIABLE_MAX / 5) {
             if (!last->flags.altitude_valid) {
                 goto save_state;
             }
@@ -2008,7 +2016,7 @@ save_state:
             new->flags.on_ground = 1;
 
         if (trackVState(now, &a->altitude_baro_valid, &a->position_valid)
-                && a->altitude_baro_reliable >= ALTITUDE_BARO_RELIABLE_MAX / 5) {
+                && a->alt_reliable >= ALTITUDE_BARO_RELIABLE_MAX / 5) {
             new->flags.altitude_valid = 1;
             new->altitude = (int16_t) nearbyint(a->altitude_baro / 25.0);
         } else if (trackVState(now, &a->altitude_geom_valid, &a->position_valid)) {
@@ -2527,4 +2535,35 @@ void from_state_all(struct state_all *in, struct aircraft *a , uint64_t ts) {
            F(alert_valid);
            F(spi_valid);
 #undef F
+}
+
+static const char *source_string(datasource_t source) {
+    switch (source) {
+        case SOURCE_INVALID:
+            return "INVALID";
+        case SOURCE_INDIRECT:
+            return "INDIRECT";
+        case SOURCE_MODE_AC:
+            return "MODE_AC";
+        case SOURCE_SBS:
+            return "SBS";
+        case SOURCE_MLAT:
+            return "MLAT";
+        case SOURCE_MODE_S:
+            return "MODE_S";
+        case SOURCE_JAERO:
+            return "JAERO";
+        case SOURCE_MODE_S_CHECKED:
+            return "MODE_CH";
+        case SOURCE_TISB:
+            return "TISB";
+        case SOURCE_ADSR:
+            return "ADSR";
+        case SOURCE_ADSB:
+            return "ADSB";
+        case SOURCE_PRIO:
+            return "PRIO";
+        default:
+            return "UNKN";
+    }
 }
