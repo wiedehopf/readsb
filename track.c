@@ -363,7 +363,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         //if (a->addr == 0x42435f) {
         if (!inrange || (a->addr == Modes.cpr_focus && distance > 1)) {
 
-            fprintf(stderr, "SC %s %s R%2d tD%3.0f: %06X: %7.2fkm/%7.2fkm in %4.1f seconds, max speed %4.0f kt, %7.3f,%8.3f -> %7.3f,%8.3f\n",
+            fprintf(stderr, "%s %s %s R%2d tD%3.0f: %06X: %7.2fkm/%7.2fkm in %4.1f seconds, max speed %4.0f kt, %7.3f,%8.3f -> %7.3f,%8.3f\n",
+                    source >= a->position_valid.last_source ? "SC" : "LQ",
                     (inrange ? "    ok" : "failed"),
                     (surface ? "S" : "A"),
                     a->pos_reliable_odd + a->pos_reliable_even,
@@ -1153,9 +1154,9 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                 a->altitude_baro_reliable = 0;
             }
         }
-        int good_crc = (mm->crc == 0 && mm->source >= SOURCE_JAERO) ? (ALTITUDE_BARO_RELIABLE_MAX/2 - 1) : 0;
+        int good_crc = (mm->crc == 0 && mm->source >= SOURCE_JAERO) ? 4 : 0;
 
-        if (mm->source == SOURCE_SBS || mm->source == SOURCE_MLAT || mm->source ==SOURCE_JAERO)
+        if (mm->source == SOURCE_SBS || mm->source == SOURCE_MLAT)
             good_crc = ALTITUDE_BARO_RELIABLE_MAX/2 - 1;
 
         if (a->altitude_baro > 50175 && mm->alt_q_bit && a->altitude_baro_reliable > ALTITUDE_BARO_RELIABLE_MAX/4) {
@@ -1168,7 +1169,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             goto accept_alt;
         if (fpm < max_fpm && fpm > min_fpm)
             goto accept_alt;
-        if (good_crc && a->altitude_baro_reliable <= (ALTITUDE_BARO_RELIABLE_MAX/2 + 2))
+        if (good_crc > a->altitude_baro_reliable)
             goto accept_alt;
         if (mm->source > a->altitude_baro_valid.source)
             goto accept_alt;
