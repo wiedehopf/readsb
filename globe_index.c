@@ -419,7 +419,7 @@ void *load_state(void *arg) {
     char pathbuf[PATH_MAX];
     struct stat fileinfo = {0};
     int thread_number = *((int *) arg);
-    srand(now + thread_number);
+    srand(now >> thread_number);
     for (int i = 0; i < 256; i++) {
         if (i % 8 != thread_number)
             continue;
@@ -534,7 +534,7 @@ void *jsonTraceThreadEntryPoint(void *arg) {
 
     int thread = * (int *) arg;
 
-    srand(thread);
+    srand(mstime() >> thread);
 
     int part = 0;
     int n_parts = 64; // power of 2

@@ -466,6 +466,7 @@ struct modesMessage
 {
   uint64_t timestampMsg; // Timestamp of the message (12MHz clock)
   uint64_t sysTimestampMsg; // Timestamp of the message (system time)
+  uint64_t receiverId; // zero if not transmitted
   // Generic fields
   unsigned char msg[MODES_LONG_MSG_BYTES]; // Binary message.
   unsigned char verbatim[MODES_LONG_MSG_BYTES]; // Binary message, as originally received before correction

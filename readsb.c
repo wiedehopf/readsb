@@ -305,6 +305,7 @@ static void modesInit(void) {
 //
 static void *readerThreadEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
+    srand(mstime());
 
     sdrRun();
 
@@ -324,6 +325,7 @@ static void *readerThreadEntryPoint(void *arg) {
 
 static void *jsonThreadEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
+    srand(mstime());
 
     struct timespec slp = {0, 0};
     uint64_t interval = Modes.json_interval;
@@ -379,6 +381,7 @@ static void *jsonThreadEntryPoint(void *arg) {
 
 static void *jsonGlobeThreadEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
+    srand(mstime());
 
     static int part;
     int n_parts = 4; // power of 2
@@ -435,6 +438,7 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
 
 static void *decodeThreadEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
+    srand(mstime());
 
     pthread_mutex_lock(&Modes.decodeThreadMutex);
 
@@ -1061,6 +1065,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 //
 
 int main(int argc, char **argv) {
+    srand(mstime());
+
     int j;
 
     // Set sane defaults
@@ -1120,8 +1126,6 @@ int main(int argc, char **argv) {
     writeJsonToFile(Modes.json_dir, "aircraft.json", generateAircraftJson(-1));
 
     interactiveInit();
-
-    srand(mstime());
 
     if (Modes.globe_history_dir) {
         fprintf(stderr, "loading state .....\n");

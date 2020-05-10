@@ -100,6 +100,7 @@ struct client
   int fd; // File descriptor
   int buflen; // Amount of data on buffer
   int modeac_requested; // 1 if this Beast output connection has asked for A/C
+  uint64_t receiverId;
   uint64_t last_flush;
   uint64_t last_send;
   uint64_t last_read;  // This is used on write-only clients to help check for dead connections

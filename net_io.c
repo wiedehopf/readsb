@@ -196,6 +196,14 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     c->con = NULL;
     c->last_read = now;
 
+    c->receiverId = rand();
+    c->receiverId <<= 22;
+    c->receiverId |= rand();
+    c->receiverId <<= 22;
+    c->receiverId |= rand();
+
+    //fprintf(stderr, "c->receiverId: %016lx\n", c->receiverId);
+
     if (service->writer) {
         if (!(c->sendq = malloc(MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size))) {
             fprintf(stderr, "Out of memory allocating client SendQ\n");
@@ -829,14 +837,27 @@ static void completeWrite(struct net_writer *writer, void *endptr) {
 //
 static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *writer) {
     int msgLen = mm->msgbits / 8;
-    char *p = prepareWrite(writer, 2 + 2 * (7 + msgLen));
-    char ch;
+    char *p = prepareWrite(writer, 2 + 2 * (7 + 8 + msgLen));
+    unsigned char ch;
     int j;
     int sig;
     unsigned char *msg = (Modes.net_verbatim ? mm->verbatim : mm->msg);
 
     if (!p)
         return;
+
+    /* receiverId, big-endian, in own message to make it backwards compatible */
+    if (mm->receiverId) {
+        *p++ = 0x1a;
+        // other dump1090 / readsb versions or beast implementations should discard unknown message types
+        *p++ = 0xe3; // good enough guess no one is using this.
+        for (int i = 7; i >= 0; i--) {
+            *p++ = (ch = (mm->receiverId >> (8 * i)));
+            if (0x1A == ch) {
+                *p++ = ch;
+            }
+        }
+    }
 
     *p++ = 0x1a;
     if (msgLen == MODES_SHORT_MSG_BYTES) {
@@ -1527,12 +1548,31 @@ static int handleBeastCommand(struct client *c, char *p, int remote) {
 static int decodeBinMessage(struct client *c, char *p, int remote) {
     int msgLen = 0;
     int j;
-    char ch;
+    unsigned char ch;
     unsigned char msg[MODES_LONG_MSG_BYTES + 7];
     struct modesMessage *mm;
     MODES_NOTUSED(c);
 
+    mm = calloc(1, sizeof(struct modesMessage));
+
     ch = *p++; /// Get the message type
+
+    if (ch == 0xe3) {
+        // Grab the receiver id (big endian format)
+        mm->receiverId = 0;
+        for (j = 0; j < 8; j++) {
+            ch = *p++;
+            mm->receiverId = mm->receiverId << 8 | (ch & 255);
+            if (0x1A == ch) {
+                p++;
+            }
+        }
+        p++; // discard 0x1A
+        ch = *p++; /// Get the message type
+    } else {
+        mm->receiverId = c->receiverId;
+    }
+
 
     if (ch == '1') {
         if (!Modes.mode_ac) {
@@ -1568,8 +1608,6 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
 
     if (!msgLen)
         return 0;
-
-    mm = calloc(1, sizeof(struct modesMessage));
 
     /* Beast messages are marked depending on their source. From internet they are marked
      * remote so that we don't try to pass them off as being received by this instance
@@ -2720,15 +2758,30 @@ static void modesReadFromClient(struct client *c) {
                     }
 
                     char *eom; // one byte past end of message
-                    if (*p == '1') {
+
+                    unsigned char ch = *p;
+                    if (ch == 0xe3) {
+                        eom = p + 9;
+                        // we need to be careful of double escape characters in the message body
+                        for (; p < eod && p < eom; p++) {
+                            if (0x1A == *p) {
+                                p++;
+                                eom++;
+                            }
+                        }
+                        p++; // skip 0x1a
+                    }
+
+                    ch = *p;
+                    if (ch == '1') {
                         eom = p + MODEAC_MSG_BYTES + 8; // point past remainder of message
-                    } else if (*p == '2') {
+                    } else if (ch == '2') {
                         eom = p + MODES_SHORT_MSG_BYTES + 8;
-                    } else if (*p == '3') {
+                    } else if (ch == '3') {
                         eom = p + MODES_LONG_MSG_BYTES + 8;
-                    } else if (*p == '4') {
+                    } else if (ch == '4') {
                         eom = p + MODES_LONG_MSG_BYTES + 8;
-                    } else if (*p == '5') {
+                    } else if (ch == '5') {
                         eom = p + MODES_LONG_MSG_BYTES + 8;
                     } else {
                         // Not a valid beast message, skip 0x1a and try again
@@ -2737,7 +2790,7 @@ static void modesReadFromClient(struct client *c) {
                     }
 
                     // we need to be careful of double escape characters in the message body
-                    for (p = som + 1; p < eod && p < eom; p++) {
+                    for (; p < eod && p < eom; p++) {
                         if (0x1A == *p) {
                             p++;
                             eom++;

@@ -94,6 +94,7 @@ void receiverPositionChanged(float lat, float lon, float alt) {
 static void view1090InitConfig(void) {
     // Default everything to zero/NULL
     memset(&Modes, 0, sizeof (Modes));
+    srand(mstime());
 
     // Now initialise things that should not be 0/NULL to their defaults
     Modes.check_crc = 1;
