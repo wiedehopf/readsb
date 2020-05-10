@@ -207,6 +207,11 @@ static void modesInitConfig(void) {
 
     //Modes.cpr_focus = 0x3d68d2;
 
+    time_t nowish = (mstime() - 2000)/1000;
+    struct tm utc;
+    gmtime_r(&nowish, &utc);
+    Modes.mday = utc.tm_mday;
+
     sdrInitConfig();
 }
 //

@@ -1596,6 +1596,15 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
     // other threads stop operation before this section.
     uint64_t now = mstime() + 50;
 
+    int full_write = 0;
+    time_t nowish = (mstime() - 2000)/1000;
+    struct tm utc;
+    gmtime_r(&nowish, &utc);
+    if (utc.tm_mday != Modes.mday) {
+        Modes.mday = utc.tm_mday;
+        full_write = 1;
+    }
+
     for (int j = 0; j < AIRCRAFTS_BUCKETS; j++) {
         struct aircraft *a = Modes.aircrafts[j];
         struct aircraft *prev = NULL;
@@ -1684,6 +1693,10 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                 if (a->pos_set && now > a->trace_next_fw && a->trace_alloc != 0) {
                     a->trace_write = 1;
                     resize_trace(a, now);
+                }
+                if (full_write && !(Modes.json_globe_index && a->trace_len == 0 && a->trace_full_write == 0xdead)) {
+                    a->trace_next_fw = now + 1000 * (rand() % 180); // spread over 3 mins
+                    a->trace_full_write = 0xc0ffee;
                 }
 
                 if (a->globe_index >= 0 && now > a->seen_pos + 30 * 60 * 1000) {

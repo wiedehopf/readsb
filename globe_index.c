@@ -193,7 +193,7 @@ void write_trace(struct aircraft *a, uint64_t now) {
     char *shadow = NULL;
     char filename[PATH_MAX];
 
-    time_t nowish = now/1000 - GLOBE_OVERLAP;
+    time_t hour_ago = now/1000 - GLOBE_OVERLAP;
 
     recent.len = 0;
     full.len = 0;
@@ -210,7 +210,7 @@ void write_trace(struct aircraft *a, uint64_t now) {
 
     int start24 = 0;
     for (int i = 0; i < a->trace_len; i++) {
-        if (a->trace[i].timestamp > now - 25 * 3600 * 1000) {
+        if (a->trace[i].timestamp > now - (24 * 3600 + 900) * 1000) {
             start24 = i;
             break;
         }
@@ -284,7 +284,7 @@ void write_trace(struct aircraft *a, uint64_t now) {
                     Modes.globe_history_dir && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
 
                 struct tm utc;
-                gmtime_r(&nowish, &utc);
+                gmtime_r(&hour_ago, &utc);
                 utc.tm_sec = 0;
                 utc.tm_min = 0;
                 utc.tm_hour = 0;
@@ -334,7 +334,7 @@ void write_trace(struct aircraft *a, uint64_t now) {
 
         char tstring[100];
         struct tm utc;
-        gmtime_r(&nowish, &utc);
+        gmtime_r(&hour_ago, &utc);
         strftime (tstring, 100, "%Y-%m-%d", &utc);
 
         if (utc.tm_mday != day) {
@@ -489,10 +489,10 @@ void *load_state(void *arg) {
                     goto discard_trace;
                 }
 
-                a->trace_next_fw = now + 1000 * (rand() % 120); // spread over 2 mins
-                a->trace_full_write = 0xc0ffee; // rewrite full history file
-                //a->trace_write = 1;
-                //write_trace(a, now);
+                if (!(Modes.json_globe_index && a->trace_len == 0 && a->trace_full_write == 0xdead)) {
+                    a->trace_next_fw = now + 1000 * (rand() % 120); // spread over 2 mins
+                    a->trace_full_write = 0xc0ffee; // rewrite full history file
+                }
 
             }
 

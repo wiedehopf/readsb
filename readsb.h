@@ -449,6 +449,7 @@ struct
   int stats_latest_1min;
   int bUserFlags; // Flags relating to the user details
   int biastee;
+  int mday;
   struct stats stats_current;
   struct stats stats_alltime;
   struct stats stats_periodic;
