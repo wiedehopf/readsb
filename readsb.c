@@ -181,12 +181,12 @@ static void modesInitConfig(void) {
     Modes.freq = MODES_DEFAULT_FREQ;
     Modes.check_crc = 1;
     Modes.net_heartbeat_interval = MODES_NET_HEARTBEAT_INTERVAL;
-    Modes.net_input_raw_ports = strdup("30001");
-    Modes.net_output_raw_ports = strdup("30002");
+    Modes.net_input_raw_ports = strdup("0");
+    Modes.net_output_raw_ports = strdup("0");
     Modes.net_output_sbs_ports = strdup("0");
     Modes.net_input_sbs_ports = strdup("0");
-    Modes.net_input_beast_ports = strdup("30004,30104");
-    Modes.net_output_beast_ports = strdup("30005");
+    Modes.net_input_beast_ports = strdup("0");
+    Modes.net_output_beast_ports = strdup("0");
     Modes.net_output_beast_reduce_ports = strdup("0");
     Modes.net_output_beast_reduce_interval = 125;
     Modes.net_output_vrs_ports = strdup("0");
