@@ -126,6 +126,7 @@ struct net_writer
   struct net_service *service; // owning service
   heartbeat_fn send_heartbeat; // function that queues a heartbeat if needed
   uint64_t lastWrite; // time of last write to clients
+  uint64_t lastReceiverId;
 };
 
 struct net_service *serviceInit (const char *descr, struct net_writer *writer, heartbeat_fn hb_handler, read_mode_t mode, const char *sep, read_fn read_handler);

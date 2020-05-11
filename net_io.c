@@ -156,6 +156,7 @@ struct net_service *serviceInit(const char *descr, struct net_writer *writer, he
         service->writer->dataUsed = 0;
         service->writer->lastWrite = mstime();
         service->writer->send_heartbeat = hb;
+        service->writer->lastReceiverId = 0;
     }
 
     return service;
@@ -214,6 +215,7 @@ struct client *createGenericClient(struct net_service *service, int fd) {
         }
         // Have to keep track of this manually
         c->sendq_max = MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size;
+        service->writer->lastReceiverId = 0; // make sure to resend receiverId
     }
     service->clients = c;
 
@@ -865,8 +867,10 @@ static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *wri
     if (!p)
         return;
 
-    /* receiverId, big-endian, in own message to make it backwards compatible */
-    if (Modes.netReceiverId && mm->receiverId) {
+    // receiverId, big-endian, in own message to make it backwards compatible
+    // only transmit it when it changes
+    if (Modes.netReceiverId && mm->receiverId != writer->lastReceiverId) {
+        writer->lastReceiverId = mm->receiverId;
         *p++ = 0x1a;
         // other dump1090 / readsb versions or beast implementations should discard unknown message types
         *p++ = 0xe3; // good enough guess no one is using this.
@@ -1578,19 +1582,23 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
 
     if (ch == 0xe3 && !c->receiverIdRemote) {
         // Grab the receiver id (big endian format)
-        mm->receiverId = 0;
+        uint64_t receiverId = 0;
         for (j = 0; j < 8; j++) {
             ch = *p++;
-            mm->receiverId = mm->receiverId << 8 | (ch & 255);
+            receiverId = receiverId << 8 | (ch & 255);
             if (0x1A == ch) {
                 p++;
             }
         }
+        // only transmitted on change, store in client struct
+        // once one receiverId arrives via network,
+        // it overwrites the random one assigned to the client on startup
+        c->receiverId = receiverId;
         p++; // discard 0x1A
         ch = *p++; /// Get the message type
-    } else {
-        mm->receiverId = c->receiverId;
     }
+
+    mm->receiverId = c->receiverId;
 
 
     if (ch == '1') {
@@ -2789,6 +2797,10 @@ static void modesReadFromClient(struct client *c) {
                             if (0x1A == *p) {
                                 p++;
                                 eom++;
+                                if (0x1A != *p) { // check that it's indeed a double escape
+                                    som = --p;    // if not, skip ahead to the single 0x1A
+                                    continue;
+                                }
                             }
                         }
                         p++; // skip 0x1a
@@ -2822,6 +2834,10 @@ static void modesReadFromClient(struct client *c) {
                         if (0x1A == *p) {
                             p++;
                             eom++;
+                            if (0x1A != *p) { // check that it's indeed a double escape
+                                som = --p;    // if not, skip ahead to the single 0x1A
+                                continue;
+                            }
                         }
                     }
 
