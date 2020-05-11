@@ -307,12 +307,28 @@ struct client *checkServiceConnected(struct net_connector *con) {
     strncpy(c->host, con->address, sizeof(c->host) - 1);
     strncpy(c->port, con->port, sizeof(c->port) - 1);
 
-    fprintf(stderr, "%s: Connection established: %s%s port %s\n",
-            con->service->descr, con->address, con->resolved_addr, con->port);
-
     con->connecting = 0;
     con->connected = 1;
     c->con = con;
+
+    fprintf(stderr, "%s: Connection established: %s%s port %s\n",
+            con->service->descr, con->address, con->resolved_addr, con->port);
+
+    // sending UUID if hostname matches adsbexchange
+    if (c->sendq && strstr(con->address, "adsbexchange")) {
+        unsigned char *sendq = c->sendq;
+        sendq[0] = 0x1A;
+        sendq[1] = 0xE4;
+        int fd = open("/boot/adsbx-uuid", O_RDONLY);
+        int res = (fd != -1) ? read(fd, c->sendq + 2, 128) : -1;
+        if (res >= 16) {
+            c->sendq_len = res;
+            flushClient(c, mstime());
+        }
+        if (fd != -1) {
+            close(fd);
+        }
+    }
 
     return c;
 }
@@ -3475,7 +3491,7 @@ static void read_uuid(struct client *c, char *p, char *eod) {
         if (0x1A == ch) {
             break;
         }
-        if ('-' == ch) {
+        if ('-' == ch || ' ' == ch) {
             continue;
         }
 
