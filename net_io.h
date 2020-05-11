@@ -100,6 +100,7 @@ struct client
   int fd; // File descriptor
   int buflen; // Amount of data on buffer
   int modeac_requested; // 1 if this Beast output connection has asked for A/C
+  int receiverIdRemote; // receiverId has been transmitted by other side.
   uint64_t receiverId;
   uint64_t last_flush;
   uint64_t last_send;

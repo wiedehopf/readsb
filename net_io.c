@@ -108,6 +108,7 @@ static void *pthreadGetaddrinfo(void *param);
 
 static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now, int printState);
 static void flushClient(struct client *c, uint64_t now);
+static void read_uuid(struct client *c, char *p, char *eod);
 
 //
 //=========================================================================
@@ -201,6 +202,8 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     c->receiverId |= rand();
     c->receiverId <<= 22;
     c->receiverId |= rand();
+
+    c->receiverIdRemote = 0; // receiverId has been transmitted by other side.
 
     //fprintf(stderr, "c->receiverId: %016lx\n", c->receiverId);
 
@@ -2758,11 +2761,14 @@ static void modesReadFromClient(struct client *c) {
                     }
 
                     char *eom; // one byte past end of message
+                    unsigned char ch;
 
-                    unsigned char ch = *p;
+
+                    // Check for message with receiverId prepended
+                    ch = *p;
                     if (ch == 0xe3) {
                         eom = p + 9;
-                        // we need to be careful of double escape characters in the message body
+                        // we need to be careful of double escape characters in the receiverId
                         for (; p < eod && p < eom; p++) {
                             if (0x1A == *p) {
                                 p++;
@@ -2783,6 +2789,12 @@ static void modesReadFromClient(struct client *c) {
                         eom = p + MODES_LONG_MSG_BYTES + 8;
                     } else if (ch == '5') {
                         eom = p + MODES_LONG_MSG_BYTES + 8;
+                    } else if (ch == 0xe4) {
+                        // read UUID and continue with next message
+                        p++;
+                        read_uuid(c, p, eod);
+                        ++som;
+                        continue;
                     } else {
                         // Not a valid beast message, skip 0x1a and try again
                         ++som;
@@ -3443,4 +3455,49 @@ void cleanupNetwork(void) {
     }
     free(Modes.net_connectors);
 
+}
+
+static void read_uuid(struct client *c, char *p, char *eod) {
+    if (c->receiverIdRemote) { // only allow the receiverId to be set once
+        return;
+    }
+
+    unsigned char ch;
+    uint64_t receiverId = 0;
+    // read ascii to binary
+    int j;
+    for (j = 0; j < 16;) {
+        ch = *p++;
+
+        //fprintf(stderr, "%c", ch);
+        if (p >= eod)
+            break;
+        if (0x1A == ch) {
+            break;
+        }
+        if ('-' == ch) {
+            continue;
+        }
+
+        unsigned char x = 0xff;
+
+        if (ch <= 'f' && ch >= 'a')
+            x = ch - 'a' + 10;
+        else if (ch <= '9' && ch >= '0')
+            x = ch - '0';
+        else if (ch <= 'F' && ch >= 'A')
+            x = ch - 'A' + 10;
+        else
+            break;
+
+        receiverId = receiverId << 4 | x; // set 4 bits and shift them up
+        j++;
+    }
+
+    if (j == 16) {
+        c->receiverIdRemote = 1;
+        c->receiverId = receiverId;
+        fprintf(stderr, "ADDR %s,%s UUID %016lx\n", c->host, c->port, c->receiverId);
+    }
+    return;
 }
