@@ -1576,7 +1576,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
 
     ch = *p++; /// Get the message type
 
-    if (ch == 0xe3) {
+    if (ch == 0xe3 && !c->receiverIdRemote) {
         // Grab the receiver id (big endian format)
         mm->receiverId = 0;
         for (j = 0; j < 8; j++) {
