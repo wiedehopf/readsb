@@ -866,7 +866,7 @@ static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *wri
         return;
 
     /* receiverId, big-endian, in own message to make it backwards compatible */
-    if (mm->receiverId) {
+    if (Modes.netReceiverId && mm->receiverId) {
         *p++ = 0x1a;
         // other dump1090 / readsb versions or beast implementations should discard unknown message types
         *p++ = 0xe3; // good enough guess no one is using this.

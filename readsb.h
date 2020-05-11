@@ -435,6 +435,7 @@ struct
 #endif
   int net_sndbuf_size; // TCP output buffer size (64Kb * 2^n)
   int net_verbatim; // if true, send the original message, not the CRC-corrected one
+  int netReceiverId;
   int forward_mlat; // allow forwarding of mlat messages to output ports
   int quiet; // Suppress stdout
   int interactive; // Interactive mode
@@ -740,6 +741,7 @@ enum {
   OptNetHeartbeat,
   OptNetBuffer,
   OptNetVerbatim,
+  OptNetReceiverId,
   OptRtlSdrEnableAgc,
   OptRtlSdrPpm,
   OptBeastSerial,

@@ -204,6 +204,7 @@ static void modesInitConfig(void) {
     Modes.net_output_flush_interval = 50; // Default to 50 ms
     Modes.basestation_is_mlat = 1;
     Modes.cpr_focus = 0xc0ffeeba;
+    Modes.netReceiverId = 0;
 
     //Modes.cpr_focus = 0x3d68d2;
 
@@ -935,6 +936,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptNetVerbatim:
             Modes.net_verbatim = 1;
+            break;
+        case OptNetReceiverId:
+            Modes.netReceiverId = 1;
             break;
         case OptNetConnector:
             if (!Modes.net_connectors || Modes.net_connectors_count + 1 > Modes.net_connectors_size) {
