@@ -1,5 +1,8 @@
 #include "readsb.h"
 
+#define LEG_FOCUS 0xfffffff
+//#define LEG_FOCUS 0xae290d
+
 static void mark_legs(struct aircraft *a);
 
 static ssize_t check_write(int fd, const void *buf, size_t count, const char *error_context) {
@@ -490,7 +493,10 @@ void *load_state(void *arg) {
                 }
 
                 if (!(Modes.json_globe_index && a->trace_len == 0 && a->trace_full_write == 0xdead)) {
-                    a->trace_next_fw = now + 1000 * (rand() % 120); // spread over 2 mins
+                    if (a->addr == LEG_FOCUS)
+                        a->trace_next_fw = now;
+                    else
+                        a->trace_next_fw = now + 1000 * (rand() % 120); // spread over 2 mins
                     a->trace_full_write = 0xc0ffee; // rewrite full history file
                 }
 
@@ -600,8 +606,6 @@ static void mark_legs(struct aircraft *a) {
     int last_five[5] = { 0 };
     uint32_t five_pos = 0;
 
-    uint32_t focus = 0xfffffff;
-
     double sum = 0;
 
     struct state *last_leg = NULL;
@@ -641,7 +645,7 @@ static void mark_legs(struct aircraft *a) {
 
     int threshold = (int) (sum / (double) (a->trace_len * 3));
 
-    if (a->addr == focus) {
+    if (a->addr == LEG_FOCUS) {
         fprintf(stderr, "threshold: %d\n", threshold);
         fprintf(stderr, "trace_len: %d\n", a->trace_len);
     }
@@ -731,10 +735,15 @@ static void mark_legs(struct aircraft *a) {
 
         if (high - low > threshold) {
             if (last_high > last_low) {
-                int bla = min(a->trace_len - 1, last_low_index + 3);
-                major_climb = a->trace[bla].timestamp;
-                major_climb_index = bla;
-                if (a->addr == focus) {
+                // only set new major climb time if this is after a major descent.
+                // then keep that time associated with the climb
+                // still report continuation of thta climb
+                if (major_climb <= major_descent) {
+                    int bla = min(a->trace_len - 1, last_low_index + 3);
+                    major_climb = a->trace[bla].timestamp;
+                    major_climb_index = bla;
+                }
+                if (a->addr == LEG_FOCUS) {
                     time_t nowish = major_climb/1000;
                     struct tm utc;
                     gmtime_r(&nowish, &utc);
@@ -747,7 +756,7 @@ static void mark_legs(struct aircraft *a) {
                 int bla = max(0, last_low_index - 3);
                 major_descent = a->trace[bla].timestamp;
                 major_descent_index = bla;
-                if (a->addr == focus) {
+                if (a->addr == LEG_FOCUS) {
                     time_t nowish = major_descent/1000;
                     struct tm utc;
                     gmtime_r(&nowish, &utc);
@@ -763,7 +772,7 @@ static void mark_legs(struct aircraft *a) {
                 (major_descent && (on_ground || was_ground) && state->timestamp > last_airborne + 45 * 60 * 1000)
            )
         {
-            if (a->addr == focus)
+            if (a->addr == LEG_FOCUS)
                 fprintf(stderr, "ground leg\n");
             leg_now = 1;
         }
@@ -776,7 +785,7 @@ static void mark_legs(struct aircraft *a) {
 
         if ( elapsed > 30 * 60 * 1000 && distance < 10E3 * (elapsed / (30 * 60 * 1000.0)) && distance > 1) {
             leg_now = 1;
-            if (a->addr == focus)
+            if (a->addr == LEG_FOCUS)
                 fprintf(stderr, "leg, elapsed: %0.fmin, distance: %0.f\n", elapsed / (60 * 1000.0), distance / 1000.0);
         }
 
@@ -785,7 +794,7 @@ static void mark_legs(struct aircraft *a) {
             for (int i = major_descent_index + 1; i < major_climb_index; i++) {
                 if (a->trace[i].timestamp > a->trace[i - 1].timestamp + 6 * 60 * 1000) {
                     leg_float = 1;
-                    if (a->addr == focus)
+                    if (a->addr == LEG_FOCUS)
                         fprintf(stderr, "float leg\n");
                 }
             }
@@ -834,7 +843,7 @@ static void mark_legs(struct aircraft *a) {
             low += threshold;
             high -= threshold;
 
-            if (a->addr == focus) {
+            if (a->addr == LEG_FOCUS) {
                 time_t nowish = leg_ts/1000;
                 struct tm utc;
                 gmtime_r(&nowish, &utc);
