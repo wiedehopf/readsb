@@ -40,26 +40,17 @@ static uint32_t icao_filter_b[ICAO_FILTER_SIZE];
 static uint32_t *icao_filter_active;
 
 static uint32_t icaoHash(uint32_t a) {
-    // Jenkins one-at-a-time hash, unrolled for 3 bytes
-    uint32_t hash = 0;
+    uint64_t h = 0x30732349f7810465ULL ^ (4 * 0x2127599bf4325c37ULL);
+    uint64_t in = a;
+    uint64_t v = in << 48;
+    v ^= in << 24;
+    v ^= in;
+    h ^= mix_fasthash(v);
 
-    hash += a & 0xff;
-    hash += hash << 10;
-    hash ^= hash >> 6;
+    h -= (h >> 32);
+    h -= (h >> 16);
 
-    hash += (a >> 8) & 0xff;
-    hash += (hash << 10);
-    hash ^= (hash >> 6);
-
-    hash += (a >> 16) & 0xff;
-    hash += (hash << 10);
-    hash ^= (hash >> 6);
-
-    hash += (hash << 3);
-    hash ^= (hash >> 11);
-    hash += (hash << 15);
-
-    return hash & (ICAO_FILTER_SIZE - 1);
+    return h & (ICAO_FILTER_SIZE - 1);
 }
 
 void icaoFilterInit() {
