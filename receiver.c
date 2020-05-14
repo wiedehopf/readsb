@@ -42,7 +42,7 @@ void receiverTimeout(int part, int nParts) {
     uint64_t now = mstime();
     for (int i = start; i < end; i++) {
         struct receiver **r = &Modes.receiverTable[i];
-
+        struct receiver *del;
         while (*r) {
             /*
             receiver *b = *r;
@@ -53,12 +53,26 @@ void receiverTimeout(int part, int nParts) {
             if (
                     (Modes.receiverCount > RECEIVER_TABLE_SIZE && (*r)->lastSeen < now - 1 * HOUR)
                     || ((*r)->lastSeen < now - 24 * HOUR)
+                    || Modes.exit
                ) {
+                del = *r;
                 *r = (*r)->next;
                 Modes.receiverCount--;
+                free(del);
             } else {
                 r = &(*r)->next;
             }
+        }
+    }
+}
+void receiverCleanup() {
+    for (int i = 0; i < RECEIVER_TABLE_SIZE; i++) {
+        struct receiver *r = Modes.receiverTable[i];
+        struct receiver *next;
+        while (r) {
+            next = r->next;
+            free(r);
+            r = next;
         }
     }
 }
@@ -98,4 +112,24 @@ int receiverGetReference(uint64_t id, double *lat, double *lon) {
                 r->latMin, *lat, r->latMax,
                 r->lonMin, *lon, r->lonMax);
     return 1;
+}
+void receiverTest() {
+    uint64_t now = mstime();
+    for (uint64_t i = 0; i < (1<<22); i++) {
+        uint64_t id = i << 22;
+        receiver *r = receiverGet(id);
+        if (!r)
+            r = receiverCreate(id);
+        if (r)
+            r->lastSeen = now;
+    }
+    printf("%lu\n", Modes.receiverCount);
+    for (int i = 0; i < (1<<22); i++) {
+        receiver *r = receiverGet(i);
+        if (!r)
+            r = receiverCreate(i);
+    }
+    printf("%lu\n", Modes.receiverCount);
+    receiverTimeout(0, 1);
+    printf("%lu\n", Modes.receiverCount);
 }

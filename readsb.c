@@ -217,26 +217,7 @@ static void modesInitConfig(void) {
 
     sdrInitConfig();
 
-    /*
-    uint64_t now = mstime();
-    for (uint64_t i = 0; i < (1<<24); i++) {
-        uint64_t id = i << 22;
-        receiver *r = receiverGet(id);
-        if (!r)
-            r = receiverCreate(id);
-        if (r)
-            r->lastSeen = now;
-    }
-    printf("%lu\n", Modes.receiverCount);
-    for (int i = 0; i < (1<<24); i++) {
-        receiver *r = receiverGet(i);
-        if (!r)
-            r = receiverCreate(i);
-    }
-    printf("%lu\n", Modes.receiverCount);
-    receiverTimeout(0, 1);
-    printf("%lu\n", Modes.receiverCount);
-    */
+    //receiverTest();
 }
 //
 //=========================================================================
@@ -714,6 +695,7 @@ static void backgroundTasks(void) {
 //=========================================================================
 // Clean up memory prior to exit.
 static void cleanup_and_exit(int code) {
+    Modes.exit = 1;
     // Free any used memory
     geomag_destroy();
     interactiveCleanup();
@@ -735,6 +717,7 @@ static void cleanup_and_exit(int code) {
     free(Modes.net_input_sbs_ports);
     free(Modes.beast_serial);
     free(Modes.json_globe_special_tiles);
+    free(Modes.uuidFile);
     /* Go through tracked aircraft chain and free up any used memory */
     for (int j = 0; j < AIRCRAFTS_BUCKETS; j++) {
         struct aircraft *a = Modes.aircrafts[j], *na;
@@ -766,6 +749,8 @@ static void cleanup_and_exit(int code) {
 
     /* Cleanup network setup */
     cleanupNetwork();
+
+    receiverCleanup();
 
     for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
         ca_destroy(&Modes.globeLists[i]);
