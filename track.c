@@ -501,7 +501,7 @@ static int doLocalCPR(struct aircraft *a, struct modesMessage *mm, double *lat, 
         *rc = a->cpr_even_rc;
     }
 
-    if (mm->sysTimestampMsg - a->position_valid.updated < (10*60*1000)) {
+    if (mm->sysTimestampMsg < a->position_valid.updated + (10*60*1000)) {
         reflat = a->lat;
         reflon = a->lon;
 
@@ -1683,8 +1683,8 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                 updateValidity(&a->nav_altitude_src_valid, now, TRACK_EXPIRE);
                 updateValidity(&a->nav_heading_valid, now, TRACK_EXPIRE);
                 updateValidity(&a->nav_modes_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->cpr_odd_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->cpr_even_valid, now, TRACK_EXPIRE);
+                updateValidity(&a->cpr_odd_valid, now, TRACK_EXPIRE + 30);
+                updateValidity(&a->cpr_even_valid, now, TRACK_EXPIRE + 30);
                 updateValidity(&a->position_valid, now, TRACK_EXPIRE);
                 updateValidity(&a->nic_a_valid, now, TRACK_EXPIRE);
                 updateValidity(&a->nic_c_valid, now, TRACK_EXPIRE);

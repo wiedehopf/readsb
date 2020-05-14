@@ -78,6 +78,9 @@ static double cprModDouble(double a, double b) {
 //
 static int cprNLFunction(double lat) {
     if (lat < 0) lat = -lat; // Table is simmetric about the equator
+    if (lat > 60) goto L60;
+    if (lat > 44.2) goto L442;
+    if (lat > 30) goto L30;
     if (lat < 10.47047130) return 59;
     if (lat < 14.82817437) return 58;
     if (lat < 18.18626357) return 57;
@@ -86,6 +89,7 @@ static int cprNLFunction(double lat) {
     if (lat < 25.82924707) return 54;
     if (lat < 27.93898710) return 53;
     if (lat < 29.91135686) return 52;
+L30:
     if (lat < 31.77209708) return 51;
     if (lat < 33.53993436) return 50;
     if (lat < 35.22899598) return 49;
@@ -95,6 +99,7 @@ static int cprNLFunction(double lat) {
     if (lat < 41.38651832) return 45;
     if (lat < 42.80914012) return 44;
     if (lat < 44.19454951) return 43;
+L442:
     if (lat < 45.54626723) return 42;
     if (lat < 46.86733252) return 41;
     if (lat < 48.16039128) return 40;
@@ -108,6 +113,7 @@ static int cprNLFunction(double lat) {
     if (lat < 57.72747354) return 32;
     if (lat < 58.84763776) return 31;
     if (lat < 59.95459277) return 30;
+L60:
     if (lat < 61.04917774) return 29;
     if (lat < 62.13216659) return 28;
     if (lat < 63.20427479) return 27;
