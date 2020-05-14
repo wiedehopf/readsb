@@ -298,6 +298,14 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     double oldLon = a->lon;
 
     MODES_NOTUSED(mm);
+    if (
+            (lat == 0 && lon == -90)
+            || (lat > 90 || lat < -90 || lon > 180 || lon < -180)
+            || (lat == 0 && lon == 0)
+       ) {
+        a->speed_check_ignore = 1;
+        return 0;
+    }
 
     int surface = trackDataValid(&a->airground_valid) && a->airground == AG_GROUND && a->pos_surface;
 

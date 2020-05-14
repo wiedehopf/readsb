@@ -1160,12 +1160,10 @@ static int decodeSbsLine(struct client *c, char *line, int remote) {
     }
     // field 15 and 16, position
     if (t[15] && strlen(t[15]) && t[16] && strlen(t[16])) {
-        double lat = mm.decoded_lat = strtod(t[15], NULL);
-        double lon = mm.decoded_lon = strtod(t[16], NULL);
+        mm.decoded_lat = strtod(t[15], NULL);
+        mm.decoded_lon = strtod(t[16], NULL);
         if (mm.decoded_lat != 0 && mm.decoded_lon != 0)
             mm.sbs_pos_valid = 1;
-        if (lat > 90 || lat < -90 || lon > 180 || lon < -180)
-            mm.sbs_pos_valid = 0;
         //fprintf(stderr, "pos: (%.2f, %.2f)\n", mm.decoded_lat, mm.decoded_lon);
     }
     // field 17 vertical rate, assume baro
