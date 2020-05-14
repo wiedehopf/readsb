@@ -62,6 +62,8 @@
 // only 2 minutes for aircraft without position
 
 #define HOURS_5 (5*60*60000)
+#define HOUR (60*60*1000ULL)
+#define MINUTE (60*1000ULL)
 
 #define TRACK_AIRCRAFT_NON_ICAO_TTL (5*60000)
 // 5 minutes for NON_ICAO aircraft

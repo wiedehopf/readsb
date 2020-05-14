@@ -19,6 +19,8 @@ struct receiver *receiverGet(uint64_t id) {
     return r;
 }
 struct receiver *receiverCreate(uint64_t id) {
+    if (Modes.receiverCount > 4 * RECEIVER_TABLE_SIZE)
+        return NULL;
     struct receiver *r = receiverGet(id);
     if (r)
         return r;
@@ -29,6 +31,8 @@ struct receiver *receiverCreate(uint64_t id) {
     r->next = Modes.receiverTable[hash];
     Modes.receiverTable[hash] = r;
     Modes.receiverCount++;
+    if (((Modes.receiverCount * 4) & (RECEIVER_TABLE_SIZE - 1)) == 0)
+        fprintf(stderr, "receiverTable fill: %0.1f\n", Modes.receiverCount / (double) RECEIVER_TABLE_SIZE);
     return r;
 }
 void receiverTimeout(int part, int nParts) {
@@ -46,7 +50,10 @@ void receiverTimeout(int part, int nParts) {
                     b->id, b->positionCounter,
                     b->latMin, b->latMax, b->lonMin, b->lonMax);
             */
-            if ((*r)->lastSeen < now - 60 * 60 * 1000) {
+            if (
+                    (Modes.receiverCount > RECEIVER_TABLE_SIZE && (*r)->lastSeen < now - 1 * HOUR)
+                    || ((*r)->lastSeen < now - 24 * HOUR)
+               ) {
                 *r = (*r)->next;
                 Modes.receiverCount--;
             } else {
@@ -59,6 +66,8 @@ void receiverPositionReceived(uint64_t id, double lat, double lon, uint64_t now)
     struct receiver *r = receiverGet(id);
     if (!r) {
         r = receiverCreate(id);
+        if (!r)
+            return;
         r->lonMin = lon;
         r->lonMax = lon;
         r->latMin = lat;

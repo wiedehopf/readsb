@@ -224,7 +224,8 @@ static void modesInitConfig(void) {
         receiver *r = receiverGet(id);
         if (!r)
             r = receiverCreate(id);
-        r->lastSeen = now;
+        if (r)
+            r->lastSeen = now;
     }
     printf("%lu\n", Modes.receiverCount);
     for (int i = 0; i < (1<<24); i++) {
