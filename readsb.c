@@ -214,6 +214,26 @@ static void modesInitConfig(void) {
     Modes.mday = utc.tm_mday;
 
     sdrInitConfig();
+
+    /*
+    uint64_t now = mstime();
+    for (uint64_t i = 0; i < (1<<24); i++) {
+        uint64_t id = i << 22;
+        receiver *r = receiverGet(id);
+        if (!r)
+            r = receiverCreate(id);
+        r->lastSeen = now;
+    }
+    printf("%lu\n", Modes.receiverCount);
+    for (int i = 0; i < (1<<24); i++) {
+        receiver *r = receiverGet(i);
+        if (!r)
+            r = receiverCreate(i);
+    }
+    printf("%lu\n", Modes.receiverCount);
+    receiverTimeout(0, 1);
+    printf("%lu\n", Modes.receiverCount);
+    */
 }
 //
 //=========================================================================

@@ -406,12 +406,18 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
         // find reference location
         double reflat, reflon;
 
-        if (trackDataValid(&a->position_valid) || a->pos_set) { // Ok to try aircraft relative first
+        if (trackDataValid(&a->position_valid)) { // Ok to try aircraft relative first
             reflat = a->lat;
             reflon = a->lon;
         } else if (Modes.bUserFlags & MODES_USER_LATLON_VALID) {
             reflat = Modes.fUserLat;
             reflon = Modes.fUserLon;
+        } else if (receiverGetReference(mm->receiverId, &reflat, &reflon)) {
+            //function sets reflat and reflon on success, nothing to do here.
+            fprintf(stderr, "%06x using receiver reference\n", a->addr);
+        } else if (a->pos_set) {
+            reflat = a->lat;
+            reflon = a->lon;
         } else {
             // No local reference, give up
             return (-1);
@@ -687,7 +693,8 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
         mm->decoded_nic = new_nic;
         mm->decoded_rc = new_rc;
 
-        globe_stuff(a, mm, new_lat, new_lon, mm->sysTimestampMsg);
+        uint64_t now = mm->sysTimestampMsg;
+        globe_stuff(a, mm, new_lat, new_lon, now);
 
         // Update aircraft state
         a->lat = new_lat;
@@ -699,6 +706,7 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
 
         if (a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2 && mm->source == SOURCE_ADSB) {
             update_range_histogram(new_lat, new_lon);
+            receiverPositionReceived(mm->receiverId, new_lat, new_lon, now);
         }
     }
 
@@ -1713,13 +1721,33 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
 }
 
 
+static void lockThreads() {
+    for (int i = 0; i < TRACE_THREADS; i++) {
+        pthread_mutex_lock(&Modes.jsonTraceThreadMutex[i]);
+    }
+    pthread_mutex_lock(&Modes.jsonThreadMutex);
+    pthread_mutex_lock(&Modes.jsonGlobeThreadMutex);
+    pthread_mutex_lock(&Modes.decodeThreadMutex);
+}
+static void unlockThreads() {
+    pthread_mutex_unlock(&Modes.decodeThreadMutex);
+    pthread_mutex_unlock(&Modes.jsonThreadMutex);
+    pthread_mutex_unlock(&Modes.jsonGlobeThreadMutex);
+    for (int i = 0; i < TRACE_THREADS; i++) {
+        pthread_mutex_unlock(&Modes.jsonTraceThreadMutex[i]);
+    }
+}
+
 //
 // Entry point for periodic updates
 //
 
 void trackPeriodicUpdate() {
     static uint64_t next_update;
+    static uint32_t part;
+    int nParts = 64;
     uint64_t now = mstime();
+
 
     // Only do updates once per second
     if (now >= next_update) {
@@ -1731,23 +1759,15 @@ void trackPeriodicUpdate() {
         // adding aircraft does not need to be done with locking:
         // the worst case is that the newly added aircraft is skipped as it's not yet
         // in the cache used by the json threads.
-        for (int i = 0; i < TRACE_THREADS; i++) {
-            pthread_mutex_lock(&Modes.jsonTraceThreadMutex[i]);
-        }
-        pthread_mutex_lock(&Modes.jsonThreadMutex);
-        pthread_mutex_lock(&Modes.jsonGlobeThreadMutex);
-        pthread_mutex_lock(&Modes.decodeThreadMutex);
+        lockThreads();
 
         trackRemoveStaleAircraft(&freeList);
         if (Modes.mode_ac)
             trackMatchAC(now);
 
-        pthread_mutex_unlock(&Modes.decodeThreadMutex);
-        pthread_mutex_unlock(&Modes.jsonThreadMutex);
-        pthread_mutex_unlock(&Modes.jsonGlobeThreadMutex);
-        for (int i = 0; i < TRACE_THREADS; i++) {
-            pthread_mutex_unlock(&Modes.jsonTraceThreadMutex[i]);
-        }
+        receiverTimeout((part++ % nParts), nParts);
+
+        unlockThreads();
 
         cleanupAircraft(freeList);
     }

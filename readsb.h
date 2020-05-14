@@ -284,12 +284,19 @@ typedef enum {
 
 #define MODES_NOTUSED(V) ((void) V)
 
-#define AIRCRAFTS_BUCKETS (1<<16)
+#define AIRCRAFTS_BUCKETS (1<<17)
 
 #define GLOBE_TRACE_SIZE 32768
 #define GLOBE_OVERLAP 3600
 #define GLOBE_STEP 16
 #define TRACE_THREADS 4
+
+// mix_fasthash: https://github.com/ZilongTan/fast-hash (MIT License Copyright (C) 2012 Zilong Tan (eric.zltan@gmail.com))
+#define mix_fasthash(h) ({              \
+        (h) ^= (h) >> 23;               \
+        (h) *= 0x2127599bf4325c37ULL;   \
+        (h) ^= (h) >> 47; })
+// end mix_fasthash
 
 // Include subheaders after all the #defines are in place
 
@@ -304,6 +311,7 @@ typedef enum {
 #include "convert.h"
 #include "sdr.h"
 #include "globe_index.h"
+#include "receiver.h"
 
 //======================== structure declarations =========================
 
@@ -370,6 +378,8 @@ struct
   struct net_service *services; // Active services
   struct aircraft * volatile aircrafts[AIRCRAFTS_BUCKETS]; // pointers are volatile
   struct craftArray globeLists[GLOBE_MAX_INDEX+1];
+  struct receiver *receiverTable[RECEIVER_TABLE_SIZE];
+  uint64_t receiverCount;
   struct net_writer raw_out; // Raw output
   struct net_writer beast_out; // Beast-format output
   struct net_writer beast_reduce_out; // Reduced data Beast-format output

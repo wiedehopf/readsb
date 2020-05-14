@@ -29,6 +29,7 @@ struct craftArray {
     int alloc; // memory allocated for aircraft pointers
 };
 
+
 void ca_init (struct craftArray *ca);
 void ca_destroy (struct craftArray *ca);
 void ca_remove (struct craftArray *ca, struct aircraft *a);
