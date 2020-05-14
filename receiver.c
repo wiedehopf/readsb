@@ -5,6 +5,7 @@ uint32_t receiverHash(uint64_t id) {
     h ^= mix_fasthash(id);
 
     h -= (h >> 32);
+    h &= (1ULL << 32) - 1;
     h -= (h >> RECEIVER_TABLE_HASH_BITS);
 
     return h & (RECEIVER_TABLE_SIZE - 1);

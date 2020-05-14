@@ -48,6 +48,7 @@ static uint32_t icaoHash(uint32_t a) {
     h ^= mix_fasthash(v);
 
     h -= (h >> 32);
+    h &= (1ULL << 32) - 1;
     h -= (h >> 16);
 
     return h & (ICAO_FILTER_SIZE - 1);
