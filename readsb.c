@@ -205,6 +205,8 @@ static void modesInitConfig(void) {
     Modes.basestation_is_mlat = 1;
     Modes.cpr_focus = 0xc0ffeeba;
     Modes.netReceiverId = 0;
+    Modes.netIngest = 0;
+    Modes.uuidFile = strdup("/boot/adsbx-uuid");
 
     //Modes.cpr_focus = 0x3d68d2;
 
@@ -959,6 +961,13 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptNetReceiverId:
             Modes.netReceiverId = 1;
+            break;
+        case OptNetIngest:
+            Modes.netIngest = 1;
+            break;
+        case OptUuidFile:
+            free(Modes.uuidFile);
+            Modes.uuidFile = strdup(arg);
             break;
         case OptNetConnector:
             if (!Modes.net_connectors || Modes.net_connectors_count + 1 > Modes.net_connectors_size) {
