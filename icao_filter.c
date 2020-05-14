@@ -72,6 +72,7 @@ void icaoFilterAdd(uint32_t addr) {
     if (!icao_filter_active[h])
         icao_filter_active[h] = addr;
 
+    /* disable as it's not being used
     // also add with a zeroed top byte, for handling DF20/21 with Data Parity
     h0 = h = icaoHash(addr & 0x00ffff);
     while (icao_filter_active[h] && (icao_filter_active[h] & 0x00ffff) != (addr & 0x00ffff)) {
@@ -83,6 +84,7 @@ void icaoFilterAdd(uint32_t addr) {
     }
     if (!icao_filter_active[h])
         icao_filter_active[h] = addr;
+    */
 }
 
 int icaoFilterTest(uint32_t addr) {
