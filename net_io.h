@@ -102,6 +102,7 @@ struct client
   int modeac_requested; // 1 if this Beast output connection has asked for A/C
   int receiverIdRemote; // receiverId has been transmitted by other side.
   uint64_t receiverId;
+  uint64_t receiverId2;
   uint64_t last_flush;
   uint64_t last_send;
   uint64_t last_read;  // This is used on write-only clients to help check for dead connections

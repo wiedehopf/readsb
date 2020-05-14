@@ -204,6 +204,8 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     c->receiverId <<= 22;
     c->receiverId |= rand();
 
+    c->receiverId2 = 0;
+
     c->receiverIdRemote = 0; // receiverId has been transmitted by other side.
 
     //fprintf(stderr, "c->receiverId: %016lx\n", c->receiverId);
@@ -3502,9 +3504,10 @@ static void read_uuid(struct client *c, char *p, char *eod) {
 
     unsigned char ch;
     uint64_t receiverId = 0;
+    uint64_t receiverId2 = 0;
     // read ascii to binary
-    int j;
-    for (j = 0; j < 16;) {
+    int j = 0;
+    for (int i = 0; i < 128 && j < 32; i++) {
         ch = *p++;
 
         //fprintf(stderr, "%c", ch);
@@ -3528,14 +3531,18 @@ static void read_uuid(struct client *c, char *p, char *eod) {
         else
             break;
 
-        receiverId = receiverId << 4 | x; // set 4 bits and shift them up
+        if (j < 16)
+            receiverId = receiverId << 4 | x; // set 4 bits and shift them up
+        else if (j < 32)
+            receiverId2 = receiverId2 << 4 | x; // set 4 bits and shift them up
         j++;
     }
 
-    if (j == 16) {
+    if (j >= 16) {
         c->receiverIdRemote = 1;
         c->receiverId = receiverId;
-        fprintf(stderr, "ADDR %s,%s UUID %016lx\n", c->host, c->port, c->receiverId);
+        c->receiverId2 = receiverId2;
+        fprintf(stderr, "ADDR %s,%s rId %016lx UUID %016lx%016lx\n", c->host, c->port, c->receiverId, c->receiverId, c->receiverId2);
     }
     return;
 }
