@@ -422,7 +422,8 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
             reflon = Modes.fUserLon;
         } else if (receiverGetReference(mm->receiverId, &reflat, &reflon)) {
             //function sets reflat and reflon on success, nothing to do here.
-            //fprintf(stderr, "%06x using receiver reference\n", a->addr);
+            if (Modes.debug_receiver)
+                fprintf(stderr, "%06x using receiver reference\n", a->addr);
         } else if (a->pos_set) {
             reflat = a->lat;
             reflon = a->lon;

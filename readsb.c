@@ -1028,6 +1028,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         break;
                     case 'P': Modes.debug_cpr = 1;
                         break;
+                    case 'R': Modes.debug_receiver = 1;
+                        break;
                     case 'S': Modes.debug_speed_check = 1;
                         break;
                     case 'j': Modes.debug |= MODES_DEBUG_JS;
