@@ -324,7 +324,7 @@ struct client *checkServiceConnected(struct net_connector *con) {
         int fd = open("/boot/adsbx-uuid", O_RDONLY);
         int res = (fd != -1) ? read(fd, c->sendq + 2, 128) : -1;
         if (res >= 16) {
-            c->sendq_len = res;
+            c->sendq_len = res + 2;
             flushClient(c, mstime());
         }
         if (fd != -1) {
