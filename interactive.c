@@ -114,8 +114,8 @@ void interactiveShowData(void) {
     int rows = getmaxy(stdscr);
     int row = 2;
 
-    for (int j = 0; j < AIRCRAFTS_BUCKETS; j++) {
-        struct aircraft *a = Modes.aircrafts[j];
+    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+        struct aircraft *a = Modes.aircraft[j];
         while (a && row < rows) {
 
             if ((now - a->seen) < Modes.interactive_display_ttl) {

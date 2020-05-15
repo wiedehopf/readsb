@@ -2223,8 +2223,8 @@ struct char_buffer generateAircraftJson(int globe_index){
             }
         }
     } else {
-        for (int j = 0; j < AIRCRAFTS_BUCKETS; j++) {
-            for (a = Modes.aircrafts[j]; a; a = a->next) {
+        for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+            for (a = Modes.aircraft[j]; a; a = a->next) {
                 //fprintf(stderr, "a: %05x\n", a->addr);
 
                 // don't include stale aircraft in the JSON
@@ -3128,14 +3128,14 @@ struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {
     char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
     char *line_start;
     int first = 1;
-    int part_len = AIRCRAFTS_BUCKETS / n_parts;
+    int part_len = AIRCRAFT_BUCKETS / n_parts;
     int part_start = part * part_len;
 
     p = safe_snprintf(p, end,
             "{\"acList\":[");
 
     for (int j = part_start; j < part_start + part_len; j++) {
-        for (a = Modes.aircrafts[j]; a; a = a->next) {
+        for (a = Modes.aircraft[j]; a; a = a->next) {
             if (a->messages < 2) { // basic filter for bad decodes
                 continue;
             }

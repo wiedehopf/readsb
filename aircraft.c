@@ -10,12 +10,12 @@ uint32_t aircraftHash(uint32_t addr) {
 
     h -= (h >> 32);
     h &= (1ULL << 32) - 1;
-    h -= (h >> AIRCRAFTS_HASH_BITS);
+    h -= (h >> AIRCRAFT_HASH_BITS);
 
-    return h & (AIRCRAFTS_BUCKETS - 1);
+    return h & (AIRCRAFT_BUCKETS - 1);
 }
 struct aircraft *aircraftGet(uint32_t addr) {
-    struct aircraft *a = Modes.aircrafts[aircraftHash(addr)];
+    struct aircraft *a = Modes.aircraft[aircraftHash(addr)];
 
     while (a && a->addr != addr) {
         a = a->next;
@@ -25,7 +25,7 @@ struct aircraft *aircraftGet(uint32_t addr) {
 
 struct aircraft *aircraftCreate(struct modesMessage *mm) {
     uint32_t addr = mm->addr;
-    if (Modes.aircraftCount > 8 * AIRCRAFTS_BUCKETS)
+    if (Modes.aircraftCount > 8 * AIRCRAFT_BUCKETS)
         return NULL;
     struct aircraft *a = aircraftGet(addr);
     if (a)
@@ -69,11 +69,11 @@ struct aircraft *aircraftCreate(struct modesMessage *mm) {
 
 
     uint32_t hash = aircraftHash(addr);
-    a->next = Modes.aircrafts[hash];
-    Modes.aircrafts[hash] = a;
+    a->next = Modes.aircraft[hash];
+    Modes.aircraft[hash] = a;
     Modes.aircraftCount++;
-    if (((Modes.aircraftCount * 4) & (AIRCRAFTS_BUCKETS - 1)) == 0)
-        fprintf(stderr, "aircraft table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFTS_BUCKETS );
+    if (((Modes.aircraftCount * 4) & (AIRCRAFT_BUCKETS - 1)) == 0)
+        fprintf(stderr, "aircraft table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFT_BUCKETS );
 
     return a;
 }

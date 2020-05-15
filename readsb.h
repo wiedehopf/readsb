@@ -284,8 +284,8 @@ typedef enum {
 
 #define MODES_NOTUSED(V) ((void) V)
 
-#define AIRCRAFTS_HASH_BITS 17
-#define AIRCRAFTS_BUCKETS (1 << AIRCRAFTS_HASH_BITS)
+#define AIRCRAFT_HASH_BITS 17
+#define AIRCRAFT_BUCKETS (1 << AIRCRAFT_HASH_BITS)
 
 #define GLOBE_TRACE_SIZE 32768
 #define GLOBE_OVERLAP 3600
@@ -378,7 +378,7 @@ struct
   char aneterr[ANET_ERR_LEN];
   int beast_fd; // Local Modes-S Beast handler
   struct net_service *services; // Active services
-  struct aircraft * volatile aircrafts[AIRCRAFTS_BUCKETS]; // pointers are volatile
+  struct aircraft * volatile aircraft[AIRCRAFT_BUCKETS]; // pointers are volatile
   struct craftArray globeLists[GLOBE_MAX_INDEX+1];
   struct receiver *receiverTable[RECEIVER_TABLE_SIZE];
   uint64_t aircraftCount;

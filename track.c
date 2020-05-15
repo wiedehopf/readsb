@@ -1462,8 +1462,8 @@ static void trackMatchAC(uint64_t now) {
     }
 
     // scan aircraft list, look for matches
-    for (int j = 0; j < AIRCRAFTS_BUCKETS; j++) {
-        for (struct aircraft *a = Modes.aircrafts[j]; a; a = a->next) {
+    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+        for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
             if ((now - a->seen) > 5000) {
                 continue;
             }
@@ -1555,8 +1555,8 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
         full_write = 1;
     }
 
-    for (int j = 0; j < AIRCRAFTS_BUCKETS; j++) {
-        struct aircraft *a = Modes.aircrafts[j];
+    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+        struct aircraft *a = Modes.aircraft[j];
         struct aircraft *prev = NULL;
 
         while (a) {
@@ -1581,8 +1581,8 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                 // if we are removing the first element
                 struct aircraft *del = a;
                 if (!prev) {
-                    Modes.aircrafts[j] = a->next;
-                    a = Modes.aircrafts[j];
+                    Modes.aircraft[j] = a->next;
+                    a = Modes.aircraft[j];
                 } else {
                     prev->next = a->next;
                     a = prev->next;

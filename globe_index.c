@@ -391,10 +391,10 @@ void *save_state(void *arg) {
     }
     return NULL;
     // old internal state, no longer needed
-    for (int j = 0; j < AIRCRAFTS_BUCKETS; j++) {
+    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
         if (j % 8 != thread_number)
             continue;
-        for (struct aircraft *a = Modes.aircrafts[j]; a; a = a->next) {
+        for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
             if (!a->pos_set)
                 continue;
             if (a->addr & MODES_NON_ICAO_ADDRESS)
@@ -499,7 +499,7 @@ static int load_aircraft(int fd, uint64_t now) {
     struct aircraft *old = aircraftGet(a->addr);
     uint32_t hash = aircraftHash(a->addr);
     if (old) {
-        struct aircraft **c = (struct aircraft **) &Modes.aircrafts[hash];
+        struct aircraft **c = (struct aircraft **) &Modes.aircraft[hash];
         while (*c && *c != old) {
             c = &((*c)->next);
         }
@@ -514,8 +514,8 @@ static int load_aircraft(int fd, uint64_t now) {
     } else {
         Modes.stats_current.unique_aircraft++;
 
-        a->next = Modes.aircrafts[hash];
-        Modes.aircrafts[hash] = a;
+        a->next = Modes.aircraft[hash];
+        Modes.aircraft[hash] = a;
     }
 
     return ret;
@@ -569,7 +569,7 @@ void *jsonTraceThreadEntryPoint(void *arg) {
     int part = 0;
     int n_parts = 64; // power of 2
 
-    int thread_section_len = (AIRCRAFTS_BUCKETS / TRACE_THREADS);
+    int thread_section_len = (AIRCRAFT_BUCKETS / TRACE_THREADS);
     int thread_start = thread * thread_section_len;
     //int thread_end = thread_start + thread_section_len;
     //fprintf(stderr, "%d %d\n", thread_start, thread_end);
@@ -601,7 +601,7 @@ void *jsonTraceThreadEntryPoint(void *arg) {
         uint64_t now = mstime();
 
         for (int j = start; j < end; j++) {
-            for (a = Modes.aircrafts[j]; a; a = a->next) {
+            for (a = Modes.aircraft[j]; a; a = a->next) {
                 if (a->trace_write)
                     write_trace(a, now);
             }
@@ -976,14 +976,14 @@ void save_blob(int blob) {
         return;
     }
 
-    int stride = AIRCRAFTS_BUCKETS / 256;
+    int stride = AIRCRAFT_BUCKETS / 256;
     int start = stride * blob;
     int end = start + stride;
 
     uint64_t magic = 0x7ba09e63757913eeULL;
 
     for (int j = start; j < end; j++) {
-        for (struct aircraft *a = Modes.aircrafts[j]; a; a = a->next) {
+        for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
             if (!a->pos_set)
                 continue;
             if (a->addr & MODES_NON_ICAO_ADDRESS)

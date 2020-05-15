@@ -721,8 +721,8 @@ static void cleanup_and_exit(int code) {
     free(Modes.json_globe_special_tiles);
     free(Modes.uuidFile);
     /* Go through tracked aircraft chain and free up any used memory */
-    for (int j = 0; j < AIRCRAFTS_BUCKETS; j++) {
-        struct aircraft *a = Modes.aircrafts[j], *na;
+    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+        struct aircraft *a = Modes.aircraft[j], *na;
         while (a) {
             na = a->next;
             if (a) {
@@ -1169,8 +1169,8 @@ int main(int argc, char **argv) {
             pthread_join(threads[i], NULL);
         }
         uint32_t count_ac = 0;
-        for (int j = 0; j < AIRCRAFTS_BUCKETS; j++) {
-            for (struct aircraft *a = Modes.aircrafts[j]; a; a = a->next) {
+        for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+            for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
                 int new_index = a->globe_index;
                 a->globe_index = -5;
                 set_globe_index(a, new_index);
@@ -1179,6 +1179,7 @@ int main(int argc, char **argv) {
         }
         fprintf(stderr, " .......... done, loaded %u aircraft!\n", count_ac);
         Modes.aircraftCount = count_ac;
+        fprintf(stderr, "aircraft table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFT_BUCKETS );
     }
 
     pthread_create(&Modes.decodeThread, NULL, decodeThreadEntryPoint, NULL);

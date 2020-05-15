@@ -298,8 +298,8 @@ int main(int argc, char **argv) {
     }
 
     /* Go through tracked aircraft chain and free up any used memory */
-    for (int j = 0; j < AIRCRAFTS_BUCKETS; j++) {
-        struct aircraft *a = Modes.aircrafts[j], *n;
+    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+        struct aircraft *a = Modes.aircraft[j], *n;
         while (a) {
             n = a->next;
             if (a) free(a);
