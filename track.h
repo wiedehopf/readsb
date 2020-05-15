@@ -479,6 +479,8 @@ struct aircraft *trackUpdateFromMessage (struct modesMessage *mm);
 void trackPeriodicUpdate ();
 
 void from_state_all(struct state_all *in, struct aircraft *a , uint64_t ts);
+void freeAircraft(struct aircraft *a);
+struct aircraft *trackFindAircraft(uint32_t addr);
 
 /* Convert from a (hex) mode A value to a 0-4095 index */
 static inline unsigned

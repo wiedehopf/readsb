@@ -125,7 +125,7 @@ static struct aircraft *trackCreateAircraft(struct modesMessage *mm) {
 // exists with this address.
 //
 
-static struct aircraft *trackFindAircraft(uint32_t addr) {
+struct aircraft *trackFindAircraft(uint32_t addr) {
     struct aircraft *a = Modes.aircrafts[addr % AIRCRAFTS_BUCKETS];
 
     while (a) {
@@ -1752,34 +1752,33 @@ static void unlockThreads() {
 //
 
 void trackPeriodicUpdate() {
-    static uint64_t next_update;
+    // Only do updates once per second
     static uint32_t part;
-    int nParts = 64;
+    static uint32_t blob;
+    int nParts = 1024;
     uint64_t now = mstime();
 
+    struct aircraft *freeList = NULL;
 
-    // Only do updates once per second
-    if (now >= next_update) {
-        next_update = now + 1000;
-        struct aircraft *freeList = NULL;
+    if (part % 7 == 0)
+        save_blob(blob++ % 256);
 
-        // stop all threads so we can remove aircraft from the list.
-        // also servers as memory barrier so json threads get new aircraf in the list
-        // adding aircraft does not need to be done with locking:
-        // the worst case is that the newly added aircraft is skipped as it's not yet
-        // in the cache used by the json threads.
-        lockThreads();
+    // stop all threads so we can remove aircraft from the list.
+    // also servers as memory barrier so json threads get new aircraf in the list
+    // adding aircraft does not need to be done with locking:
+    // the worst case is that the newly added aircraft is skipped as it's not yet
+    // in the cache used by the json threads.
+    lockThreads();
 
-        trackRemoveStaleAircraft(&freeList);
-        if (Modes.mode_ac)
-            trackMatchAC(now);
+    trackRemoveStaleAircraft(&freeList);
+    if (Modes.mode_ac)
+        trackMatchAC(now);
 
-        receiverTimeout((part++ % nParts), nParts);
+    receiverTimeout((part++ % nParts), nParts);
 
-        unlockThreads();
+    unlockThreads();
 
-        cleanupAircraft(freeList);
-    }
+    cleanupAircraft(freeList);
 }
 
 static void cleanupAircraft(struct aircraft *a) {
@@ -1812,16 +1811,7 @@ static void cleanupAircraft(struct aircraft *a) {
 
         //fprintf(stderr, "unlink %06x: %s\n", a->addr, fullpath);
 
-        pthread_mutex_unlock(&a->trace_mutex);
-        pthread_mutex_destroy(&a->trace_mutex);
-
-        if (a->first_message)
-            free(a->first_message);
-        if (a->trace) {
-            free(a->trace);
-            free(a->trace_all);
-        }
-        free(a);
+        freeAircraft(a);
     }
 }
 
@@ -2624,4 +2614,17 @@ static const char *source_string(datasource_t source) {
         default:
             return "UNKN";
     }
+}
+
+void freeAircraft(struct aircraft *a) {
+        pthread_mutex_unlock(&a->trace_mutex);
+        pthread_mutex_destroy(&a->trace_mutex);
+
+        if (a->first_message)
+            free(a->first_message);
+        if (a->trace) {
+            free(a->trace);
+            free(a->trace_all);
+        }
+        free(a);
 }

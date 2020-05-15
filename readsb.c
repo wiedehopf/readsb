@@ -1159,6 +1159,13 @@ int main(int argc, char **argv) {
         for (int i = 0; i < 8; i++) {
             pthread_join(threads[i], NULL);
         }
+        for (int i = 0; i < 8; i++) {
+            numbers[i] = i;
+            pthread_create(&threads[i], NULL, load_blobs, &numbers[i]);
+        }
+        for (int i = 0; i < 8; i++) {
+            pthread_join(threads[i], NULL);
+        }
         uint32_t count_ac = 0;
         for (int j = 0; j < AIRCRAFTS_BUCKETS; j++) {
             for (struct aircraft *a = Modes.aircrafts[j]; a; a = a->next) {

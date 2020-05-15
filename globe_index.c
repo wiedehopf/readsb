@@ -4,6 +4,7 @@
 //#define LEG_FOCUS 0xae290d
 
 static void mark_legs(struct aircraft *a);
+static void load_blob(int blob);
 
 static ssize_t check_write(int fd, const void *buf, size_t count, const char *error_context) {
     ssize_t res = write(fd, buf, count);
@@ -263,8 +264,8 @@ void write_trace(struct aircraft *a, uint64_t now) {
                 a->trace_full_write = 0xdead;
             }
 
-            // prepare writing internal state
-            if (a->pos_set && Modes.globe_history_dir && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
+            // no longer used
+            if (0 && a->pos_set && Modes.globe_history_dir && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
                 int size_state = a->trace_len * sizeof(struct state);
                 int size_all = (a->trace_len + 3) / 4 * sizeof(struct state_all);
                 shadow_size = sizeof(struct aircraft) + size_state + size_all;
@@ -366,7 +367,8 @@ void write_trace(struct aircraft *a, uint64_t now) {
         free(hist.buffer);
     }
 
-    if (shadow && shadow_size > 0) {
+    // no longer used
+    if (0 && shadow && shadow_size > 0) {
         snprintf(filename, 1024, "%s/internal_state/%02x/%06x", Modes.globe_history_dir, a->addr % 256, a->addr);
 
         int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
@@ -382,6 +384,13 @@ void write_trace(struct aircraft *a, uint64_t now) {
 
 void *save_state(void *arg) {
     int thread_number = *((int *) arg);
+    for (int j = 0; j < 256; j++) {
+        if (j % 8 != thread_number)
+            continue;
+        save_blob(j);
+    }
+    return NULL;
+    // old internal state, no longer needed
     for (int j = 0; j < AIRCRAFTS_BUCKETS; j++) {
         if (j % 8 != thread_number)
             continue;
@@ -417,10 +426,105 @@ void *save_state(void *arg) {
 }
 
 
+static int load_aircraft(int fd, uint64_t now) {
+
+    int ret = 0;
+    struct aircraft *a = (struct aircraft *) aligned_alloc(64, sizeof(struct aircraft));
+    int res = read(fd, a, sizeof(struct aircraft));
+    if (res != sizeof(struct aircraft) ||
+            a->size_struct_aircraft != sizeof(struct aircraft)
+       ) {
+        if (res == sizeof(struct aircraft)) {
+            fprintf(stderr, "sizeof(struct aircraft) has changed, unable to read state!\n");
+        } else {
+            fprintf(stderr, "read fail\n");
+        }
+        free(a);
+        return -1;
+    }
+
+    a->trace = NULL;
+    a->trace_all = NULL;
+
+    if (!Modes.json_globe_index) {
+        a->trace_alloc = 0;
+        a->trace_len = 0;
+    }
+
+    // read trace
+    if (a->trace_len > 0) {
+
+        int size_state = a->trace_len * sizeof(struct state);
+        int size_all = (a->trace_len + 3) / 4 * sizeof(struct state_all);
+
+        a->trace = malloc(a->trace_alloc * sizeof(struct state));
+        a->trace_all = malloc(a->trace_alloc / 4 * sizeof(struct state_all));
+
+        if (read(fd, a->trace, size_state) != size_state
+                || read(fd, a->trace_all, size_all) != size_all) {
+            // TRACE FAIL
+            fprintf(stderr, "read trace fail\n");
+            free(a->trace);
+            free(a->trace_all);
+            a->trace = NULL;
+            a->trace_all = NULL;
+            a->trace_alloc = 0;
+            a->trace_len = 0;
+            ret = -1;
+        } else {
+            // TRACE SUCCESS
+            if (!(Modes.json_globe_index && a->trace_len == 0 && a->trace_full_write == 0xdead)) {
+                if (a->addr == LEG_FOCUS)
+                    a->trace_next_fw = now;
+                else
+                    a->trace_next_fw = now + 1000 * (rand() % 120); // spread over 2 mins
+                a->trace_full_write = 0xc0ffee; // rewrite full history file
+            }
+        }
+    }
+
+    if (pthread_mutex_init(&a->trace_mutex, NULL)) {
+        fprintf(stderr, "Unable to initialize trace mutex!\n");
+        exit(1);
+    }
+
+    if (a->globe_index > GLOBE_MAX_INDEX)
+        a->globe_index = -5;
+
+    a->first_message = NULL;
+    if (a->seen > now)
+        a->seen = 0;
+
+
+    struct aircraft *old = trackFindAircraft(a->addr);
+    if (old) {
+        struct aircraft **c = (struct aircraft **) &Modes.aircrafts[a->addr % AIRCRAFTS_BUCKETS];
+        while (*c && *c != old) {
+            c = &((*c)->next);
+        }
+        if (*c == old) {
+            a->next = old->next;
+            *c = a;
+            freeAircraft(old);
+        } else {
+            freeAircraft(a);
+            fprintf(stderr, "%06x aircraft replacement failed!\n", old->addr);
+        }
+    } else {
+        Modes.stats_current.unique_aircraft++;
+        a->next = Modes.aircrafts[a->addr % AIRCRAFTS_BUCKETS]; // .. and put it at the head of the list
+        Modes.aircrafts[a->addr % AIRCRAFTS_BUCKETS] = a;
+    }
+
+    return ret;
+}
+
 void *load_state(void *arg) {
     uint64_t now = mstime();
     char pathbuf[PATH_MAX];
-    struct stat fileinfo = {0};
+    //struct stat fileinfo = {0};
+    //fstat(fd, &fileinfo);
+    //off_t len = fileinfo.st_size;
     int thread_number = *((int *) arg);
     srand(now >> thread_number);
     for (int i = 0; i < 256; i++) {
@@ -442,93 +546,11 @@ void *load_state(void *arg) {
 
             int fd = open(pathbuf, O_RDONLY);
 
-            fstat(fd, &fileinfo);
-            off_t len = fileinfo.st_size;
-            int trace_size = len - sizeof(struct aircraft);
-            struct aircraft *a = (struct aircraft *) aligned_alloc(64, sizeof(struct aircraft));
-
-            int res = read(fd, a, sizeof(struct aircraft));
-            if (res != sizeof(struct aircraft) ||
-                    a->size_struct_aircraft != sizeof(struct aircraft)
-               ) {
-                if (res == sizeof(struct aircraft)) {
-                    fprintf(stderr, "sizeof(struct aircraft) has changed, unable to read state!\n");
-                } else {
-                    fprintf(stderr, "read fail\n");
-                }
-                free(a);
-                close(fd);
-                unlink(pathbuf);
-                continue;
-            }
-
-            a->trace = NULL;
-            a->trace_all = NULL;
-
-            if (!Modes.json_globe_index) {
-                a->trace_alloc = 0;
-                a->trace_len = 0;
-            }
-
-            // read trace
-            if (a->trace_alloc > 0) {
-
-                int size_state = a->trace_len * sizeof(struct state);
-                int size_all = (a->trace_len + 3) / 4 * sizeof(struct state_all);
-
-                if (trace_size != size_state + size_all) {
-                    fprintf(stderr, "trace_size mismatch\n");
-                    goto discard_trace;
-                }
-
-                a->trace = malloc(a->trace_alloc * sizeof(struct state));
-                a->trace_all = malloc(a->trace_alloc / 4 * sizeof(struct state_all));
-
-                if (read(fd, a->trace, size_state) != size_state
-                        || read(fd, a->trace_all, size_all) != size_all) {
-                    fprintf(stderr, "read trace fail\n");
-                    free(a->trace);
-                    free(a->trace_all);
-                    goto discard_trace;
-                }
-
-                if (!(Modes.json_globe_index && a->trace_len == 0 && a->trace_full_write == 0xdead)) {
-                    if (a->addr == LEG_FOCUS)
-                        a->trace_next_fw = now;
-                    else
-                        a->trace_next_fw = now + 1000 * (rand() % 120); // spread over 2 mins
-                    a->trace_full_write = 0xc0ffee; // rewrite full history file
-                }
-
-            }
-
-            goto keep_trace;
-
-discard_trace:
-                    a->trace = NULL;
-                    a->trace_all = NULL;
-                    a->trace_alloc = 0;
-                    a->trace_len = 0;
-keep_trace:
-
-            Modes.stats_current.unique_aircraft++;
+            load_aircraft(fd, now);
 
             close(fd);
-
-            if (pthread_mutex_init(&a->trace_mutex, NULL)) {
-                fprintf(stderr, "Unable to initialize trace mutex!\n");
-                exit(1);
-            }
-
-            if (a->globe_index > GLOBE_MAX_INDEX)
-                a->globe_index = -5;
-
-            a->first_message = NULL;
-            if (a->seen > now)
-                a->seen = 0;
-
-            a->next = Modes.aircrafts[a->addr % AIRCRAFTS_BUCKETS]; // .. and put it at the head of the list
-            Modes.aircrafts[a->addr % AIRCRAFTS_BUCKETS] = a;
+            // old internal state format, no longer needed
+            unlink(pathbuf);
         }
 
         closedir (dp);
@@ -934,4 +956,90 @@ void set_globe_index (struct aircraft *a, int new_index) {
     if (new_index >= 0) {
         ca_add(&Modes.globeLists[new_index], a);
     }
+}
+
+
+// blobs 00 to ff (0 to 255)
+void save_blob(int blob) {
+    if (blob < 0 || blob > 255)
+        fprintf(stderr, "save_blob: invalid argument: %d", blob);
+    //fprintf(stderr, "Save blob: %02x\n", blob);
+
+    char filename[1024];
+    snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
+
+    int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) {
+        perror(filename);
+        return;
+    }
+
+    int stride = AIRCRAFTS_BUCKETS / 256;
+    int start = stride * blob;
+    int end = start + stride;
+
+    uint64_t magic = 0x7ba09e63757913eeULL;
+
+    for (int j = start; j < end; j++) {
+        for (struct aircraft *a = Modes.aircrafts[j]; a; a = a->next) {
+            if (!a->pos_set)
+                continue;
+            if (a->addr & MODES_NON_ICAO_ADDRESS)
+                continue;
+            if (a->messages < 2)
+                continue;
+
+            check_write(fd, &magic, sizeof(magic), filename);
+
+            check_write(fd, a, sizeof(struct aircraft), filename);
+            if (a->trace_len > 0) {
+                int size_state = a->trace_len * sizeof(struct state);
+                int size_all = (a->trace_len + 3) / 4 * sizeof(struct state_all);
+                check_write(fd, a->trace, size_state, filename);
+                check_write(fd, a->trace_all, size_all, filename);
+            }
+        }
+    }
+    magic--;
+    check_write(fd, &magic, sizeof(magic), filename);
+    close(fd);
+}
+void *load_blobs(void *arg) {
+    uint64_t now = mstime();
+    int thread_number = *((int *) arg);
+    srand(now >> thread_number);
+    for (int j = 0; j < 256; j++) {
+        if (j % 8 != thread_number)
+           continue;
+        load_blob(j);
+    }
+    return NULL;
+}
+
+// blobs 00 to ff (0 to 255)
+static void load_blob(int blob) {
+    if (blob < 0 || blob > 255)
+        fprintf(stderr, "load_blob: invalid argument: %d", blob);
+    uint64_t magic = 0x7ba09e63757913eeULL;
+    char filename[1024];
+    uint64_t now = mstime();
+    snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
+    int fd = open(filename, O_RDONLY);
+    if (fd == -1) {
+        perror(filename);
+        close(fd);
+        return;
+    }
+    int res = 0;
+    while (res == 0) {
+        uint64_t value = 0;
+        res = read(fd, &value, sizeof(value));
+        if (res != sizeof(value) || value != magic) {
+            if (value != magic - 1)
+                fprintf(stderr, "Incomplete state file: %s\n", filename);
+            break;
+        }
+        res = load_aircraft(fd, now);
+    }
+    close(fd);
 }
