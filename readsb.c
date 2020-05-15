@@ -1178,6 +1178,7 @@ int main(int argc, char **argv) {
             }
         }
         fprintf(stderr, " .......... done, loaded %u aircraft!\n", count_ac);
+        Modes.aircraftCount = count_ac;
     }
 
     pthread_create(&Modes.decodeThread, NULL, decodeThreadEntryPoint, NULL);

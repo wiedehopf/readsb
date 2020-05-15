@@ -284,7 +284,8 @@ typedef enum {
 
 #define MODES_NOTUSED(V) ((void) V)
 
-#define AIRCRAFTS_BUCKETS (1<<17)
+#define AIRCRAFTS_HASH_BITS 17
+#define AIRCRAFTS_BUCKETS (1 << AIRCRAFTS_HASH_BITS)
 
 #define GLOBE_TRACE_SIZE 32768
 #define GLOBE_OVERLAP 3600
@@ -312,6 +313,7 @@ typedef enum {
 #include "sdr.h"
 #include "globe_index.h"
 #include "receiver.h"
+#include "aircraft.h"
 
 //======================== structure declarations =========================
 
@@ -379,6 +381,7 @@ struct
   struct aircraft * volatile aircrafts[AIRCRAFTS_BUCKETS]; // pointers are volatile
   struct craftArray globeLists[GLOBE_MAX_INDEX+1];
   struct receiver *receiverTable[RECEIVER_TABLE_SIZE];
+  uint64_t aircraftCount;
   uint64_t receiverCount;
   struct net_writer raw_out; // Raw output
   struct net_writer beast_out; // Beast-format output

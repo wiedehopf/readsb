@@ -70,72 +70,6 @@ static inline int declination (struct aircraft *a, double *dec);
 static const char *source_string(datasource_t source);
 static void updateValidities(struct aircraft *a, uint64_t now);
 
-//
-// Return a new aircraft structure for the linked list of tracked
-// aircraft
-//
-
-static struct aircraft *trackCreateAircraft(struct modesMessage *mm) {
-    //static struct aircraft zeroAircraft;
-    struct aircraft *a = (struct aircraft *) aligned_alloc(64, sizeof(struct aircraft));
-    int i;
-
-    // Default everything to zero/NULL
-    memset(a, 0, sizeof (struct aircraft));
-    //*a = zeroAircraft;
-
-    a->size_struct_aircraft = sizeof(struct aircraft);
-
-    // Now initialise things that should not be 0/NULL to their defaults
-    a->addr = mm->addr;
-    a->addrtype = ADDR_UNKNOWN;
-    for (i = 0; i < 8; ++i)
-        a->signalLevel[i] = 1e-5;
-    a->signalNext = 0;
-
-    // defaults until we see a message otherwise
-    a->adsb_version = -1;
-    a->adsb_hrd = HEADING_MAGNETIC;
-    a->adsb_tah = HEADING_GROUND_TRACK;
-
-    // Copy the first message so we can emit it later when a second message arrives.
-    a->first_message = malloc(sizeof(struct modesMessage));
-    memcpy(a->first_message, mm, sizeof(struct modesMessage));
-
-    if (Modes.json_globe_index) {
-        a->globe_index = -5;
-    }
-
-    if (pthread_mutex_init(&a->trace_mutex, NULL)) {
-        fprintf(stderr, "Unable to initialize trace mutex!\n");
-        exit(1);
-    }
-
-    // initialize data validity ages
-    //adjustExpire(a, 58);
-
-    Modes.stats_current.unique_aircraft++;
-
-    return (a);
-}
-
-//
-//=========================================================================
-//
-// Return the aircraft with the specified address, or NULL if no aircraft
-// exists with this address.
-//
-
-struct aircraft *trackFindAircraft(uint32_t addr) {
-    struct aircraft *a = Modes.aircrafts[addr % AIRCRAFTS_BUCKETS];
-
-    while (a) {
-        if (a->addr == addr) return (a);
-        a = a->next;
-    }
-    return (NULL);
-}
-
 // Should we accept some new data from the given source?
 // If so, update the validity and return 1
 
@@ -1045,11 +979,9 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     uint64_t now = mm->sysTimestampMsg;
 
     // Lookup our aircraft or create a new one
-    a = trackFindAircraft(mm->addr);
+    a = aircraftGet(mm->addr);
     if (!a) { // If it's a currently unknown aircraft....
-        a = trackCreateAircraft(mm); // ., create a new record for it,
-        a->next = Modes.aircrafts[mm->addr % AIRCRAFTS_BUCKETS]; // .. and put it at the head of the list
-        Modes.aircrafts[mm->addr % AIRCRAFTS_BUCKETS] = a;
+        a = aircraftCreate(mm); // ., create a new record for it,
     }
 
     if (mm->signalLevel > 0) {
@@ -1655,6 +1587,8 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                     prev->next = a->next;
                     a = prev->next;
                 }
+
+                Modes.aircraftCount--;
 
                 del->next = *freeList;
                 *freeList = del;

@@ -496,9 +496,10 @@ static int load_aircraft(int fd, uint64_t now) {
         a->seen = 0;
 
 
-    struct aircraft *old = trackFindAircraft(a->addr);
+    struct aircraft *old = aircraftGet(a->addr);
+    uint32_t hash = aircraftHash(a->addr);
     if (old) {
-        struct aircraft **c = (struct aircraft **) &Modes.aircrafts[a->addr % AIRCRAFTS_BUCKETS];
+        struct aircraft **c = (struct aircraft **) &Modes.aircrafts[hash];
         while (*c && *c != old) {
             c = &((*c)->next);
         }
@@ -512,8 +513,9 @@ static int load_aircraft(int fd, uint64_t now) {
         }
     } else {
         Modes.stats_current.unique_aircraft++;
-        a->next = Modes.aircrafts[a->addr % AIRCRAFTS_BUCKETS]; // .. and put it at the head of the list
-        Modes.aircrafts[a->addr % AIRCRAFTS_BUCKETS] = a;
+
+        a->next = Modes.aircrafts[hash];
+        Modes.aircrafts[hash] = a;
     }
 
     return ret;
