@@ -619,7 +619,7 @@ static void display_total_stats(void) {
 static void backgroundTasks(void) {
     static uint64_t next_stats_display;
     static uint64_t next_stats_update;
-    static uint64_t last_second;
+    static uint64_t next_second;
 
     uint64_t now = mstime();
 
@@ -627,12 +627,14 @@ static void backgroundTasks(void) {
 
     if (Modes.net) {
         modesNetPeriodicWork();
-        if (last_second + 1000 < now) {
-            modesNetSecondWork();
-            last_second = now;
-        }
     }
 
+    if (now > next_second) {
+        next_second = now + 1000;
+
+        if (Modes.net)
+            modesNetSecondWork();
+    }
 
     // Refresh screen when in interactive mode
     if (Modes.interactive) {

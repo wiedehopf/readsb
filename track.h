@@ -477,6 +477,7 @@ struct aircraft *trackUpdateFromMessage (struct modesMessage *mm);
 
 /* Call periodically */
 void trackPeriodicUpdate ();
+void trackUpdateUnlocked();
 
 void from_state_all(struct state_all *in, struct aircraft *a , uint64_t ts);
 void freeAircraft(struct aircraft *a);

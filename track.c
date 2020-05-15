@@ -68,6 +68,7 @@ static void calc_wind(struct aircraft *a, uint64_t now);
 static void calc_temp(struct aircraft *a, uint64_t now);
 static inline int declination (struct aircraft *a, double *dec);
 static const char *source_string(datasource_t source);
+static void updateValidities(struct aircraft *a, uint64_t now);
 
 //
 // Return a new aircraft structure for the linked list of tracked
@@ -1626,7 +1627,6 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
         struct aircraft *a = Modes.aircrafts[j];
         struct aircraft *prev = NULL;
 
-
         while (a) {
             if (
                     (!a->pos_set && (now - a->seen) > TRACK_AIRCRAFT_NO_POS_TTL) ||
@@ -1659,58 +1659,11 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                 del->next = *freeList;
                 *freeList = del;
             } else {
-
-                updateValidity(&a->callsign_valid, now, TRACK_EXPIRE_LONG);
-                updateValidity(&a->altitude_baro_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->altitude_geom_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->geom_delta_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->gs_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->ias_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->tas_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->mach_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->track_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->track_rate_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->roll_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->mag_heading_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->true_heading_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->baro_rate_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->geom_rate_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->squawk_valid, now, TRACK_EXPIRE_LONG);
-                updateValidity(&a->airground_valid, now, TRACK_EXPIRE + 30000);
-                updateValidity(&a->nav_qnh_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->nav_altitude_mcp_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->nav_altitude_fms_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->nav_altitude_src_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->nav_heading_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->nav_modes_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->cpr_odd_valid, now, TRACK_EXPIRE + 30);
-                updateValidity(&a->cpr_even_valid, now, TRACK_EXPIRE + 30);
-                updateValidity(&a->position_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->nic_a_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->nic_c_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->nic_baro_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->nac_p_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->sil_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->gva_valid, now, TRACK_EXPIRE);
-                updateValidity(&a->sda_valid, now, TRACK_EXPIRE);
-
+                updateValidities(a, now);
                 if (trackDataValid(&a->position_valid)) {
                     with_pos++;
                 }
 
-                // reset position reliability when no position was received for 120 seconds
-                if (trackDataAge(now, &a->position_valid) > 120 * 1000) {
-                    a->pos_reliable_odd = 0;
-                    a->pos_reliable_even = 0;
-                }
-
-                if (a->altitude_baro_valid.source == SOURCE_INVALID)
-                    a->alt_reliable = 0;
-
-                if (a->pos_set && now > a->trace_next_fw && a->trace_alloc != 0) {
-                    a->trace_write = 1;
-                    resize_trace(a, now);
-                }
                 if (full_write && !(Modes.json_globe_index && a->trace_len == 0 && a->trace_full_write == 0xdead)) {
                     a->trace_next_fw = now + 1000 * (rand() % 180); // spread over 3 mins
                     a->trace_full_write = 0xc0ffee;
@@ -1719,8 +1672,6 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                 if (a->globe_index >= 0 && now > a->seen_pos + 30 * 60 * 1000) {
                     set_globe_index(a, -5);
                 }
-
-
                 prev = a;
                 a = a->next;
             }
@@ -1760,9 +1711,6 @@ void trackPeriodicUpdate() {
 
     struct aircraft *freeList = NULL;
 
-    if (part % 7 == 0)
-        save_blob(blob++ % 256);
-
     // stop all threads so we can remove aircraft from the list.
     // also servers as memory barrier so json threads get new aircraf in the list
     // adding aircraft does not need to be done with locking:
@@ -1779,6 +1727,9 @@ void trackPeriodicUpdate() {
     unlockThreads();
 
     cleanupAircraft(freeList);
+
+    if (part % 7 == 0)
+        save_blob(blob++ % 256);
 }
 
 static void cleanupAircraft(struct aircraft *a) {
@@ -2627,4 +2578,54 @@ void freeAircraft(struct aircraft *a) {
             free(a->trace_all);
         }
         free(a);
+}
+static void updateValidities(struct aircraft *a, uint64_t now) {
+    updateValidity(&a->callsign_valid, now, TRACK_EXPIRE_LONG);
+    updateValidity(&a->altitude_baro_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->altitude_geom_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->geom_delta_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->gs_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->ias_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->tas_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->mach_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->track_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->track_rate_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->roll_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->mag_heading_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->true_heading_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->baro_rate_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->geom_rate_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->squawk_valid, now, TRACK_EXPIRE_LONG);
+    updateValidity(&a->airground_valid, now, TRACK_EXPIRE + 30000);
+    updateValidity(&a->nav_qnh_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->nav_altitude_mcp_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->nav_altitude_fms_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->nav_altitude_src_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->nav_heading_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->nav_modes_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->cpr_odd_valid, now, TRACK_EXPIRE + 30);
+    updateValidity(&a->cpr_even_valid, now, TRACK_EXPIRE + 30);
+    updateValidity(&a->position_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->nic_a_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->nic_c_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->nic_baro_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->nac_p_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->sil_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->gva_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->sda_valid, now, TRACK_EXPIRE);
+
+    // reset position reliability when no position was received for 120 seconds
+    if (trackDataAge(now, &a->position_valid) > 120 * 1000) {
+        a->pos_reliable_odd = 0;
+        a->pos_reliable_even = 0;
+    }
+
+    if (a->altitude_baro_valid.source == SOURCE_INVALID)
+        a->alt_reliable = 0;
+
+    if (a->pos_set && now > a->trace_next_fw && a->trace_alloc != 0) {
+        a->trace_write = 1;
+        resize_trace(a, now);
+    }
+
 }
