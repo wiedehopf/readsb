@@ -390,6 +390,7 @@ struct
   struct net_writer sbs_out_mlat; // SBS-format output
   struct net_writer sbs_out_jaero; // SBS-format output
   struct net_writer sbs_out_prio; // SBS-format output
+  struct net_writer json_out; // SBS-format output
   struct net_writer vrs_out; // SBS-format output
   struct net_writer fatsv_out; // FATSV-format output
 
@@ -430,6 +431,7 @@ struct
   char *net_input_beast_ports; // List of Beast input TCP ports
   char *net_output_beast_ports; // List of Beast output TCP ports
   char *net_output_beast_reduce_ports; // List of Beast output TCP ports
+  char *net_output_json_ports;
   uint64_t net_output_beast_reduce_interval; // Position update interval for data reduction
   char *net_output_vrs_ports; // List of VRS output TCP ports
   int basestation_is_mlat; // Basestation input is from MLAT
@@ -441,6 +443,7 @@ struct
   char *json_dir; // Path to json base directory, or NULL not to write json.
   char *globe_history_dir;
   volatile int json_globe_index; // Enable extra globe indexed json files.
+  uint32_t json_trace_interval; // max time ignoring new positions for trace
   int json_globe_ac_count;
   struct tile *json_globe_special_tiles;
   int json_gzip; // Enable extra globe indexed json files.
@@ -498,6 +501,7 @@ struct modesMessage
   int score; // Scoring from scoreModesMessage, if used
   int sbs_in; // Signifies this message is coming from basestation input
   int reduce_forward; // forward this message for reduced beast output
+  int jsonPos; // output a json position
   datasource_t source; // Characterizes the overall message source
   double signalLevel; // RSSI, in the range [0..1], as a fraction of full-scale power
   // Raw data, just extracted directly from the message
@@ -736,6 +740,7 @@ enum {
   OptJsonTime,
   OptJsonLocAcc,
   OptJsonGlobeIndex,
+  OptJsonTraceInt,
   OptDcFilter,
   OptBiasTee,
   OptNet,
@@ -750,6 +755,7 @@ enum {
   OptNetBeastReducePorts,
   OptNetBeastReduceInterval,
   OptNetVRSPorts,
+  OptNetJsonPorts,
   OptNetRoSize,
   OptNetRoRate,
   OptNetRoIntervall,

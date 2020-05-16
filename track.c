@@ -650,6 +650,9 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
 
         a->pos_surface = trackDataValid(&a->airground_valid) && a->airground == AG_GROUND;
 
+        if (mm->jsonPos)
+            jsonPositionOutput(mm, a);
+
         if (a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2 && mm->source == SOURCE_ADSB) {
             update_range_histogram(new_lat, new_lon);
             receiverPositionReceived(mm->receiverId, new_lat, new_lon, now);
@@ -1834,16 +1837,19 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
             goto save_state;
         }
 
-        if (elapsed > 300 * 1000 )
-            goto save_state;
-
         double distance = greatcircle(a->trace_llat, a->trace_llon, new_lat, new_lon);
-        if (distance < 40 || elapsed < 2000 ) {
-            goto no_save_state;
-        }
 
-        if (elapsed > 30 * 1000 )
+        // record non moving targets every 10 minutes
+        if (elapsed > 20 * Modes.json_trace_interval)
             goto save_state;
+        if (distance < 40)
+            goto no_save_state;
+
+        if (elapsed > Modes.json_trace_interval) // default 30000 ms
+            goto save_state;
+
+        if (elapsed < 2000)
+            goto no_save_state;
 
         // save a point if reception is spotty so we can mark track as spotty on display
         if (now > a->seen_pos + 20 * 1000)
@@ -1918,6 +1924,8 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
 
         goto no_save_state;
 save_state:
+
+        mm->jsonPos = 1;
 
         *new = (struct state) { 0 };
         new->flags = (struct state_flags) { 0 };

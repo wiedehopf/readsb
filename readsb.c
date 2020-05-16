@@ -190,6 +190,7 @@ static void modesInitConfig(void) {
     Modes.net_output_beast_reduce_ports = strdup("0");
     Modes.net_output_beast_reduce_interval = 125;
     Modes.net_output_vrs_ports = strdup("0");
+    Modes.net_output_json_ports = strdup("0");
     Modes.net_connector_delay = 30 * 1000;
     Modes.interactive_display_ttl = MODES_INTERACTIVE_DISPLAY_TTL;
     Modes.json_interval = 1000;
@@ -207,6 +208,7 @@ static void modesInitConfig(void) {
     Modes.netReceiverId = 0;
     Modes.netIngest = 0;
     Modes.uuidFile = strdup("/boot/adsbx-uuid");
+    Modes.json_trace_interval = 30 * 1000;
 
     //Modes.cpr_focus = 0x3d68d2;
 
@@ -879,6 +881,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptJsonGzip:
             Modes.json_gzip = 1;
             break;
+        case OptJsonTraceInt:
+            if (atof(arg) > 0)
+                Modes.json_trace_interval = 1000 * atof(arg);
+            break;
         case OptJsonGlobeIndex:
             Modes.json_globe_index = 1;
             Modes.json_globe_special_tiles = calloc(GLOBE_SPECIAL_INDEX, sizeof(struct tile));
@@ -932,6 +938,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptNetSbsPorts:
             free(Modes.net_output_sbs_ports);
             Modes.net_output_sbs_ports = strdup(arg);
+            break;
+        case OptNetJsonPorts:
+            free(Modes.net_output_json_ports);
+            Modes.net_output_json_ports = strdup(arg);
             break;
         case OptNetSbsInPorts:
             free(Modes.net_input_sbs_ports);
@@ -995,9 +1005,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                     && strcmp(con->protocol, "sbs_out_mlat") != 0
                     && strcmp(con->protocol, "sbs_out_jaero") != 0
                     && strcmp(con->protocol, "sbs_out_prio") != 0
+                    && strcmp(con->protocol, "json_out") != 0
                ) {
                 fprintf(stderr, "--net-connector: Unknown protocol: %s\n", con->protocol);
-                fprintf(stderr, "Supported protocols: beast_out, beast_in, beast_reduce_out, raw_out, raw_in, sbs_out, sbs_in, vrs_out\n");
+                fprintf(stderr, "Supported protocols: beast_out, beast_in, beast_reduce_out, raw_out, raw_in, sbs_out, sbs_in, vrs_out, json_out\n");
                 return 1;
             }
             if (strcmp(con->address, "") == 0 || strcmp(con->address, "") == 0) {

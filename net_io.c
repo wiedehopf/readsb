@@ -509,6 +509,7 @@ void modesInitNet(void) {
     struct net_service *raw_out;
     struct net_service *raw_in;
     struct net_service *vrs_out;
+    struct net_service *json_out;
     struct net_service *sbs_out;
     struct net_service *sbs_out_mlat;
     struct net_service *sbs_out_jaero;
@@ -536,6 +537,9 @@ void modesInitNet(void) {
 
     vrs_out = serviceInit("VRS json output", &Modes.vrs_out, NULL, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(vrs_out, Modes.net_bind_address, Modes.net_output_vrs_ports);
+
+    json_out = serviceInit("Position json output", &Modes.json_out, NULL, READ_MODE_IGNORE, NULL, NULL);
+    serviceListen(json_out, Modes.net_bind_address, Modes.net_output_json_ports);
 
     sbs_out = serviceInit("Basestation TCP output", &Modes.sbs_out, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(sbs_out, Modes.net_bind_address, Modes.net_output_sbs_ports);
@@ -619,6 +623,8 @@ void modesInitNet(void) {
             con->service = raw_in;
         else if (strcmp(con->protocol, "vrs_out") == 0)
             con->service = vrs_out;
+        else if (strcmp(con->protocol, "json_out") == 0)
+            con->service = json_out;
         else if (strcmp(con->protocol, "sbs_out") == 0)
             con->service = sbs_out;
         else if (strcmp(con->protocol, "sbs_in") == 0)
@@ -1424,6 +1430,18 @@ static void send_sbs_heartbeat(struct net_service *service) {
     completeWrite(service->writer, data + len);
 }
 
+void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a) {
+    MODES_NOTUSED(mm);
+    char *p;
+
+    p = prepareWrite(&Modes.json_out, 1000);
+    if (!p)
+        return;
+    char *end = p + 1000;
+
+    p = sprintAircraftObject(p, end, a, mstime(), 0);
+    completeWrite(&Modes.json_out, p);
+}
 //
 //=========================================================================
 //
