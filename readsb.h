@@ -87,6 +87,7 @@
 #include <limits.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <zlib.h>
 /* for PRIX64 */
 #include <inttypes.h>
 #else
@@ -444,7 +445,8 @@ struct
   char *net_bind_address; // Bind address
   char *json_dir; // Path to json base directory, or NULL not to write json.
   char *globe_history_dir;
-  volatile int json_globe_index; // Enable extra globe indexed json files.
+  uint32_t globe_history_heatmap;
+  int json_globe_index; // Enable extra globe indexed json files.
   uint32_t json_trace_interval; // max time ignoring new positions for trace
   int json_globe_ac_count;
   struct tile *json_globe_special_tiles;
@@ -739,6 +741,7 @@ enum {
   OptJsonDir,
   OptJsonGzip,
   OptGlobeHistoryDir,
+  OptGlobeHistoryHeatmap,
   OptJsonTime,
   OptJsonLocAcc,
   OptJsonGlobeIndex,

@@ -6,7 +6,7 @@
 static void mark_legs(struct aircraft *a);
 static void load_blob(int blob);
 
-static ssize_t check_write(int fd, const void *buf, size_t count, const char *error_context) {
+ssize_t check_write(int fd, const void *buf, size_t count, const char *error_context) {
     ssize_t res = write(fd, buf, count);
     if (res < 0)
         perror(error_context);

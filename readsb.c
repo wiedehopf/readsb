@@ -58,6 +58,7 @@
 
 #include <stdarg.h>
 
+static void writeHeatmap();
 static void backgroundTasks(void);
 //
 // ============================= Program options help ==========================
@@ -868,6 +869,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptJsonDir:
             Modes.json_dir = strdup(arg);
             break;
+        case OptGlobeHistoryHeatmap:
+            if (atof(arg) > 0)
+                Modes.globe_history_heatmap = 1000 * atof(arg);
+            break;
         case OptGlobeHistoryDir:
             Modes.globe_history_dir = strdup(arg);
             break;
@@ -1195,6 +1200,13 @@ int main(int argc, char **argv) {
         Modes.aircraftCount = count_ac;
         fprintf(stderr, "aircraft table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFT_BUCKETS );
     }
+    if (Modes.globe_history_dir) {
+        writeHeatmap();
+        cleanup_and_exit(0);
+    }else if (Modes.globe_history_heatmap) {
+        fprintf(stderr, "Fatal: no globe-history-dir specified!\n");
+        cleanup_and_exit(1);
+    }
 
     pthread_create(&Modes.decodeThread, NULL, decodeThreadEntryPoint, NULL);
 
@@ -1296,3 +1308,78 @@ int main(int argc, char **argv) {
 //=========================================================================
 //
 //
+static void writeHeatmap() {
+    char pathbuf[PATH_MAX];
+    snprintf(pathbuf, PATH_MAX, "%s/heatmap.bin.csv", Modes.globe_history_dir);
+
+    int fd = open(pathbuf, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) {
+        perror(pathbuf);
+        cleanup_and_exit(1);
+    }
+    uint64_t len = 0;
+    uint64_t len2 = 0;
+    uint64_t alloc = 256 * 1024 * 1024;
+    int32_t *buffer = malloc(alloc * sizeof(int32_t));
+    int32_t *buffer2 = malloc(alloc * sizeof(int32_t));
+
+    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+        for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
+            if (a->trace_len == 0) continue;
+
+            struct state *trace = a->trace;
+            uint64_t next = 0;
+
+            for (int i = 0; i < a->trace_len && i < 8000; i++) {
+                if (len + 3 > alloc)
+                    break;
+                if (trace[i].timestamp < next)
+                    continue;
+                if (trace[i].flags.on_ground)
+                    continue;
+                if (!trace[i].flags.altitude_valid)
+                    continue;
+
+                buffer[len++] = trace[i].lat;
+                buffer[len++] = trace[i].lon;
+                buffer[len++] = trace[i].altitude;
+
+                next = trace[i].timestamp + Modes.globe_history_heatmap;
+
+            }
+        }
+    }
+#define mod 4096
+
+    int l = 0;
+    int done[mod];
+    while (l < mod * 5 / 6) {
+        int rnd = rand() % mod;
+        if (done[rnd])
+            continue;
+        done[rnd] = 1;
+        l++;
+        for (unsigned k = rnd * 3; k < len; k += 3 * mod) {
+            buffer2[len2++] = buffer[k];
+            buffer2[len2++] = buffer[k+1];
+            buffer2[len2++] = buffer[k+2];
+        }
+    }
+    for (int i = 0; i < mod; i++) {
+        if (done[i])
+            continue;
+        done[i] = 1;
+        for (unsigned k = i * 3; k < len; k += 3 * mod) {
+            buffer2[len2++] = buffer[k];
+            buffer2[len2++] = buffer[k+1];
+            buffer2[len2++] = buffer[k+2];
+        }
+    }
+    gzFile gzfp = gzdopen(fd, "wb");
+    gzbuffer(gzfp, 256 * 1024);
+    gzsetparams(gzfp, 9, Z_DEFAULT_STRATEGY);
+    if (gzwrite(gzfp, buffer2, len * sizeof(int32_t)) != (int) (len * sizeof(int32_t)))
+        perror("gzwrite");
+    gzclose(gzfp);
+    len = 0;
+}

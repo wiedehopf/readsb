@@ -60,7 +60,6 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <poll.h>
-#include <zlib.h>
 #include <sys/sendfile.h>
 //#include <brotli/encode.h>
 
