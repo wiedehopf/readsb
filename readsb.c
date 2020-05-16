@@ -1034,6 +1034,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         break;
                     case 'S': Modes.debug_speed_check = 1;
                         break;
+                    case 'T': Modes.debug_traceCount = 1;
+                        break;
                     case 'j': Modes.debug |= MODES_DEBUG_JS;
                         break;
                     default:
@@ -1201,7 +1203,7 @@ int main(int argc, char **argv) {
             }
 
         }
-        if (Modes.json_globe_index || Modes.globe_history_dir) {
+        if (Modes.json_globe_index) {
             for (int i = 0; i < TRACE_THREADS; i++) {
                 pthread_create(&Modes.jsonTraceThread[i], NULL, jsonTraceThreadEntryPoint, &threadNumber[i]);
             }

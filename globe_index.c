@@ -196,6 +196,7 @@ void write_trace(struct aircraft *a, uint64_t now) {
     size_t shadow_size = 0;
     char *shadow = NULL;
     char filename[PATH_MAX];
+    static uint32_t count2, count3, count4;
 
     time_t hour_ago = now/1000 - GLOBE_OVERLAP;
 
@@ -203,8 +204,8 @@ void write_trace(struct aircraft *a, uint64_t now) {
     full.len = 0;
     hist.len = 0;
 
-    if (Modes.json_globe_index && a->trace_len == 0 && a->trace_full_write == 0xdead)
-        return;
+    if (Modes.debug_traceCount && ++count2 % 1000 == 0)
+        fprintf(stderr, "recent trace write: %u\n", count2);
 
     pthread_mutex_lock(&a->trace_mutex);
 
@@ -231,6 +232,9 @@ void write_trace(struct aircraft *a, uint64_t now) {
         // write full trace to /run
         int write_perm = 0;
 
+        if (Modes.debug_traceCount && ++count3 % 1000 == 0)
+            fprintf(stderr, "memory trace writes: %u\n", count3);
+
         full = generateTraceJson(a, start24, -1);
 
         if (a->trace_full_write == 0xc0ffee) {
@@ -240,6 +244,8 @@ void write_trace(struct aircraft *a, uint64_t now) {
         }
 
         if (now > a->trace_next_fw || a->trace_full_write == 0xc0ffee) {
+            if (Modes.debug_traceCount && ++count4 % 1000 == 0)
+                fprintf(stderr, "perm trace writes: %u\n", count4);
 
             write_perm = 1;
 
@@ -324,10 +330,7 @@ void write_trace(struct aircraft *a, uint64_t now) {
     if (full.len > 0) {
         snprintf(filename, 256, "traces/%02x/trace_full_%s%06x.json", a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
 
-        if (a->addr & MODES_NON_ICAO_ADDRESS)
-            writeJsonToGzip(Modes.json_dir, filename, full, 3);
-        else
-            writeJsonToGzip(Modes.json_dir, filename, full, 7);
+        writeJsonToGzip(Modes.json_dir, filename, full, 7);
 
         free(full.buffer);
     }
@@ -473,11 +476,12 @@ static int load_aircraft(int fd, uint64_t now) {
             ret = -1;
         } else {
             // TRACE SUCCESS
-            if (!(Modes.json_globe_index && a->trace_len == 0 && a->trace_full_write == 0xdead)) {
+            if (a->trace_full_write != 0xdead) {
                 if (a->addr == LEG_FOCUS)
                     a->trace_next_fw = now;
                 else
                     a->trace_next_fw = now + 1000 * (rand() % 120); // spread over 2 mins
+
                 a->trace_full_write = 0xc0ffee; // rewrite full history file
             }
         }

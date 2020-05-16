@@ -1600,7 +1600,7 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                     with_pos++;
                 }
 
-                if (full_write && !(Modes.json_globe_index && a->trace_len == 0 && a->trace_full_write == 0xdead)) {
+                if (full_write && a->trace_full_write != 0xdead) {
                     a->trace_next_fw = now + 1000 * (rand() % 180); // spread over 3 mins
                     a->trace_full_write = 0xc0ffee;
                 }
@@ -2559,7 +2559,7 @@ static void updateValidities(struct aircraft *a, uint64_t now) {
     if (a->altitude_baro_valid.source == SOURCE_INVALID)
         a->alt_reliable = 0;
 
-    if (a->pos_set && now > a->trace_next_fw && a->trace_alloc != 0) {
+    if (a->pos_set && now > a->trace_next_fw && a->trace_full_write != 0xdead) {
         a->trace_write = 1;
         resize_trace(a, now);
     }

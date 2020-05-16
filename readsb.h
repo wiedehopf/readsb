@@ -407,6 +407,7 @@ struct
   int debug_cpr;
   int debug_speed_check;
   int debug_receiver;
+  int debug_traceCount;
   uint32_t cpr_focus;
   int net; // Enable networking
   int net_only; // Enable just networking
