@@ -719,6 +719,7 @@ static void cleanup_and_exit(int code) {
     free(Modes.net_output_raw_ports);
     free(Modes.net_output_sbs_ports);
     free(Modes.net_input_sbs_ports);
+    free(Modes.net_output_json_ports);
     free(Modes.beast_serial);
     free(Modes.json_globe_special_tiles);
     free(Modes.uuidFile);
