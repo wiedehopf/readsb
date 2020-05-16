@@ -963,6 +963,8 @@ void set_globe_index (struct aircraft *a, int new_index) {
 
 // blobs 00 to ff (0 to 255)
 void save_blob(int blob) {
+    if (!Modes.globe_history_dir)
+        return;
     if (blob < 0 || blob > 255)
         fprintf(stderr, "save_blob: invalid argument: %d", blob);
     //fprintf(stderr, "Save blob: %02x\n", blob);

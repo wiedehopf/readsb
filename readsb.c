@@ -1209,15 +1209,19 @@ int main(int argc, char **argv) {
 
         if (Modes.globe_history_dir) {
             char pathbuf[PATH_MAX];
-            mkdir(Modes.globe_history_dir, 0755);
+            if (mkdir(Modes.globe_history_dir, 0755) && errno != EEXIST)
+                perror(Modes.globe_history_dir);
 
             snprintf(pathbuf, PATH_MAX, "%s/internal_state", Modes.globe_history_dir);
-            mkdir(pathbuf, 0755);
+            if (mkdir(pathbuf, 0755) && errno != EEXIST)
+                perror(pathbuf);
 
+            /*
             for (int i = 0; i < 256; i++) {
                 snprintf(pathbuf, PATH_MAX, "%s/internal_state/%02x", Modes.globe_history_dir, i);
                 mkdir(pathbuf, 0755);
             }
+            */
         }
     }
 
