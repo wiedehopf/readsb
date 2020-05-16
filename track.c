@@ -338,6 +338,8 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
     int result;
     int fflag = mm->cpr_odd;
     int surface = (mm->cpr_type == CPR_SURFACE);
+    int getRef = 0;
+    double reflat, reflon;
 
     // derive NIC, Rc from the worse of the two position
     // smaller NIC is worse; larger Rc is worse
@@ -347,7 +349,6 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
     if (surface) {
         // surface global CPR
         // find reference location
-        double reflat, reflon;
 
         if (trackDataValid(&a->position_valid)) { // Ok to try aircraft relative first
             reflat = a->lat;
@@ -357,8 +358,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
             reflon = Modes.fUserLon;
         } else if (receiverGetReference(mm->receiverId, &reflat, &reflon)) {
             //function sets reflat and reflon on success, nothing to do here.
-            if (Modes.debug_receiver)
-                fprintf(stderr, "%06x using receiver reference\n", a->addr);
+            getRef = 1;
         } else if (a->pos_set) {
             reflat = a->lat;
             reflon = a->lon;
@@ -381,7 +381,9 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
     }
 
     if (result < 0) {
-        if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
+        if (Modes.debug_receiver && getRef)
+            fprintf(stderr, "%06x using receiver reference: %4.0f %4.0f\n", a->addr, reflat, reflon);
+        if (a->addr == Modes.cpr_focus || Modes.debug_cpr || (Modes.debug_receiver && getRef)) {
             fprintf(stderr, "CPR: decode failure for %06X (%d).\n", a->addr, result);
             fprintf(stderr, "  even: %d %d   odd: %d %d  fflag: %s\n",
                     a->cpr_even_lat, a->cpr_even_lon,

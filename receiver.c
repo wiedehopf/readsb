@@ -107,7 +107,7 @@ int receiverGetReference(uint64_t id, double *lat, double *lon) {
         return 0;
     *lat = r->latMin + latDiff / 2;
     *lon = r->lonMin + lonDiff / 2;
-    if (0)
+    if (Modes.debug_receiver)
         fprintf(stderr, "%016lx %9lu %4.0f %4.0f %4.0f %4.0f %4.0f %4.0f\n",
                 r->id, r->positionCounter,
                 r->latMin, *lat, r->latMax,
