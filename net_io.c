@@ -53,9 +53,6 @@
 
 #include "readsb.h"
 
-/* for PRIX64 */
-#include <inttypes.h>
-
 #include <assert.h>
 #include <stdarg.h>
 #include <sys/socket.h>
@@ -208,7 +205,7 @@ struct client *createGenericClient(struct net_service *service, int fd) {
 
     c->receiverIdRemote = 0; // receiverId has been transmitted by other side.
 
-    //fprintf(stderr, "c->receiverId: %016lx\n", c->receiverId);
+    //fprintf(stderr, "c->receiverId: %016"PRIx64"\n", c->receiverId);
 
     if (service->writer) {
         if (!(c->sendq = malloc(MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size))) {
@@ -3565,7 +3562,7 @@ static void read_uuid(struct client *c, char *p, char *eod) {
         c->receiverIdRemote = 1;
         c->receiverId = receiverId;
         c->receiverId2 = receiverId2;
-        fprintf(stderr, "ADDR %s,%s rId %016lx UUID %016lx%016lx\n", c->host, c->port, c->receiverId, c->receiverId, c->receiverId2);
+        fprintf(stderr, "ADDR %s,%s rId %016"PRIx64" UUID %016"PRIx64"%016"PRIx64"\n", c->host, c->port, c->receiverId, c->receiverId, c->receiverId2);
     }
     return;
 }

@@ -47,7 +47,7 @@ void receiverTimeout(int part, int nParts) {
         while (*r) {
             /*
             receiver *b = *r;
-            fprintf(stderr, "%016lx %9lu %4.0f %4.0f %4.0f %4.0f\n",
+            fprintf(stderr, "%016"PRIx64" %9"PRu64" %4.0f %4.0f %4.0f %4.0f\n",
                     b->id, b->positionCounter,
                     b->latMin, b->latMax, b->lonMin, b->lonMax);
             */
@@ -108,7 +108,7 @@ int receiverGetReference(uint64_t id, double *lat, double *lon) {
     *lat = r->latMin + latDiff / 2;
     *lon = r->lonMin + lonDiff / 2;
     if (Modes.debug_receiver)
-        fprintf(stderr, "%016lx %9lu %4.0f %4.0f %4.0f %4.0f %4.0f %4.0f\n",
+        fprintf(stderr, "%016"PRIx64" %9"PRIu64" %4.0f %4.0f %4.0f %4.0f %4.0f %4.0f\n",
                 r->id, r->positionCounter,
                 r->latMin, *lat, r->latMax,
                 r->lonMin, *lon, r->lonMax);
@@ -124,13 +124,13 @@ void receiverTest() {
         if (r)
             r->lastSeen = now;
     }
-    printf("%lu\n", Modes.receiverCount);
+    printf("%"PRIu64"\n", Modes.receiverCount);
     for (int i = 0; i < (1<<22); i++) {
         receiver *r = receiverGet(i);
         if (!r)
             r = receiverCreate(i);
     }
-    printf("%lu\n", Modes.receiverCount);
+    printf("%"PRIu64"\n", Modes.receiverCount);
     receiverTimeout(0, 1);
-    printf("%lu\n", Modes.receiverCount);
+    printf("%"PRIu64"\n", Modes.receiverCount);
 }

@@ -87,6 +87,8 @@
 #include <limits.h>
 #include <sys/types.h>
 #include <dirent.h>
+/* for PRIX64 */
+#include <inttypes.h>
 #else
 #include "winstubs.h" //Put everything Windows specific in here
 #endif

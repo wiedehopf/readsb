@@ -1828,7 +1828,7 @@ void displayModesMessage(struct modesMessage *mm) {
         printf("Score: %d\n", mm->score);
 
     if (mm->receiverId)
-        printf("receiverId: %016lx\n", mm->receiverId);
+        printf("receiverId: %016"PRIx64"\n", mm->receiverId);
 
     if (mm->timestampMsg == MAGIC_MLAT_TIMESTAMP)
         printf("This is a synthetic MLAT message.\n");
