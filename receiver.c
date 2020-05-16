@@ -103,7 +103,7 @@ int receiverGetReference(uint64_t id, double *lat, double *lon) {
         return 0;
     double latDiff = r->latMax - r->latMin;
     double lonDiff = r->lonMax - r->lonMin;
-    if (lonDiff > 30 || latDiff > 30 || r->positionCounter < 10)
+    if (lonDiff > 30 || latDiff > 30 || r->positionCounter < 50)
         return 0;
     *lat = r->latMin + latDiff / 2;
     *lon = r->lonMin + lonDiff / 2;
