@@ -106,7 +106,7 @@ static void autoset_modeac();
 static int hexDigitVal(int c);
 static void *pthreadGetaddrinfo(void *param);
 
-static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now, int printState);
+static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now, int printMode);
 static void flushClient(struct client *c, uint64_t now);
 static void read_uuid(struct client *c, char *p, char *eod);
 
@@ -1439,7 +1439,7 @@ void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a) {
         return;
     char *end = p + 1000;
 
-    p = sprintAircraftObject(p, end, a, mstime(), 0);
+    p = sprintAircraftObject(p, end, a, mstime(), 2);
     completeWrite(&Modes.json_out, p);
 }
 //
@@ -3339,26 +3339,33 @@ static void *pthreadGetaddrinfo(void *param) {
     return NULL;
 }
 
-static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now, int printState) {
+static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now, int printMode) {
     p = safe_snprintf(p, end, "\n{");
-    if (!printState)
+    if (printMode == 2)
+        p = safe_snprintf(p, end, "\"now\" : %.1f,", now / 1000.0);
+    if (printMode != 1)
         p = safe_snprintf(p, end, "\"hex\":\"%s%06x\",", (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
     p = safe_snprintf(p, end, "\"type\":\"%s\"", addrtype_enum_string(a));
     if (trackDataValid(&a->callsign_valid)) {
         char buf[128];
         p = safe_snprintf(p, end, ",\"flight\":\"%s\"", jsonEscapeString(a->callsign, buf, sizeof(buf)));
     }
-    if (!printState) {
+    if (printMode != 1) {
         if (trackDataValid(&a->airground_valid) && a->airground_valid.source >= SOURCE_MODE_S_CHECKED && a->airground == AG_GROUND)
-            p = safe_snprintf(p, end, ",\"alt_baro\":\"ground\"");
+            if (printMode == 2)
+                p = safe_snprintf(p, end, ",\"ground\":true");
+            else
+                p = safe_snprintf(p, end, ",\"alt_baro\":\"ground\"");
         else {
             if (trackDataValid(&a->altitude_baro_valid) && a->alt_reliable >= 3)
                 p = safe_snprintf(p, end, ",\"alt_baro\":%d", a->altitude_baro);
+            if (printMode == 2)
+                p = safe_snprintf(p, end, ",\"ground\":false");
         }
     }
     if (trackDataValid(&a->altitude_geom_valid))
         p = safe_snprintf(p, end, ",\"alt_geom\":%d", a->altitude_geom);
-    if (!printState && trackDataValid(&a->gs_valid))
+    if (printMode != 1 && trackDataValid(&a->gs_valid))
         p = safe_snprintf(p, end, ",\"gs\":%.1f", a->gs);
     if (trackDataValid(&a->ias_valid))
         p = safe_snprintf(p, end, ",\"ias\":%u", a->ias);
@@ -3377,7 +3384,7 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
 
     if (trackDataValid(&a->track_valid))
         p = safe_snprintf(p, end, ",\"track\":%.2f", a->track);
-    else if (!printState && trackDataValid(&a->position_valid) &&
+    else if (printMode != 1 && trackDataValid(&a->position_valid) &&
         !(trackDataValid(&a->airground_valid) && a->airground == AG_GROUND))
         p = safe_snprintf(p, end, ",\"calc_track\":%.0f", a->calc_track);
 
@@ -3412,13 +3419,13 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
         p = append_nav_modes(p, end, a->nav_modes, "\"", ",");
         p = safe_snprintf(p, end, "]");
     }
-    if (!printState && trackDataValid(&a->position_valid)
+    if (printMode != 1 && trackDataValid(&a->position_valid)
             && ( (a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2) || a->position_valid.source <= SOURCE_JAERO ) ) {
         p = safe_snprintf(p, end, ",\"lat\":%f,\"lon\":%f,\"nic\":%u,\"rc\":%u,\"seen_pos\":%.1f",
                 a->lat, a->lon, a->pos_nic, a->pos_rc,
                 (now < a->position_valid.updated) ? 0 : ((now - a->position_valid.updated) / 1000.0));
     }
-    if (printState && trackDataValid(&a->position_valid)) {
+    if (printMode == 1 && trackDataValid(&a->position_valid)) {
         p = safe_snprintf(p, end, ",\"nic\":%u,\"rc\":%u",
                 a->pos_nic, a->pos_rc);
     }
@@ -3450,7 +3457,7 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
         p = safe_snprintf(p, end, ",\"sbs_other\": true");
     */
 
-    if (!printState) {
+    if (printMode != 1) {
         p = safe_snprintf(p, end, ",\"mlat\":");
         p = append_flags(p, end, a, SOURCE_MLAT);
         p = safe_snprintf(p, end, ",\"tisb\":");
