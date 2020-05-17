@@ -1344,11 +1344,13 @@ static void writeHeatmap() {
             }
         }
     }
-#define mod 8192
+    fprintf(stderr, "using %"PRIu64" positions\n", len);
+#define mod (1 << 16)
+    srand(mstime());
 
     int l = 0;
     int done[mod];
-    while (l < mod * 5 / 6) {
+    while (l <= mod - 2000) {
         int rnd = rand() % mod;
         if (done[rnd])
             continue;
