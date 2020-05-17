@@ -1200,12 +1200,14 @@ int main(int argc, char **argv) {
         Modes.aircraftCount = count_ac;
         fprintf(stderr, "aircraft table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFT_BUCKETS );
     }
-    if (Modes.globe_history_dir) {
-        writeHeatmap();
-        cleanup_and_exit(0);
-    }else if (Modes.globe_history_heatmap) {
-        fprintf(stderr, "Fatal: no globe-history-dir specified!\n");
-        cleanup_and_exit(1);
+    if (Modes.globe_history_heatmap) {
+        if (Modes.globe_history_dir) {
+            writeHeatmap();
+            cleanup_and_exit(0);
+        } else {
+            fprintf(stderr, "Fatal: no globe-history-dir specified!\n");
+            cleanup_and_exit(1);
+        }
     }
 
     pthread_create(&Modes.decodeThread, NULL, decodeThreadEntryPoint, NULL);
@@ -1310,7 +1312,7 @@ int main(int argc, char **argv) {
 //
 static void writeHeatmap() {
     char pathbuf[PATH_MAX];
-    snprintf(pathbuf, PATH_MAX, "%s/heatmap.bin.csv", Modes.globe_history_dir);
+    snprintf(pathbuf, PATH_MAX, "%s/heatmap2.bin.csv", Modes.globe_history_dir);
 
     int fd = open(pathbuf, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
@@ -1349,7 +1351,7 @@ static void writeHeatmap() {
             }
         }
     }
-#define mod 4096
+#define mod 8192
 
     int l = 0;
     int done[mod];
