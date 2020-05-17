@@ -1312,13 +1312,6 @@ int main(int argc, char **argv) {
 //
 static void writeHeatmap() {
     char pathbuf[PATH_MAX];
-    snprintf(pathbuf, PATH_MAX, "%s/heatmap2.bin.csv", Modes.globe_history_dir);
-
-    int fd = open(pathbuf, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (fd < 0) {
-        perror(pathbuf);
-        cleanup_and_exit(1);
-    }
     uint64_t len = 0;
     uint64_t len2 = 0;
     uint64_t alloc = 256 * 1024 * 1024;
@@ -1377,11 +1370,30 @@ static void writeHeatmap() {
             buffer2[len2++] = buffer[k+2];
         }
     }
-    gzFile gzfp = gzdopen(fd, "wb");
-    gzbuffer(gzfp, 256 * 1024);
-    gzsetparams(gzfp, 9, Z_DEFAULT_STRATEGY);
-    if (gzwrite(gzfp, buffer2, len * sizeof(int32_t)) != (int) (len * sizeof(int32_t)))
-        perror("gzwrite");
-    gzclose(gzfp);
-    len = 0;
+    snprintf(pathbuf, PATH_MAX, "%s/heatmap", Modes.globe_history_dir);
+    if (mkdir(pathbuf, 0755) && errno != EEXIST)
+        perror(pathbuf);
+
+    for (int i = 0; i < 64; i++) {
+        uint64_t start = i * len2 / 64;
+        start /= 3;
+        start *= 3;
+        uint64_t stride = len2 / 64;
+        stride /= 3;
+        stride *= 3;
+        stride *= sizeof(int32_t);
+        snprintf(pathbuf, PATH_MAX, "%s/heatmap/%02d.bin.csv", Modes.globe_history_dir, i);
+
+        int fd = open(pathbuf, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (fd < 0) {
+            perror(pathbuf);
+            cleanup_and_exit(1);
+        }
+        gzFile gzfp = gzdopen(fd, "wb");
+        gzbuffer(gzfp, 256 * 1024);
+        gzsetparams(gzfp, 9, Z_DEFAULT_STRATEGY);
+        if (gzwrite(gzfp, buffer2 + start, stride) != (int) (stride))
+            perror("gzwrite");
+        gzclose(gzfp);
+    }
 }
