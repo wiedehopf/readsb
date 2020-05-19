@@ -1655,7 +1655,7 @@ void trackPeriodicUpdate() {
     // Only do updates once per second
     static uint32_t part;
     static uint32_t blob;
-    int nParts = 1024;
+    int nParts = 256;
     uint64_t now = mstime();
 
     struct aircraft *freeList = NULL;

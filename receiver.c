@@ -32,14 +32,15 @@ struct receiver *receiverCreate(uint64_t id) {
     r->next = Modes.receiverTable[hash];
     Modes.receiverTable[hash] = r;
     Modes.receiverCount++;
-    if (((Modes.receiverCount * 4) & (RECEIVER_TABLE_SIZE - 1)) == 0)
-        fprintf(stderr, "receiverTable fill: %0.1f\n", Modes.receiverCount / (double) RECEIVER_TABLE_SIZE);
+    if (((Modes.receiverCount * 16) & (RECEIVER_TABLE_SIZE - 1)) == 0)
+        fprintf(stderr, "receiverTable fill: %0.8f\n", Modes.receiverCount / (double) RECEIVER_TABLE_SIZE);
     return r;
 }
 void receiverTimeout(int part, int nParts) {
     int stride = RECEIVER_TABLE_SIZE / nParts;
     int start = stride * part;
     int end = start + stride;
+    //fprintf(stderr, "START: %8d END: %8d\n", start, end);
     uint64_t now = mstime();
     for (int i = start; i < end; i++) {
         struct receiver **r = &Modes.receiverTable[i];
@@ -52,8 +53,8 @@ void receiverTimeout(int part, int nParts) {
                     b->latMin, b->latMax, b->lonMin, b->lonMax);
             */
             if (
-                    (Modes.receiverCount > RECEIVER_TABLE_SIZE && (*r)->lastSeen < now - 1 * HOUR)
-                    || ((*r)->lastSeen < now - 24 * HOUR)
+                    (Modes.receiverCount > RECEIVER_TABLE_SIZE && (*r)->lastSeen < now - 20 * MINUTE)
+                    || ((*r)->lastSeen < now - 1 * HOUR)
                     || Modes.exit
                ) {
                 del = *r;

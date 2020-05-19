@@ -1628,7 +1628,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
             } else {
                 Modes.stats_current.demod_modeac++;
             }
-            return 0;
+            goto DECODE_BIN_OUT;
         }
         msgLen = MODEAC_MSG_BYTES;
     } else if (ch == '2') {
@@ -1654,7 +1654,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
     }
 
     if (!msgLen)
-        return 0;
+        goto DECODE_BIN_OUT;
 
     /* Beast messages are marked depending on their source. From internet they are marked
      * remote so that we don't try to pass them off as being received by this instance
@@ -1742,6 +1742,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
 
     if (result >= 0)
         useModesMessage(mm);
+DECODE_BIN_OUT:
     free(mm);
     return (0);
 }
