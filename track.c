@@ -359,7 +359,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
         } else if (Modes.bUserFlags & MODES_USER_LATLON_VALID) {
             reflat = Modes.fUserLat;
             reflon = Modes.fUserLon;
-        } else if (a->pos_set) {
+        } else if (a->seen_pos) {
             reflat = a->lat;
             reflon = a->lon;
         } else {
@@ -1580,7 +1580,7 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                     (!Modes.globe_history_dir && (now - a->seen) > 5 * MINUTE) ||
                     (Modes.globe_history_dir &&
                      (
-                         (!a->pos_set && (now - a->seen) > TRACK_AIRCRAFT_NO_POS_TTL) ||
+                         (!a->seen_pos && (now - a->seen) > TRACK_AIRCRAFT_NO_POS_TTL) ||
                          (now - a->seen_pos > TRACK_AIRCRAFT_TTL) ||
                          (a->messages <= 10 && (now - a->seen) > HOURS_5) ||
                          ((a->addr & MODES_NON_ICAO_ADDRESS) && (now - a->seen) > TRACK_AIRCRAFT_NON_ICAO_TTL)
@@ -1744,7 +1744,7 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
     a->addrtype_updated = now;
 
 
-    if (trackDataAge(now, &a->track_valid) >= 10000 && a->pos_set) {
+    if (trackDataAge(now, &a->track_valid) >= 10000 && a->seen_pos) {
         double distance = greatcircle(a->lat, a->lon, new_lat, new_lon);
         if (distance > 100)
             a->calc_track = bearing(a->lat, a->lon, new_lat, new_lon);
@@ -1791,8 +1791,6 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
         }
         fprintf(stderr, "\n");
     }
-
-    a->pos_set = 1;
 
     if (Modes.json_globe_index) {
 
@@ -2585,7 +2583,7 @@ static void updateValidities(struct aircraft *a, uint64_t now) {
     if (a->altitude_baro_valid.source == SOURCE_INVALID)
         a->alt_reliable = 0;
 
-    if (a->pos_set && now > a->trace_next_fw && a->trace_full_write != 0xdead) {
+    if (a->seen_pos && now > a->trace_next_fw && a->trace_full_write != 0xdead) {
         a->trace_write = 1;
         resize_trace(a, now);
     }

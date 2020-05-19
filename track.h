@@ -58,8 +58,8 @@
 #define TRACK_AIRCRAFT_TTL (30*24*60*60000ULL)
 // 30 days should cover almost all turn-arounds.
 //
-#define TRACK_AIRCRAFT_NO_POS_TTL (2*60000)
-// only 2 minutes for aircraft without position
+#define TRACK_AIRCRAFT_NO_POS_TTL (5*60000)
+// only 5 minutes for aircraft without position
 
 #define HOURS_5 (5*60*60000)
 #define HOUR (60*60*1000ULL)
