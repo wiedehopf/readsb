@@ -1593,10 +1593,11 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
     int j;
     unsigned char ch;
     unsigned char msg[MODES_LONG_MSG_BYTES + 7];
-    struct modesMessage *mm;
+    struct modesMessage mm;
     MODES_NOTUSED(c);
 
-    mm = calloc(1, sizeof(struct modesMessage));
+    //mm = calloc(1, sizeof(struct modesMessage));
+    memset(&mm, 0, sizeof(struct modesMessage));
 
     ch = *p++; /// Get the message type
 
@@ -1618,7 +1619,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
         ch = *p++; /// Get the message type
     }
 
-    mm->receiverId = c->receiverId;
+    mm.receiverId = c->receiverId;
 
 
     if (ch == '1') {
@@ -1628,7 +1629,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
             } else {
                 Modes.stats_current.demod_modeac++;
             }
-            goto DECODE_BIN_OUT;
+            return 0;
         }
         msgLen = MODEAC_MSG_BYTES;
     } else if (ch == '2') {
@@ -1654,39 +1655,39 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
     }
 
     if (!msgLen)
-        goto DECODE_BIN_OUT;
+        return 0;
 
     /* Beast messages are marked depending on their source. From internet they are marked
      * remote so that we don't try to pass them off as being received by this instance
      * when forwarding them.
      */
-    mm->remote = remote;
+    mm.remote = remote;
 
     // Grab the timestamp (big endian format)
-    mm->timestampMsg = 0;
+    mm.timestampMsg = 0;
     for (j = 0; j < 6; j++) {
         ch = *p++;
-        mm->timestampMsg = mm->timestampMsg << 8 | (ch & 255);
+        mm.timestampMsg = mm.timestampMsg << 8 | (ch & 255);
         if (0x1A == ch) {
             p++;
         }
     }
 
     // record reception time as the time we read it.
-    mm->sysTimestampMsg = mstime();
+    mm.sysTimestampMsg = mstime();
 
     ch = *p++; // Grab the signal level
-    mm->signalLevel = ((unsigned char) ch / 255.0);
-    mm->signalLevel = mm->signalLevel * mm->signalLevel;
+    mm.signalLevel = ((unsigned char) ch / 255.0);
+    mm.signalLevel = mm.signalLevel * mm.signalLevel;
 
     /* In case of Mode-S Beast use the signal level per message for statistics */
     if (Modes.sdr_type == SDR_MODESBEAST) {
-        Modes.stats_current.signal_power_sum += mm->signalLevel;
+        Modes.stats_current.signal_power_sum += mm.signalLevel;
         Modes.stats_current.signal_power_count += 1;
 
-        if (mm->signalLevel > Modes.stats_current.peak_signal_power)
-            Modes.stats_current.peak_signal_power = mm->signalLevel;
-        if (mm->signalLevel > 0.50119)
+        if (mm.signalLevel > Modes.stats_current.peak_signal_power)
+            Modes.stats_current.peak_signal_power = mm.signalLevel;
+        if (mm.signalLevel > 0.50119)
             Modes.stats_current.strong_signal_count++; // signal power above -3dBFS
     }
 
@@ -1708,7 +1709,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
         } else {
             Modes.stats_current.demod_modeac++;
         }
-        decodeModeAMessage(mm, ((msg[0] << 8) | msg[1]));
+        decodeModeAMessage(&mm, ((msg[0] << 8) | msg[1]));
         result = 0;
     } else {
         if (remote) {
@@ -1716,7 +1717,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
         } else {
             Modes.stats_current.demod_preambles++;
         }
-        result = decodeModesMessage(mm, msg);
+        result = decodeModesMessage(&mm, msg);
         if (result < 0) {
             if (result == -1) {
                 if (remote) {
@@ -1733,18 +1734,16 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
             }
         } else {
             if (remote) {
-                Modes.stats_current.remote_accepted[mm->correctedbits]++;
+                Modes.stats_current.remote_accepted[mm.correctedbits]++;
             } else {
-                Modes.stats_current.demod_accepted[mm->correctedbits]++;
+                Modes.stats_current.demod_accepted[mm.correctedbits]++;
             }
         }
     }
 
     if (result >= 0)
-        useModesMessage(mm);
-DECODE_BIN_OUT:
-    free(mm);
-    return (0);
+        useModesMessage(&mm);
+    return 0;
 }
 //
 //=========================================================================

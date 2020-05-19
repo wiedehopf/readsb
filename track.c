@@ -1576,11 +1576,16 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
 
         while (a) {
             if (
-                    (!a->pos_set && (now - a->seen) > TRACK_AIRCRAFT_NO_POS_TTL) ||
-                    (a->pos_set && (now - a->seen_pos) > TRACK_AIRCRAFT_TTL) ||
                     (a->messages == 1 && (now - a->seen) > TRACK_AIRCRAFT_ONEHIT_TTL) ||
-                    (a->messages <= 10 && (now - a->seen) > HOURS_5) ||
-                    ((a->addr & MODES_NON_ICAO_ADDRESS) && (now - a->seen) > TRACK_AIRCRAFT_NON_ICAO_TTL)
+                    (!Modes.globe_history_dir && (now - a->seen) > 5 * MINUTE) ||
+                    (Modes.globe_history_dir &&
+                     (
+                         (!a->pos_set && (now - a->seen) > TRACK_AIRCRAFT_NO_POS_TTL) ||
+                         (now - a->seen_pos > TRACK_AIRCRAFT_TTL) ||
+                         (a->messages <= 10 && (now - a->seen) > HOURS_5) ||
+                         ((a->addr & MODES_NON_ICAO_ADDRESS) && (now - a->seen) > TRACK_AIRCRAFT_NON_ICAO_TTL)
+                     )
+                    )
                ) {
                 // Count aircraft where we saw only one message before reaping them.
                 // These are likely to be due to messages with bad addresses.
