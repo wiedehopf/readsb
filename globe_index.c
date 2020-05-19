@@ -1051,3 +1051,107 @@ static void load_blob(int blob) {
     }
     close(fd);
 }
+
+void handleHeatmap() {
+    return; // deactivate for the moment
+    uint64_t now = mstime();
+    uint64_t start = now - 30 * 60 * 1000;
+    time_t nowish = now/1000;
+    struct tm utc;
+    gmtime_r(&nowish, &utc);
+    int half_hour = utc.tm_hour * 2 + utc.tm_min / 30;
+
+    // only do this every 30 minutes.
+    if (half_hour == Modes.heatmap_current_interval)
+        return;
+
+    fprintf(stderr, "%d.bin.ttf\n", half_hour);
+    Modes.heatmap_current_interval = half_hour;
+
+    char pathbuf[PATH_MAX];
+    int len = 0;
+    int len2 = 0;
+    int alloc = 1 * 1024 * 1024;
+    struct heatEntry *buffer = malloc(alloc * sizeof(struct heatEntry));
+    struct heatEntry *buffer2 = malloc(alloc * sizeof(struct heatEntry));
+    //uint32_t *buckets = malloc(alloc * sizeof(uint32_t));
+
+    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+        for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
+            if (a->trace_len == 0) continue;
+
+            struct state *trace = a->trace;
+            uint64_t next = 0;
+
+            for (int i = 0; i < a->trace_len && i < 8000; i++) {
+                if (trace[i].timestamp < start) {
+                    continue;
+                }
+                if (len >= alloc)
+                    break;
+                if (trace[i].timestamp < next)
+                    continue;
+                if (trace[i].flags.on_ground)
+                    continue;
+                if (!trace[i].flags.altitude_valid)
+                    continue;
+
+                buffer[len].hex = a->addr;
+                buffer[len].lat = trace[i].lat;
+                buffer[len].lon = trace[i].lon;
+                buffer[len].alt = trace[i].altitude;
+
+                buffer2[len].hex = (trace[i].timestamp - start) / Modes.globe_history_heatmap;
+
+                len++;
+
+                next = trace[i].timestamp + Modes.globe_history_heatmap;
+
+            }
+        }
+    }
+    fprintf(stderr, "using %d positions\n", len);
+#define mod (1 << 16)
+    srand(mstime());
+
+    int l = 0;
+    int done[mod];
+    while (l <= mod - 2000) {
+        int rnd = rand() % mod;
+        if (done[rnd])
+            continue;
+        done[rnd] = 1;
+        l++;
+        for (int k = rnd * 3; k < len; k += 3 * mod) {
+            buffer2[len2++] = buffer[k];
+            buffer2[len2++] = buffer[k+1];
+            buffer2[len2++] = buffer[k+2];
+        }
+    }
+    for (int i = 0; i < mod; i++) {
+        if (done[i])
+            continue;
+        done[i] = 1;
+        for (int k = i * 3; k < len; k += 3 * mod) {
+            buffer2[len2++] = buffer[k];
+            buffer2[len2++] = buffer[k+1];
+            buffer2[len2++] = buffer[k+2];
+        }
+    }
+    snprintf(pathbuf, PATH_MAX, "%s/heatmap", Modes.globe_history_dir);
+    if (mkdir(pathbuf, 0755) && errno != EEXIST)
+        perror(pathbuf);
+
+    snprintf(pathbuf, PATH_MAX, "%s/heatmap/%02d.bin.csv", Modes.globe_history_dir, half_hour);
+
+    int fd = open(pathbuf, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) {
+        perror(pathbuf);
+    }
+    gzFile gzfp = gzdopen(fd, "wb");
+    gzbuffer(gzfp, 256 * 1024);
+    gzsetparams(gzfp, 9, Z_DEFAULT_STRATEGY);
+    if (gzwrite(gzfp, buffer2, len2 * sizeof(int32_t)) != (int) (len2 * sizeof(int32_t)))
+        perror("gzwrite");
+    gzclose(gzfp);
+}

@@ -25,6 +25,8 @@ void *save_state(void *arg);
 void save_blob(int blob);
 void *jsonTraceThreadEntryPoint(void *arg);
 
+void handleHeatmap();
+
 
 struct craftArray {
     struct aircraft **list;
@@ -38,4 +40,12 @@ void ca_destroy (struct craftArray *ca);
 void ca_remove (struct craftArray *ca, struct aircraft *a);
 void ca_add (struct craftArray *ca, struct aircraft *a);
 void set_globe_index (struct aircraft *a, int new_index);
+
+struct heatEntry {
+    int32_t hex;
+    int32_t lat;
+    int32_t lon;
+    int32_t alt;
+} __attribute__ ((__packed__));
+
 #endif

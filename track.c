@@ -1669,6 +1669,9 @@ void trackPeriodicUpdate() {
 
     if (part % 7 == 0)
         save_blob(blob++ % 256);
+
+    if (Modes.globe_history_dir && Modes.json_globe_index)
+        handleHeatmap(); // only does sth every 30 min
 }
 
 static void cleanupAircraft(struct aircraft *a) {
