@@ -1055,6 +1055,7 @@ void handleHeatmap() {
     return; // deactivate for the moment
     uint64_t now = mstime();
     uint64_t start = now - 30 * 60 * 1000;
+    uint64_t end = now;
     time_t nowish = now/1000;
     struct tm utc;
     gmtime_r(&nowish, &utc);
@@ -1073,39 +1074,41 @@ void handleHeatmap() {
     int alloc = 1 * 1024 * 1024;
     struct heatEntry *buffer = malloc(alloc * sizeof(struct heatEntry));
     struct heatEntry *buffer2 = malloc(alloc * sizeof(struct heatEntry));
-    //uint32_t *buckets = malloc(alloc * sizeof(uint32_t));
+    uint32_t *buckets = malloc(alloc * sizeof(uint32_t));
 
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
             if (a->trace_len == 0) continue;
 
             struct state *trace = a->trace;
-            uint64_t next = 0;
+            uint64_t next = start;
+            int slice = 0;
 
             for (int i = 0; i < a->trace_len && i < 8000; i++) {
-                if (trace[i].timestamp < start) {
-                    continue;
-                }
                 if (len >= alloc)
+                    break;
+                if (trace[i].timestamp > end)
                     break;
                 if (trace[i].timestamp < next)
                     continue;
-                if (trace[i].flags.on_ground)
-                    continue;
                 if (!trace[i].flags.altitude_valid)
                     continue;
+
+                while (trace[i].timestamp > next + Modes.globe_history_heatmap) {
+                    next += Modes.globe_history_heatmap;
+                    slice++;
+                }
 
                 buffer[len].hex = a->addr;
                 buffer[len].lat = trace[i].lat;
                 buffer[len].lon = trace[i].lon;
                 buffer[len].alt = trace[i].altitude;
 
-                buffer2[len].hex = (trace[i].timestamp - start) / Modes.globe_history_heatmap;
+                buckets[len] = slice;
 
                 len++;
-
-                next = trace[i].timestamp + Modes.globe_history_heatmap;
-
+                next += Modes.globe_history_heatmap;
+                slice++;
             }
         }
     }
@@ -1153,4 +1156,8 @@ void handleHeatmap() {
     if (gzwrite(gzfp, buffer2, len2 * sizeof(int32_t)) != (int) (len2 * sizeof(int32_t)))
         perror("gzwrite");
     gzclose(gzfp);
+
+    free(buffer);
+    free(buffer2);
+    free(buckets);
 }
