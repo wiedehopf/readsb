@@ -379,11 +379,11 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
                 fflag,
                 lat, lon);
     }
-    if (Modes.debug_receiver && getRef)
+    if (Modes.debug_receiver && getRef && !trackDataValid(&a->position_valid))
         fprintf(stderr, "%06x using receiver reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
 
     if (result < 0) {
-        if (a->addr == Modes.cpr_focus || Modes.debug_cpr || (Modes.debug_receiver && getRef)) {
+        if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
             fprintf(stderr, "CPR: decode failure for %06x (%d).\n", a->addr, result);
             fprintf(stderr, "  even: %d %d   odd: %d %d  fflag: %s\n",
                     a->cpr_even_lat, a->cpr_even_lon,

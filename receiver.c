@@ -126,11 +126,13 @@ int receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft 
     if (lonDiff > 30 || latDiff > 30 || r->positionCounter < 50)
         return 0;
 
+    /*
     if (Modes.debug_receiver || a->addr == Modes.cpr_focus)
         fprintf(stderr, "%016"PRIx64" %9"PRIu64" %4.0f %4.0f %4.0f %4.0f %4.0f %4.0f\n",
                 r->id, r->positionCounter,
                 r->latMin, *lat, r->latMax,
                 r->lonMin, *lon, r->lonMax);
+                */
     return 1;
 }
 void receiverTest() {
