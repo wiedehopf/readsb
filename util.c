@@ -103,5 +103,5 @@ void end_cpu_timing(const struct timespec *start_time, struct timespec *add_to) 
 unsigned int get_seed() {
     struct timespec time;
     clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time);
-    return (time.tv_nsec ^ getpid() ^ pthread_self());
+    return (time.tv_nsec ^ (getpid() << 16) ^ pthread_self());
 }
