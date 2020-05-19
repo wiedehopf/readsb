@@ -372,18 +372,18 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
                 a->cpr_odd_lat, a->cpr_odd_lon,
                 fflag,
                 lat, lon);
+    if (Modes.debug_receiver && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
+        if (getRef && !trackDataValid(&a->position_valid))
+            fprintf(stderr, "%06x using receiver reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
+        else if (a->addr == Modes.cpr_focus)
+            fprintf(stderr, "%06x using non-rec  reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
+    }
     } else {
         // airborne global CPR
         result = decodeCPRairborne(a->cpr_even_lat, a->cpr_even_lon,
                 a->cpr_odd_lat, a->cpr_odd_lon,
                 fflag,
                 lat, lon);
-    }
-    if (Modes.debug_receiver && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
-        if (getRef && !trackDataValid(&a->position_valid))
-            fprintf(stderr, "%06x using receiver reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
-        else if (a->addr == Modes.cpr_focus)
-            fprintf(stderr, "%06x using non-rec  reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
     }
 
     if (result < 0) {
@@ -609,7 +609,8 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
         }
     } else {
         if (a->addr == Modes.cpr_focus)
-            fprintf(stderr, "unable global CPRvalid: odd %d even %d source %d type %d timed %d\n",
+            fprintf(stderr, "%06x: unable global CPRvalid: odd %d even %d source %d type %d timed %d\n",
+                    a->addr,
                     (int) trackDataAge(mm->sysTimestampMsg, &a->cpr_odd_valid),
                     (int) trackDataAge(mm->sysTimestampMsg, &a->cpr_even_valid),
                     (a->cpr_odd_valid.source == a->cpr_even_valid.source),
@@ -623,7 +624,7 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
         location_result = doLocalCPR(a, mm, &new_lat, &new_lon, &new_nic, &new_rc);
 
         if (a->addr == Modes.cpr_focus)
-            fprintf(stderr, "localCPR: %d\n", location_result);
+            fprintf(stderr, "%06x: localCPR: %d\n", a->addr, location_result);
 
         if (location_result >= 0 && accept_data(&a->position_valid, mm->source, mm, 1)) {
             Modes.stats_current.cpr_local_ok++;
@@ -1425,7 +1426,8 @@ end_alt:
     // If we've got a new cpr_odd or cpr_even
     if (cpr_new) {
         if (a->addr == Modes.cpr_focus) {
-            fprintf(stderr, "age: odd %d even %d\n",
+            fprintf(stderr, "%06x: age: odd %d even %d\n",
+                    a->addr,
                     (int) trackDataAge(mm->sysTimestampMsg, &a->cpr_odd_valid),
                     (int) trackDataAge(mm->sysTimestampMsg, &a->cpr_even_valid));
         }
@@ -1767,13 +1769,14 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
 
     if (a->addr == Modes.cpr_focus) {
         if (mm->sbs_in) {
-            fprintf(stderr, "SBS: ");
+            fprintf(stderr, "SBS, ");
             if (mm->source == SOURCE_JAERO)
                 fprintf(stderr, "JAERO, ");
             if (mm->source == SOURCE_MLAT)
                 fprintf(stderr, "MLAT, ");
         } else {
-            fprintf(stderr, "%s%s",
+            fprintf(stderr, "%06x %s%s",
+                    a->addr,
                     (mm->cpr_type == CPR_SURFACE) ? "surf, " : "air,  ",
                     mm->cpr_odd ? "odd,  " : "even, ");
         }
