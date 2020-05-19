@@ -95,19 +95,38 @@ void receiverPositionReceived(uint64_t id, double lat, double lon, uint64_t now)
     }
     r->lastSeen = now;
     r->positionCounter++;
+
+    if (0 && Modes.debug_receiver)
+        fprintf(stderr, "%016"PRIx64" %9"PRIu64" %4.0f %4.0f %4.0f %4.0f %4.0f %4.0f\n",
+                r->id, r->positionCounter,
+                lat, lon,
+                r->latMin, r->latMax,
+                r->lonMin, r->lonMax);
 }
 
-int receiverGetReference(uint64_t id, double *lat, double *lon) {
+int receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft *a) {
     struct receiver *r = receiverGet(id);
-    if (!r)
+    if (!r) {
+        if (a->addr == Modes.cpr_focus)
+            fprintf(stderr, "%06x: no associated receiver found.\n", a->addr);
         return 0;
+    }
     double latDiff = r->latMax - r->latMin;
     double lonDiff = r->lonMax - r->lonMin;
-    if (lonDiff > 30 || latDiff > 30 || r->positionCounter < 50)
-        return 0;
     *lat = r->latMin + latDiff / 2;
     *lon = r->lonMin + lonDiff / 2;
-    if (Modes.debug_receiver)
+
+    if (a->addr == Modes.cpr_focus)
+        fprintf(stderr, "%06x: receiver ref invalid: %016"PRIx64" %9"PRIu64" %4.0f %4.0f %4.0f %4.0f %4.0f %4.0f\n",
+                a->addr,
+                r->id, r->positionCounter,
+                r->latMin, *lat, r->latMax,
+                r->lonMin, *lon, r->lonMax);
+
+    if (lonDiff > 30 || latDiff > 30 || r->positionCounter < 50)
+        return 0;
+
+    if (Modes.debug_receiver || a->addr == Modes.cpr_focus)
         fprintf(stderr, "%016"PRIx64" %9"PRIu64" %4.0f %4.0f %4.0f %4.0f %4.0f %4.0f\n",
                 r->id, r->positionCounter,
                 r->latMin, *lat, r->latMax,

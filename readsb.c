@@ -211,9 +211,9 @@ static void modesInitConfig(void) {
     Modes.uuidFile = strdup("/boot/adsbx-uuid");
     Modes.json_trace_interval = 30 * 1000;
     Modes.heatmap_current_interval = -1;
-    Modes.globe_history_heatmap = 90 * 1000;
+    Modes.globe_history_heatmap = 90 * 1000 + 1;
 
-    //Modes.cpr_focus = 0x3d68d2;
+    //Modes.cpr_focus = 0x45fe49;
 
     time_t nowish = (mstime() - 2000)/1000;
     struct tm utc;
@@ -1202,7 +1202,7 @@ int main(int argc, char **argv) {
         Modes.aircraftCount = count_ac;
         fprintf(stderr, "aircraft table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFT_BUCKETS );
     }
-    if (Modes.globe_history_heatmap) {
+    if (Modes.globe_history_heatmap % 1000 == 0) {
         if (Modes.globe_history_dir) {
             writeHeatmap();
             cleanup_and_exit(0);

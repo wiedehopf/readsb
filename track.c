@@ -313,10 +313,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     inrange = (distance <= range);
     if (a->addr == Modes.cpr_focus || (track_diff < 190 && (Modes.debug_cpr || Modes.debug_speed_check))) {
         //if (a->addr == 0x42435f) {
-        if ((!inrange && source > SOURCE_INVALID) || (a->addr == Modes.cpr_focus && distance > 1)) {
+        if ((!inrange && source > SOURCE_INVALID) || (a->addr == Modes.cpr_focus && distance > -1)) {
 
             //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
-            fprintf(stderr, "%s %s %s R%2d tD%3.0f: %06X: %7.2fkm/%7.2fkm in %4.1f s, max %4.0f kt, %9.5f,%10.5f -> %9.5f,%10.5f\n",
+            fprintf(stderr, "%s %s %s R%2d tD%3.0f: %06x: %7.2fkm/%7.2fkm in %4.1f s, max %4.0f kt, %9.5f,%10.5f -> %9.5f,%10.5f\n",
                     source >= a->position_valid.last_source ? "SC" : "LQ",
                     (inrange ? "    ok" : "failed"),
                     (surface ? "S" : "A"),
@@ -350,15 +350,15 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
         // surface global CPR
         // find reference location
 
-        if (trackDataValid(&a->position_valid)) { // Ok to try aircraft relative first
+        if (receiverGetReference(mm->receiverId, &reflat, &reflon, a)) {
+            //function sets reflat and reflon on success, nothing to do here.
+            getRef = 1;
+        } else if (trackDataValid(&a->position_valid)) { // Ok to try aircraft relative first
             reflat = a->lat;
             reflon = a->lon;
         } else if (Modes.bUserFlags & MODES_USER_LATLON_VALID) {
             reflat = Modes.fUserLat;
             reflon = Modes.fUserLon;
-        } else if (receiverGetReference(mm->receiverId, &reflat, &reflon)) {
-            //function sets reflat and reflon on success, nothing to do here.
-            getRef = 1;
         } else if (a->pos_set) {
             reflat = a->lat;
             reflon = a->lon;
@@ -384,7 +384,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
 
     if (result < 0) {
         if (a->addr == Modes.cpr_focus || Modes.debug_cpr || (Modes.debug_receiver && getRef)) {
-            fprintf(stderr, "CPR: decode failure for %06X (%d).\n", a->addr, result);
+            fprintf(stderr, "CPR: decode failure for %06x (%d).\n", a->addr, result);
             fprintf(stderr, "  even: %d %d   odd: %d %d  fflag: %s\n",
                     a->cpr_even_lat, a->cpr_even_lon,
                     a->cpr_odd_lat, a->cpr_odd_lon,
@@ -507,7 +507,7 @@ static int doLocalCPR(struct aircraft *a, struct modesMessage *mm, double *lat, 
     // check speed limit
     if (!speed_check(a, mm->source, *lat, *lon, mm)) {
         if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
-            fprintf(stderr, "Speed check for %06X with local decoding failed\n", a->addr);
+            fprintf(stderr, "Speed check for %06x with local decoding failed\n", a->addr);
         }
         Modes.stats_current.cpr_local_speed_checks++;
         return -1;
@@ -556,12 +556,12 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
 
         location_result = doGlobalCPR(a, mm, &new_lat, &new_lon, &new_nic, &new_rc);
 
-        if (a->addr == Modes.cpr_focus)
-            fprintf(stderr, "globalCPR: %d\n", location_result);
+        //if (a->addr == Modes.cpr_focus)
+        //    fprintf(stderr, "%06x globalCPR result: %d\n", a->addr, location_result);
 
         if (location_result == -2) {
             if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
-                fprintf(stderr, "global CPR failure (invalid) for (%06X).\n", a->addr);
+                fprintf(stderr, "global CPR failure (invalid) for (%06x).\n", a->addr);
             }
             // Global CPR failed because the position produced implausible results.
             // This is bad data.
@@ -574,7 +574,7 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
         } else if (location_result == -1) {
             if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
                 if (mm->source == SOURCE_MLAT) {
-                    fprintf(stderr, "CPR skipped from MLAT (%06X).\n", a->addr);
+                    fprintf(stderr, "CPR skipped from MLAT (%06x).\n", a->addr);
                 }
             }
             // No local reference for surface position available, or the two messages crossed a zone.
@@ -655,7 +655,13 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
 
         if (a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2 && mm->source == SOURCE_ADSB) {
             update_range_histogram(new_lat, new_lon);
-            receiverPositionReceived(mm->receiverId, new_lat, new_lon, now);
+            if (mm->cpr_type != CPR_SURFACE) {
+                receiverPositionReceived(mm->receiverId, new_lat, new_lon, now);
+                if (0 && Modes.debug_receiver)
+                    fprintf(stderr, "%016"PRIx64" new Pos: %4.0f %4.0f\n",
+                            mm->receiverId,
+                            new_lat, new_lon);
+            }
         }
     }
 
@@ -2011,7 +2017,7 @@ save_state:
 
 no_save_state:
         ;
-        //fprintf(stderr, "Added to trace for %06X (%d).\n", a->addr, a->trace_len);
+        //fprintf(stderr, "Added to trace for %06x (%d).\n", a->addr, a->trace_len);
     }
 
     a->seen_pos = now;
@@ -2144,10 +2150,10 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
         pthread_mutex_unlock(&a->trace_mutex);
 
         if (a->trace_len >= GLOBE_TRACE_SIZE / 2)
-            fprintf(stderr, "Quite a long trace: %06X (%d).\n", a->addr, a->trace_len);
+            fprintf(stderr, "Quite a long trace: %06x (%d).\n", a->addr, a->trace_len);
 
         if (a->trace_alloc > GLOBE_TRACE_SIZE)
-            fprintf(stderr, "GLOBE_TRACE_SIZE EXCEEDED!: %06X (%d).\n", a->addr, a->trace_len);
+            fprintf(stderr, "GLOBE_TRACE_SIZE EXCEEDED!: %06x (%d).\n", a->addr, a->trace_len);
     }
 
     if (a->trace_len < (a->trace_alloc - GLOBE_STEP) / 3 && a->trace_alloc >= 2 * GLOBE_STEP) {
