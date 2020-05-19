@@ -532,7 +532,7 @@ void *load_state(void *arg) {
     //fstat(fd, &fileinfo);
     //off_t len = fileinfo.st_size;
     int thread_number = *((int *) arg);
-    srand(now >> thread_number);
+    srand(get_seed());
     for (int i = 0; i < 256; i++) {
         if (i % 8 != thread_number)
             continue;
@@ -568,7 +568,7 @@ void *jsonTraceThreadEntryPoint(void *arg) {
 
     int thread = * (int *) arg;
 
-    srand(mstime() >> thread);
+    srand(get_seed());
 
     int part = 0;
     int n_parts = 64; // power of 2
@@ -1013,9 +1013,8 @@ void save_blob(int blob) {
     close(fd);
 }
 void *load_blobs(void *arg) {
-    uint64_t now = mstime();
     int thread_number = *((int *) arg);
-    srand(now >> thread_number);
+    srand(get_seed());
     for (int j = 0; j < 256; j++) {
         if (j % 8 != thread_number)
            continue;
@@ -1112,7 +1111,7 @@ void handleHeatmap() {
     }
     fprintf(stderr, "using %d positions\n", len);
 #define mod (1 << 16)
-    srand(mstime());
+    srand(get_seed());
 
     int l = 0;
     int done[mod];

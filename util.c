@@ -98,3 +98,10 @@ void end_cpu_timing(const struct timespec *start_time, struct timespec *add_to) 
     add_to->tv_nsec += end_time.tv_nsec - start_time->tv_nsec;
     normalize_timespec(add_to);
 }
+
+// this is not cryptographic but much better than mstime() as a seed
+unsigned int get_seed() {
+    struct timespec time;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time);
+    return (time.tv_nsec ^ getpid() ^ pthread_self());
+}
