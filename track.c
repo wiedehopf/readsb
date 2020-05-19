@@ -317,7 +317,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
             //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
             fprintf(stderr, "%s %s %s R%2d tD%3.0f: %06x: %7.2fkm/%7.2fkm in %4.1f s, max %4.0f kt, %9.5f,%10.5f -> %9.5f,%10.5f\n",
-                    source >= a->position_valid.last_source ? "SC" : "LQ",
+                    source == a->position_valid.last_source ? "SQ" : "LQ",
                     (inrange ? "    ok" : "failed"),
                     (surface ? "S" : "A"),
                     a->pos_reliable_odd + a->pos_reliable_even,
@@ -379,7 +379,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
                 fflag,
                 lat, lon);
     }
-    if (Modes.debug_receiver) {
+    if (Modes.debug_receiver && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
         if (getRef && !trackDataValid(&a->position_valid))
             fprintf(stderr, "%06x using receiver reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
         else if (a->addr == Modes.cpr_focus)
