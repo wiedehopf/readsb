@@ -607,6 +607,15 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
                 location_result = -2;
             }
         }
+    } else {
+        if (a->addr == Modes.cpr_focus)
+            fprintf(stderr, "unable global CPRvalid: odd %d even %d source %d type %d timed %d\n",
+                    (int) trackDataAge(mm->sysTimestampMsg, &a->cpr_odd_valid),
+                    (int) trackDataAge(mm->sysTimestampMsg, &a->cpr_even_valid),
+                    (a->cpr_odd_valid.source == a->cpr_even_valid.source),
+                    (a->cpr_odd_type == a->cpr_even_type),
+                    (int) time_between(a->cpr_odd_valid.updated, a->cpr_even_valid.updated)
+                   );
     }
 
     // Otherwise try relative CPR.
@@ -998,6 +1007,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (!a) { // If it's a currently unknown aircraft....
         a = aircraftCreate(mm); // ., create a new record for it,
     }
+    mm->pos_updated_cache = a->position_valid.updated;
 
     if (mm->signalLevel > 0) {
         a->signalLevel[a->signalNext] = mm->signalLevel;
@@ -1414,6 +1424,11 @@ end_alt:
 
     // If we've got a new cpr_odd or cpr_even
     if (cpr_new) {
+        if (a->addr == Modes.cpr_focus) {
+            fprintf(stderr, "age: odd %d even %d\n",
+                    (int) trackDataAge(mm->sysTimestampMsg, &a->cpr_odd_valid),
+                    (int) trackDataAge(mm->sysTimestampMsg, &a->cpr_even_valid));
+        }
         updatePosition(a, mm);
     }
 
@@ -1559,7 +1574,7 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
     // +50 for small clock jumps, doesn't hurt in any case.
     // shouldn't be an issue as this routine is not concurrent
     // other threads stop operation before this section.
-    uint64_t now = mstime() + 50;
+    uint64_t now = mstime();
 
     int full_write = 0;
     time_t nowish = (mstime() - 2000)/1000;
@@ -1733,7 +1748,7 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
     }
 
     if (now < a->seen_pos + 3 * 1000 && a->lat == new_lat && a->lon == new_lon) {
-        a->position_valid.updated = a->seen_pos;
+        a->position_valid.updated = mm->pos_updated_cache;
         // don't use duplicate positions for beastReduce
         mm->reduce_forward = 0;
         return;
@@ -2078,6 +2093,10 @@ static void position_bad(struct aircraft *a) {
         return;
     }
     Modes.stats_current.cpr_global_bad++;
+
+
+    if (a->addr == Modes.cpr_focus)
+        fprintf(stderr, "%06x: position_bad\n", a->addr);
 
     a->cpr_odd_valid.source = SOURCE_INVALID;
     a->cpr_even_valid.source = SOURCE_INVALID;

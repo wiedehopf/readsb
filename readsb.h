@@ -507,6 +507,7 @@ struct modesMessage
   int sbs_in; // Signifies this message is coming from basestation input
   int reduce_forward; // forward this message for reduced beast output
   int jsonPos; // output a json position
+  uint64_t pos_updated_cache;
   datasource_t source; // Characterizes the overall message source
   double signalLevel; // RSSI, in the range [0..1], as a fraction of full-scale power
   // Raw data, just extracted directly from the message

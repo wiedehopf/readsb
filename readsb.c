@@ -205,7 +205,6 @@ static void modesInitConfig(void) {
     Modes.net_output_flush_size = 1200; // Default to 1200 Bytes
     Modes.net_output_flush_interval = 50; // Default to 50 ms
     Modes.basestation_is_mlat = 1;
-    Modes.cpr_focus = 0xc0ffeeba;
     Modes.netReceiverId = 0;
     Modes.netIngest = 0;
     Modes.uuidFile = strdup("/boot/adsbx-uuid");
@@ -213,7 +212,8 @@ static void modesInitConfig(void) {
     Modes.heatmap_current_interval = -1;
     Modes.globe_history_heatmap = 120 * 1000 + 1;
 
-    //Modes.cpr_focus = 0x45fe49;
+    Modes.cpr_focus = 0xc0ffeeba;
+    //Modes.cpr_focus = 0xa146e4;
 
     time_t nowish = (mstime() - 2000)/1000;
     struct tm utc;

@@ -25,8 +25,10 @@ struct aircraft *aircraftGet(uint32_t addr) {
 
 struct aircraft *aircraftCreate(struct modesMessage *mm) {
     uint32_t addr = mm->addr;
-    if (Modes.aircraftCount > 8 * AIRCRAFT_BUCKETS)
+    if (Modes.aircraftCount > 8 * AIRCRAFT_BUCKETS) {
+        fprintf(stderr, "ERROR ERROR, aircraft hash table overfilled!");
         return NULL;
+    }
     struct aircraft *a = aircraftGet(addr);
     if (a)
         return a;
