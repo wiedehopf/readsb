@@ -325,9 +325,12 @@ struct client *checkServiceConnected(struct net_connector *con) {
         if (res >= 16) {
             strncpy(buf, c->sendq + 2, res);
             buf[129] = '\0';
-            fprintf(stderr, "uuid: %s\n", buf);
+            fprintf(stderr, "UUID: %s\n", buf);
             c->sendq_len = res + 2;
             flushClient(c, mstime());
+        } else {
+            fprintf(stderr, "ERROR: Not a valid UUID: %s\n", Modes.uuidFile);
+            fprintf(stderr, "Use this command to fix: sudo uuidgen > %s\n", Modes.uuidFile);
         }
         if (fd != -1) {
             close(fd);
