@@ -609,13 +609,14 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
         }
     } else {
         if (a->addr == Modes.cpr_focus)
-            fprintf(stderr, "%06x: unable global CPRvalid: odd %d even %d source %d type %d timed %d\n",
+            fprintf(stderr, "%06x: unable global CPRvalid: odd %"PRIu64" even %"PRIu64" sources %d %d %d %d types %d timed %d\n",
                     a->addr,
-                    (int) trackDataAge(mm->sysTimestampMsg, &a->cpr_odd_valid),
-                    (int) trackDataAge(mm->sysTimestampMsg, &a->cpr_even_valid),
-                    (a->cpr_odd_valid.source == a->cpr_even_valid.source),
+                    a->cpr_odd_valid.updated,
+                    a->cpr_even_valid.updated,
+                    a->cpr_odd_valid.source, a->cpr_even_valid.source,
+                    a->cpr_odd_valid.last_source, a->cpr_even_valid.last_source,
                     (a->cpr_odd_type == a->cpr_even_type),
-                    (int) time_between(a->cpr_odd_valid.updated, a->cpr_even_valid.updated)
+                    (int) (mm->sysTimestampMsg - mstime())
                    );
     }
 
@@ -1426,10 +1427,10 @@ end_alt:
     // If we've got a new cpr_odd or cpr_even
     if (cpr_new) {
         if (a->addr == Modes.cpr_focus) {
-            fprintf(stderr, "%06x: age: odd %d even %d\n",
+            fprintf(stderr, "%06x: age: odd %"PRIu64" even %"PRIu64"\n",
                     a->addr,
-                    (int) trackDataAge(mm->sysTimestampMsg, &a->cpr_odd_valid),
-                    (int) trackDataAge(mm->sysTimestampMsg, &a->cpr_even_valid));
+                    trackDataAge(mm->sysTimestampMsg, &a->cpr_odd_valid),
+                    trackDataAge(mm->sysTimestampMsg, &a->cpr_even_valid));
         }
         updatePosition(a, mm);
     }
@@ -1593,14 +1594,14 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
 
         while (a) {
             if (
-                    (a->messages == 1 && (now - a->seen) > TRACK_AIRCRAFT_ONEHIT_TTL) ||
-                    (!Modes.globe_history_dir && (now - a->seen) > 5 * MINUTE) ||
+                    (a->messages == 1 && now > a->seen + TRACK_AIRCRAFT_ONEHIT_TTL) ||
+                    (!Modes.globe_history_dir && now > a->seen + 5 * MINUTE) ||
                     (Modes.globe_history_dir &&
                      (
-                         (!a->seen_pos && (now - a->seen) > TRACK_AIRCRAFT_NO_POS_TTL) ||
-                         (now - a->seen_pos > TRACK_AIRCRAFT_TTL) ||
-                         (a->messages <= 10 && (now - a->seen) > HOURS_5) ||
-                         ((a->addr & MODES_NON_ICAO_ADDRESS) && (now - a->seen) > TRACK_AIRCRAFT_NON_ICAO_TTL)
+                         (!a->seen_pos && now > a->seen + TRACK_AIRCRAFT_NO_POS_TTL) ||
+                         (a->seen_pos && now > a->seen_pos + TRACK_AIRCRAFT_TTL) ||
+                         (a->messages <= 10 && now > a->seen + HOURS_5) ||
+                         ((a->addr & MODES_NON_ICAO_ADDRESS) && now > a->seen + TRACK_AIRCRAFT_NON_ICAO_TTL)
                      )
                     )
                ) {
@@ -1609,7 +1610,8 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                 if (a->messages == 1)
                     Modes.stats_current.single_message_aircraft++;
 
-                //fprintf(stderr, "del: %06x\n", a->addr);
+                if (a->addr == Modes.cpr_focus)
+                    fprintf(stderr, "del: %06x seen: %"PRIu64" seen_pos %"PRIu64"\n", a->addr, now - a->seen, now - a->seen_pos);
 
                 // remove from the globeList
                 set_globe_index(a, -5);

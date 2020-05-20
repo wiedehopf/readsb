@@ -74,8 +74,8 @@ struct aircraft *aircraftCreate(struct modesMessage *mm) {
     a->next = Modes.aircraft[hash];
     Modes.aircraft[hash] = a;
     Modes.aircraftCount++;
-    if (((Modes.aircraftCount * 4) & (AIRCRAFT_BUCKETS - 1)) == 0)
-        fprintf(stderr, "aircraft table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFT_BUCKETS );
+    //if (((Modes.aircraftCount * 4) & (AIRCRAFT_BUCKETS - 1)) == 0)
+    //    fprintf(stderr, "aircraft table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFT_BUCKETS );
 
     return a;
 }
