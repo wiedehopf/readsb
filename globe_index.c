@@ -1052,11 +1052,7 @@ static void load_blob(int blob) {
 }
 
 void handleHeatmap() {
-    return; // deactivate for the moment
-    uint64_t now = mstime();
-    uint64_t start = now - 30 * 60 * 1000;
-    uint64_t end = now;
-    time_t nowish = now/1000;
+    time_t nowish = (mstime() - 30 * MINUTES)/1000;
     struct tm utc;
     gmtime_r(&nowish, &utc);
     int half_hour = utc.tm_hour * 2 + utc.tm_min / 30;
@@ -1065,7 +1061,13 @@ void handleHeatmap() {
     if (half_hour == Modes.heatmap_current_interval)
         return;
 
-    fprintf(stderr, "%d.bin.ttf\n", half_hour);
+    utc.tm_hour = half_hour / 2;
+    utc.tm_min = 30 * (half_hour % 2);
+    utc.tm_sec = 0;
+    uint64_t start = 1000 * (uint64_t) (timegm(&utc));
+    uint64_t end = start + 30 * MINUTES;
+    int num_slices = (30 * MINUTES) / Modes.globe_history_heatmap;
+
     Modes.heatmap_current_interval = half_hour;
 
     char pathbuf[PATH_MAX];
@@ -1074,10 +1076,12 @@ void handleHeatmap() {
     int alloc = 1 * 1024 * 1024;
     struct heatEntry *buffer = malloc(alloc * sizeof(struct heatEntry));
     struct heatEntry *buffer2 = malloc(alloc * sizeof(struct heatEntry));
-    uint32_t *buckets = malloc(alloc * sizeof(uint32_t));
+    int *slices = malloc(alloc * sizeof(int));
+    struct heatEntry index[num_slices];
 
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
+            if (a->addr & MODES_NON_ICAO_ADDRESS) continue;
             if (a->trace_len == 0) continue;
 
             struct state *trace = a->trace;
@@ -1104,7 +1108,7 @@ void handleHeatmap() {
                 buffer[len].lon = trace[i].lon;
                 buffer[len].alt = trace[i].altitude;
 
-                buckets[len] = slice;
+                slices[len] = slice;
 
                 len++;
 
@@ -1113,52 +1117,53 @@ void handleHeatmap() {
             }
         }
     }
-    fprintf(stderr, "using %d positions\n", len);
-#define mod (1 << 16)
-    srand(get_seed());
 
-    int l = 0;
-    int done[mod];
-    while (l <= mod - 2000) {
-        int rnd = rand() % mod;
-        if (done[rnd])
-            continue;
-        done[rnd] = 1;
-        l++;
-        for (int k = rnd * 3; k < len; k += 3 * mod) {
-            buffer2[len2++] = buffer[k];
-            buffer2[len2++] = buffer[k+1];
-            buffer2[len2++] = buffer[k+2];
+    for (int i = 0; i < num_slices; i++) {
+        struct heatEntry specialSauce = (struct heatEntry) {0};
+        uint64_t slice_stamp = start + i * Modes.globe_history_heatmap;
+        specialSauce.hex = 0xe7f7c9d;
+        specialSauce.lat = slice_stamp >> 32;
+        specialSauce.lon = slice_stamp & ((1ULL << 32) - 1);
+        specialSauce.alt = Modes.globe_history_heatmap;
+
+        index[i] = (struct heatEntry) {0};
+        index[i].hex = len2 + num_slices;
+        buffer2[len2++] = specialSauce;
+
+        for (int k = 0; k < len; k++) {
+            if (slices[k] == i)
+                buffer2[len2++] = buffer[k];
         }
     }
-    for (int i = 0; i < mod; i++) {
-        if (done[i])
-            continue;
-        done[i] = 1;
-        for (int k = i * 3; k < len; k += 3 * mod) {
-            buffer2[len2++] = buffer[k];
-            buffer2[len2++] = buffer[k+1];
-            buffer2[len2++] = buffer[k+2];
-        }
-    }
-    snprintf(pathbuf, PATH_MAX, "%s/heatmap", Modes.globe_history_dir);
+
+    char tstring[100];
+    strftime (tstring, 100, "%Y-%m-%d", &utc);
+
+    snprintf(pathbuf, PATH_MAX, "%s/%s/heatmap", Modes.globe_history_dir, tstring);
     if (mkdir(pathbuf, 0755) && errno != EEXIST)
         perror(pathbuf);
 
-    snprintf(pathbuf, PATH_MAX, "%s/heatmap/%02d.bin.csv", Modes.globe_history_dir, half_hour);
+    snprintf(pathbuf, PATH_MAX, "%s/%s/heatmap/%02d.bin.ttf", Modes.globe_history_dir, tstring, half_hour);
+
+    fprintf(stderr, "%s using %d positions\n", pathbuf, len);
 
     int fd = open(pathbuf, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
         perror(pathbuf);
+    } else {
+        gzFile gzfp = gzdopen(fd, "wb");
+        gzbuffer(gzfp, 256 * 1024);
+        gzsetparams(gzfp, 9, Z_DEFAULT_STRATEGY);
+        ssize_t toWrite = sizeof(index);
+        if (gzwrite(gzfp, index, toWrite) != toWrite)
+            perror("Error writing heatmap:");
+        toWrite = len2 * sizeof(struct heatEntry);
+        if (gzwrite(gzfp, buffer2, toWrite) != toWrite)
+            perror("Error writing heatmap:");
+        gzclose(gzfp);
     }
-    gzFile gzfp = gzdopen(fd, "wb");
-    gzbuffer(gzfp, 256 * 1024);
-    gzsetparams(gzfp, 9, Z_DEFAULT_STRATEGY);
-    if (gzwrite(gzfp, buffer2, len2 * sizeof(int32_t)) != (int) (len2 * sizeof(int32_t)))
-        perror("gzwrite");
-    gzclose(gzfp);
 
     free(buffer);
     free(buffer2);
-    free(buckets);
+    free(slices);
 }

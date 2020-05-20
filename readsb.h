@@ -445,7 +445,7 @@ struct
   char *net_bind_address; // Bind address
   char *json_dir; // Path to json base directory, or NULL not to write json.
   char *globe_history_dir;
-  uint32_t globe_history_heatmap;
+  uint64_t globe_history_heatmap;
   int heatmap_current_interval;
   int json_globe_index; // Enable extra globe indexed json files.
   uint32_t json_trace_interval; // max time ignoring new positions for trace

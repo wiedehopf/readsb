@@ -27,7 +27,6 @@ void *jsonTraceThreadEntryPoint(void *arg);
 
 void handleHeatmap();
 
-
 struct craftArray {
     struct aircraft **list;
     int len; // index of highest entry + 1

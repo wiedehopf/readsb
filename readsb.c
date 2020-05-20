@@ -58,7 +58,6 @@
 
 #include <stdarg.h>
 
-static void writeHeatmap();
 static void backgroundTasks(void);
 //
 // ============================= Program options help ==========================
@@ -210,7 +209,7 @@ static void modesInitConfig(void) {
     Modes.uuidFile = strdup("/boot/adsbx-uuid");
     Modes.json_trace_interval = 30 * 1000;
     Modes.heatmap_current_interval = -1;
-    Modes.globe_history_heatmap = 120 * 1000 + 1;
+    Modes.globe_history_heatmap = 0;
 
     Modes.cpr_focus = 0xc0ffeeba;
     //Modes.cpr_focus = 0xA06A35;
@@ -1171,6 +1170,13 @@ int main(int argc, char **argv) {
 
     interactiveInit();
 
+    if (Modes.globe_history_heatmap) {
+        if (!Modes.globe_history_dir || !Modes.json_globe_index) {
+            fprintf(stderr, "Heatmap requires globe history and globe index options to be enabled, disabling heatmap!\n");
+            Modes.globe_history_heatmap = 0;
+        }
+    }
+
     if (Modes.globe_history_dir) {
         fprintf(stderr, "loading state .....\n");
         pthread_t threads[8];
@@ -1201,15 +1207,6 @@ int main(int argc, char **argv) {
         fprintf(stderr, " .......... done, loaded %u aircraft!\n", count_ac);
         Modes.aircraftCount = count_ac;
         fprintf(stderr, "aircraft table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFT_BUCKETS );
-    }
-    if (Modes.globe_history_heatmap % 1000 == 0) {
-        if (Modes.globe_history_dir) {
-            writeHeatmap();
-            cleanup_and_exit(0);
-        } else {
-            fprintf(stderr, "Fatal: no globe-history-dir specified!\n");
-            cleanup_and_exit(1);
-        }
     }
 
     pthread_create(&Modes.decodeThread, NULL, decodeThreadEntryPoint, NULL);
@@ -1312,6 +1309,7 @@ int main(int argc, char **argv) {
 //=========================================================================
 //
 //
+/*
 static void writeHeatmap() {
     char pathbuf[PATH_MAX];
     uint64_t len = 0;
@@ -1401,3 +1399,4 @@ static void writeHeatmap() {
         gzclose(gzfp);
     }
 }
+*/
