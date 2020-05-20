@@ -1133,9 +1133,9 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                 min_fpm = a->baro_rate - 1500 - min(11000, ((int)trackDataAge(now, &a->baro_rate_valid)/2));
                 max_fpm = a->baro_rate + 1500 + min(11000, ((int)trackDataAge(now, &a->baro_rate_valid)/2));
             }
-            if (trackDataValid(&a->altitude_baro_valid) && trackDataAge(now, &a->altitude_baro_valid) < 30000) {
+            if (trackDataValid(&a->altitude_baro_valid) && trackDataAge(now, &a->altitude_baro_valid) < 30 * SECONDS) {
                 a->alt_reliable = min(
-                        ALTITUDE_BARO_RELIABLE_MAX - (ALTITUDE_BARO_RELIABLE_MAX*trackDataAge(now, &a->altitude_baro_valid)/30000),
+                        ALTITUDE_BARO_RELIABLE_MAX - (ALTITUDE_BARO_RELIABLE_MAX*trackDataAge(now, &a->altitude_baro_valid)/(30 * SECONDS)),
                         a->alt_reliable);
             } else {
                 a->alt_reliable = 0;
@@ -1595,12 +1595,12 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
         while (a) {
             if (
                     (a->messages == 1 && now > a->seen + TRACK_AIRCRAFT_ONEHIT_TTL) ||
-                    (!Modes.globe_history_dir && now > a->seen + 5 * MINUTE) ||
+                    (!Modes.globe_history_dir && now > a->seen + 5 * MINUTES) ||
                     (Modes.globe_history_dir &&
                      (
                          (!a->seen_pos && now > a->seen + TRACK_AIRCRAFT_NO_POS_TTL) ||
                          (a->seen_pos && now > a->seen_pos + TRACK_AIRCRAFT_TTL) ||
-                         (a->messages <= 10 && now > a->seen + HOURS_5) ||
+                         (a->messages <= 10 && now > a->seen + 5 * HOURS) ||
                          ((a->addr & MODES_NON_ICAO_ADDRESS) && now > a->seen + TRACK_AIRCRAFT_NON_ICAO_TTL)
                      )
                     )
@@ -2580,15 +2580,15 @@ static void updateValidities(struct aircraft *a, uint64_t now) {
     updateValidity(&a->baro_rate_valid, now, TRACK_EXPIRE);
     updateValidity(&a->geom_rate_valid, now, TRACK_EXPIRE);
     updateValidity(&a->squawk_valid, now, TRACK_EXPIRE_LONG);
-    updateValidity(&a->airground_valid, now, TRACK_EXPIRE + 30000);
+    updateValidity(&a->airground_valid, now, TRACK_EXPIRE + 30 * SECONDS);
     updateValidity(&a->nav_qnh_valid, now, TRACK_EXPIRE);
     updateValidity(&a->nav_altitude_mcp_valid, now, TRACK_EXPIRE);
     updateValidity(&a->nav_altitude_fms_valid, now, TRACK_EXPIRE);
     updateValidity(&a->nav_altitude_src_valid, now, TRACK_EXPIRE);
     updateValidity(&a->nav_heading_valid, now, TRACK_EXPIRE);
     updateValidity(&a->nav_modes_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->cpr_odd_valid, now, TRACK_EXPIRE + 30);
-    updateValidity(&a->cpr_even_valid, now, TRACK_EXPIRE + 30);
+    updateValidity(&a->cpr_odd_valid, now, TRACK_EXPIRE + 30 * SECONDS);
+    updateValidity(&a->cpr_even_valid, now, TRACK_EXPIRE + 30 * SECONDS);
     updateValidity(&a->position_valid, now, TRACK_EXPIRE);
     updateValidity(&a->nic_a_valid, now, TRACK_EXPIRE);
     updateValidity(&a->nic_c_valid, now, TRACK_EXPIRE);

@@ -53,8 +53,8 @@ void receiverTimeout(int part, int nParts) {
                     b->latMin, b->latMax, b->lonMin, b->lonMax);
             */
             if (
-                    (Modes.receiverCount > RECEIVER_TABLE_SIZE && (*r)->lastSeen < now - 20 * MINUTE)
-                    || ((*r)->lastSeen < now - 1 * HOUR)
+                    (Modes.receiverCount > RECEIVER_TABLE_SIZE && (*r)->lastSeen < now - 20 * MINUTES)
+                    || ((*r)->lastSeen < now - 1 * HOURS)
                     || Modes.exit
                ) {
                 del = *r;
