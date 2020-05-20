@@ -207,7 +207,7 @@ void write_trace(struct aircraft *a, uint64_t now) {
     if (Modes.debug_traceCount && ++count2 % 1000 == 0)
         fprintf(stderr, "recent trace write: %u\n", count2);
 
-    pthread_mutex_lock(&a->trace_mutex);
+    //pthread_mutex_lock(&a->trace_mutex);
 
     a->trace_write = 0;
 
@@ -318,7 +318,7 @@ void write_trace(struct aircraft *a, uint64_t now) {
     }
 
 
-    pthread_mutex_unlock(&a->trace_mutex);
+    //pthread_mutex_unlock(&a->trace_mutex);
 
 
     if (recent.len > 0) {
@@ -1088,6 +1088,8 @@ void handleHeatmap() {
             uint64_t next = start;
             int slice = 0;
 
+            //pthread_mutex_lock(&a->trace_mutex);
+
             for (int i = 0; i < a->trace_len; i++) {
                 if (len >= alloc)
                     break;
@@ -1115,6 +1117,8 @@ void handleHeatmap() {
                 next += Modes.globe_history_heatmap;
                 slice++;
             }
+
+            //pthread_mutex_unlock(&a->trace_mutex);
         }
     }
 
