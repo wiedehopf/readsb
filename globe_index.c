@@ -1084,7 +1084,7 @@ void handleHeatmap() {
             uint64_t next = start;
             int slice = 0;
 
-            for (int i = 0; i < a->trace_len && i < 8000; i++) {
+            for (int i = 0; i < a->trace_len; i++) {
                 if (len >= alloc)
                     break;
                 if (trace[i].timestamp > end)
@@ -1107,6 +1107,7 @@ void handleHeatmap() {
                 buckets[len] = slice;
 
                 len++;
+
                 next += Modes.globe_history_heatmap;
                 slice++;
             }
