@@ -1143,6 +1143,9 @@ void handleHeatmap() {
     char tstring[100];
     strftime (tstring, 100, "%Y-%m-%d", &utc);
 
+    snprintf(pathbuf, PATH_MAX, "%s/%s", Modes.globe_history_dir, tstring);
+    if (mkdir(pathbuf, 0755) && errno != EEXIST)
+        perror(pathbuf);
     snprintf(pathbuf, PATH_MAX, "%s/%s/heatmap", Modes.globe_history_dir, tstring);
     if (mkdir(pathbuf, 0755) && errno != EEXIST)
         perror(pathbuf);
