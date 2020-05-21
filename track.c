@@ -1573,20 +1573,9 @@ static void trackMatchAC(uint64_t now) {
 
 static void trackRemoveStaleAircraft(struct aircraft **freeList) {
     int with_pos = 0;
-
-    // +50 for small clock jumps, doesn't hurt in any case.
-    // shouldn't be an issue as this routine is not concurrent
-    // other threads stop operation before this section.
     uint64_t now = mstime();
 
-    int full_write = 0;
-    time_t nowish = (mstime() - 2000)/1000;
-    struct tm utc;
-    gmtime_r(&nowish, &utc);
-    if (utc.tm_mday != Modes.mday) {
-        Modes.mday = utc.tm_mday;
-        full_write = 1;
-    }
+    int full_write = checkNewDay(); // this function does more than the return value!!!!
 
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
         struct aircraft *a = Modes.aircraft[j];

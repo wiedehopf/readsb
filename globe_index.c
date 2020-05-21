@@ -336,32 +336,11 @@ void write_trace(struct aircraft *a, uint64_t now) {
     }
 
     if (hist.len > 0) {
-
-        static int day; // STATIC !!!!!!!!!!
-
         char tstring[100];
         struct tm utc;
         gmtime_r(&hour_ago, &utc);
         strftime (tstring, 100, "%Y-%m-%d", &utc);
 
-        if (utc.tm_mday != day) {
-
-            day = utc.tm_mday;
-
-            snprintf(filename, PATH_MAX - 200, "%s/%s", Modes.globe_history_dir, tstring);
-            filename[PATH_MAX - 201] = 0;
-
-            mkdir(filename, 0755);
-
-            char pathbuf[PATH_MAX+20];
-            snprintf(pathbuf, sizeof(pathbuf), "%s/traces", filename);
-            pathbuf[PATH_MAX - 1] = 0;
-            mkdir(pathbuf, 0755);
-            for (int i = 0; i < 256; i++) {
-                snprintf(pathbuf, sizeof(pathbuf), "%s/traces/%02x", filename, i);
-                mkdir(pathbuf, 0755);
-            }
-        }
 
         snprintf(filename, PATH_MAX, "%s/traces/%02x/trace_full_%s%06x.json", tstring, a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
         filename[PATH_MAX - 101] = 0;
@@ -1071,6 +1050,7 @@ void handleHeatmap() {
     Modes.heatmap_current_interval = half_hour;
 
     char pathbuf[PATH_MAX];
+    char tmppath[PATH_MAX];
     int len = 0;
     int len2 = 0;
     int alloc = 1 * 1024 * 1024;
@@ -1154,6 +1134,7 @@ void handleHeatmap() {
         perror(pathbuf);
 
     snprintf(pathbuf, PATH_MAX, "%s/%s/heatmap/%02d.bin.ttf", Modes.globe_history_dir, tstring, half_hour);
+    snprintf(tmppath, PATH_MAX, "%s/%s/heatmap/temp_%x_%x", Modes.globe_history_dir, tstring, rand(), rand());
 
     fprintf(stderr, "%s using %d positions\n", pathbuf, len);
 
@@ -1172,8 +1153,56 @@ void handleHeatmap() {
             perror("Error writing heatmap:");
         gzclose(gzfp);
     }
+    rename(tmppath, pathbuf);
 
     free(buffer);
     free(buffer2);
     free(slices);
+}
+
+
+int checkNewDay() {
+    char filename[PATH_MAX];
+    char tstring[100];
+    uint64_t now = mstime();
+
+    struct tm utc;
+    time_t short_ago = now / 1000 - 300; // 5 minutes
+    gmtime_r(&short_ago, &utc);
+
+    if (utc.tm_mday != Modes.traceDay) {
+        Modes.traceDay = utc.tm_mday;
+
+        strftime (tstring, 100, "%Y-%m-%d", &utc);
+
+        snprintf(filename, PATH_MAX, "%s/%s", Modes.globe_history_dir, tstring);
+        mkdir(filename, 0755);
+
+        snprintf(filename, PATH_MAX, "%s/%s/traces", Modes.globe_history_dir, tstring);
+        mkdir(filename, 0700);
+
+        for (int i = 0; i < 256; i++) {
+            snprintf(filename, PATH_MAX, "%s/%s/traces/%02x", Modes.globe_history_dir, tstring, i);
+            mkdir(filename, 0755);
+        }
+
+
+        // allow reading of yesterdays traces
+        time_t yesterday = now / 1000 - 24 * 3600;
+        gmtime_r(&yesterday, &utc);
+
+        strftime (tstring, 100, "%Y-%m-%d", &utc);
+
+        snprintf(filename, PATH_MAX, "%s/%s/traces", Modes.globe_history_dir, tstring);
+        chmod(filename, 0755);
+    }
+
+    time_t nowish = (now - 2000)/1000;
+    gmtime_r(&nowish, &utc);
+
+    if (utc.tm_mday != Modes.mday) {
+        Modes.mday = utc.tm_mday;
+        return 1;
+    }
+    return 0;
 }

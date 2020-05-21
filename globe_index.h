@@ -14,6 +14,7 @@ struct tile {
     int east;
 };
 
+int checkNewDay(); // returns 1 when the day has changed
 ssize_t check_write(int fd, const void *buf, size_t count, const char *error_context);
 int globe_index(double lat_in, double lon_in);
 int globe_index_index(int index);

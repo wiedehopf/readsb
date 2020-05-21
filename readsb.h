@@ -476,6 +476,7 @@ struct
   int bUserFlags; // Flags relating to the user details
   int biastee;
   int mday;
+  int traceDay;
   struct stats stats_current;
   struct stats stats_alltime;
   struct stats stats_periodic;
