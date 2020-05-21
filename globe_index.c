@@ -1108,7 +1108,10 @@ void handleHeatmap() {
                 buffer[len].hex = a->addr;
                 buffer[len].lat = trace[i].lat;
                 buffer[len].lon = trace[i].lon;
-                buffer[len].alt = trace[i].altitude;
+                if (!trace[i].flags.on_ground)
+                    buffer[len].alt = trace[i].altitude;
+                else
+                    buffer[len].alt = -123;
 
                 slices[len] = slice;
 
