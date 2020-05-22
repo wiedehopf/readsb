@@ -190,6 +190,7 @@ static void modesInitConfig(void) {
     Modes.net_output_beast_reduce_ports = strdup("0");
     Modes.net_output_beast_reduce_interval = 125;
     Modes.net_output_vrs_ports = strdup("0");
+    Modes.net_output_vrs_interval = 5 * SECONDS;
     Modes.net_output_json_ports = strdup("0");
     Modes.net_connector_delay = 30 * 1000;
     Modes.interactive_display_ttl = MODES_INTERACTIVE_DISPLAY_TTL;
@@ -957,6 +958,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptNetVRSPorts:
             free(Modes.net_output_vrs_ports);
             Modes.net_output_vrs_ports = strdup(arg);
+            break;
+        case OptNetVRSInterval:
+            if (atof(arg) > 0)
+                Modes.net_output_vrs_interval = atof(arg) * SECONDS;
             break;
         case OptNetBuffer:
             Modes.net_sndbuf_size = atoi(arg);

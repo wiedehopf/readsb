@@ -3060,13 +3060,15 @@ void modesNetPeriodicWork(void) {
     if (Modes.vrs_out.service && Modes.vrs_out.service->connections && now >= next_tcp_json) {
         static uint32_t part;
         static uint32_t count;
-        uint32_t n_parts = 1<<3; // must be power of 2
-        writeJsonToNet(&Modes.vrs_out, generateVRS(part, n_parts, (count % n_parts != part)));
-        if (++part >= n_parts) {
+        uint32_t n_parts = 16; // must be 16 :)
+
+        next_tcp_json = now + Modes.net_output_vrs_interval / n_parts;
+
+        writeJsonToNet(&Modes.vrs_out, generateVRS(part, n_parts, (count % n_parts / 2 != part % 8)));
+        if (++part == n_parts) {
             part = 0;
-            count++;
+            count += 2;
         }
-        next_tcp_json = now + 3000 / n_parts;
     }
 
     // If we have data that has been waiting to be written for a while,
@@ -3148,6 +3150,8 @@ struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {
     int part_len = AIRCRAFT_BUCKETS / n_parts;
     int part_start = part * part_len;
 
+    //fprintf(stderr, "%02d/%02d reduced_data: %d\n", part, n_parts, reduced_data);
+
     p = safe_snprintf(p, end,
             "{\"acList\":[");
 
@@ -3156,7 +3160,7 @@ struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {
             if (a->messages < 2) { // basic filter for bad decodes
                 continue;
             }
-            if ((now - a->seen) > 5E3) // don't include stale aircraft in the JSON
+            if (now > a->seen + 10 * SECONDS) // don't include stale aircraft in the JSON
                 continue;
 
             // For now, suppress non-ICAO addresses
@@ -3212,14 +3216,14 @@ retry:
             else
                 p = safe_snprintf(p, end, ",\"Gnd\":false");
 
+            if (trackDataValid(&a->squawk_valid))
+                p = safe_snprintf(p, end, ",\"Sqk\":\"%04x\"", a->squawk);
+
             if (trackDataValid(&a->nav_altitude_mcp_valid)) {
                 p = safe_snprintf(p, end, ",\"TAlt\":%d", a->nav_altitude_mcp);
             } else if (trackDataValid(&a->nav_altitude_fms_valid)) {
                 p = safe_snprintf(p, end, ",\"TAlt\":%d", a->nav_altitude_fms);
             }
-
-            if (trackDataValid(&a->squawk_valid))
-                p = safe_snprintf(p, end, ",\"Sqk\":\"%04x\"", a->squawk);
 
             if (reduced_data)
                 goto skip_fields;

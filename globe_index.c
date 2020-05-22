@@ -253,7 +253,7 @@ void write_trace(struct aircraft *a, uint64_t now) {
             write_perm = 1;
 
             if (a->trace_full_write == 0xc0ffee) {
-                a->trace_next_fw = now + 1000 * (rand() % (GLOBE_OVERLAP - 60 - GLOBE_OVERLAP / 16));
+                a->trace_next_fw = now + (rand() % (GLOBE_OVERLAP - 60 - GLOBE_OVERLAP / 16 - 120)) * 1000;
             } else {
                 a->trace_next_fw = now + (GLOBE_OVERLAP - 60 - rand() % GLOBE_OVERLAP / 16) * 1000;
             }

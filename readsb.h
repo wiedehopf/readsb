@@ -437,6 +437,7 @@ struct
   char *net_output_json_ports;
   uint64_t net_output_beast_reduce_interval; // Position update interval for data reduction
   char *net_output_vrs_ports; // List of VRS output TCP ports
+  uint64_t net_output_vrs_interval;
   int basestation_is_mlat; // Basestation input is from MLAT
   struct net_connector **net_connectors; // client connectors
   int net_connectors_count;
@@ -763,6 +764,7 @@ enum {
   OptNetBeastReducePorts,
   OptNetBeastReduceInterval,
   OptNetVRSPorts,
+  OptNetVRSInterval,
   OptNetJsonPorts,
   OptNetRoSize,
   OptNetRoRate,

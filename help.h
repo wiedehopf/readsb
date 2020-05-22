@@ -89,6 +89,7 @@ static struct argp_option options[] =
     {"net-sbs-in-port", OptNetSbsInPorts, "<ports>", 0, "TCP BaseStation input listen ports (default: 0)", 2},
     {"net-bi-port", OptNetBiPorts, "<ports>", 0, "TCP Beast input listen ports  (default: 30004,30104)", 2},
     {"net-vrs-port", OptNetVRSPorts, "<ports>", 0, "TCP VRS json output listen ports (default: 0)", 2},
+    {"net-vrs-interval", OptNetVRSInterval, "<seconds>", 0, "TCP VRS json output interval (default: 5)", 2},
     {"net-json-port", OptNetJsonPorts, "<ports>", 0, "TCP json position output listen ports (requires --write-json-globe-index) (default: 0)", 2},
     {"net-beast-reduce-out-port", OptNetBeastReducePorts, "<ports>", 0, "TCP BeastReduce output listen ports (default: 0)", 2},
     {"net-beast-reduce-interval", OptNetBeastReduceInterval, "<seconds>", 0, "BeastReduce position update interval, longer means less data (default: 0.125, valid range: 0.000 - 14.999)", 2},
