@@ -1217,7 +1217,6 @@ int main(int argc, char **argv) {
             pthread_create(&Modes.jsonThread, NULL, jsonThreadEntryPoint, NULL);
 
         if (Modes.json_globe_index) {
-            pthread_create(&Modes.jsonGlobeThread, NULL, jsonGlobeThreadEntryPoint, NULL);
 
             char pathbuf[PATH_MAX];
             snprintf(pathbuf, PATH_MAX, "%s/traces", Modes.json_dir);
@@ -1227,8 +1226,10 @@ int main(int argc, char **argv) {
                 mkdir(pathbuf, 0755);
             }
 
-        }
-        if (Modes.json_globe_index) {
+            // globe_xxxx.json
+            pthread_create(&Modes.jsonGlobeThread, NULL, jsonGlobeThreadEntryPoint, NULL);
+
+            // trace_xxxxxxxxx.json
             for (int i = 0; i < TRACE_THREADS; i++) {
                 pthread_create(&Modes.jsonTraceThread[i], NULL, jsonTraceThreadEntryPoint, &threadNumber[i]);
             }
@@ -1270,8 +1271,7 @@ int main(int argc, char **argv) {
 
         if (Modes.json_globe_index) {
             pthread_join(Modes.jsonGlobeThread, NULL); // Wait on json writer thread exit
-        }
-        if (Modes.json_globe_index || Modes.globe_history_dir) {
+
             for (int i = 0; i < TRACE_THREADS; i++) {
                 pthread_join(Modes.jsonTraceThread[i], NULL); // Wait on json writer thread exit
             }
