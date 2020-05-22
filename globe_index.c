@@ -198,7 +198,10 @@ void write_trace(struct aircraft *a, uint64_t now) {
     char filename[PATH_MAX];
     static uint32_t count2, count3, count4;
 
-    time_t hour_ago = now/1000 - GLOBE_OVERLAP;
+    // nineteen_ago changes day 19 min after midnight: stop writing the previous days traces
+    // twenty_ago changes day 20 min after midnight: allow webserver to read the previous days traces
+    // this is in seconds, not milliseconds
+    time_t nineteen_ago = now / 1000 - 19 * 60;
 
     recent.len = 0;
     full.len = 0;
@@ -294,7 +297,7 @@ void write_trace(struct aircraft *a, uint64_t now) {
                     Modes.globe_history_dir && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
 
                 struct tm utc;
-                gmtime_r(&hour_ago, &utc);
+                gmtime_r(&nineteen_ago, &utc);
                 utc.tm_sec = 0;
                 utc.tm_min = 0;
                 utc.tm_hour = 0;
@@ -338,7 +341,7 @@ void write_trace(struct aircraft *a, uint64_t now) {
     if (hist.len > 0) {
         char tstring[100];
         struct tm utc;
-        gmtime_r(&hour_ago, &utc);
+        gmtime_r(&nineteen_ago, &utc);
         strftime (tstring, 100, "%Y-%m-%d", &utc);
 
 
@@ -1165,13 +1168,35 @@ int checkNewDay() {
     char filename[PATH_MAX];
     char tstring[100];
     uint64_t now = mstime();
-
     struct tm utc;
-    time_t short_ago = now / 1000 - 300; // 5 minutes
-    gmtime_r(&short_ago, &utc);
+
+
+    // nineteen_ago changes day 19 min after midnight: stop writing the previous days traces
+    // twenty_ago changes day 20 min after midnight: allow webserver to read the previous days traces
+    // this is in seconds, not milliseconds
+    time_t twenty_ago = now / 1000 - 20 * 60;
+    gmtime_r(&twenty_ago, &utc);
 
     if (utc.tm_mday != Modes.traceDay) {
         Modes.traceDay = utc.tm_mday;
+
+        time_t yesterday = now / 1000 - 24 * 3600;
+        gmtime_r(&yesterday, &utc);
+
+        strftime (tstring, 100, "%Y-%m-%d", &utc);
+
+        snprintf(filename, PATH_MAX, "%s/%s/traces", Modes.globe_history_dir, tstring);
+        chmod(filename, 0755);
+    }
+
+    // 2 seconds after midnight, start a permanent write of all traces (return 1)
+    // create the new directory for writing traces
+    // prevent the webserver from reading it until they are in a finished state
+    time_t nowish = (now - 2000)/1000;
+    gmtime_r(&nowish, &utc);
+
+    if (utc.tm_mday != Modes.mday) {
+        Modes.mday = utc.tm_mday;
 
         strftime (tstring, 100, "%Y-%m-%d", &utc);
 
@@ -1186,22 +1211,6 @@ int checkNewDay() {
             mkdir(filename, 0755);
         }
 
-
-        // allow reading of yesterdays traces
-        time_t yesterday = now / 1000 - 24 * 3600;
-        gmtime_r(&yesterday, &utc);
-
-        strftime (tstring, 100, "%Y-%m-%d", &utc);
-
-        snprintf(filename, PATH_MAX, "%s/%s/traces", Modes.globe_history_dir, tstring);
-        chmod(filename, 0755);
-    }
-
-    time_t nowish = (now - 2000)/1000;
-    gmtime_r(&nowish, &utc);
-
-    if (utc.tm_mday != Modes.mday) {
-        Modes.mday = utc.tm_mday;
         return 1;
     }
     return 0;
