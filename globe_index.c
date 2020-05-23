@@ -1,7 +1,7 @@
 #include "readsb.h"
 
 #define LEG_FOCUS 0xfffffff
-//#define LEG_FOCUS 0xae290d
+//#define LEG_FOCUS 0x3c458a
 
 static void mark_legs(struct aircraft *a);
 static void load_blob(int blob);
@@ -1054,6 +1054,8 @@ void handleHeatmap() {
             struct state *trace = a->trace;
             uint64_t next = start;
             int slice = 0;
+            uint32_t squawk = 8888; // impossible squawk
+            uint64_t callsign = 0; // quackery
 
             //pthread_mutex_lock(&a->trace_mutex);
 
@@ -1062,6 +1064,29 @@ void handleHeatmap() {
                     break;
                 if (trace[i].timestamp > end)
                     break;
+                if (trace[i].timestamp > start && i % 4 == 0) {
+                    struct state_all *all = &(a->trace_all[i/4]);
+                    uint64_t *cs = (uint64_t *) &(all->callsign);
+                    if (*cs != callsign || squawk != all->squawk) {
+
+                        callsign = *cs;
+                        squawk = all->squawk;
+
+                        uint32_t s = all->squawk;
+                        int32_t d = (s & 0xF) + 10 * ((s & 0xF0) >> 4) + 100 * ((s & 0xF00) >> 8) + 1000 * ((s & 0xF000) >> 12);
+                        buffer[len].hex = a->addr;
+                        buffer[len].lat = (1 << 30) | d;
+
+                        memcpy(&buffer[len].lon, all->callsign, 8);
+
+                        if (a->addr == LEG_FOCUS) {
+                            fprintf(stderr, "squawk: %d %04x\n", d, s);
+                        }
+
+                        slices[len] = slice;
+                        len++;
+                    }
+                }
                 if (trace[i].timestamp < next)
                     continue;
                 if (!trace[i].flags.altitude_valid)
