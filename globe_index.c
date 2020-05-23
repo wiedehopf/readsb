@@ -260,36 +260,17 @@ void write_trace(struct aircraft *a, uint64_t now) {
         }
         a->trace_full_write = 0;
 
+        // if the trace length is zero, the trace is written once more
+        // and not written again until a new position is received
+        if (a->trace_len == 0) {
+            a->trace_full_write = 0xdead;
+        }
+
         //fprintf(stderr, "%06x\n", a->addr);
 
         // prepare stuff to be written to disk
         // written to memory, then to disk outside the trace_mutex
         if (write_perm) {
-            // if the trace length is zero, the trace is written once more
-            // and not written again until a new position is received
-            if (a->trace_len == 0) {
-                a->trace_full_write = 0xdead;
-            }
-
-            // no longer used
-            if (0 && a->pos_set && Modes.globe_history_dir && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
-                int size_state = a->trace_len * sizeof(struct state);
-                int size_all = (a->trace_len + 3) / 4 * sizeof(struct state_all);
-                shadow_size = sizeof(struct aircraft) + size_state + size_all;
-
-                shadow = malloc(shadow_size);
-                char *start = shadow;
-
-                memcpy(start, a, sizeof(struct aircraft));
-                start += sizeof(struct aircraft);
-                if (a->trace_len > 0) {
-                    memcpy(start, a->trace, size_state);
-                    start += size_state;
-                    memcpy(start, a->trace_all, size_all);
-                    start += size_all;
-                }
-            }
-
             // prepare writing the permanent history
             if (a->trace_len > 0 &&
                     Modes.globe_history_dir && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
@@ -322,19 +303,24 @@ void write_trace(struct aircraft *a, uint64_t now) {
     //pthread_mutex_unlock(&a->trace_mutex);
 
 
+    snprintf(filename, 256, "traces/%02x/trace_recent_%s%06x.json", a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
     if (recent.len > 0) {
-        snprintf(filename, 256, "traces/%02x/trace_recent_%s%06x.json", a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
         writeJsonToGzip(Modes.json_dir, filename, recent, 1);
         free(recent.buffer);
     }
+    if (a->trace_len == 0)
+        unlink(filename);
 
+    snprintf(filename, 256, "traces/%02x/trace_full_%s%06x.json", a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
     if (full.len > 0) {
-        snprintf(filename, 256, "traces/%02x/trace_full_%s%06x.json", a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
 
         writeJsonToGzip(Modes.json_dir, filename, full, 7);
 
         free(full.buffer);
     }
+    if (a->trace_len == 0)
+        unlink(filename);
+
 
     if (hist.len > 0) {
         char tstring[100];

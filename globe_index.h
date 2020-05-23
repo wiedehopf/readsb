@@ -41,6 +41,10 @@ void ca_remove (struct craftArray *ca, struct aircraft *a);
 void ca_add (struct craftArray *ca, struct aircraft *a);
 void set_globe_index (struct aircraft *a, int new_index);
 
+// this format is fixed, don't change.
+// if the latitude has bit 30 set (lat & (1<<30)), it's an info entry:
+// the lowest 12 bits of the lat contain squawk digits as a decimal number
+// lon and alt together contain the 8 byte callsign
 struct heatEntry {
     int32_t hex;
     int32_t lat;
