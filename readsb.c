@@ -1020,7 +1020,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                     && strcmp(con->protocol, "json_out") != 0
                ) {
                 fprintf(stderr, "--net-connector: Unknown protocol: %s\n", con->protocol);
-                fprintf(stderr, "Supported protocols: beast_out, beast_in, beast_reduce_out, raw_out, raw_in, sbs_out, sbs_in, vrs_out, json_out\n");
+                fprintf(stderr, "Supported protocols: beast_out, beast_in, beast_reduce_out, raw_out, raw_in, \n"
+                        "sbs_out, sbs_out_mlat, sbs_out_jaero, \n"
+                        "sbs_in, sbs_in_mlat, sbs_in_jaero, \n"
+                        "vrs_out, json_out\n");
                 return 1;
             }
             if (strcmp(con->address, "") == 0 || strcmp(con->address, "") == 0) {
