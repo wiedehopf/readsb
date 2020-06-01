@@ -1,7 +1,6 @@
 #include "readsb.h"
 
-#define LEG_FOCUS 0xfffffff
-//#define LEG_FOCUS 0x3c458a
+#define LEG_FOCUS 0x0
 
 static void mark_legs(struct aircraft *a);
 static void load_blob(int blob);
@@ -363,7 +362,7 @@ void *save_state(void *arg) {
         if (j % 8 != thread_number)
             continue;
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
-            if (!a->pos_set)
+            if (!a->seen_pos && a->trace_len == 0)
                 continue;
             if (a->addr & MODES_NON_ICAO_ADDRESS)
                 continue;
@@ -442,10 +441,12 @@ static int load_aircraft(int fd, uint64_t now) {
         } else {
             // TRACE SUCCESS
             if (a->trace_full_write != 0xdead) {
-                if (a->addr == LEG_FOCUS)
+                if (a->addr == LEG_FOCUS) {
                     a->trace_next_fw = now;
-                else
+                    fprintf(stderr, "%06x trace len: %d\n", a->addr, a->trace_len);
+                } else {
                     a->trace_next_fw = now + 1000 * (rand() % 120); // spread over 2 mins
+                }
 
                 a->trace_full_write = 0xc0ffee; // rewrite full history file
             }
@@ -955,7 +956,7 @@ void save_blob(int blob) {
 
     for (int j = start; j < end; j++) {
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
-            if (!a->pos_set)
+            if (!a->seen_pos && a->trace_len == 0)
                 continue;
             if (a->addr & MODES_NON_ICAO_ADDRESS)
                 continue;
