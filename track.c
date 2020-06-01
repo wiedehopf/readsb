@@ -1160,8 +1160,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             goto accept_alt;
         if (mm->source > a->altitude_baro_valid.source)
             goto accept_alt;
-        if (mm->source == SOURCE_JAERO && a->altitude_baro_valid.source == SOURCE_JAERO)
+        if (mm->source == SOURCE_JAERO && (a->altitude_baro_valid.source == SOURCE_JAERO || a->altitude_baro_valid.source == SOURCE_INVALID)) {
+            good_crc = ALTITUDE_BARO_RELIABLE_MAX;
             goto accept_alt;
+        }
 
         goto discard_alt;
 accept_alt:

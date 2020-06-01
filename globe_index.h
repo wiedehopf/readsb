@@ -51,7 +51,8 @@ struct heatEntry {
     int32_t hex;
     int32_t lat;
     int32_t lon;
-    int32_t alt;
+    int16_t alt;
+    int16_t gs;
 } __attribute__ ((__packed__));
 
 #endif

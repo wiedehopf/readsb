@@ -1099,10 +1099,16 @@ void handleHeatmap() {
                 buffer[len].hex = a->addr;
                 buffer[len].lat = trace[i].lat;
                 buffer[len].lon = trace[i].lon;
+
                 if (!trace[i].flags.on_ground)
                     buffer[len].alt = trace[i].altitude;
                 else
-                    buffer[len].alt = -123;
+                    buffer[len].alt = -123; // on ground
+
+                if (trace[i].flags.gs_valid)
+                    buffer[len].gs = trace[i].gs;
+                else
+                    buffer[len].gs = -1; // invalid
 
                 slices[len] = slice;
 
