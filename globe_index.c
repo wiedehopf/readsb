@@ -418,6 +418,12 @@ static int load_aircraft(int fd, uint64_t now) {
         a->trace_len = 0;
     }
 
+    // just in case we have bogus values saved, make sure they time out
+    if (a->seen_pos > now + 26 * HOURS)
+        a->seen_pos = 0;
+    if (a->seen > now + 26 * HOURS)
+        a->seen = now;
+
     // read trace
     if (a->trace_len > 0) {
 
