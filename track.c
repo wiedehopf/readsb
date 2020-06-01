@@ -1715,17 +1715,10 @@ static void cleanupAircraft(struct aircraft *a) {
         iter = iter->next;
 
         char filename[1024];
-        char fullpath[PATH_MAX];
 
-        snprintf(filename, 1024, "traces/%02x/trace_recent_%s%06x.json", a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
-        snprintf(fullpath, PATH_MAX, "%s/%s", Modes.json_dir, filename);
-        fullpath[PATH_MAX - 1] = 0;
-        unlink(fullpath);
-
-        snprintf(filename, 1024, "traces/%02x/trace_full_%s%06x.json", a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
-        snprintf(fullpath, PATH_MAX, "%s/%s", Modes.json_dir, filename);
-        fullpath[PATH_MAX - 1] = 0;
-        unlink(fullpath);
+        if (Modes.json_dir) {
+            unlink_trace(a);
+        }
 
         if (Modes.globe_history_dir) {
             snprintf(filename, 1024, "%s/internal_state/%02x/%06x", Modes.globe_history_dir, a->addr % 256, a->addr);
@@ -1734,8 +1727,6 @@ static void cleanupAircraft(struct aircraft *a) {
                 //fprintf(stderr, "unlink %06x: %s\n", a->addr, filename);
             }
         }
-
-        //fprintf(stderr, "unlink %06x: %s\n", a->addr, fullpath);
 
         freeAircraft(a);
     }

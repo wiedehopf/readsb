@@ -260,8 +260,8 @@ void write_trace(struct aircraft *a, uint64_t now) {
         }
         a->trace_full_write = 0;
 
-        // if the trace length is zero, the trace is written once more
-        // and not written again until a new position is received
+        // if the trace length is zero, the trace is deleted from run
+        // it is not written again until a new position is received
         if (a->trace_len == 0) {
             a->trace_full_write = 0xdead;
         }
@@ -308,8 +308,6 @@ void write_trace(struct aircraft *a, uint64_t now) {
         writeJsonToGzip(Modes.json_dir, filename, recent, 1);
         free(recent.buffer);
     }
-    if (a->trace_len == 0)
-        unlink(filename);
 
     snprintf(filename, 256, "traces/%02x/trace_full_%s%06x.json", a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
     if (full.len > 0) {
@@ -318,9 +316,10 @@ void write_trace(struct aircraft *a, uint64_t now) {
 
         free(full.buffer);
     }
-    if (a->trace_len == 0)
-        unlink(filename);
 
+    if (a->trace_full_write == 0xdead) {
+        unlink_trace(a);
+    }
 
     if (hist.len > 0) {
         char tstring[100];
@@ -1223,4 +1222,19 @@ int checkNewDay() {
         return 1;
     }
     return 0;
+}
+
+void unlink_trace(struct aircraft *a) {
+    char filename[PATH_MAX];
+
+    if (!Modes.json_globe_index)
+        return;
+
+    snprintf(filename, 1024, "%s/traces/%02x/trace_recent_%s%06x.json", Modes.json_dir, a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
+    unlink(filename);
+
+    snprintf(filename, 1024, "%s/traces/%02x/trace_full_%s%06x.json", Modes.json_dir, a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
+    unlink(filename);
+
+    //fprintf(stderr, "unlink %06x: %s\n", a->addr, filename);
 }

@@ -1221,8 +1221,7 @@ int main(int argc, char **argv) {
 
     if (Modes.json_dir) {
 
-        //if (ALL_JSON || !Modes.json_globe_index)
-            pthread_create(&Modes.jsonThread, NULL, jsonThreadEntryPoint, NULL);
+        pthread_create(&Modes.jsonThread, NULL, jsonThreadEntryPoint, NULL);
 
         if (Modes.json_globe_index) {
 
@@ -1242,25 +1241,20 @@ int main(int argc, char **argv) {
                 pthread_create(&Modes.jsonTraceThread[i], NULL, jsonTraceThreadEntryPoint, &threadNumber[i]);
             }
         }
-
-        if (Modes.globe_history_dir) {
-            char pathbuf[PATH_MAX];
-            if (mkdir(Modes.globe_history_dir, 0755) && errno != EEXIST)
-                perror(Modes.globe_history_dir);
-
-            snprintf(pathbuf, PATH_MAX, "%s/internal_state", Modes.globe_history_dir);
-            if (mkdir(pathbuf, 0755) && errno != EEXIST)
-                perror(pathbuf);
-
-            /*
-            for (int i = 0; i < 256; i++) {
-                snprintf(pathbuf, PATH_MAX, "%s/internal_state/%02x", Modes.globe_history_dir, i);
-                mkdir(pathbuf, 0755);
-            }
-            */
-        }
     }
 
+
+
+
+    if (Modes.globe_history_dir) {
+        char pathbuf[PATH_MAX];
+        if (mkdir(Modes.globe_history_dir, 0755) && errno != EEXIST)
+            perror(Modes.globe_history_dir);
+
+        snprintf(pathbuf, PATH_MAX, "%s/internal_state", Modes.globe_history_dir);
+        if (mkdir(pathbuf, 0755) && errno != EEXIST)
+            perror(pathbuf);
+    }
 
     while (!Modes.exit) {
         struct timespec slp = {1, 0};
