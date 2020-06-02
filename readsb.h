@@ -292,7 +292,7 @@ typedef enum {
 
 #define GLOBE_TRACE_SIZE 32768
 #define GLOBE_OVERLAP 3600
-#define GLOBE_STEP 32
+#define GLOBE_STEP 16
 #define TRACE_THREADS 4
 
 // mix_fasthash: https://github.com/ZilongTan/fast-hash (MIT License Copyright (C) 2012 Zilong Tan (eric.zltan@gmail.com))

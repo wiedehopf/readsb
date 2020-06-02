@@ -1637,7 +1637,7 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                     a->trace_write = 1;
                     resize_trace(a, now);
                 }
-                if (a->trace_len && a->trace_len + 16 >= a->trace_alloc) {
+                if (a->trace_len && a->trace_len + GLOBE_STEP / 2 >= a->trace_alloc) {
                     resize_trace(a, now);
                     //fprintf(stderr, "%06x: new trace_alloc: %d).\n", a->addr, a->trace_alloc);
                 }
@@ -1818,6 +1818,8 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
             a->trace->timestamp = now;
             a->trace_full_write = 9999; // rewrite full history file
 
+            //fprintf(stderr, "%06x: new trace\n", a->addr);
+
             //pthread_mutex_unlock(&a->trace_mutex);
         } else if (a->trace_len > 5) {
             for (int i = a->trace_len - 1; i >= a->trace_len - 5; i--)
@@ -1825,7 +1827,7 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
                         && (int32_t) (new_lon * 1E6) == a->trace[i].lon )
                     return;
         }
-        if (a->trace_len + 4 >= a->trace_alloc) {
+        if (a->trace_len + 1 >= a->trace_alloc) {
             //fprintf(stderr, "%06x: trace_len + 4 >= a->trace_alloc (%d).\n", a->addr, a->trace_len);
             goto no_save_state;
         }
@@ -2125,17 +2127,27 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
         //pthread_mutex_unlock(&a->trace_mutex);
         return;
     }
-    if (a->trace_len == GLOBE_TRACE_SIZE || now > a->trace->timestamp + (24 * 3600 + GLOBE_OVERLAP * 2) * 1000) {
+    if (a->trace_len == GLOBE_TRACE_SIZE
+            || (now > a->trace->timestamp + (4 * HOURS) && (a->addr & MODES_NON_ICAO_ADDRESS))
+            || now > a->trace->timestamp + (24 * 3600 + GLOBE_OVERLAP * 2) * 1000) {
         int new_start = a->trace_len;
 
         if (a->trace_len < GLOBE_TRACE_SIZE) {
             int found = 0;
             for (int i = 0; i < a->trace_len; i++) {
                 struct state *state = &a->trace[i];
-                if (now < state->timestamp + (24 * 3600 + GLOBE_OVERLAP * 2 - 20 * 60) * 1000) {
-                    new_start = i;
-                    found = 1;
-                    break;
+                if (a->addr & MODES_NON_ICAO_ADDRESS) {
+                    if (now < a->trace->timestamp + (3 * HOURS)) {
+                        new_start = i;
+                        found = 1;
+                        break;
+                    }
+                } else {
+                    if (now < state->timestamp + (24 * 3600 + GLOBE_OVERLAP * 2 - 20 * 60) * 1000) {
+                        new_start = i;
+                        found = 1;
+                        break;
+                    }
                 }
             }
             if (!found)
@@ -2165,7 +2177,7 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
         //pthread_mutex_unlock(&a->trace_mutex);
     }
 
-    if (a->trace_len && a->trace_len + 16 >= a->trace_alloc) {
+    if (a->trace_len && a->trace_len + GLOBE_STEP / 2 >= a->trace_alloc) {
         //pthread_mutex_lock(&a->trace_mutex);
         a->trace_alloc += 2 * GLOBE_STEP;
         if (a->trace_alloc > GLOBE_TRACE_SIZE)
