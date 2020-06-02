@@ -1185,6 +1185,8 @@ int checkNewDay() {
     uint64_t now = mstime();
     struct tm utc;
 
+    if (!Modes.globe_history_dir)
+        return 0;
 
     // nineteen_ago changes day 19 min after midnight: stop writing the previous days traces
     // twenty_ago changes day 20 min after midnight: allow webserver to read the previous days traces
