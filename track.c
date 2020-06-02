@@ -1637,8 +1637,9 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                     a->trace_write = 1;
                     resize_trace(a, now);
                 }
-                if (a->trace_len && a->trace_len + 8 >= a->trace_alloc) {
+                if (a->trace_len && a->trace_len + 16 >= a->trace_alloc) {
                     resize_trace(a, now);
+                    //fprintf(stderr, "%06x: new trace_alloc: %d).\n", a->addr, a->trace_alloc);
                 }
 
 
@@ -1823,6 +1824,10 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
                 if ( (int32_t) (new_lat * 1E6) == a->trace[i].lat
                         && (int32_t) (new_lon * 1E6) == a->trace[i].lon )
                     return;
+        }
+        if (a->trace_len + 4 >= a->trace_alloc) {
+            //fprintf(stderr, "%06x: trace_len + 4 >= a->trace_alloc (%d).\n", a->addr, a->trace_len);
+            goto no_save_state;
         }
 
         struct state *trace = a->trace;
@@ -2160,9 +2165,9 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
         //pthread_mutex_unlock(&a->trace_mutex);
     }
 
-    if (a->trace_len && a->trace_len + 8 >= a->trace_alloc) {
+    if (a->trace_len && a->trace_len + 16 >= a->trace_alloc) {
         //pthread_mutex_lock(&a->trace_mutex);
-        a->trace_alloc *= 2;
+        a->trace_alloc += 2 * GLOBE_STEP;
         if (a->trace_alloc > GLOBE_TRACE_SIZE)
             a->trace_alloc = GLOBE_TRACE_SIZE;
         a->trace = realloc(a->trace, a->trace_alloc * sizeof(struct state));
@@ -2176,9 +2181,9 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
             fprintf(stderr, "GLOBE_TRACE_SIZE EXCEEDED!: %06x (%d).\n", a->addr, a->trace_len);
     }
 
-    if (a->trace_len < (a->trace_alloc - GLOBE_STEP) / 3 && a->trace_alloc >= 2 * GLOBE_STEP) {
+    if (a->trace_len < a->trace_alloc - 4 * GLOBE_STEP && a->trace_alloc >= 4 * GLOBE_STEP) {
         //pthread_mutex_lock(&a->trace_mutex);
-        a->trace_alloc /= 2;
+        a->trace_alloc -= 2 * GLOBE_STEP;
         a->trace = realloc(a->trace, a->trace_alloc * sizeof(struct state));
         a->trace_all = realloc(a->trace_all, a->trace_alloc / 4 * sizeof(struct state_all));
         //pthread_mutex_unlock(&a->trace_mutex);
