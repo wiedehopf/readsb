@@ -446,15 +446,9 @@ static int load_aircraft(int fd, uint64_t now) {
             ret = -1;
         } else {
             // TRACE SUCCESS
-            if (a->trace_full_write != 0xdead) {
-                if (a->addr == LEG_FOCUS) {
-                    a->trace_next_fw = now;
-                    fprintf(stderr, "%06x trace len: %d\n", a->addr, a->trace_len);
-                } else {
-                    a->trace_next_fw = now + 1000 * (rand() % 120); // spread over 2 mins
-                }
-
-                a->trace_full_write = 0xc0ffee; // rewrite full history file
+            if (a->addr == LEG_FOCUS) {
+                a->trace_next_fw = now;
+                fprintf(stderr, "%06x trace len: %d\n", a->addr, a->trace_len);
             }
         }
     }
@@ -1219,17 +1213,26 @@ int checkNewDay() {
     if (utc.tm_mday != Modes.mday) {
         Modes.mday = utc.tm_mday;
 
-        strftime (tstring, 100, "%Y-%m-%d", &utc);
+        strftime(tstring, 100, "%Y-%m-%d", &utc);
 
         snprintf(filename, PATH_MAX, "%s/%s", Modes.globe_history_dir, tstring);
-        mkdir(filename, 0755);
+        if (mkdir(filename, 0755)) {
+            if (errno != EEXIST) {
+                fprintf(stderr, "Unable to write history trace, couldn't create directory for today: %s\n", filename);
+                perror(filename);
+            }
+        } else {
+            fprintf(stderr, "A new day has begun, created directory: %s\n", filename);
+        }
 
         snprintf(filename, PATH_MAX, "%s/%s/traces", Modes.globe_history_dir, tstring);
-        mkdir(filename, 0700);
+        if (mkdir(filename, 0700) && errno != EEXIST)
+            perror(filename);
 
         for (int i = 0; i < 256; i++) {
             snprintf(filename, PATH_MAX, "%s/%s/traces/%02x", Modes.globe_history_dir, tstring, i);
-            mkdir(filename, 0755);
+            if (mkdir(filename, 0755) && errno != EEXIST)
+                perror(filename);
         }
 
         return 1;

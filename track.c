@@ -1629,7 +1629,7 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                 }
 
                 if (full_write && a->trace_full_write != 0xdead) {
-                    a->trace_next_fw = now + 1000 * (rand() % 180); // spread over 3 mins
+                    a->trace_next_fw = now + 1000 * (rand() % 120); // spread over 2 mins
                     a->trace_full_write = 0xc0ffee;
                 }
 
