@@ -958,11 +958,14 @@ void save_blob(int blob) {
 
     int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
+        fprintf(stderr, "open failed:");
         perror(filename);
         return;
     }
     gzFile gzfp = gzdopen(fd, "wb");
     if (!gzfp) {
+        fprintf(stderr, "gzdopen failed:");
+        perror(filename);
         close(fd);
         return;
     }
@@ -1013,8 +1016,10 @@ void save_blob(int blob) {
             if (p - buf > alloc - 4 * 1024 * 1024) {
                 fprintf(stderr, "buffer almost full: loop_write %d KB\n", (int) ((p - buf) / 1024));
                 //check_write(fd, buf, p - buf, filename);
-                if (gzwrite(gzfp, buf, p - buf) != p - buf)
+                if (gzwrite(gzfp, buf, p - buf) != p - buf) {
+                    fprintf(stderr, "gzwrite failed: %s", gzerror(gzfp, &errno));
                     perror(filename);
+                }
 
                 p = buf;
             }
@@ -1026,8 +1031,10 @@ void save_blob(int blob) {
 
     //fprintf(stderr, "end_write %d KB\n", (int) ((p - buf) / 1024));
     //check_write(fd, buf, p - buf, filename);
-    if (gzwrite(gzfp, buf, p - buf) != p - buf)
+    if (gzwrite(gzfp, buf, p - buf) != p - buf) {
+        fprintf(stderr, "gzwrite failed: %s", gzerror(gzfp, &errno));
         perror(filename);
+    }
     p = buf;
 
     gzclose(gzfp);
@@ -1235,11 +1242,15 @@ void handleHeatmap() {
         gzbuffer(gzfp, 256 * 1024);
         gzsetparams(gzfp, 9, Z_DEFAULT_STRATEGY);
         ssize_t toWrite = sizeof(index);
-        if (gzwrite(gzfp, index, toWrite) != toWrite)
-            perror("Error writing heatmap:");
+        if (gzwrite(gzfp, index, toWrite) != toWrite) {
+            fprintf(stderr, "gzwrite failed: %s", gzerror(gzfp, &errno));
+            perror(pathbuf);
+        }
         toWrite = len2 * sizeof(struct heatEntry);
-        if (gzwrite(gzfp, buffer2, toWrite) != toWrite)
-            perror("Error writing heatmap:");
+        if (gzwrite(gzfp, buffer2, toWrite) != toWrite) {
+            fprintf(stderr, "gzwrite failed: %s", gzerror(gzfp, &errno));
+            perror(pathbuf);
+        }
         gzclose(gzfp);
     }
     rename(tmppath, pathbuf);

@@ -334,8 +334,6 @@ static void *jsonThreadEntryPoint(void *arg) {
 
     struct timespec slp = {0, 0};
     uint64_t interval = Modes.json_interval;
-    if (interval > 994)
-        interval = 994;
     slp.tv_sec =  (interval / 1000);
     slp.tv_nsec = (interval % 1000) * 1000 * 1000;
 
