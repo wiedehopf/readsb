@@ -430,6 +430,9 @@ static int load_aircraft(int fd, uint64_t now) {
         int size_state = a->trace_len * sizeof(struct state);
         int size_all = (a->trace_len + 3) / 4 * sizeof(struct state_all);
 
+        if (a->trace_alloc < a->trace_len)
+            a->trace_alloc = (a->trace_len / GLOBE_STEP + 1) * GLOBE_STEP;
+
         a->trace = malloc(a->trace_alloc * sizeof(struct state));
         a->trace_all = malloc(a->trace_alloc / 4 * sizeof(struct state_all));
 
