@@ -351,7 +351,7 @@ void write_trace(struct aircraft *a, uint64_t now) {
 
 void *save_state(void *arg) {
     int thread_number = *((int *) arg);
-    for (int j = 0; j < 256; j++) {
+    for (int j = 0; j < STATE_BLOBS; j++) {
         if (j % IO_THREADS != thread_number)
             continue;
 
@@ -946,10 +946,6 @@ void save_blob(int blob) {
 
     char filename[1024];
     snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
-    if (blob >= STATE_BLOBS) {
-        unlink(filename);
-        return;
-    }
 
     int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
@@ -1018,7 +1014,7 @@ void save_blob(int blob) {
 void *load_blobs(void *arg) {
     int thread_number = *((int *) arg);
     srand(get_seed());
-    for (int j = 0; j < 256; j++) {
+    for (int j = 0; j < STATE_BLOBS; j++) {
         if (j % IO_THREADS != thread_number)
            continue;
         load_blob(j);
@@ -1028,7 +1024,7 @@ void *load_blobs(void *arg) {
 
 // blobs 00 to ff (0 to 255)
 static void load_blob(int blob) {
-    if (blob < 0 || blob > 255)
+    if (blob < 0 || blob >= STATE_BLOBS)
         fprintf(stderr, "load_blob: invalid argument: %d", blob);
     uint64_t magic = 0x7ba09e63757913eeULL;
     char filename[1024];
@@ -1036,8 +1032,7 @@ static void load_blob(int blob) {
     snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
     int fd = open(filename, O_RDONLY);
     if (fd == -1) {
-        if (blob < STATE_BLOBS)
-            perror(filename);
+        perror(filename);
         return;
     }
     int res = 0;

@@ -1703,8 +1703,8 @@ void trackPeriodicUpdate() {
 
     cleanupAircraft(freeList);
 
-    if (part % 256 == 0)
-        save_blob(blob++ % 16);
+    if (part % (3000 / STATE_BLOBS) == 0)
+        save_blob(blob++ % STATE_BLOBS);
 
     if (Modes.globe_history_heatmap)
         handleHeatmap(); // only does sth every 30 min
