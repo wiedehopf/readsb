@@ -354,6 +354,8 @@ void *save_state(void *arg) {
     for (int j = 0; j < 256; j++) {
         if (j % 8 != thread_number)
             continue;
+
+        //fprintf(stderr, "save_blob(%d)\n", j);
         save_blob(j);
     }
     return NULL;
@@ -992,16 +994,19 @@ void save_blob(int blob) {
             }
 
             if (p - buf > alloc / 2) {
+                //fprintf(stderr, "write %d KB\n", (int) ((p - buf) / 1024));
                 check_write(fd, buf, p - buf, filename);
                 p = buf;
             }
         }
     }
+    magic--;
+    memcpy(p, &magic, sizeof(magic));
+    p += sizeof(magic);
+
+    //fprintf(stderr, "write %d KB\n", (int) ((p - buf) / 1024));
     check_write(fd, buf, p - buf, filename);
     p = buf;
-
-    magic--;
-    check_write(fd, &magic, sizeof(magic), filename);
 
     close(fd);
     free(buf);
