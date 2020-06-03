@@ -950,11 +950,12 @@ void set_globe_index (struct aircraft *a, int new_index) {
 void save_blob(int blob) {
     if (!Modes.globe_history_dir)
         return;
+    //static int count;
+    //fprintf(stderr, "Save blob: %02x, count: %d\n", blob, ++count);
     if (blob < 0 || blob > 255)
         fprintf(stderr, "save_blob: invalid argument: %d", blob);
-    //fprintf(stderr, "Save blob: %02x\n", blob);
 
-    int gzip = 0;
+    int gzip = 1;
 
     char filename[1024];
     if (gzip)
@@ -1048,8 +1049,12 @@ void save_blob(int blob) {
     }
     p = buf;
 
-    gzclose(gzfp);
-    close(fd);
+    if (gzfp)
+        gzclose(gzfp);
+
+    if (fd != -1)
+        close(fd);
+
     free(buf);
 }
 void *load_blobs(void *arg) {
