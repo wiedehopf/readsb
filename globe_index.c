@@ -395,11 +395,15 @@ void *save_state(void *arg) {
 }
 
 
-static int load_aircraft(int fd, uint64_t now) {
+static int load_aircraft(gzFile gzfp, int fd, uint64_t now) {
 
     int ret = 0;
     struct aircraft *a = (struct aircraft *) aligned_alloc(64, sizeof(struct aircraft));
-    int res = read(fd, a, sizeof(struct aircraft));
+    int res;
+    if (gzfp)
+        res = gzread(gzfp, a, sizeof(struct aircraft));
+    else
+        res = read(fd, a, sizeof(struct aircraft));
     if (res != sizeof(struct aircraft) ||
             a->size_struct_aircraft != sizeof(struct aircraft)
        ) {
@@ -438,8 +442,13 @@ static int load_aircraft(int fd, uint64_t now) {
         a->trace = malloc(a->trace_alloc * sizeof(struct state));
         a->trace_all = malloc(a->trace_alloc / 4 * sizeof(struct state_all));
 
-        if (read(fd, a->trace, size_state) != size_state
-                || read(fd, a->trace_all, size_all) != size_all) {
+        if (gzfp)
+            res = (gzread(gzfp, a->trace, size_state) != size_state
+                    || gzread(gzfp, a->trace_all, size_all) != size_all);
+        else
+            res = (read(fd, a->trace, size_state) != size_state
+                    || read(fd, a->trace_all, size_all) != size_all);
+        if (res) {
             // TRACE FAIL
             fprintf(stderr, "read trace fail\n");
             free(a->trace);
@@ -523,7 +532,7 @@ void *load_state(void *arg) {
 
             int fd = open(pathbuf, O_RDONLY);
 
-            load_aircraft(fd, now);
+            load_aircraft(NULL, fd, now);
 
             close(fd);
             // old internal state format, no longer needed
@@ -945,13 +954,20 @@ void save_blob(int blob) {
     //fprintf(stderr, "Save blob: %02x\n", blob);
 
     char filename[1024];
-    snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
+    snprintf(filename, 1024, "%s/internal_state/blob_%02x.gz", Modes.globe_history_dir, blob);
 
     int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
         perror(filename);
         return;
     }
+    gzFile gzfp = gzdopen(fd, "wb");
+    if (!gzfp) {
+        close(fd);
+        return;
+    }
+    gzbuffer(gzfp, 1 * 1024 * 1024);
+    gzsetparams(gzfp, 1, Z_DEFAULT_STRATEGY);
 
     int stride = AIRCRAFT_BUCKETS / STATE_BLOBS;
     int start = stride * blob;
@@ -959,9 +975,10 @@ void save_blob(int blob) {
 
     uint64_t magic = 0x7ba09e63757913eeULL;
 
-    int alloc = 128 * 1024 * 1024;
+    int alloc = 32 * 1024 * 1024;
     unsigned char *buf = malloc(alloc);
     unsigned char *p = buf;
+
 
     for (int j = start; j < end; j++) {
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
@@ -994,8 +1011,11 @@ void save_blob(int blob) {
             }
 
             if (p - buf > alloc - 4 * 1024 * 1024) {
-                fprintf(stderr, "write %d KB\n", (int) ((p - buf) / 1024));
-                check_write(fd, buf, p - buf, filename);
+                fprintf(stderr, "buffer almost full: loop_write %d KB\n", (int) ((p - buf) / 1024));
+                //check_write(fd, buf, p - buf, filename);
+                if (gzwrite(gzfp, buf, p - buf) != p - buf)
+                    perror(filename);
+
                 p = buf;
             }
         }
@@ -1004,10 +1024,13 @@ void save_blob(int blob) {
     memcpy(p, &magic, sizeof(magic));
     p += sizeof(magic);
 
-    fprintf(stderr, "write %d KB\n", (int) ((p - buf) / 1024));
-    check_write(fd, buf, p - buf, filename);
+    //fprintf(stderr, "end_write %d KB\n", (int) ((p - buf) / 1024));
+    //check_write(fd, buf, p - buf, filename);
+    if (gzwrite(gzfp, buf, p - buf) != p - buf)
+        perror(filename);
     p = buf;
 
+    gzclose(gzfp);
     close(fd);
     free(buf);
 }
@@ -1029,24 +1052,40 @@ static void load_blob(int blob) {
     uint64_t magic = 0x7ba09e63757913eeULL;
     char filename[1024];
     uint64_t now = mstime();
-    snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
-    int fd = open(filename, O_RDONLY);
-    if (fd == -1) {
-        perror(filename);
-        return;
+    int fd = -1;
+    snprintf(filename, 1024, "%s/internal_state/blob_%02x.gz", Modes.globe_history_dir, blob);
+    gzFile gzfp = gzopen(filename, "r");
+    if (!gzfp) {
+        snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
+        fd = open(filename, O_RDONLY);
+        if (fd == -1) {
+            perror(filename);
+            return;
+        }
+    } else {
+        snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
+        unlink(filename);
     }
+
     int res = 0;
     while (res == 0) {
         uint64_t value = 0;
-        res = read(fd, &value, sizeof(value));
+        if (gzfp)
+            res = gzread(gzfp, &value, sizeof(value));
+        else
+            res = read(fd, &value, sizeof(value));
+
         if (res != sizeof(value) || value != magic) {
             if (value != magic - 1)
                 fprintf(stderr, "Incomplete state file: %s\n", filename);
             break;
         }
-        res = load_aircraft(fd, now);
+        res = load_aircraft(gzfp, fd, now);
     }
-    close(fd);
+    if (gzfp)
+        gzclose(gzfp);
+    else
+        close(fd);
 }
 
 void handleHeatmap() {
