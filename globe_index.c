@@ -954,6 +954,10 @@ void save_blob(int blob) {
 
     uint64_t magic = 0x7ba09e63757913eeULL;
 
+    int alloc = 16 * 1024 * 1024;
+    unsigned char *buf = malloc(alloc);
+    unsigned char *p = buf;
+
     for (int j = start; j < end; j++) {
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
             if (!a->seen_pos && a->trace_len == 0)
@@ -963,20 +967,41 @@ void save_blob(int blob) {
             if (a->messages < 2)
                 continue;
 
-            check_write(fd, &magic, sizeof(magic), filename);
+            memcpy(p, &magic, sizeof(magic));
+            p += sizeof(magic);
 
-            check_write(fd, a, sizeof(struct aircraft), filename);
-            if (a->trace_len > 0) {
-                int size_state = a->trace_len * sizeof(struct state);
-                int size_all = (a->trace_len + 3) / 4 * sizeof(struct state_all);
-                check_write(fd, a->trace, size_state, filename);
-                check_write(fd, a->trace_all, size_all, filename);
+
+            int size_state = a->trace_len * sizeof(struct state);
+            int size_all = (a->trace_len + 3) / 4 * sizeof(struct state_all);
+
+            if (p + size_state + size_all + sizeof(struct aircraft) < buf + alloc) {
+
+                memcpy(p, a, sizeof(struct aircraft));
+                p += sizeof(struct aircraft);
+                if (a->trace_len > 0) {
+                    memcpy(p, a->trace, size_state);
+                    p += size_state;
+                    memcpy(p, a->trace_all, size_all);
+                    p += size_all;
+                }
+            } else {
+                fprintf(stderr, "%06x: too big for save_blob!\n", a->addr);
+            }
+
+            if (p - buf > alloc / 2) {
+                check_write(fd, buf, p - buf, filename);
+                p = buf;
             }
         }
     }
+    check_write(fd, buf, p - buf, filename);
+    p = buf;
+
     magic--;
     check_write(fd, &magic, sizeof(magic), filename);
+
     close(fd);
+    free(buf);
 }
 void *load_blobs(void *arg) {
     int thread_number = *((int *) arg);
