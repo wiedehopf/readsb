@@ -954,8 +954,13 @@ void save_blob(int blob) {
         fprintf(stderr, "save_blob: invalid argument: %d", blob);
     //fprintf(stderr, "Save blob: %02x\n", blob);
 
+    int gzip = 0;
+
     char filename[1024];
-    snprintf(filename, 1024, "%s/internal_state/blob_%02x.gz", Modes.globe_history_dir, blob);
+    if (gzip)
+        snprintf(filename, 1024, "%s/internal_state/blob_%02x.gz", Modes.globe_history_dir, blob);
+    else
+        snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
 
     int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
@@ -963,15 +968,18 @@ void save_blob(int blob) {
         perror(filename);
         return;
     }
-    gzFile gzfp = gzdopen(fd, "wb");
-    if (!gzfp) {
-        fprintf(stderr, "gzdopen failed:");
-        perror(filename);
-        close(fd);
-        return;
+    gzFile gzfp = NULL;
+    if (gzip) {
+        gzFile gzfp = gzdopen(fd, "wb");
+        if (!gzfp) {
+            fprintf(stderr, "gzdopen failed:");
+            perror(filename);
+            close(fd);
+            return;
+        }
+        gzbuffer(gzfp, 1 * 1024 * 1024);
+        gzsetparams(gzfp, 1, Z_DEFAULT_STRATEGY);
     }
-    gzbuffer(gzfp, 1 * 1024 * 1024);
-    gzsetparams(gzfp, 1, Z_DEFAULT_STRATEGY);
 
     int stride = AIRCRAFT_BUCKETS / STATE_BLOBS;
     int start = stride * blob;
@@ -1016,8 +1024,9 @@ void save_blob(int blob) {
 
             if (p - buf > alloc - 4 * 1024 * 1024) {
                 fprintf(stderr, "buffer almost full: loop_write %d KB\n", (int) ((p - buf) / 1024));
-                //check_write(fd, buf, p - buf, filename);
-                if (gzwrite(gzfp, buf, p - buf) != p - buf) {
+                if (!gzip) {
+                    check_write(fd, buf, p - buf, filename);
+                } else if (gzwrite(gzfp, buf, p - buf) != p - buf) {
                     fprintf(stderr, "gzwrite failed: %s", gzerror(gzfp, &errno));
                     perror(filename);
                 }
@@ -1031,8 +1040,9 @@ void save_blob(int blob) {
     p += sizeof(magic);
 
     //fprintf(stderr, "end_write %d KB\n", (int) ((p - buf) / 1024));
-    //check_write(fd, buf, p - buf, filename);
-    if (gzwrite(gzfp, buf, p - buf) != p - buf) {
+    if (!gzip) {
+        check_write(fd, buf, p - buf, filename);
+    } else if (gzwrite(gzfp, buf, p - buf) != p - buf) {
         fprintf(stderr, "gzwrite failed: %s", gzerror(gzfp, &errno));
         perror(filename);
     }
