@@ -974,13 +974,18 @@ void save_blob(int blob) {
     if (blob < 0 || blob > 255)
         fprintf(stderr, "save_blob: invalid argument: %d", blob);
 
-    int gzip = 1;
+    int gzip = 0;
 
     char filename[1024];
-    if (gzip)
-        snprintf(filename, 1024, "%s/internal_state/blob_%02x.gz", Modes.globe_history_dir, blob);
-    else
+    if (gzip) {
         snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
+        unlink(filename);
+        snprintf(filename, 1024, "%s/internal_state/blob_%02x.gz", Modes.globe_history_dir, blob);
+    } else {
+        snprintf(filename, 1024, "%s/internal_state/blob_%02x.gz", Modes.globe_history_dir, blob);
+        unlink(filename);
+        snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
+    }
 
     int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
@@ -1110,7 +1115,6 @@ static void load_blob(int blob) {
         if (gzbuffer(gzfp, 256 * 1024) < 0)
             fprintf(stderr, "gzbuffer fail");
         snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
-        unlink(filename);
     }
 
     int res = 0;
