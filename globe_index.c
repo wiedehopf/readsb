@@ -352,7 +352,7 @@ void write_trace(struct aircraft *a, uint64_t now) {
 void *save_state(void *arg) {
     int thread_number = *((int *) arg);
     for (int j = 0; j < 256; j++) {
-        if (j % 8 != thread_number)
+        if (j % IO_THREADS != thread_number)
             continue;
 
         //fprintf(stderr, "save_blob(%d)\n", j);
@@ -361,7 +361,7 @@ void *save_state(void *arg) {
     return NULL;
     // old internal state, no longer needed
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
-        if (j % 8 != thread_number)
+        if (j % IO_THREADS != thread_number)
             continue;
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
             if (!a->seen_pos && a->trace_len == 0)
@@ -505,7 +505,7 @@ void *load_state(void *arg) {
     int thread_number = *((int *) arg);
     srand(get_seed());
     for (int i = 0; i < 256; i++) {
-        if (i % 8 != thread_number)
+        if (i % IO_THREADS != thread_number)
             continue;
         snprintf(pathbuf, PATH_MAX, "%s/internal_state/%02x", Modes.globe_history_dir, i);
 
@@ -946,6 +946,10 @@ void save_blob(int blob) {
 
     char filename[1024];
     snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
+    if (blob >= STATE_BLOBS) {
+        unlink(filename);
+        return;
+    }
 
     int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
@@ -953,13 +957,13 @@ void save_blob(int blob) {
         return;
     }
 
-    int stride = AIRCRAFT_BUCKETS / 256;
+    int stride = AIRCRAFT_BUCKETS / STATE_BLOBS;
     int start = stride * blob;
     int end = start + stride;
 
     uint64_t magic = 0x7ba09e63757913eeULL;
 
-    int alloc = 16 * 1024 * 1024;
+    int alloc = 128 * 1024 * 1024;
     unsigned char *buf = malloc(alloc);
     unsigned char *p = buf;
 
@@ -993,8 +997,8 @@ void save_blob(int blob) {
                 fprintf(stderr, "%06x: too big for save_blob!\n", a->addr);
             }
 
-            if (p - buf > alloc / 2) {
-                //fprintf(stderr, "write %d KB\n", (int) ((p - buf) / 1024));
+            if (p - buf > alloc - 4 * 1024 * 1024) {
+                fprintf(stderr, "write %d KB\n", (int) ((p - buf) / 1024));
                 check_write(fd, buf, p - buf, filename);
                 p = buf;
             }
@@ -1004,7 +1008,7 @@ void save_blob(int blob) {
     memcpy(p, &magic, sizeof(magic));
     p += sizeof(magic);
 
-    //fprintf(stderr, "write %d KB\n", (int) ((p - buf) / 1024));
+    fprintf(stderr, "write %d KB\n", (int) ((p - buf) / 1024));
     check_write(fd, buf, p - buf, filename);
     p = buf;
 
@@ -1015,7 +1019,7 @@ void *load_blobs(void *arg) {
     int thread_number = *((int *) arg);
     srand(get_seed());
     for (int j = 0; j < 256; j++) {
-        if (j % 8 != thread_number)
+        if (j % IO_THREADS != thread_number)
            continue;
         load_blob(j);
     }
@@ -1032,8 +1036,8 @@ static void load_blob(int blob) {
     snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
     int fd = open(filename, O_RDONLY);
     if (fd == -1) {
-        perror(filename);
-        close(fd);
+        if (blob < STATE_BLOBS)
+            perror(filename);
         return;
     }
     int res = 0;

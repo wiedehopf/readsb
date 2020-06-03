@@ -1182,20 +1182,20 @@ int main(int argc, char **argv) {
 
     if (Modes.globe_history_dir) {
         fprintf(stderr, "loading state .....\n");
-        pthread_t threads[8];
-        int numbers[8];
-        for (int i = 0; i < 8; i++) {
+        pthread_t threads[IO_THREADS];
+        int numbers[IO_THREADS];
+        for (int i = 0; i < IO_THREADS; i++) {
             numbers[i] = i;
             pthread_create(&threads[i], NULL, load_state, &numbers[i]);
         }
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < IO_THREADS; i++) {
             pthread_join(threads[i], NULL);
         }
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < IO_THREADS; i++) {
             numbers[i] = i;
             pthread_create(&threads[i], NULL, load_blobs, &numbers[i]);
         }
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < IO_THREADS; i++) {
             pthread_join(threads[i], NULL);
         }
         uint32_t count_ac = 0;
@@ -1278,13 +1278,13 @@ int main(int argc, char **argv) {
     if (Modes.globe_history_dir) {
         fprintf(stderr, "saving state .....\n");
 
-        pthread_t threads[8];
-        int numbers[8];
-        for (int i = 0; i < 8; i++) {
+        pthread_t threads[IO_THREADS];
+        int numbers[IO_THREADS];
+        for (int i = 0; i < IO_THREADS; i++) {
             numbers[i] = i;
             pthread_create(&threads[i], NULL, save_state, &numbers[i]);
         }
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < IO_THREADS; i++) {
             pthread_join(threads[i], NULL);
         }
         fprintf(stderr, "............. done!\n");
