@@ -394,6 +394,25 @@ void *save_state(void *arg) {
     return NULL;
 }
 
+static int writeGz(gzFile gzfp, void *source, int toWrite, char *errorContext) {
+    int res, error;
+    int nwritten = 0;
+    if (!gzfp) {
+        fprintf(stderr, "writeGz: gzfp was NULL .............\n");
+        return -1;
+    }
+    while (toWrite > 0) {
+        res = gzwrite(gzfp, source, toWrite);
+        if (res <= 0) {
+            fprintf(stderr, "%s: gzwrite of length %d failed: %s (res == %d)\n", errorContext, toWrite, gzerror(gzfp, &error), res);
+            return -1;
+        }
+        nwritten += res;
+        toWrite -= res;
+    }
+    return nwritten;
+}
+
 
 static int load_aircraft(gzFile gzfp, int fd, uint64_t now) {
 
@@ -971,15 +990,19 @@ void save_blob(int blob) {
     }
     gzFile gzfp = NULL;
     if (gzip) {
-        gzFile gzfp = gzdopen(fd, "wb");
+        int res;
+        gzfp = gzdopen(fd, "wb");
         if (!gzfp) {
             fprintf(stderr, "gzdopen failed:");
             perror(filename);
             close(fd);
             return;
         }
-        gzbuffer(gzfp, 1 * 1024 * 1024);
-        gzsetparams(gzfp, 1, Z_DEFAULT_STRATEGY);
+        if (gzbuffer(gzfp, 1024 * 1024) < 0)
+            fprintf(stderr, "gzbuffer fail");
+        res = gzsetparams(gzfp, 1, Z_DEFAULT_STRATEGY);
+        if (res < 0)
+            fprintf(stderr, "gzsetparams fail: %d", res);
     }
 
     int stride = AIRCRAFT_BUCKETS / STATE_BLOBS;
@@ -1025,11 +1048,10 @@ void save_blob(int blob) {
 
             if (p - buf > alloc - 4 * 1024 * 1024) {
                 fprintf(stderr, "buffer almost full: loop_write %d KB\n", (int) ((p - buf) / 1024));
-                if (!gzip) {
+                if (gzip) {
+                    writeGz(gzfp, buf, p - buf, filename);
+                } else {
                     check_write(fd, buf, p - buf, filename);
-                } else if (gzwrite(gzfp, buf, p - buf) != p - buf) {
-                    fprintf(stderr, "gzwrite failed: %s", gzerror(gzfp, &errno));
-                    perror(filename);
                 }
 
                 p = buf;
@@ -1041,11 +1063,10 @@ void save_blob(int blob) {
     p += sizeof(magic);
 
     //fprintf(stderr, "end_write %d KB\n", (int) ((p - buf) / 1024));
-    if (!gzip) {
+    if (gzip) {
+        writeGz(gzfp, buf, p - buf, filename);
+    } else {
         check_write(fd, buf, p - buf, filename);
-    } else if (gzwrite(gzfp, buf, p - buf) != p - buf) {
-        fprintf(stderr, "gzwrite failed: %s", gzerror(gzfp, &errno));
-        perror(filename);
     }
     p = buf;
 
@@ -1086,6 +1107,8 @@ static void load_blob(int blob) {
             return;
         }
     } else {
+        if (gzbuffer(gzfp, 256 * 1024) < 0)
+            fprintf(stderr, "gzbuffer fail");
         snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
         unlink(filename);
     }
@@ -1254,19 +1277,21 @@ void handleHeatmap() {
     if (fd < 0) {
         perror(pathbuf);
     } else {
+        int res;
         gzFile gzfp = gzdopen(fd, "wb");
-        gzbuffer(gzfp, 256 * 1024);
-        gzsetparams(gzfp, 9, Z_DEFAULT_STRATEGY);
+        if (!gzfp)
+            fprintf(stderr, "gzdopen fail");
+        else if (gzbuffer(gzfp, 1024 * 1024) < 0)
+            fprintf(stderr, "gzbuffer fail");
+        res = gzsetparams(gzfp, 9, Z_DEFAULT_STRATEGY);
+        if (res < 0)
+            fprintf(stderr, "gzsetparams fail: %d", res);
         ssize_t toWrite = sizeof(index);
-        if (gzwrite(gzfp, index, toWrite) != toWrite) {
-            fprintf(stderr, "gzwrite failed: %s", gzerror(gzfp, &errno));
-            perror(pathbuf);
-        }
+        writeGz(gzfp, index, toWrite, pathbuf);
+
         toWrite = len2 * sizeof(struct heatEntry);
-        if (gzwrite(gzfp, buffer2, toWrite) != toWrite) {
-            fprintf(stderr, "gzwrite failed: %s", gzerror(gzfp, &errno));
-            perror(pathbuf);
-        }
+        writeGz(gzfp, buffer2, toWrite, pathbuf);
+
         gzclose(gzfp);
     }
     rename(tmppath, pathbuf);
