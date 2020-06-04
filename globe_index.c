@@ -397,23 +397,23 @@ void *save_state(void *arg) {
 static int writeGz(gzFile gzfp, void *source, int toWrite, char *errorContext) {
     int res, error;
     int nwritten = 0;
+    char *p = source;
     if (!gzfp) {
         fprintf(stderr, "writeGz: gzfp was NULL .............\n");
         return -1;
     }
     while (toWrite > 0) {
         int len = toWrite;
-        // limit writes to 512 KB
-        if (len > 524288)
-            len = 524288;
-        res = gzwrite(gzfp, source, len);
+        //if (len > 8 * 1024 * 1024)
+        //    len = 8 * 1024 * 1024;
+        res = gzwrite(gzfp, p, len);
         if (res <= 0) {
             fprintf(stderr, "gzwrite of length %d failed: %s (res == %d)\n", toWrite, gzerror(gzfp, &error), res);
             if (error == Z_ERRNO)
                 perror(errorContext);
             return -1;
         }
-        source += res;
+        p += res;
         nwritten += res;
         toWrite -= res;
     }
@@ -1087,8 +1087,7 @@ void save_blob(int blob) {
 
     if (gzfp)
         gzclose(gzfp);
-
-    if (fd != -1)
+    else if (fd != -1)
         close(fd);
 
     free(buf);

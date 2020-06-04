@@ -2599,6 +2599,9 @@ static inline void writeJsonTo (const char* dir, const char *file, struct char_b
         return;
     }
 
+    snprintf(pathbuf, PATH_MAX, "%s/%s", dir, file);
+    pathbuf[PATH_MAX - 1] = 0;
+
     if (gzip < 0) {
         /*
         int brotliLvl = -gzip;
@@ -2628,8 +2631,11 @@ static inline void writeJsonTo (const char* dir, const char *file, struct char_b
         gzbuffer(gzfp, 256 * 1024);
         gzsetparams(gzfp, gzip, Z_DEFAULT_STRATEGY);
 
-        if (gzwrite(gzfp, content, len) != len)
-            goto error_1;
+        int res = gzwrite(gzfp, content, len);
+        if (res != len) {
+            int error;
+            fprintf(stderr, "%s: gzwrite of length %d failed: %s (res == %d)\n", pathbuf, len, gzerror(gzfp, &error), res);
+        }
 
         if (gzclose(gzfp) < 0)
             goto error_2;
@@ -2641,8 +2647,6 @@ static inline void writeJsonTo (const char* dir, const char *file, struct char_b
             goto error_2;
     }
 
-    snprintf(pathbuf, PATH_MAX, "%s/%s", dir, file);
-    pathbuf[PATH_MAX - 1] = 0;
     rename(tmppath, pathbuf);
     if (!gzip)
         free(content);
