@@ -402,11 +402,18 @@ static int writeGz(gzFile gzfp, void *source, int toWrite, char *errorContext) {
         return -1;
     }
     while (toWrite > 0) {
-        res = gzwrite(gzfp, source, toWrite);
+        int len = toWrite;
+        // limit writes to 512 KB
+        if (len > 524288)
+            len = 524288;
+        res = gzwrite(gzfp, source, len);
         if (res <= 0) {
-            fprintf(stderr, "%s: gzwrite of length %d failed: %s (res == %d)\n", errorContext, toWrite, gzerror(gzfp, &error), res);
+            fprintf(stderr, "gzwrite of length %d failed: %s (res == %d)\n", toWrite, gzerror(gzfp, &error), res);
+            if (error == Z_ERRNO)
+                perror(errorContext);
             return -1;
         }
+        source += res;
         nwritten += res;
         toWrite -= res;
     }
@@ -485,6 +492,9 @@ static int load_aircraft(gzFile gzfp, int fd, uint64_t now) {
                 fprintf(stderr, "%06x trace len: %d\n", a->addr, a->trace_len);
             }
         }
+    } else {
+        a->trace_len = 0;
+        a->trace_alloc = 0;
     }
 
     if (pthread_mutex_init(&a->trace_mutex, NULL)) {
@@ -974,7 +984,7 @@ void save_blob(int blob) {
     if (blob < 0 || blob > 255)
         fprintf(stderr, "save_blob: invalid argument: %d", blob);
 
-    int gzip = 0;
+    int gzip = 1;
 
     char filename[1024];
     if (gzip) {
@@ -1114,7 +1124,6 @@ static void load_blob(int blob) {
     } else {
         if (gzbuffer(gzfp, 256 * 1024) < 0)
             fprintf(stderr, "gzbuffer fail");
-        snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
     }
 
     int res = 0;
