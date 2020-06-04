@@ -419,25 +419,57 @@ static int writeGz(gzFile gzfp, void *source, int toWrite, char *errorContext) {
     }
     return nwritten;
 }
-
-
-static int load_aircraft(gzFile gzfp, int fd, uint64_t now) {
-
-    int ret = 0;
-    struct aircraft *a = (struct aircraft *) aligned_alloc(64, sizeof(struct aircraft));
+static struct char_buffer readWholeGz(gzFile gzfp) {
+    struct char_buffer cb;
+    int alloc = 32 * 1024 * 1024;
+    cb.buffer = malloc(alloc);
+    cb.len = 0;
     int res;
-    if (gzfp)
-        res = gzread(gzfp, a, sizeof(struct aircraft));
-    else
-        res = read(fd, a, sizeof(struct aircraft));
-    if (res != sizeof(struct aircraft) ||
-            a->size_struct_aircraft != sizeof(struct aircraft)
-       ) {
-        if (res == sizeof(struct aircraft)) {
+    int toRead = alloc;
+    char *p = cb.buffer;
+    while (true) {
+        res = gzread(gzfp, p, toRead);
+        if (res <= 0)
+            return cb;
+        p += res;
+        cb.len += res;
+        toRead -= res;
+        if (toRead == 0)
+            fprintf(stderr, "readWholeGz ran out of buffer!\n");
+    }
+}
+
+static struct char_buffer readWholeFile(int fd) {
+    struct char_buffer cb;
+    int alloc = 32 * 1024 * 1024;
+    cb.buffer = malloc(alloc);
+    cb.len = 0;
+    int res;
+    int toRead = alloc;
+    char *p = cb.buffer;
+    while (true) {
+        res = read(fd, p, toRead);
+        if (res <= 0)
+            return cb;
+        p += res;
+        cb.len += res;
+        toRead -= res;
+        if (toRead == 0)
+            fprintf(stderr, "readWholeFile ran out of buffer!\n");
+    }
+}
+
+static int load_aircraft(char **p, char *end, uint64_t now) {
+
+    if (end - *p < (long) sizeof(struct aircraft))
+        return -1;
+
+    struct aircraft *a = (struct aircraft *) aligned_alloc(64, sizeof(struct aircraft));
+    memcpy(a, *p, sizeof(struct aircraft));
+    *p += sizeof(struct aircraft);
+
+    if (a->size_struct_aircraft != sizeof(struct aircraft)) {
             fprintf(stderr, "sizeof(struct aircraft) has changed, unable to read state!\n");
-        } else {
-            fprintf(stderr, "read fail\n");
-        }
         free(a);
         return -1;
     }
@@ -466,33 +498,35 @@ static int load_aircraft(gzFile gzfp, int fd, uint64_t now) {
         int size_state = a->trace_len * sizeof(struct state);
         int size_all = (a->trace_len + 3) / 4 * sizeof(struct state_all);
 
-        a->trace = malloc(a->trace_alloc * sizeof(struct state));
-        a->trace_all = malloc(a->trace_alloc / 4 * sizeof(struct state_all));
 
-        if (gzfp)
-            res = (gzread(gzfp, a->trace, size_state) != size_state
-                    || gzread(gzfp, a->trace_all, size_all) != size_all);
-        else
-            res = (read(fd, a->trace, size_state) != size_state
-                    || read(fd, a->trace_all, size_all) != size_all);
-        if (res) {
+        if (end - *p < (long) (size_state + size_all)) {
             // TRACE FAIL
             fprintf(stderr, "read trace fail\n");
-            free(a->trace);
-            free(a->trace_all);
             a->trace = NULL;
             a->trace_all = NULL;
             a->trace_alloc = 0;
             a->trace_len = 0;
-            ret = -1;
         } else {
             // TRACE SUCCESS
+            a->trace = malloc(a->trace_alloc * sizeof(struct state));
+            a->trace_all = malloc(a->trace_alloc / 4 * sizeof(struct state_all));
+
+            memcpy(a->trace, *p, size_state);
+            *p += size_state;
+            memcpy(a->trace_all, *p, size_all);
+            *p += size_all;
+
             if (a->addr == LEG_FOCUS) {
                 a->trace_next_fw = now;
                 fprintf(stderr, "%06x trace len: %d\n", a->addr, a->trace_len);
             }
         }
     } else {
+        // no or bad trace
+        if (a->trace_len > 0)
+            fprintf(stderr, "read trace fail\n");
+        a->trace = NULL;
+        a->trace_all = NULL;
         a->trace_len = 0;
         a->trace_alloc = 0;
     }
@@ -532,7 +566,7 @@ static int load_aircraft(gzFile gzfp, int fd, uint64_t now) {
         Modes.aircraft[hash] = a;
     }
 
-    return ret;
+    return 0;
 }
 
 void *load_state(void *arg) {
@@ -562,8 +596,13 @@ void *load_state(void *arg) {
 
             int fd = open(pathbuf, O_RDONLY);
 
-            load_aircraft(NULL, fd, now);
+            struct char_buffer cb = readWholeFile(fd);
+            char *p = cb.buffer;
+            char *end = p + cb.len;
 
+            load_aircraft(&p, end, now);
+
+            free(cb.buffer);
             close(fd);
             // old internal state format, no longer needed
             unlink(pathbuf);
@@ -1105,45 +1144,53 @@ void *load_blobs(void *arg) {
 
 // blobs 00 to ff (0 to 255)
 static void load_blob(int blob) {
+    //fprintf(stderr, "load blob %d\n", blob);
     if (blob < 0 || blob >= STATE_BLOBS)
         fprintf(stderr, "load_blob: invalid argument: %d", blob);
     uint64_t magic = 0x7ba09e63757913eeULL;
     char filename[1024];
     uint64_t now = mstime();
     int fd = -1;
+    struct char_buffer cb;
+    char *p;
+    char *end;
+
     snprintf(filename, 1024, "%s/internal_state/blob_%02x.gz", Modes.globe_history_dir, blob);
     gzFile gzfp = gzopen(filename, "r");
-    if (!gzfp) {
+    if (gzfp) {
+        if (gzbuffer(gzfp, 256 * 1024) < 0)
+            fprintf(stderr, "gzbuffer fail");
+        cb = readWholeGz(gzfp);
+        gzclose(gzfp);
+    } else {
         snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
         fd = open(filename, O_RDONLY);
         if (fd == -1) {
+            fprintf(stderr, "missing state blob:");
             perror(filename);
             return;
         }
-    } else {
-        if (gzbuffer(gzfp, 256 * 1024) < 0)
-            fprintf(stderr, "gzbuffer fail");
+        cb = readWholeFile(fd);
+        close(fd);
     }
+    p = cb.buffer;
+    end = p + cb.len;
 
-    int res = 0;
-    while (res == 0) {
+    while (end - p > 0) {
         uint64_t value = 0;
-        if (gzfp)
-            res = gzread(gzfp, &value, sizeof(value));
-        else
-            res = read(fd, &value, sizeof(value));
+        if (end - p >= (long) sizeof(value)) {
+            memcpy(&value, p, sizeof(value));
+            p += sizeof(value);
+        }
 
-        if (res != sizeof(value) || value != magic) {
+        if (value != magic) {
             if (value != magic - 1)
                 fprintf(stderr, "Incomplete state file: %s\n", filename);
             break;
         }
-        res = load_aircraft(gzfp, fd, now);
+        load_aircraft(&p, end, now);
     }
-    if (gzfp)
-        gzclose(gzfp);
-    else
-        close(fd);
+    free(cb.buffer);
 }
 
 void handleHeatmap() {
