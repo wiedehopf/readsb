@@ -2177,9 +2177,9 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
         //pthread_mutex_unlock(&a->trace_mutex);
     }
 
-    if (a->trace_len && a->trace_len + GLOBE_STEP / 2 >= a->trace_alloc) {
+    if (a->trace_len && a->trace_len + 8 >= a->trace_alloc) {
         //pthread_mutex_lock(&a->trace_mutex);
-        a->trace_alloc += 2 * GLOBE_STEP;
+        a->trace_alloc = a->trace_alloc * 5 / 4;
         if (a->trace_alloc > GLOBE_TRACE_SIZE)
             a->trace_alloc = GLOBE_TRACE_SIZE;
         a->trace = realloc(a->trace, a->trace_alloc * sizeof(struct state));
@@ -2193,9 +2193,9 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
             fprintf(stderr, "GLOBE_TRACE_SIZE EXCEEDED!: %06x (%d).\n", a->addr, a->trace_len);
     }
 
-    if (a->trace_len < a->trace_alloc - 4 * GLOBE_STEP && a->trace_alloc >= 4 * GLOBE_STEP) {
+    if (a->trace_len < (a->trace_alloc * 7 / 10) && a->trace_alloc >= 2 * GLOBE_STEP) {
         //pthread_mutex_lock(&a->trace_mutex);
-        a->trace_alloc -= 2 * GLOBE_STEP;
+        a->trace_alloc = a->trace_alloc * 4 / 5;
         a->trace = realloc(a->trace, a->trace_alloc * sizeof(struct state));
         a->trace_all = realloc(a->trace_all, a->trace_alloc / 4 * sizeof(struct state_all));
         //pthread_mutex_unlock(&a->trace_mutex);

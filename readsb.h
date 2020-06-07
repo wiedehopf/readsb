@@ -292,7 +292,7 @@ typedef enum {
 
 #define GLOBE_TRACE_SIZE 32768
 #define GLOBE_OVERLAP 3600
-#define GLOBE_STEP 16
+#define GLOBE_STEP 32
 #define STATE_BLOBS 256
 #define IO_THREADS 8
 #define TRACE_THREADS 4
