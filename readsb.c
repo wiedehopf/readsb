@@ -467,9 +467,11 @@ static void *decodeThreadEntryPoint(void *arg) {
             background_cpu_millis = (int64_t) Modes.stats_current.background_cpu.tv_sec * 1000UL +
                 Modes.stats_current.background_cpu.tv_nsec / 1000000UL;
             sleep_millis -= (background_cpu_millis - prev_cpu_millis);
-            sleep_millis = (sleep_millis <= 5) ? 5 : sleep_millis;
 
-            //fprintf(stderr, "%ld\n", sleep_millis);
+            if (sleep_millis < 2) {
+                //fprintf(stderr, "%"PRId64"\n", sleep_millis);
+                sleep_millis = 2;
+            }
 
             slp.tv_nsec = sleep_millis * 1000 * 1000;
 
@@ -623,8 +625,15 @@ static void backgroundTasks(void) {
 
     icaoFilterExpire();
 
+    uint64_t beforePeriodic = now;
     if (Modes.net) {
         modesNetPeriodicWork();
+    }
+
+    now = mstime();
+
+    if (now > beforePeriodic + 50) {
+        fprintf(stderr, "<3>High load: work loop took %"PRIu64" ms!\n", now - beforePeriodic);
     }
 
     if (now > next_second) {
