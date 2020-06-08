@@ -1814,7 +1814,7 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
 
             a->trace_alloc = GLOBE_STEP;
             a->trace = malloc(a->trace_alloc * sizeof(struct state));
-            a->trace_all = malloc(a->trace_alloc / 4 * sizeof(struct state_all));
+            a->trace_all = malloc((1 + a->trace_alloc / 4) * sizeof(struct state_all));
             a->trace->timestamp = now;
             a->trace_full_write = 9999; // rewrite full history file
 
@@ -1828,7 +1828,7 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
                     return;
         }
         if (a->trace_len + 1 >= a->trace_alloc) {
-            //fprintf(stderr, "%06x: trace_len + 4 >= a->trace_alloc (%d).\n", a->addr, a->trace_len);
+            fprintf(stderr, "%06x: trace_len + 1 >= a->trace_alloc (%d).\n", a->addr, a->trace_len);
             goto no_save_state;
         }
 
@@ -1961,8 +1961,7 @@ save_state:
 
         mm->jsonPos = 1;
 
-        *new = (struct state) { 0 };
-        new->flags = (struct state_flags) { 0 };
+        memset(new, 0, sizeof(struct state));
 
         new->lat = (int32_t) nearbyint(new_lat * 1E6);
         new->lon = (int32_t) nearbyint(new_lon * 1E6);
@@ -2023,7 +2022,7 @@ save_state:
 
         if (a->trace_len % 4 == 0) {
             struct state_all *new_all = &(a->trace_all[a->trace_len/4]);
-            *new_all = (struct state_all) { 0 };
+            memset(new_all, 0, sizeof(struct state_all));
 
             to_state_all(a, new_all, now);
         }
@@ -2177,13 +2176,13 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
         //pthread_mutex_unlock(&a->trace_mutex);
     }
 
-    if (a->trace_len && a->trace_len + 8 >= a->trace_alloc) {
+    if (a->trace_len && a->trace_len + GLOBE_STEP / 2 >= a->trace_alloc) {
         //pthread_mutex_lock(&a->trace_mutex);
         a->trace_alloc = a->trace_alloc * 5 / 4;
         if (a->trace_alloc > GLOBE_TRACE_SIZE)
             a->trace_alloc = GLOBE_TRACE_SIZE;
         a->trace = realloc(a->trace, a->trace_alloc * sizeof(struct state));
-        a->trace_all = realloc(a->trace_all, a->trace_alloc / 4 * sizeof(struct state_all));
+        a->trace_all = realloc(a->trace_all, (1 + a->trace_alloc / 4) * sizeof(struct state_all));
         //pthread_mutex_unlock(&a->trace_mutex);
 
         if (a->trace_len >= GLOBE_TRACE_SIZE / 2)
@@ -2197,7 +2196,7 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
         //pthread_mutex_lock(&a->trace_mutex);
         a->trace_alloc = a->trace_alloc * 4 / 5;
         a->trace = realloc(a->trace, a->trace_alloc * sizeof(struct state));
-        a->trace_all = realloc(a->trace_all, a->trace_alloc / 4 * sizeof(struct state_all));
+        a->trace_all = realloc(a->trace_all, (1 + a->trace_alloc / 4) * sizeof(struct state_all));
         //pthread_mutex_unlock(&a->trace_mutex);
     }
 }

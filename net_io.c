@@ -2133,11 +2133,13 @@ static void check_state_all(struct aircraft *test, uint64_t now) {
     end = buf + buflen;
 
 
-    struct state_all state_buf = (struct state_all) { 0 };
+    struct state_all state_buf;
+    memset(&state_buf, 0, sizeof(struct state_all));
     struct state_all *new_all = &state_buf;
     to_state_all(a, new_all, now);
 
-    struct aircraft bbuf = (struct aircraft) { 0 };
+    struct aircraft bbuf;
+    memset(&bbuf, 0, sizeof(struct aircraft));
     struct aircraft *b = &bbuf;
 
     from_state_all(new_all, b, now);
@@ -2349,7 +2351,8 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
                 if (i % 4 == 0) {
                     uint64_t now = trace->timestamp;
                     struct state_all *all = &(a->trace_all[i/4]);
-                    struct aircraft b = (struct aircraft) { 0 };
+                    struct aircraft b;
+                    memset(&b, 0, sizeof(struct aircraft));
                     struct aircraft *ac = &b;
                     from_state_all(all, ac, now);
 

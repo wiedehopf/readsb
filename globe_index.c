@@ -491,7 +491,7 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
     // read trace
     if (a->trace_len > 0
             && a->trace_len < 1024 * 1024
-            && a->trace_alloc > a->trace_len
+            && a->trace_alloc > a->trace_len + 4
             && a->trace_alloc < 2 * 1024 * 1024
        ) {
 
@@ -509,7 +509,7 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
         } else {
             // TRACE SUCCESS
             a->trace = malloc(a->trace_alloc * sizeof(struct state));
-            a->trace_all = malloc(a->trace_alloc / 4 * sizeof(struct state_all));
+            a->trace_all = malloc((1 + a->trace_alloc / 4) * sizeof(struct state_all));
 
             memcpy(a->trace, *p, size_state);
             *p += size_state;
