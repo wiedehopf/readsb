@@ -1683,6 +1683,7 @@ void trackPeriodicUpdate() {
     static uint32_t blob;
     int nParts = 256;
     uint64_t now = mstime();
+    int writeStats;
 
     struct aircraft *freeList = NULL;
 
@@ -1693,13 +1694,22 @@ void trackPeriodicUpdate() {
     // in the cache used by the json threads.
     lockThreads();
 
+    struct timespec start_time;
+    start_cpu_timing(&start_time);
+
     trackRemoveStaleAircraft(&freeList);
     if (Modes.mode_ac)
         trackMatchAC(now);
 
     receiverTimeout((part++ % nParts), nParts);
 
+    writeStats = update_stats(); // needs to happen under lock
+
+    end_cpu_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
+
     unlockThreads();
+
+    start_cpu_timing(&start_time);
 
     cleanupAircraft(freeList);
 
@@ -1708,6 +1718,11 @@ void trackPeriodicUpdate() {
 
     if (Modes.globe_history_heatmap)
         handleHeatmap(); // only does sth every 30 min
+
+    if (writeStats && Modes.json_dir)
+        writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson());
+
+    end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
 }
 
 static void cleanupAircraft(struct aircraft *a) {

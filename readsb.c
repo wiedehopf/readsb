@@ -349,6 +349,9 @@ static void *jsonThreadEntryPoint(void *arg) {
 
         pthread_mutex_lock(&Modes.jsonThreadMutex);
 
+        struct timespec start_time;
+        start_cpu_timing(&start_time);
+
         uint64_t now = mstime();
 
         struct char_buffer cb = generateAircraftJson(-1);
@@ -371,6 +374,8 @@ static void *jsonThreadEntryPoint(void *arg) {
             Modes.json_aircraft_history_next = (Modes.json_aircraft_history_next + 1) % HISTORY_SIZE;
             next_history = now + HISTORY_INTERVAL;
         }
+
+        end_cpu_timing(&start_time, &Modes.stats_current.aircraft_json_cpu);
     }
 
     pthread_mutex_unlock(&Modes.jsonThreadMutex);
@@ -407,6 +412,9 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
 
         pthread_mutex_lock(&Modes.jsonGlobeThreadMutex);
 
+        struct timespec start_time;
+        start_cpu_timing(&start_time);
+
         for (int i = 0; i < GLOBE_SPECIAL_INDEX; i++) {
             if (i % n_parts == part) {
                 snprintf(filename, 31, "globe_%04d.json", i);
@@ -428,6 +436,7 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
 
         part++;
         part %= n_parts;
+        end_cpu_timing(&start_time, &Modes.stats_current.globe_json_cpu);
     }
 
     pthread_mutex_unlock(&Modes.jsonGlobeThreadMutex);
@@ -617,8 +626,6 @@ static void display_total_stats(void) {
 // from the net, refreshing the screen in interactive mode, and so forth
 //
 static void backgroundTasks(void) {
-    static uint64_t next_stats_display;
-    static uint64_t next_stats_update;
     static uint64_t next_second;
 
     uint64_t now = mstime();
@@ -647,57 +654,6 @@ static void backgroundTasks(void) {
     if (Modes.interactive) {
         interactiveShowData();
     }
-
-    now = mstime();
-    // always update end time so it is current when requests arrive
-    Modes.stats_current.end = now;
-
-    if (now >= next_stats_update) {
-        int i;
-
-        if (next_stats_update == 0) {
-            next_stats_update = now + 60000;
-        } else {
-            Modes.stats_latest_1min = (Modes.stats_latest_1min + 1) % 15;
-            Modes.stats_1min[Modes.stats_latest_1min] = Modes.stats_current;
-
-            add_stats(&Modes.stats_current, &Modes.stats_alltime, &Modes.stats_alltime);
-            add_stats(&Modes.stats_current, &Modes.stats_periodic, &Modes.stats_periodic);
-
-            reset_stats(&Modes.stats_5min);
-            for (i = 0; i < 5; ++i)
-                add_stats(&Modes.stats_1min[(Modes.stats_latest_1min - i + 15) % 15], &Modes.stats_5min, &Modes.stats_5min);
-
-            reset_stats(&Modes.stats_15min);
-            for (i = 0; i < 15; ++i)
-                add_stats(&Modes.stats_1min[i], &Modes.stats_15min, &Modes.stats_15min);
-
-            reset_stats(&Modes.stats_current);
-            Modes.stats_current.start = Modes.stats_current.end = now;
-
-            if (Modes.json_dir)
-                writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson());
-
-            next_stats_update += 60000;
-        }
-    }
-
-    if (Modes.stats && now >= next_stats_display) {
-        if (next_stats_display == 0) {
-            next_stats_display = now + Modes.stats;
-        } else {
-            add_stats(&Modes.stats_periodic, &Modes.stats_current, &Modes.stats_periodic);
-            display_stats(&Modes.stats_periodic);
-            reset_stats(&Modes.stats_periodic);
-
-            next_stats_display += Modes.stats;
-            if (next_stats_display <= now) {
-                /* something has gone wrong, perhaps the system clock jumped */
-                next_stats_display = now + Modes.stats;
-            }
-        }
-    }
-
 
 }
 
@@ -1167,15 +1123,16 @@ int main(int argc, char **argv) {
     Modes.stats_current.start = Modes.stats_current.end =
             Modes.stats_alltime.start = Modes.stats_alltime.end =
             Modes.stats_periodic.start = Modes.stats_periodic.end =
+            Modes.stats_1min.start = Modes.stats_1min.end =
             Modes.stats_5min.start = Modes.stats_5min.end =
             Modes.stats_15min.start = Modes.stats_15min.end = mstime();
 
-    for (j = 0; j < 15; ++j)
-        Modes.stats_1min[j].start = Modes.stats_1min[j].end = Modes.stats_current.start;
+    for (j = 0; j < STAT_BUCKETS; ++j)
+        Modes.stats_10[j].start = Modes.stats_10[j].end = Modes.stats_current.start;
 
     // write initial json files so they're not missing
     writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
-    writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson());
+    //writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson()); // rather don't do this.
     writeJsonToFile(Modes.json_dir, "aircraft.json", generateAircraftJson(-1));
 
     interactiveInit();

@@ -161,13 +161,23 @@ void cleanupNetwork(void);
 // TODO: move these somewhere else
 struct char_buffer generateAircraftJson(int globe_index);
 struct char_buffer generateTraceJson(struct aircraft *a, int start, int last);
-struct char_buffer generateStatsJson ();
 struct char_buffer generateReceiverJson ();
 struct char_buffer generateHistoryJson ();
 void writeJsonToFile (const char* dir, const char *file, struct char_buffer cb);
 void writeJsonToGzip (const char* dir, const char *file, struct char_buffer cb, int gzip);
 struct char_buffer generateVRS(int part, int n_parts, int reduced_data);
 void writeJsonToNet(struct net_writer *writer, struct char_buffer cb);
+
+__attribute__ ((format(printf, 3, 4))) static inline char *safe_snprintf(char *p, char *end, const char *format, ...) {
+    va_list ap;
+    va_start(ap, format);
+    p += vsnprintf(p < end ? p : NULL, p < end ? (size_t) (end - p) : 0, format, ap);
+    if (p > end)
+        p = end;
+    va_end(ap);
+    return p;
+}
+
 
 // keep unused functions for now
 const char *airground_enum_string(airground_t ag);

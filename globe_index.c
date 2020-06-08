@@ -646,6 +646,9 @@ void *jsonTraceThreadEntryPoint(void *arg) {
 
         pthread_mutex_lock(&Modes.jsonTraceThreadMutex[thread]);
 
+        struct timespec start_time;
+        start_cpu_timing(&start_time);
+
         int start = thread_start + part * section_len;
         int end = start + section_len;
 
@@ -662,6 +665,8 @@ void *jsonTraceThreadEntryPoint(void *arg) {
 
         part++;
         part %= n_parts;
+
+        end_cpu_timing(&start_time, &Modes.stats_current.trace_json_cpu[thread]);
     }
 
     pthread_mutex_unlock(&Modes.jsonTraceThreadMutex[thread]);

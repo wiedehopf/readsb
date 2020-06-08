@@ -277,6 +277,13 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
     add_timespecs(&st1->demod_cpu, &st2->demod_cpu, &target->demod_cpu);
     add_timespecs(&st1->reader_cpu, &st2->reader_cpu, &target->reader_cpu);
     add_timespecs(&st1->background_cpu, &st2->background_cpu, &target->background_cpu);
+    add_timespecs(&st1->aircraft_json_cpu, &st2->aircraft_json_cpu, &target->aircraft_json_cpu);
+    add_timespecs(&st1->globe_json_cpu, &st2->globe_json_cpu, &target->globe_json_cpu);
+    add_timespecs(&st1->heatmap_and_state_cpu, &st2->heatmap_and_state_cpu, &target->heatmap_and_state_cpu);
+    add_timespecs(&st1->remove_stale_cpu, &st2->remove_stale_cpu, &target->remove_stale_cpu);
+    for (i = 0; i < TRACE_THREADS; i ++) {
+        add_timespecs(&st1->trace_json_cpu[i], &st2->trace_json_cpu[i], &target->trace_json_cpu[i]);
+    }
 
     // noise power:
     target->noise_power_sum = st1->noise_power_sum + st2->noise_power_sum;
@@ -337,4 +344,234 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
         target->longest_distance = st1->longest_distance;
     else
         target->longest_distance = st2->longest_distance;
+}
+
+int update_stats() {
+    static uint64_t next_stats_update, next_stats_display;
+    uint64_t now = mstime();
+    // always update end time so it is current when requests arrive
+    Modes.stats_current.end = now;
+
+
+    if (Modes.stats && now >= next_stats_display) {
+        if (next_stats_display == 0) {
+            next_stats_display = now + Modes.stats;
+        } else {
+            add_stats(&Modes.stats_periodic, &Modes.stats_current, &Modes.stats_periodic);
+            display_stats(&Modes.stats_periodic);
+            reset_stats(&Modes.stats_periodic);
+
+            next_stats_display += Modes.stats;
+            if (next_stats_display <= now) {
+                /* something has gone wrong, perhaps the system clock jumped */
+                next_stats_display = now + Modes.stats;
+            }
+        }
+    }
+
+    if (now >= next_stats_update) {
+        int i;
+
+        if (next_stats_update == 0) {
+            next_stats_update = now + 10000;
+        } else {
+
+            Modes.stats_bucket = (Modes.stats_bucket + 1) % STAT_BUCKETS;
+            Modes.stats_10[Modes.stats_bucket] = Modes.stats_current;
+
+            add_stats(&Modes.stats_current, &Modes.stats_alltime, &Modes.stats_alltime);
+            add_stats(&Modes.stats_current, &Modes.stats_periodic, &Modes.stats_periodic);
+
+            reset_stats(&Modes.stats_1min);
+            for (i = 0; i < 6; ++i) {
+                int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
+                add_stats(&Modes.stats_10[index], &Modes.stats_1min, &Modes.stats_1min);
+            }
+
+            reset_stats(&Modes.stats_5min);
+            for (i = 0; i < 30; ++i) {
+                int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
+                add_stats(&Modes.stats_10[index], &Modes.stats_5min, &Modes.stats_5min);
+            }
+
+            reset_stats(&Modes.stats_15min);
+            for (i = 0; i < 90; ++i) {
+                int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
+                add_stats(&Modes.stats_10[index], &Modes.stats_15min, &Modes.stats_15min);
+            }
+
+            reset_stats(&Modes.stats_current);
+            Modes.stats_current.start = Modes.stats_current.end = now;
+
+            next_stats_update += 10000;
+        }
+        return 1;
+    }
+    return 0;
+}
+
+static char * appendStatsJson(char *p, char *end, struct stats *st, const char *key) {
+    int i;
+
+    p = safe_snprintf(p, end,
+            "\"%s\":{\"start\":%.1f,\"end\":%.1f",
+            key,
+            st->start / 1000.0,
+            st->end / 1000.0);
+
+    if (!Modes.net_only) {
+        p = safe_snprintf(p, end,
+                ",\"local\":{\"samples_processed\":%llu"
+                ",\"samples_dropped\":%llu"
+                ",\"modeac\":%u"
+                ",\"modes\":%u"
+                ",\"bad\":%u"
+                ",\"unknown_icao\":%u",
+                (unsigned long long) st->samples_processed,
+                (unsigned long long) st->samples_dropped,
+                st->demod_modeac,
+                st->demod_preambles,
+                st->demod_rejected_bad,
+                st->demod_rejected_unknown_icao);
+
+        for (i = 0; i <= Modes.nfix_crc; ++i) {
+            if (i == 0) p = safe_snprintf(p, end, ",\"accepted\":[%u", st->demod_accepted[i]);
+            else p = safe_snprintf(p, end, ",%u", st->demod_accepted[i]);
+        }
+
+        p = safe_snprintf(p, end, "]");
+
+        if (st->signal_power_sum > 0 && st->signal_power_count > 0)
+            p = safe_snprintf(p, end, ",\"signal\":%.1f", 10 * log10(st->signal_power_sum / st->signal_power_count));
+        if (st->noise_power_sum > 0 && st->noise_power_count > 0)
+            p = safe_snprintf(p, end, ",\"noise\":%.1f", 10 * log10(st->noise_power_sum / st->noise_power_count));
+        if (st->peak_signal_power > 0)
+            p = safe_snprintf(p, end, ",\"peak_signal\":%.1f", 10 * log10(st->peak_signal_power));
+
+        p = safe_snprintf(p, end, ",\"strong_signals\":%d}", st->strong_signal_count);
+    }
+
+    if (Modes.net) {
+        p = safe_snprintf(p, end,
+                ",\"remote\":{\"modeac\":%u"
+                ",\"modes\":%u"
+                ",\"bad\":%u"
+                ",\"unknown_icao\":%u",
+                st->remote_received_modeac,
+                st->remote_received_modes,
+                st->remote_rejected_bad,
+                st->remote_rejected_unknown_icao);
+
+        for (i = 0; i <= Modes.nfix_crc; ++i) {
+            if (i == 0) p = safe_snprintf(p, end, ",\"accepted\":[%u", st->remote_accepted[i]);
+            else p = safe_snprintf(p, end, ",%u", st->remote_accepted[i]);
+        }
+
+        p = safe_snprintf(p, end, "]}");
+    }
+
+    {
+        //uint64_t demod_cpu_millis = (uint64_t) st->demod_cpu.tv_sec * 1000UL + st->demod_cpu.tv_nsec / 1000000UL;
+#define CPU_MILLIS(x) uint64_t x##_cpu_millis = (uint64_t) st->x##_cpu.tv_sec * 1000UL + st->x##_cpu.tv_nsec / 1000000UL
+        CPU_MILLIS(demod);
+        CPU_MILLIS(reader);
+        CPU_MILLIS(background);
+        CPU_MILLIS(aircraft_json);
+        CPU_MILLIS(globe_json);
+        CPU_MILLIS(heatmap_and_state);
+        CPU_MILLIS(remove_stale);
+        uint64_t trace_json_cpu_millis[TRACE_THREADS];
+        for (i = 0; i < TRACE_THREADS; i ++) {
+            trace_json_cpu_millis[i] = (uint64_t) st->trace_json_cpu[i].tv_sec * 1000UL + st->trace_json_cpu[i].tv_nsec / 1000000UL;
+        }
+
+        p = safe_snprintf(p, end,
+                ",\"cpr\":{\"surface\":%u"
+                ",\"airborne\":%u"
+                ",\"global_ok\":%u"
+                ",\"global_bad\":%u"
+                ",\"global_range\":%u"
+                ",\"global_speed\":%u"
+                ",\"global_skipped\":%u"
+                ",\"local_ok\":%u"
+                ",\"local_aircraft_relative\":%u"
+                ",\"local_receiver_relative\":%u"
+                ",\"local_skipped\":%u"
+                ",\"local_range\":%u"
+                ",\"local_speed\":%u"
+                ",\"filtered\":%u}"
+                ",\"altitude_suppressed\":%u"
+                ",\"cpu\":{\"demod\":%llu,\"reader\":%llu,\"background\":%llu"
+                ",\"aircraft_json\":%llu,\"globe_json\":%llu,\"heatmap_and_state\":%llu"
+                ",\"remove_stale\":%llu}"
+                ",\"trace_cpu\":[%llu,%llu,%llu,%llu]"
+                ",\"tracks\":{\"all\":%u"
+                ",\"single_message\":%u}"
+                ",\"messages\":%u"
+                ",\"max_distance_in_metres\":%ld"
+                ",\"max_distance_in_nautical_miles\":%.1lf}",
+            st->cpr_surface,
+            st->cpr_airborne,
+            st->cpr_global_ok,
+            st->cpr_global_bad,
+            st->cpr_global_range_checks,
+            st->cpr_global_speed_checks,
+            st->cpr_global_skipped,
+            st->cpr_local_ok,
+            st->cpr_local_aircraft_relative,
+            st->cpr_local_receiver_relative,
+            st->cpr_local_skipped,
+            st->cpr_local_range_checks,
+            st->cpr_local_speed_checks,
+            st->cpr_filtered,
+            st->suppressed_altitude_messages,
+            (unsigned long long) demod_cpu_millis,
+            (unsigned long long) reader_cpu_millis,
+            (unsigned long long) background_cpu_millis,
+            (unsigned long long) aircraft_json_cpu_millis,
+            (unsigned long long) globe_json_cpu_millis,
+            (unsigned long long) heatmap_and_state_cpu_millis,
+            (unsigned long long) remove_stale_cpu_millis,
+            (unsigned long long) trace_json_cpu_millis[0],
+            (unsigned long long) trace_json_cpu_millis[1],
+            (unsigned long long) trace_json_cpu_millis[2],
+            (unsigned long long) trace_json_cpu_millis[3],
+            st->unique_aircraft,
+            st->single_message_aircraft,
+            st->messages_total,
+            (long) st->longest_distance,
+            st->longest_distance / 1852.0);
+    }
+
+    return p;
+}
+
+struct char_buffer generateStatsJson() {
+    struct char_buffer cb;
+    struct stats add;
+    char *buf = (char *) malloc(64 * 1024), *p = buf, *end = buf + 64 * 1024;
+
+    p = safe_snprintf(p, end, "{\n");
+    p = appendStatsJson(p, end, &Modes.stats_current, "latest");
+    p = safe_snprintf(p, end, ",\n");
+
+    p = appendStatsJson(p, end, &Modes.stats_1min, "last1min");
+    p = safe_snprintf(p, end, ",\n");
+
+    p = appendStatsJson(p, end, &Modes.stats_5min, "last5min");
+    p = safe_snprintf(p, end, ",\n");
+
+    p = appendStatsJson(p, end, &Modes.stats_15min, "last15min");
+    p = safe_snprintf(p, end, ",\n");
+
+    add_stats(&Modes.stats_alltime, &Modes.stats_current, &add);
+    p = appendStatsJson(p, end, &add, "total");
+    p = safe_snprintf(p, end, "\n}\n");
+
+    if (p >= end)
+        fprintf(stderr, "buffer overrun stats json\n");
+
+    cb.len = p - buf;
+    cb.buffer = buf;
+    return cb;
 }

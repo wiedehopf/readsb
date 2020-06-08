@@ -297,6 +297,8 @@ typedef enum {
 #define IO_THREADS 8
 #define TRACE_THREADS 4
 
+#define STAT_BUCKETS 90 // 90 * 10 seconds = 15 min (max interval in stats.json)
+
 // mix_fasthash: https://github.com/ZilongTan/fast-hash (MIT License Copyright (C) 2012 Zilong Tan (eric.zltan@gmail.com))
 #define mix_fasthash(h) ({              \
         (h) ^= (h) >> 23;               \
@@ -475,15 +477,16 @@ struct
   int json_location_accuracy; // Accuracy of location metadata: 0=none, 1=approx, 2=exact
   int json_aircraft_history_next;
   int json_aircraft_history_full;
-  int stats_latest_1min;
   int bUserFlags; // Flags relating to the user details
   int biastee;
   int mday;
   int traceDay;
+  int stats_bucket; // index that has just been writte to
+  struct stats stats_10[STAT_BUCKETS];
   struct stats stats_current;
   struct stats stats_alltime;
   struct stats stats_periodic;
-  struct stats stats_1min[15];
+  struct stats stats_1min;
   struct stats stats_5min;
   struct stats stats_15min;
   struct timespec reader_cpu_accumulator; // CPU time used by the reader thread, copied out and reset by the main thread under the mutex

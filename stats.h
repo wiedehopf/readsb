@@ -81,6 +81,11 @@ struct stats
   struct timespec demod_cpu;
   struct timespec reader_cpu;
   struct timespec background_cpu;
+  struct timespec aircraft_json_cpu;
+  struct timespec trace_json_cpu[TRACE_THREADS];
+  struct timespec globe_json_cpu;
+  struct timespec heatmap_and_state_cpu;
+  struct timespec remove_stale_cpu;
   // remote messages:
   uint32_t remote_received_modeac;
   uint32_t remote_received_modes;
@@ -124,5 +129,8 @@ void display_stats (struct stats *st);
 void reset_stats (struct stats *st);
 
 void add_timespecs (const struct timespec *x, const struct timespec *y, struct timespec *z);
+
+int update_stats();
+struct char_buffer generateStatsJson();
 
 #endif
