@@ -1736,15 +1736,16 @@ static void cleanupAircraft(struct aircraft *a) {
 }
 
 static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_lat, double new_lon, uint64_t now) {
+    a->lastPosReceiverId= mm->receiverId;
 
     if ((a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2)
-            || (mm->source <= SOURCE_JAERO && now > a->seen_pos + 60 * 1000)) {
+            || (mm->source <= SOURCE_JAERO && now > a->seen_pos + 15 * 1000)) {
         //keep this data point
     } else {
         return;
     }
 
-    if (now < a->seen_pos + 3 * 1000 && a->lat == new_lat && a->lon == new_lon) {
+    if (now < a->seen_pos + 3 * SECONDS && a->lat == new_lat && a->lon == new_lon) {
         a->position_valid.updated = mm->pos_updated_cache;
         // don't use duplicate positions for beastReduce
         mm->reduce_forward = 0;
@@ -1754,7 +1755,6 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
     // update addrtype, we use the type from the accepted position.
     a->addrtype = mm->addrtype;
     a->addrtype_updated = now;
-
 
     if (trackDataAge(now, &a->track_valid) >= 10000 && a->seen_pos) {
         double distance = greatcircle(a->lat, a->lon, new_lat, new_lon);

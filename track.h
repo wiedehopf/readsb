@@ -279,6 +279,7 @@ struct aircraft
   float tat;
   float padding2_02;
   double padding2_03;
+  uint64_t lastPosReceiverId;
 
   // ----
 
