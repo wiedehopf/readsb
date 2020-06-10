@@ -109,6 +109,10 @@ struct stats
   unsigned int cpr_local_aircraft_relative;
   unsigned int cpr_local_receiver_relative;
   unsigned int cpr_filtered;
+  unsigned int positions_sbs_misc;
+  unsigned int positions_sbs_mlat;
+  unsigned int positions_sbs_jaero;
+  unsigned int positions_sbs_prio;
   // number of altitude messages ignored because
   // we had a recent DF17/18 altitude
   unsigned int suppressed_altitude_messages;
@@ -121,7 +125,6 @@ struct stats
 #define RANGE_BUCKET_COUNT 76
   uint32_t range_histogram[RANGE_BUCKET_COUNT];
   double longest_distance; // Longest range decoded, in *metres*
-  uint32_t padding;
 };
 
 void add_stats (const struct stats *st1, const struct stats *st2, struct stats *target);

@@ -329,6 +329,11 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
     target->cpr_local_speed_checks = st1->cpr_local_speed_checks + st2->cpr_local_speed_checks;
     target->cpr_filtered = st1->cpr_filtered + st2->cpr_filtered;
 
+    target->positions_sbs_misc = st1->positions_sbs_misc + st2->positions_sbs_misc;
+    target->positions_sbs_mlat = st1->positions_sbs_mlat + st2->positions_sbs_mlat;
+    target->positions_sbs_jaero = st1->positions_sbs_jaero + st2->positions_sbs_jaero;
+    target->positions_sbs_prio = st1->positions_sbs_prio + st2->positions_sbs_prio;
+
     target->suppressed_altitude_messages = st1->suppressed_altitude_messages + st2->suppressed_altitude_messages;
 
     // aircraft
@@ -408,6 +413,58 @@ int update_stats() {
         return 1;
     }
     return 0;
+}
+
+static char * appendTypeCounts(char *p, char *end) {
+    char *key;
+    p = safe_snprintf(p, end, "\"type_counts\": {");
+    for (int i = 0; i < 14; i++) {
+        switch (i) {
+            case ADDR_ADSB_ICAO_NT:
+                key = "adsb_icao_nt";
+                break;
+            case ADDR_ADSR_ICAO:
+                key = "adsr_icao";
+                break;
+            case ADDR_TISB_ICAO:
+                key = "tisb_icao";
+                break;
+            case ADDR_ADSB_OTHER:
+                key = "adsb_other";
+                break;
+            case ADDR_ADSR_OTHER:
+                key = "adsr_other";
+                break;
+            case ADDR_TISB_OTHER:
+                key = "tisb_other";
+                break;
+            case ADDR_TISB_TRACKFILE:
+                key = "tisb_trackfile";
+                break;
+            case ADDR_ADSB_ICAO:
+                key = "adsb_icao";
+                break;
+            case ADDR_JAERO:
+                key = "adsc";
+                break;
+            case ADDR_MLAT:
+                key = "mlat";
+                break;
+            case ADDR_OTHER:
+                key = "other";
+                break;
+            case ADDR_MODE_S:
+                key = "mode_s";
+                break;
+            default:
+                key = "unknown";
+                break;
+        }
+        p = safe_snprintf(p, end, "\"%s\": %d,", key, Modes.type_counts[i]);
+    }
+    p--;
+    p = safe_snprintf(p, end, "}");
+    return p;
 }
 
 static char * appendStatsJson(char *p, char *end, struct stats *st, const char *key) {
@@ -509,7 +566,9 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
                 ",\"single_message\":%u}"
                 ",\"messages\":%u"
                 ",\"max_distance_in_metres\":%ld"
-                ",\"max_distance_in_nautical_miles\":%.1lf}",
+                ",\"max_distance_in_nautical_miles\":%.1lf"
+                ",\"sbs_positions\":{\"all\":%u, \"misc\":%u, \"mlat\":%u, \"adsc\":%u, \"prio\":%u}"
+                "}",
             st->cpr_surface,
             st->cpr_airborne,
             st->cpr_global_ok,
@@ -540,7 +599,12 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
             st->single_message_aircraft,
             st->messages_total,
             (long) st->longest_distance,
-            st->longest_distance / 1852.0);
+            st->longest_distance / 1852.0,
+            st->positions_sbs_misc + st->positions_sbs_mlat + st->positions_sbs_jaero + st->positions_sbs_prio,
+            st->positions_sbs_misc,
+            st->positions_sbs_mlat,
+            st->positions_sbs_jaero,
+            st->positions_sbs_prio);
     }
 
     return p;
@@ -552,6 +616,8 @@ struct char_buffer generateStatsJson() {
     char *buf = (char *) malloc(64 * 1024), *p = buf, *end = buf + 64 * 1024;
 
     p = safe_snprintf(p, end, "{\n");
+    p = appendTypeCounts(p, end);
+    p = safe_snprintf(p, end, ",\n");
     p = appendStatsJson(p, end, &Modes.stats_current, "latest");
     p = safe_snprintf(p, end, ",\n");
 

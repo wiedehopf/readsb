@@ -1440,10 +1440,11 @@ end_alt:
     if (mm->sbs_in && mm->sbs_pos_valid) {
         int old_jaero = 0;
         if (mm->source == SOURCE_JAERO && a->trace_len > 0) {
-            for (int i = a->trace_len - 1; i >= a->trace_len - 10 && i >= 0; i--)
+            for (int i = max(0, a->trace_len - 10); i < a->trace_len; i++) {
                 if ( (int32_t) (mm->decoded_lat * 1E6) == a->trace[i].lat
                         && (int32_t) (mm->decoded_lon * 1E6) == a->trace[i].lon )
                     old_jaero = 1;
+            }
         }
         // avoid using already received positions
         if (old_jaero || greatcircle(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon) < 1) {
@@ -1469,6 +1470,15 @@ end_alt:
 
             if (a->messages < 2)
                 a->messages = 2;
+
+            if (mm->source == SOURCE_SBS)
+                Modes.stats_current.positions_sbs_misc++;
+            if (mm->source == SOURCE_MLAT)
+                Modes.stats_current.positions_sbs_mlat++;
+            if (mm->source == SOURCE_JAERO)
+                Modes.stats_current.positions_sbs_jaero++;
+            if (mm->source == SOURCE_PRIO)
+                Modes.stats_current.positions_sbs_prio++;
         }
     }
 
@@ -1577,6 +1587,8 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
     int with_pos = 0;
     uint64_t now = mstime();
 
+    memset(&Modes.type_counts, 0, sizeof(Modes.type_counts));
+
     int full_write = checkNewDay(); // this function does more than the return value!!!!
 
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
@@ -1627,6 +1639,8 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                 if (trackDataValid(&a->position_valid)) {
                     with_pos++;
                 }
+                if (a->seen + 60 * SECONDS > now)
+                    Modes.type_counts[a->addrtype]++;
 
                 if (full_write && a->trace_full_write != 0xdead) {
                     a->trace_next_fw = now + 1000 * (rand() % 120); // spread over 2 mins
