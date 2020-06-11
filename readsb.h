@@ -455,7 +455,8 @@ struct
   int heatmap_current_interval;
   int json_globe_index; // Enable extra globe indexed json files.
   uint32_t json_trace_interval; // max time ignoring new positions for trace
-  int json_globe_ac_count;
+  int json_ac_count_pos;
+  int json_ac_count_no_pos;
   struct tile *json_globe_special_tiles;
   int json_gzip; // Enable extra globe indexed json files.
   char *beast_serial; // Modes-S Beast device path

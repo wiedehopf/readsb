@@ -417,9 +417,14 @@ int update_stats() {
 
 static char * appendTypeCounts(char *p, char *end) {
     char *key;
+    p = safe_snprintf(p, end, "\"with_pos\": %d,", Modes.json_ac_count_pos);
+    p = safe_snprintf(p, end, "\"without_pos\": %d,", Modes.json_ac_count_no_pos);
     p = safe_snprintf(p, end, "\"type_counts\": {");
     for (int i = 0; i < 14; i++) {
         switch (i) {
+            case ADDR_ADSB_ICAO:
+                key = "adsb_icao";
+                break;
             case ADDR_ADSB_ICAO_NT:
                 key = "adsb_icao_nt";
                 break;
@@ -429,6 +434,20 @@ static char * appendTypeCounts(char *p, char *end) {
             case ADDR_TISB_ICAO:
                 key = "tisb_icao";
                 break;
+
+            case ADDR_JAERO:
+                key = "adsc";
+                break;
+            case ADDR_MLAT:
+                key = "mlat";
+                break;
+            case ADDR_OTHER:
+                key = "other";
+                break;
+            case ADDR_MODE_S:
+                key = "mode_s";
+                break;
+
             case ADDR_ADSB_OTHER:
                 key = "adsb_other";
                 break;
@@ -441,20 +460,9 @@ static char * appendTypeCounts(char *p, char *end) {
             case ADDR_TISB_TRACKFILE:
                 key = "tisb_trackfile";
                 break;
-            case ADDR_ADSB_ICAO:
-                key = "adsb_icao";
-                break;
-            case ADDR_JAERO:
-                key = "adsc";
-                break;
-            case ADDR_MLAT:
-                key = "mlat";
-                break;
-            case ADDR_OTHER:
-                key = "other";
-                break;
-            case ADDR_MODE_S:
-                key = "mode_s";
+
+            case ADDR_MODE_A:
+                key = "mode_a_c";
                 break;
             default:
                 key = "unknown";
@@ -615,7 +623,10 @@ struct char_buffer generateStatsJson() {
     struct stats add;
     char *buf = (char *) malloc(64 * 1024), *p = buf, *end = buf + 64 * 1024;
 
-    p = safe_snprintf(p, end, "{\n");
+    p = safe_snprintf(p, end,
+            "{ \"now\" : %.1f",
+            mstime() / 1000.0);
+    p = safe_snprintf(p, end, ",\n");
     p = appendTypeCounts(p, end);
     p = safe_snprintf(p, end, ",\n");
     p = appendStatsJson(p, end, &Modes.stats_current, "latest");

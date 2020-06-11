@@ -2162,7 +2162,7 @@ struct char_buffer generateAircraftJson(int globe_index){
 
         p = safe_snprintf(p, end,
                 "  \"global_ac_count_withpos\" : %d,\n",
-                Modes.json_globe_ac_count
+                Modes.json_ac_count_pos
                 );
 
         p = safe_snprintf(p, end, "  \"globeIndex\" : %d, ", globe_index);

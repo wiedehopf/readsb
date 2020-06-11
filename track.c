@@ -1585,6 +1585,7 @@ static void trackMatchAC(uint64_t now) {
 
 static void trackRemoveStaleAircraft(struct aircraft **freeList) {
     int with_pos = 0;
+    int active = 0;
     uint64_t now = mstime();
 
     memset(&Modes.type_counts, 0, sizeof(Modes.type_counts));
@@ -1639,8 +1640,10 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                 if (trackDataValid(&a->position_valid)) {
                     with_pos++;
                 }
-                if (a->seen + 60 * SECONDS > now)
+                if (a->seen + 60 * SECONDS > now) {
                     Modes.type_counts[a->addrtype]++;
+                    active++;
+                }
 
                 if (full_write && a->trace_full_write != 0xdead) {
                     a->trace_next_fw = now + 1000 * (rand() % 120); // spread over 2 mins
@@ -1666,7 +1669,8 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
             }
         }
     }
-    Modes.json_globe_ac_count = with_pos;
+    Modes.json_ac_count_pos = with_pos;
+    Modes.json_ac_count_no_pos = active - with_pos;
 }
 
 
