@@ -2443,6 +2443,8 @@ static inline void writeJsonTo (const char* dir, const char *file, struct char_b
     tmppath[PATH_MAX - 1] = 0;
     fd = open(tmppath, O_WRONLY | O_CREAT | O_EXCL, 0644);
     if (fd < 0) {
+        fprintf(stderr, "writeJsonTo open(): ");
+        perror(tmppath);
         if (!gzip)
             free(content);
         return;
@@ -2493,14 +2495,20 @@ static inline void writeJsonTo (const char* dir, const char *file, struct char_b
         if (gzclose(gzfp) < 0)
             goto error_2;
     } else {
-        if (write(fd, content, len) != len)
+        if (write(fd, content, len) != len) {
+            fprintf(stderr, "writeJsonTo write(): ");
+            perror(tmppath);
             goto error_1;
+        }
 
         if (close(fd) < 0)
             goto error_2;
     }
 
-    rename(tmppath, pathbuf);
+    if (rename(tmppath, pathbuf) == -1) {
+        fprintf(stderr, "writeJsonTo rename(): %s -> %s", tmppath, pathbuf);
+        perror("");
+    }
     if (!gzip)
         free(content);
     return;
