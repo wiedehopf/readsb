@@ -213,7 +213,7 @@ static void modesInitConfig(void) {
     Modes.globe_history_heatmap = 0;
 
     Modes.cpr_focus = 0xc0ffeeba;
-    //Modes.cpr_focus = 0xA06A35;
+    //Modes.cpr_focus = 0x43BF95;
 
     sdrInitConfig();
 

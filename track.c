@@ -62,6 +62,7 @@ uint32_t modeAC_age[4096];
 
 static void cleanupAircraft(struct aircraft *a);
 static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_lat, double new_lon, uint64_t now);
+static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint64_t now);
 static void position_bad(struct aircraft *a);
 static void resize_trace(struct aircraft *a, uint64_t now);
 static void calc_wind(struct aircraft *a, uint64_t now);
@@ -374,12 +375,12 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
                 a->cpr_odd_lat, a->cpr_odd_lon,
                 fflag,
                 lat, lon);
-    if (Modes.debug_receiver && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
-        if (getRef && !trackDataValid(&a->position_valid))
-            fprintf(stderr, "%06x using receiver reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
-        else if (a->addr == Modes.cpr_focus)
-            fprintf(stderr, "%06x using non-rec  reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
-    }
+        if (Modes.debug_receiver && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
+            if (getRef && !trackDataValid(&a->position_valid))
+                fprintf(stderr, "%06x using receiver reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
+            else if (a->addr == Modes.cpr_focus)
+                fprintf(stderr, "%06x using reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
+        }
     } else {
         // airborne global CPR
         result = decodeCPRairborne(a->cpr_even_lat, a->cpr_even_lon,
@@ -1758,13 +1759,17 @@ static void cleanupAircraft(struct aircraft *a) {
 static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_lat, double new_lon, uint64_t now) {
     a->lastPosReceiverId= mm->receiverId;
 
+    if (a->addr == Modes.cpr_focus) {
+        showPositionDebug(a, mm, now);
+    }
+
     Modes.stats_current.pos_by_type[mm->addrtype]++;
 
+    int keep = 0;
     if ((a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2)
             || (mm->source <= SOURCE_JAERO && now > a->seen_pos + 15 * 1000)) {
         //keep this data point
-    } else {
-        return;
+        keep = 1;
     }
 
     if (now < a->seen_pos + 3 * SECONDS && a->lat == new_lat && a->lon == new_lon) {
@@ -1784,53 +1789,13 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
             a->calc_track = bearing(a->lat, a->lon, new_lat, new_lon);
     }
 
-    if (a->addr == Modes.cpr_focus) {
-        if (mm->sbs_in) {
-            fprintf(stderr, "SBS, ");
-            if (mm->source == SOURCE_JAERO)
-                fprintf(stderr, "JAERO, ");
-            if (mm->source == SOURCE_MLAT)
-                fprintf(stderr, "MLAT, ");
-        } else {
-            fprintf(stderr, "%06x %s%s",
-                    a->addr,
-                    (mm->cpr_type == CPR_SURFACE) ? "surf, " : "air,  ",
-                    mm->cpr_odd ? "odd,  " : "even, ");
-        }
-
-        if (mm->sbs_in) {
-            fprintf(stderr,
-                    "lat: %.6f,"
-                    "lon: %.6f",
-                    mm->decoded_lat,
-                    mm->decoded_lon);
-        } else if (mm->cpr_decoded) {
-            fprintf(stderr,"lat: %.6f (%u),"
-                    " lon: %.6f (%u),"
-                    " relative: %d,"
-                    " NIC: %u,"
-                    " Rc: %.3f km",
-                    mm->decoded_lat,
-                    mm->cpr_lat,
-                    mm->decoded_lon,
-                    mm->cpr_lon,
-                    mm->cpr_relative,
-                    mm->decoded_nic,
-                    mm->decoded_rc / 1000.0);
-        } else {
-            fprintf(stderr,"lat: (%u),"
-                    " lon: (%u),"
-                    " CPR decoding: none",
-                    mm->cpr_lat,
-                    mm->cpr_lon);
-        }
-        fprintf(stderr, "\n");
-    }
 
     if (Modes.json_globe_index) {
 
         set_globe_index(a, globe_index(new_lat, new_lon));
 
+        if (!keep)
+            goto no_save_state;
         if (!a->trace) {
             //pthread_mutex_lock(&a->trace_mutex);
 
@@ -2633,4 +2598,50 @@ static void updateValidities(struct aircraft *a, uint64_t now) {
 
     if (a->altitude_baro_valid.source == SOURCE_INVALID)
         a->alt_reliable = 0;
+}
+
+static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint64_t now) {
+
+    fprintf(stderr, "E%0.1f ", (now - a->seen_pos) / 1000.0);
+
+    if (mm->sbs_in) {
+        fprintf(stderr, "SBS, ");
+        if (mm->source == SOURCE_JAERO)
+            fprintf(stderr, "JAERO, ");
+        if (mm->source == SOURCE_MLAT)
+            fprintf(stderr, "MLAT, ");
+    } else {
+        fprintf(stderr, "%06x %s%s",
+                a->addr,
+                (mm->cpr_type == CPR_SURFACE) ? "surf, " : "air,  ",
+                mm->cpr_odd ? "odd,  " : "even, ");
+    }
+
+    if (mm->sbs_in) {
+        fprintf(stderr,
+                "lat: %.6f,"
+                "lon: %.6f",
+                mm->decoded_lat,
+                mm->decoded_lon);
+    } else if (mm->cpr_decoded) {
+        fprintf(stderr,"lat: %.6f (%u),"
+                " lon: %.6f (%u),"
+                " relative: %d,"
+                " NIC: %u,"
+                " Rc: %.3f km",
+                mm->decoded_lat,
+                mm->cpr_lat,
+                mm->decoded_lon,
+                mm->cpr_lon,
+                mm->cpr_relative,
+                mm->decoded_nic,
+                mm->decoded_rc / 1000.0);
+    } else {
+        fprintf(stderr,"lat: (%u),"
+                " lon: (%u),"
+                " CPR decoding: none",
+                mm->cpr_lat,
+                mm->cpr_lon);
+    }
+    fprintf(stderr, "\n");
 }
