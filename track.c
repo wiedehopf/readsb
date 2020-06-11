@@ -267,8 +267,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     }
 
     if (source <= SOURCE_MLAT) {
+        if (elapsed > 15 * SECONDS)
+            return 1;
         speed = speed * 2;
-        speed = min(speed, 1200);
+        speed = min(speed, 2400);
     }
 
     // Work out a reasonable speed to use:
