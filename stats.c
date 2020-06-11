@@ -570,8 +570,10 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
                 ",\"filtered\":%u}"
                 ",\"altitude_suppressed\":%u"
                 ",\"cpu\":{\"demod\":%llu,\"reader\":%llu,\"background\":%llu"
-                ",\"aircraft_json\":%llu,\"globe_json\":%llu,\"heatmap_and_state\":%llu"
-                ",\"trace_cpu\":%llu"
+                ",\"aircraft_json\":%llu"
+                ",\"globe_json\":%llu"
+                ",\"trace_json\":%llu"
+                ",\"heatmap_and_state\":%llu"
                 ",\"remove_stale\":%llu}"
                 ",\"tracks\":{\"all\":%u"
                 ",\"single_message\":%u}"
@@ -600,9 +602,9 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
             (unsigned long long) background_cpu_millis,
             (unsigned long long) aircraft_json_cpu_millis,
             (unsigned long long) globe_json_cpu_millis,
+            (unsigned long long) trace_json_cpu_millis_sum,
             (unsigned long long) heatmap_and_state_cpu_millis,
             (unsigned long long) remove_stale_cpu_millis,
-            (unsigned long long) trace_json_cpu_millis_sum,
             st->unique_aircraft,
             st->single_message_aircraft,
             st->messages_total,
