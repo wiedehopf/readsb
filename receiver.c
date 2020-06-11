@@ -119,9 +119,9 @@ int receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft 
 
 
 
-    if (r->positionCounter < 50)
+    if (r->positionCounter < 250)
         return 0;
-    if (lonDiff > 30 || latDiff > 30) {
+    if (lonDiff > 25 || latDiff > 25) {
         if (0 && Modes.debug_receiver)
             fprintf(stderr, "%06x: receiver ref invalid: %016"PRIx64" %9"PRIu64" %4.0f %4.0f %4.0f %4.0f %4.0f %4.0f\n",
                     a->addr,
