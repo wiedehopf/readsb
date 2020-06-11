@@ -2435,7 +2435,11 @@ static inline void writeJsonTo (const char* dir, const char *file, struct char_b
     int len = cb.len;
     char *content = cb.buffer;
 
-    snprintf(tmppath, PATH_MAX, "%s/%s.%d", dir, file, rand());
+    if (!dir)
+        snprintf(tmppath, PATH_MAX, "%s.%d", file, rand());
+    else
+        snprintf(tmppath, PATH_MAX, "%s/%s.%d", dir, file, rand());
+
     tmppath[PATH_MAX - 1] = 0;
     fd = open(tmppath, O_WRONLY | O_CREAT | O_EXCL, 0644);
     if (fd < 0) {
@@ -2444,7 +2448,11 @@ static inline void writeJsonTo (const char* dir, const char *file, struct char_b
         return;
     }
 
-    snprintf(pathbuf, PATH_MAX, "%s/%s", dir, file);
+    if (!dir)
+        snprintf(pathbuf, PATH_MAX, "%s", file);
+    else
+        snprintf(pathbuf, PATH_MAX, "%s/%s", dir, file);
+
     pathbuf[PATH_MAX - 1] = 0;
 
     if (gzip < 0) {

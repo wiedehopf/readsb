@@ -669,6 +669,7 @@ static void cleanup_and_exit(int code) {
     /* Free only when pointing to string in heap (strdup allocated when given as run parameter)
      * otherwise points to const string
      */
+    free(Modes.prom_file);
     free(Modes.json_dir);
     free(Modes.globe_history_dir);
     free(Modes.net_bind_address);
@@ -826,6 +827,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             cleanup_and_exit(0);
             break;
 #ifndef _WIN32
+        case OptPromFile:
+            Modes.prom_file = strdup(arg);
+            break;
         case OptJsonDir:
             Modes.json_dir = strdup(arg);
             break;

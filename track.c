@@ -1584,11 +1584,9 @@ static void trackMatchAC(uint64_t now) {
 //
 
 static void trackRemoveStaleAircraft(struct aircraft **freeList) {
-    int with_pos = 0;
-    int active = 0;
     uint64_t now = mstime();
 
-    memset(&Modes.type_counts, 0, sizeof(Modes.type_counts));
+    resetStuff();
 
     int full_write = checkNewDay(); // this function does more than the return value!!!!
 
@@ -1637,13 +1635,8 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                 *freeList = del;
             } else {
                 updateValidities(a, now);
-                if (trackDataValid(&a->position_valid)) {
-                    with_pos++;
-                }
-                if (a->seen + 60 * SECONDS > now) {
-                    Modes.type_counts[a->addrtype]++;
-                    active++;
-                }
+
+                countStuff(a, now);
 
                 if (full_write && a->trace_full_write != 0xdead) {
                     a->trace_next_fw = now + 1000 * (rand() % 120); // spread over 2 mins
@@ -1669,8 +1662,6 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
             }
         }
     }
-    Modes.json_ac_count_pos = with_pos;
-    Modes.json_ac_count_no_pos = active - with_pos;
 }
 
 
@@ -1701,7 +1692,7 @@ void trackPeriodicUpdate() {
     static uint32_t blob;
     int nParts = 256;
     uint64_t now = mstime();
-    int writeStats;
+    int writeStats = 0;
 
     struct aircraft *freeList = NULL;
 
@@ -1721,7 +1712,7 @@ void trackPeriodicUpdate() {
 
     receiverTimeout((part++ % nParts), nParts);
 
-    writeStats = update_stats(); // needs to happen under lock
+    writeStats = updateStats(); // needs to happen under lock
 
     end_cpu_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
 
@@ -1739,6 +1730,9 @@ void trackPeriodicUpdate() {
 
     if (writeStats && Modes.json_dir)
         writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson());
+
+    if (writeStats && Modes.prom_file)
+        writeJsonToFile(NULL, Modes.prom_file, generatePromFile());
 
     end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
 }

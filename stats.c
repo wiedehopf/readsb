@@ -61,6 +61,7 @@ void add_timespecs(const struct timespec *x, const struct timespec *y, struct ti
 }
 
 static void display_range_histogram(struct stats *st);
+static void calcStuff();
 
 void display_stats(struct stats *st) {
     int j;
@@ -351,12 +352,13 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
         target->longest_distance = st2->longest_distance;
 }
 
-int update_stats() {
+int updateStats() {
     static uint64_t next_stats_update, next_stats_display;
     uint64_t now = mstime();
     // always update end time so it is current when requests arrive
     Modes.stats_current.end = now;
 
+    calcStuff(); // calculate statistics stuff
 
     if (Modes.stats && now >= next_stats_display) {
         if (next_stats_display == 0) {
@@ -409,8 +411,8 @@ int update_stats() {
             Modes.stats_current.start = Modes.stats_current.end = now;
 
             next_stats_update += 10000;
+            return 1;
         }
-        return 1;
     }
     return 0;
 }
@@ -462,7 +464,7 @@ static char * appendTypeCounts(char *p, char *end) {
                 break;
 
             case ADDR_MODE_A:
-                key = "mode_a_c";
+                key = "mode_ac";
                 break;
             default:
                 key = "unknown";
@@ -545,9 +547,10 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
         CPU_MILLIS(globe_json);
         CPU_MILLIS(heatmap_and_state);
         CPU_MILLIS(remove_stale);
-        uint64_t trace_json_cpu_millis[TRACE_THREADS];
+#undef CPU_MILLIS
+        uint64_t trace_json_cpu_millis_sum = 0;
         for (i = 0; i < TRACE_THREADS; i ++) {
-            trace_json_cpu_millis[i] = (uint64_t) st->trace_json_cpu[i].tv_sec * 1000UL + st->trace_json_cpu[i].tv_nsec / 1000000UL;
+            trace_json_cpu_millis_sum += (uint64_t) st->trace_json_cpu[i].tv_sec * 1000UL + st->trace_json_cpu[i].tv_nsec / 1000000UL;
         }
 
         p = safe_snprintf(p, end,
@@ -568,8 +571,8 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
                 ",\"altitude_suppressed\":%u"
                 ",\"cpu\":{\"demod\":%llu,\"reader\":%llu,\"background\":%llu"
                 ",\"aircraft_json\":%llu,\"globe_json\":%llu,\"heatmap_and_state\":%llu"
+                ",\"trace_cpu\":%llu"
                 ",\"remove_stale\":%llu}"
-                ",\"trace_cpu\":[%llu,%llu,%llu,%llu]"
                 ",\"tracks\":{\"all\":%u"
                 ",\"single_message\":%u}"
                 ",\"messages\":%u"
@@ -599,10 +602,7 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
             (unsigned long long) globe_json_cpu_millis,
             (unsigned long long) heatmap_and_state_cpu_millis,
             (unsigned long long) remove_stale_cpu_millis,
-            (unsigned long long) trace_json_cpu_millis[0],
-            (unsigned long long) trace_json_cpu_millis[1],
-            (unsigned long long) trace_json_cpu_millis[2],
-            (unsigned long long) trace_json_cpu_millis[3],
+            (unsigned long long) trace_json_cpu_millis_sum,
             st->unique_aircraft,
             st->single_message_aircraft,
             st->messages_total,
@@ -620,7 +620,6 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
 
 struct char_buffer generateStatsJson() {
     struct char_buffer cb;
-    struct stats add;
     char *buf = (char *) malloc(64 * 1024), *p = buf, *end = buf + 64 * 1024;
 
     p = safe_snprintf(p, end,
@@ -641,8 +640,7 @@ struct char_buffer generateStatsJson() {
     p = appendStatsJson(p, end, &Modes.stats_15min, "last15min");
     p = safe_snprintf(p, end, ",\n");
 
-    add_stats(&Modes.stats_alltime, &Modes.stats_current, &add);
-    p = appendStatsJson(p, end, &add, "total");
+    p = appendStatsJson(p, end, &Modes.stats_alltime, "total");
     p = safe_snprintf(p, end, "\n}\n");
 
     if (p >= end)
@@ -651,4 +649,182 @@ struct char_buffer generateStatsJson() {
     cb.len = p - buf;
     cb.buffer = buf;
     return cb;
+}
+
+struct char_buffer generatePromFile() {
+    struct char_buffer cb;
+    char *buf = (char *) malloc(64 * 1024), *p = buf, *end = buf + 64 * 1024;
+
+
+    struct stats *st = &Modes.stats_1min;
+
+    unsigned long long trace_json_cpu_millis_sum = 0;
+    for (int i = 0; i < TRACE_THREADS; i ++) {
+        trace_json_cpu_millis_sum += (uint64_t) st->trace_json_cpu[i].tv_sec * 1000UL + st->trace_json_cpu[i].tv_nsec / 1000000UL;
+    }
+
+    p = safe_snprintf(p, end, "readsb_aircraft_adsb_version_0 %u\n", Modes.readsb_aircraft_adsb_version_0);
+    p = safe_snprintf(p, end, "readsb_aircraft_adsb_version_1 %u\n", Modes.readsb_aircraft_adsb_version_1);
+    p = safe_snprintf(p, end, "readsb_aircraft_adsb_version_2 %u\n", Modes.readsb_aircraft_adsb_version_2);
+    p = safe_snprintf(p, end, "readsb_aircraft_emergency %u\n", Modes.readsb_aircraft_emergency);
+    p = safe_snprintf(p, end, "readsb_aircraft_message_type_adsb_icao %u\n", Modes.readsb_aircraft_message_type_adsb_icao);
+    p = safe_snprintf(p, end, "readsb_aircraft_message_type_adsb_nt %u\n", Modes.readsb_aircraft_message_type_adsb_nt);
+    p = safe_snprintf(p, end, "readsb_aircraft_message_type_adsb_other %u\n", Modes.readsb_aircraft_message_type_adsb_other);
+    p = safe_snprintf(p, end, "readsb_aircraft_message_type_adsr_icao %u\n", Modes.readsb_aircraft_message_type_adsr_icao);
+    p = safe_snprintf(p, end, "readsb_aircraft_message_type_adsr_other %u\n", Modes.readsb_aircraft_message_type_adsr_other);
+    p = safe_snprintf(p, end, "readsb_aircraft_message_type_tisb_icao %u\n", Modes.readsb_aircraft_message_type_tisb_icao);
+    p = safe_snprintf(p, end, "readsb_aircraft_message_type_tisb_other %u\n", Modes.readsb_aircraft_message_type_tisb_other);
+    p = safe_snprintf(p, end, "readsb_aircraft_message_type_tisb_trackfile %u\n", Modes.readsb_aircraft_message_type_tisb_trackfile);
+    p = safe_snprintf(p, end, "readsb_aircraft_message_type_mlat %u\n", Modes.readsb_aircraft_message_type_mlat);
+    p = safe_snprintf(p, end, "readsb_aircraft_message_type_adsc %u\n", Modes.readsb_aircraft_message_type_adsc);
+    p = safe_snprintf(p, end, "readsb_aircraft_message_type_mode_s %u\n", Modes.readsb_aircraft_message_type_mode_s);
+    p = safe_snprintf(p, end, "readsb_aircraft_message_type_unknown %u\n", Modes.readsb_aircraft_message_type_unknown);
+    p = safe_snprintf(p, end, "readsb_aircraft_message_type_other %u\n", Modes.readsb_aircraft_message_type_other);
+    p = safe_snprintf(p, end, "readsb_aircraft_mlat %u\n", Modes.readsb_aircraft_mlat);
+    p = safe_snprintf(p, end, "readsb_aircraft_rssi_average %.1f\n", Modes.readsb_aircraft_rssi_average);
+    p = safe_snprintf(p, end, "readsb_aircraft_rssi_max %.1f\n", Modes.readsb_aircraft_rssi_max);
+    p = safe_snprintf(p, end, "readsb_aircraft_rssi_min %.1f\n", Modes.readsb_aircraft_rssi_min);
+    p = safe_snprintf(p, end, "readsb_aircraft_tisb %u\n", Modes.readsb_aircraft_tisb);
+    p = safe_snprintf(p, end, "readsb_aircraft_total %u\n", Modes.readsb_aircraft_total);
+    p = safe_snprintf(p, end, "readsb_aircraft_with_flight_number %u\n", Modes.readsb_aircraft_with_flight_number);
+    p = safe_snprintf(p, end, "readsb_aircraft_without_flight_number %u\n", Modes.readsb_aircraft_without_flight_number);
+    p = safe_snprintf(p, end, "readsb_aircraft_with_position %u\n", Modes.readsb_aircraft_with_position);
+
+    p = safe_snprintf(p, end, "readsb_cpr_airborne %u\n", st->cpr_airborne);
+    p = safe_snprintf(p, end, "readsb_cpr_filtered %u\n", st->cpr_filtered);
+    p = safe_snprintf(p, end, "readsb_cpr_global_bad %u\n", st->cpr_global_bad);
+    p = safe_snprintf(p, end, "readsb_cpr_global_ok %u\n", st->cpr_global_ok);
+    p = safe_snprintf(p, end, "readsb_cpr_global_range %u\n", st->cpr_global_range_checks);
+    p = safe_snprintf(p, end, "readsb_cpr_global_skipped %u\n", st->cpr_global_skipped);
+    p = safe_snprintf(p, end, "readsb_cpr_global_speed %u\n", st->cpr_global_speed_checks);
+    p = safe_snprintf(p, end, "readsb_cpr_local_aircraft_relative %u\n", st->cpr_local_aircraft_relative);
+    p = safe_snprintf(p, end, "readsb_cpr_local_ok %u\n", st->cpr_local_ok);
+    p = safe_snprintf(p, end, "readsb_cpr_local_range %u\n", st->cpr_local_range_checks);
+    p = safe_snprintf(p, end, "readsb_cpr_local_receiver_relative %u\n", st->cpr_local_receiver_relative);
+    p = safe_snprintf(p, end, "readsb_cpr_local_skipped %u\n", st->cpr_local_skipped);
+    p = safe_snprintf(p, end, "readsb_cpr_local_speed %u\n", st->cpr_local_speed_checks);
+    p = safe_snprintf(p, end, "readsb_cpr_surface %u\n", st->cpr_surface);
+#define CPU_MILLIS(x) ((unsigned long long) st->x##_cpu.tv_sec * 1000UL + st->x##_cpu.tv_nsec / 1000000UL)
+    p = safe_snprintf(p, end, "readsb_cpu_background %llu\n", CPU_MILLIS(background));
+    p = safe_snprintf(p, end, "readsb_cpu_demod %llu\n", CPU_MILLIS(demod));
+    p = safe_snprintf(p, end, "readsb_cpu_reader %llu\n", CPU_MILLIS(reader));
+    p = safe_snprintf(p, end, "readsb_cpu_aircraft_json %llu\n", CPU_MILLIS(aircraft_json));
+    p = safe_snprintf(p, end, "readsb_cpu_globe_json %llu\n", CPU_MILLIS(globe_json));
+    p = safe_snprintf(p, end, "readsb_cpu_heatmap_and_state %llu\n", CPU_MILLIS(heatmap_and_state));
+    p = safe_snprintf(p, end, "readsb_cpu_remove_stale %llu\n", CPU_MILLIS(remove_stale));
+    p = safe_snprintf(p, end, "readsb_cpu_trace_json  %llu\n", trace_json_cpu_millis_sum);
+#undef CPU_MILLIS
+    p = safe_snprintf(p, end, "readsb_max_distance_in_metres %u\n", (uint32_t) st->longest_distance);
+    p = safe_snprintf(p, end, "readsb_max_distance_in_nautical_miles %.2f\n", st->longest_distance / 1852.0);
+    p = safe_snprintf(p, end, "readsb_messages %u\n", st->messages_total);
+    p = safe_snprintf(p, end, "readsb_remote_accepted_0 %u\n", st->remote_accepted[0]);
+    p = safe_snprintf(p, end, "readsb_remote_accepted_1 %u\n", st->remote_accepted[1]);
+    p = safe_snprintf(p, end, "readsb_remote_bad %u\n", st->remote_rejected_bad);
+    p = safe_snprintf(p, end, "readsb_remote_modeac %u\n", st->remote_received_modeac);
+    p = safe_snprintf(p, end, "readsb_remote_modes %u\n", st->remote_received_modes);
+    p = safe_snprintf(p, end, "readsb_remote_unknown_icao %u\n", st->remote_rejected_unknown_icao);
+    p = safe_snprintf(p, end, "readsb_tracks_all %u\n", st->unique_aircraft);
+    p = safe_snprintf(p, end, "readsb_tracks_single_message %u\n", st->single_message_aircraft);
+
+    if (p >= end)
+        fprintf(stderr, "buffer overrun stats json\n");
+
+    cb.len = p - buf;
+    cb.buffer = buf;
+    return cb;
+}
+
+void countStuff(struct aircraft *a, uint64_t now) {
+    if (a->seen + 60 * SECONDS < now)
+        return;
+
+    if (trackDataValid(&a->position_valid))
+        Modes.json_ac_count_pos++;
+    else
+        Modes.json_ac_count_no_pos++;
+
+    Modes.type_counts[a->addrtype]++;
+
+    if (a->adsb_version == 0)
+        Modes.readsb_aircraft_adsb_version_0++;
+    else if (a->adsb_version == 1)
+        Modes.readsb_aircraft_adsb_version_1++;
+    else if (a->adsb_version == 2)
+        Modes.readsb_aircraft_adsb_version_2++;
+
+    if (trackDataValid(&a->emergency_valid) && a->emergency)
+        Modes.readsb_aircraft_emergency++;
+
+    double signal = 10 * log10((a->signalLevel[0] + a->signalLevel[1] + a->signalLevel[2] + a->signalLevel[3] +
+                a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7] + 1e-5) / 8);
+
+    Modes.readsb_aircraft_rssi_average += signal;
+
+    Modes.readsb_aircraft_rssi_max = max(Modes.readsb_aircraft_rssi_max, signal);
+    Modes.readsb_aircraft_rssi_min = min(Modes.readsb_aircraft_rssi_min, signal);
+    if (a->position_valid.source == SOURCE_TISB)
+        Modes.readsb_aircraft_tisb++;
+    if (trackDataValid(&a->callsign_valid))
+        Modes.readsb_aircraft_with_flight_number++;
+    else
+        Modes.readsb_aircraft_without_flight_number++;
+}
+
+static void calcStuff() {
+    uint32_t total = Modes.json_ac_count_pos + Modes.json_ac_count_no_pos;
+
+    Modes.readsb_aircraft_message_type_adsb_icao = Modes.type_counts[ADDR_ADSB_ICAO];
+    Modes.readsb_aircraft_message_type_adsb_nt = Modes.type_counts[ADDR_ADSB_ICAO_NT];
+    Modes.readsb_aircraft_message_type_adsb_other = Modes.type_counts[ADDR_ADSB_OTHER];
+    Modes.readsb_aircraft_message_type_adsr_icao = Modes.type_counts[ADDR_ADSR_ICAO];
+    Modes.readsb_aircraft_message_type_adsr_other = Modes.type_counts[ADDR_ADSR_OTHER];
+    Modes.readsb_aircraft_message_type_tisb_icao = Modes.type_counts[ADDR_TISB_ICAO];
+    Modes.readsb_aircraft_message_type_tisb_other = Modes.type_counts[ADDR_TISB_OTHER];
+    Modes.readsb_aircraft_message_type_tisb_trackfile = Modes.type_counts[ADDR_TISB_TRACKFILE];
+    Modes.readsb_aircraft_message_type_mode_ac = Modes.type_counts[ADDR_MODE_A];
+    Modes.readsb_aircraft_message_type_other = Modes.type_counts[ADDR_OTHER];
+    Modes.readsb_aircraft_message_type_unknown = Modes.type_counts[ADDR_UNKNOWN];
+    Modes.readsb_aircraft_message_type_mode_s = Modes.type_counts[ADDR_MODE_S];
+    Modes.readsb_aircraft_message_type_mlat = Modes.type_counts[ADDR_MLAT];
+    Modes.readsb_aircraft_mlat = Modes.type_counts[ADDR_MLAT];
+    Modes.readsb_aircraft_message_type_adsc = Modes.type_counts[ADDR_JAERO];
+
+    Modes.readsb_aircraft_rssi_average /= total;
+    Modes.readsb_aircraft_total = total;
+    Modes.readsb_aircraft_with_position = Modes.json_ac_count_pos;
+}
+
+void resetStuff() {
+    memset(&Modes.type_counts, 0, sizeof(Modes.type_counts));
+
+    Modes.json_ac_count_pos = 0;
+    Modes.json_ac_count_no_pos = 0;
+
+    Modes.readsb_aircraft_adsb_version_0 = 0;
+    Modes.readsb_aircraft_adsb_version_1 = 0;
+    Modes.readsb_aircraft_adsb_version_2 = 0;
+    Modes.readsb_aircraft_emergency = 0;
+    Modes.readsb_aircraft_message_type_adsb_icao = 0;
+    Modes.readsb_aircraft_message_type_adsb_nt = 0;
+    Modes.readsb_aircraft_message_type_adsb_other = 0;
+    Modes.readsb_aircraft_message_type_adsr_icao = 0;
+    Modes.readsb_aircraft_message_type_adsr_other = 0;
+    Modes.readsb_aircraft_message_type_tisb_icao = 0;
+    Modes.readsb_aircraft_message_type_tisb_other = 0;
+    Modes.readsb_aircraft_message_type_tisb_trackfile = 0;
+    Modes.readsb_aircraft_message_type_mode_s = 0;
+    Modes.readsb_aircraft_message_type_mode_ac = 0;
+    Modes.readsb_aircraft_message_type_mlat = 0;
+    Modes.readsb_aircraft_message_type_adsc = 0;
+    Modes.readsb_aircraft_message_type_unknown = 0;
+    Modes.readsb_aircraft_message_type_other = 0;
+    Modes.readsb_aircraft_mlat = 0;
+    Modes.readsb_aircraft_rssi_average = 0;
+    Modes.readsb_aircraft_rssi_max = -50;
+    Modes.readsb_aircraft_rssi_min = 0;
+    Modes.readsb_aircraft_tisb = 0;
+    Modes.readsb_aircraft_total = 0;
+    Modes.readsb_aircraft_with_flight_number = 0;
+    Modes.readsb_aircraft_without_flight_number = 0;
+    Modes.readsb_aircraft_with_position = 0;
 }

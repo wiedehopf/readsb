@@ -64,16 +64,15 @@ static struct argp_option options[] =
     {"quiet", OptQuiet, 0, 0, "Disable output. Use for daemon applications", 1},
     {"dcfilter", OptDcFilter, 0, 0, "Apply a 1Hz DC filter to input data (requires more CPU)", 1},
     {"enable-biastee", OptBiasTee, 0, 0, "Enable bias tee on supporting interfaces (default: disabled)", 1},
-    #ifndef _WIN32
-        {"write-json", OptJsonDir, "<dir>", 0, "Periodically write json output to <dir> (for external webserver)", 1},
-        {"write-globe-history", OptGlobeHistoryDir, "<dir>", 0, "Extended Globe History", 1},
-        {"globe-history-heatmap", OptGlobeHistoryHeatmap, "<interval in seconds>", 0, "Make Heatmap from Globe History, each aircraft at most every interval seconds(creates historydir/heatmap.bin and exit after that)", 1},
-        {"write-json-every", OptJsonTime, "<t>", 0, "Write json output every t seconds (default 1)", 1},
-        {"json-location-accuracy", OptJsonLocAcc , "<n>", 0, "Accuracy of receiver location in json metadata: 0=no location, 1=approximate, 2=exact", 1},
-        {"write-json-globe-index", OptJsonGlobeIndex, 0, 0, "Write specially indexed globe_xxxx.json files (for tar1090)", 1},
-        {"json-trace-interval", OptJsonTraceInt, "<seconds>", 0, "Interval after which a new position will guaranteed to be written to the trace and the json position output (default: 30)", 1},
-        {"write-json-gzip", OptJsonGzip, 0, 0, "Write aircraft.json also as aircraft.json.gz", 1},
-    #endif
+    {"write-json", OptJsonDir, "<dir>", 0, "Periodically write json output to <dir>", 1},
+    {"write-prom", OptPromFile, "<filepath>", 0, "Periodically write prometheus output to <filepath>", 1},
+    {"write-globe-history", OptGlobeHistoryDir, "<dir>", 0, "Extended Globe History", 1},
+    {"globe-history-heatmap", OptGlobeHistoryHeatmap, "<interval in seconds>", 0, "Make Heatmap from Globe History, each aircraft at most every interval seconds(creates historydir/heatmap.bin and exit after that)", 1},
+    {"write-json-every", OptJsonTime, "<t>", 0, "Write json output every t seconds (default 1)", 1},
+    {"json-location-accuracy", OptJsonLocAcc , "<n>", 0, "Accuracy of receiver location in json metadata: 0=no location, 1=approximate, 2=exact", 1},
+    {"write-json-globe-index", OptJsonGlobeIndex, 0, 0, "Write specially indexed globe_xxxx.json files (for tar1090)", 1},
+    {"json-trace-interval", OptJsonTraceInt, "<seconds>", 0, "Interval after which a new position will guaranteed to be written to the trace and the json position output (default: 30)", 1},
+    {"write-json-gzip", OptJsonGzip, 0, 0, "Write aircraft.json also as aircraft.json.gz", 1},
 #endif
     {0,0,0,0, "Network options:", 2},
 #if defined(READSB) || defined(VIEWADSB)

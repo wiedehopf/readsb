@@ -451,6 +451,7 @@ struct
   char *net_bind_address; // Bind address
   char *json_dir; // Path to json base directory, or NULL not to write json.
   char *globe_history_dir;
+  char *prom_file;
   uint64_t globe_history_heatmap;
   int heatmap_current_interval;
   int json_globe_index; // Enable extra globe indexed json files.
@@ -494,6 +495,35 @@ struct
   int type_counts[16];
   struct timespec reader_cpu_accumulator; // CPU time used by the reader thread, copied out and reset by the main thread under the mutex
   struct mag_buf mag_buffers[MODES_MAG_BUFFERS]; // Converted magnitude buffers from RTL or file input
+
+
+  uint32_t readsb_aircraft_adsb_version_0;
+  uint32_t readsb_aircraft_adsb_version_1;
+  uint32_t readsb_aircraft_adsb_version_2;
+  uint32_t readsb_aircraft_emergency;
+  uint32_t readsb_aircraft_message_type_adsb_icao;
+  uint32_t readsb_aircraft_message_type_adsb_nt;
+  uint32_t readsb_aircraft_message_type_adsb_other;
+  uint32_t readsb_aircraft_message_type_adsr_icao;
+  uint32_t readsb_aircraft_message_type_adsr_other;
+  uint32_t readsb_aircraft_message_type_tisb_icao;
+  uint32_t readsb_aircraft_message_type_tisb_other;
+  uint32_t readsb_aircraft_message_type_tisb_trackfile;
+  uint32_t readsb_aircraft_message_type_mode_s;
+  uint32_t readsb_aircraft_message_type_mode_ac;
+  uint32_t readsb_aircraft_message_type_mlat;
+  uint32_t readsb_aircraft_message_type_adsc;
+  uint32_t readsb_aircraft_message_type_unknown;
+  uint32_t readsb_aircraft_message_type_other;
+  uint32_t readsb_aircraft_mlat;
+  double readsb_aircraft_rssi_average;
+  float readsb_aircraft_rssi_max;
+  float readsb_aircraft_rssi_min;
+  uint32_t readsb_aircraft_tisb;
+  uint32_t readsb_aircraft_total;
+  uint32_t readsb_aircraft_with_flight_number;
+  uint32_t readsb_aircraft_without_flight_number;
+  uint32_t readsb_aircraft_with_position;
 } Modes;
 
 // The struct we use to store information about a decoded message.
@@ -752,6 +782,7 @@ enum {
   OptShowOnly,
   OptJsonDir,
   OptJsonGzip,
+  OptPromFile,
   OptGlobeHistoryDir,
   OptGlobeHistoryHeatmap,
   OptJsonTime,
