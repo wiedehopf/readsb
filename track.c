@@ -1472,15 +1472,6 @@ end_alt:
 
             if (a->messages < 2)
                 a->messages = 2;
-
-            if (mm->source == SOURCE_SBS)
-                Modes.stats_current.positions_sbs_misc++;
-            if (mm->source == SOURCE_MLAT)
-                Modes.stats_current.positions_sbs_mlat++;
-            if (mm->source == SOURCE_JAERO)
-                Modes.stats_current.positions_sbs_jaero++;
-            if (mm->source == SOURCE_PRIO)
-                Modes.stats_current.positions_sbs_prio++;
         }
     }
 
@@ -1766,6 +1757,8 @@ static void cleanupAircraft(struct aircraft *a) {
 
 static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_lat, double new_lon, uint64_t now) {
     a->lastPosReceiverId= mm->receiverId;
+
+    Modes.stats_current.pos_by_type[mm->addrtype]++;
 
     if ((a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2)
             || (mm->source <= SOURCE_JAERO && now > a->seen_pos + 15 * 1000)) {

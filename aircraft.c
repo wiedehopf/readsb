@@ -66,7 +66,6 @@ struct aircraft *aircraftCreate(struct modesMessage *mm) {
 
     // initialize data validity ages
     //adjustExpire(a, 58);
-
     Modes.stats_current.unique_aircraft++;
 
 

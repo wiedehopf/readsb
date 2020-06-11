@@ -560,8 +560,6 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
             fprintf(stderr, "%06x aircraft replacement failed!\n", old->addr);
         }
     } else {
-        Modes.stats_current.unique_aircraft++;
-
         a->next = Modes.aircraft[hash];
         Modes.aircraft[hash] = a;
     }

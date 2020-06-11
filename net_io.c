@@ -2037,25 +2037,17 @@ const char *nav_modes_flags_string(nav_modes_t flags) {
     return buf;
 }
 
-static const char *addrtype_enum_string(struct aircraft *a) {
-    addrtype_t type = a->addrtype;
+const char *addrtype_enum_string(addrtype_t type) {
     switch (type) {
+        case ADDR_ADSB_ICAO:
+            return "adsb_icao";
         case ADDR_ADSB_ICAO_NT:
             return "adsb_icao_nt";
         case ADDR_ADSR_ICAO:
             return "adsr_icao";
         case ADDR_TISB_ICAO:
             return "tisb_icao";
-        case ADDR_ADSB_OTHER:
-            return "adsb_other";
-        case ADDR_ADSR_OTHER:
-            return "adsr_other";
-        case ADDR_TISB_OTHER:
-            return "tisb_other";
-        case ADDR_TISB_TRACKFILE:
-            return "tisb_trackfile";
-        case ADDR_ADSB_ICAO:
-            return "adsb_icao";
+
         case ADDR_JAERO:
             return "adsc";
         case ADDR_MLAT:
@@ -2064,6 +2056,20 @@ static const char *addrtype_enum_string(struct aircraft *a) {
             return "other";
         case ADDR_MODE_S:
             return "mode_s";
+
+        case ADDR_ADSB_OTHER:
+            return "adsb_other";
+        case ADDR_ADSR_OTHER:
+            return "adsr_other";
+        case ADDR_TISB_TRACKFILE:
+            return "tisb_trackfile";
+        case ADDR_TISB_OTHER:
+            return "tisb_other";
+
+
+        case ADDR_MODE_A:
+            return "mode_ac";
+
         default:
             return "unknown";
     }
@@ -3213,7 +3219,7 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
         p = safe_snprintf(p, end, "\"now\" : %.1f,", now / 1000.0);
     if (printMode != 1)
         p = safe_snprintf(p, end, "\"hex\":\"%s%06x\",", (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
-    p = safe_snprintf(p, end, "\"type\":\"%s\"", addrtype_enum_string(a));
+    p = safe_snprintf(p, end, "\"type\":\"%s\"", addrtype_enum_string(a->addrtype));
     if (trackDataValid(&a->callsign_valid)) {
         char buf[128];
         p = safe_snprintf(p, end, ",\"flight\":\"%s\"", jsonEscapeString(a->callsign, buf, sizeof(buf)));

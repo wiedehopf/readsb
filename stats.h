@@ -109,10 +109,10 @@ struct stats
   unsigned int cpr_local_aircraft_relative;
   unsigned int cpr_local_receiver_relative;
   unsigned int cpr_filtered;
-  unsigned int positions_sbs_misc;
-  unsigned int positions_sbs_mlat;
-  unsigned int positions_sbs_jaero;
-  unsigned int positions_sbs_prio;
+
+  uint32_t pos_all;
+  uint32_t pos_by_type[NUM_TYPES];
+
   // number of altitude messages ignored because
   // we had a recent DF17/18 altitude
   unsigned int suppressed_altitude_messages;

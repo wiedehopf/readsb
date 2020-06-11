@@ -177,6 +177,10 @@ typedef enum
   ADDR_UNKNOWN /* unknown address format */
 } addrtype_t;
 
+// number of types as defined above
+#define NUM_TYPES 14
+
+
 typedef enum
 {
   UNIT_FEET,
@@ -492,7 +496,7 @@ struct
   struct stats stats_1min;
   struct stats stats_5min;
   struct stats stats_15min;
-  int type_counts[16];
+  uint32_t type_counts[NUM_TYPES];
   struct timespec reader_cpu_accumulator; // CPU time used by the reader thread, copied out and reset by the main thread under the mutex
   struct mag_buf mag_buffers[MODES_MAG_BUFFERS]; // Converted magnitude buffers from RTL or file input
 

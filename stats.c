@@ -285,6 +285,9 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
     for (i = 0; i < TRACE_THREADS; i ++) {
         add_timespecs(&st1->trace_json_cpu[i], &st2->trace_json_cpu[i], &target->trace_json_cpu[i]);
     }
+    for (i = 0; i < NUM_TYPES; i ++) {
+        target->pos_by_type[i] = st1->pos_by_type[i] + st2->pos_by_type[i];
+    }
 
     // noise power:
     target->noise_power_sum = st1->noise_power_sum + st2->noise_power_sum;
@@ -329,11 +332,6 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
     target->cpr_local_range_checks = st1->cpr_local_range_checks + st2->cpr_local_range_checks;
     target->cpr_local_speed_checks = st1->cpr_local_speed_checks + st2->cpr_local_speed_checks;
     target->cpr_filtered = st1->cpr_filtered + st2->cpr_filtered;
-
-    target->positions_sbs_misc = st1->positions_sbs_misc + st2->positions_sbs_misc;
-    target->positions_sbs_mlat = st1->positions_sbs_mlat + st2->positions_sbs_mlat;
-    target->positions_sbs_jaero = st1->positions_sbs_jaero + st2->positions_sbs_jaero;
-    target->positions_sbs_prio = st1->positions_sbs_prio + st2->positions_sbs_prio;
 
     target->suppressed_altitude_messages = st1->suppressed_altitude_messages + st2->suppressed_altitude_messages;
 
@@ -418,58 +416,11 @@ int updateStats() {
 }
 
 static char * appendTypeCounts(char *p, char *end) {
-    char *key;
-    p = safe_snprintf(p, end, "\"with_pos\": %d,", Modes.json_ac_count_pos);
-    p = safe_snprintf(p, end, "\"without_pos\": %d,", Modes.json_ac_count_no_pos);
-    p = safe_snprintf(p, end, "\"type_counts\": {");
-    for (int i = 0; i < 14; i++) {
-        switch (i) {
-            case ADDR_ADSB_ICAO:
-                key = "adsb_icao";
-                break;
-            case ADDR_ADSB_ICAO_NT:
-                key = "adsb_icao_nt";
-                break;
-            case ADDR_ADSR_ICAO:
-                key = "adsr_icao";
-                break;
-            case ADDR_TISB_ICAO:
-                key = "tisb_icao";
-                break;
-
-            case ADDR_JAERO:
-                key = "adsc";
-                break;
-            case ADDR_MLAT:
-                key = "mlat";
-                break;
-            case ADDR_OTHER:
-                key = "other";
-                break;
-            case ADDR_MODE_S:
-                key = "mode_s";
-                break;
-
-            case ADDR_ADSB_OTHER:
-                key = "adsb_other";
-                break;
-            case ADDR_ADSR_OTHER:
-                key = "adsr_other";
-                break;
-            case ADDR_TISB_OTHER:
-                key = "tisb_other";
-                break;
-            case ADDR_TISB_TRACKFILE:
-                key = "tisb_trackfile";
-                break;
-
-            case ADDR_MODE_A:
-                key = "mode_ac";
-                break;
-            default:
-                key = "unknown";
-                break;
-        }
+    p = safe_snprintf(p, end, "\"aircaft_with_pos\": %d,", Modes.json_ac_count_pos);
+    p = safe_snprintf(p, end, "\"aircraft_without_pos\": %d,", Modes.json_ac_count_no_pos);
+    p = safe_snprintf(p, end, "\"aircraft_count_by_type\": {");
+    for (int i = 0; i < NUM_TYPES; i++) {
+        const char *key = addrtype_enum_string(i);
         p = safe_snprintf(p, end, "\"%s\": %d,", key, Modes.type_counts[i]);
     }
     p--;
@@ -516,7 +467,17 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
             p = safe_snprintf(p, end, ",\"peak_signal\":%.1f", 10 * log10(st->peak_signal_power));
 
         p = safe_snprintf(p, end, ",\"strong_signals\":%d}", st->strong_signal_count);
+
     }
+
+
+    p = safe_snprintf(p, end, ",\"position_count_by_type\": {");
+    for (int i = 0; i < NUM_TYPES; i++) {
+        const char *key = addrtype_enum_string(i);
+        p = safe_snprintf(p, end, "\"%s\": %d,", key, st->pos_by_type[i]);
+    }
+    p--;
+    p = safe_snprintf(p, end, "}");
 
     if (Modes.net) {
         p = safe_snprintf(p, end,
@@ -580,7 +541,6 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
                 ",\"messages\":%u"
                 ",\"max_distance_in_metres\":%ld"
                 ",\"max_distance_in_nautical_miles\":%.1lf"
-                ",\"sbs_positions\":{\"all\":%u, \"misc\":%u, \"mlat\":%u, \"adsc\":%u, \"prio\":%u}"
                 "}",
             st->cpr_surface,
             st->cpr_airborne,
@@ -609,12 +569,7 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
             st->single_message_aircraft,
             st->messages_total,
             (long) st->longest_distance,
-            st->longest_distance / 1852.0,
-            st->positions_sbs_misc + st->positions_sbs_mlat + st->positions_sbs_jaero + st->positions_sbs_prio,
-            st->positions_sbs_misc,
-            st->positions_sbs_mlat,
-            st->positions_sbs_jaero,
-            st->positions_sbs_prio);
+            st->longest_distance / 1852.0);
     }
 
     return p;
@@ -669,19 +624,6 @@ struct char_buffer generatePromFile() {
     p = safe_snprintf(p, end, "readsb_aircraft_adsb_version_1 %u\n", Modes.readsb_aircraft_adsb_version_1);
     p = safe_snprintf(p, end, "readsb_aircraft_adsb_version_2 %u\n", Modes.readsb_aircraft_adsb_version_2);
     p = safe_snprintf(p, end, "readsb_aircraft_emergency %u\n", Modes.readsb_aircraft_emergency);
-    p = safe_snprintf(p, end, "readsb_aircraft_message_type_adsb_icao %u\n", Modes.readsb_aircraft_message_type_adsb_icao);
-    p = safe_snprintf(p, end, "readsb_aircraft_message_type_adsb_nt %u\n", Modes.readsb_aircraft_message_type_adsb_nt);
-    p = safe_snprintf(p, end, "readsb_aircraft_message_type_adsb_other %u\n", Modes.readsb_aircraft_message_type_adsb_other);
-    p = safe_snprintf(p, end, "readsb_aircraft_message_type_adsr_icao %u\n", Modes.readsb_aircraft_message_type_adsr_icao);
-    p = safe_snprintf(p, end, "readsb_aircraft_message_type_adsr_other %u\n", Modes.readsb_aircraft_message_type_adsr_other);
-    p = safe_snprintf(p, end, "readsb_aircraft_message_type_tisb_icao %u\n", Modes.readsb_aircraft_message_type_tisb_icao);
-    p = safe_snprintf(p, end, "readsb_aircraft_message_type_tisb_other %u\n", Modes.readsb_aircraft_message_type_tisb_other);
-    p = safe_snprintf(p, end, "readsb_aircraft_message_type_tisb_trackfile %u\n", Modes.readsb_aircraft_message_type_tisb_trackfile);
-    p = safe_snprintf(p, end, "readsb_aircraft_message_type_mlat %u\n", Modes.readsb_aircraft_message_type_mlat);
-    p = safe_snprintf(p, end, "readsb_aircraft_message_type_adsc %u\n", Modes.readsb_aircraft_message_type_adsc);
-    p = safe_snprintf(p, end, "readsb_aircraft_message_type_mode_s %u\n", Modes.readsb_aircraft_message_type_mode_s);
-    p = safe_snprintf(p, end, "readsb_aircraft_message_type_unknown %u\n", Modes.readsb_aircraft_message_type_unknown);
-    p = safe_snprintf(p, end, "readsb_aircraft_message_type_other %u\n", Modes.readsb_aircraft_message_type_other);
     p = safe_snprintf(p, end, "readsb_aircraft_mlat %u\n", Modes.readsb_aircraft_mlat);
     p = safe_snprintf(p, end, "readsb_aircraft_rssi_average %.1f\n", Modes.readsb_aircraft_rssi_average);
     p = safe_snprintf(p, end, "readsb_aircraft_rssi_max %.1f\n", Modes.readsb_aircraft_rssi_max);
@@ -692,7 +634,14 @@ struct char_buffer generatePromFile() {
     p = safe_snprintf(p, end, "readsb_aircraft_without_flight_number %u\n", Modes.readsb_aircraft_without_flight_number);
     p = safe_snprintf(p, end, "readsb_aircraft_with_position %u\n", Modes.readsb_aircraft_with_position);
 
+    for (int i = 0; i < NUM_TYPES; i++) {
+        const char *key = addrtype_enum_string(i);
+        p = safe_snprintf(p, end, "readsb_aircraft_addrtype_%s %u\n", key, Modes.type_counts[i]);
+    }
+
     p = safe_snprintf(p, end, "readsb_cpr_airborne %u\n", st->cpr_airborne);
+    p = safe_snprintf(p, end, "readsb_cpr_surface %u\n", st->cpr_surface);
+
     p = safe_snprintf(p, end, "readsb_cpr_filtered %u\n", st->cpr_filtered);
     p = safe_snprintf(p, end, "readsb_cpr_global_bad %u\n", st->cpr_global_bad);
     p = safe_snprintf(p, end, "readsb_cpr_global_ok %u\n", st->cpr_global_ok);
@@ -705,7 +654,6 @@ struct char_buffer generatePromFile() {
     p = safe_snprintf(p, end, "readsb_cpr_local_receiver_relative %u\n", st->cpr_local_receiver_relative);
     p = safe_snprintf(p, end, "readsb_cpr_local_skipped %u\n", st->cpr_local_skipped);
     p = safe_snprintf(p, end, "readsb_cpr_local_speed %u\n", st->cpr_local_speed_checks);
-    p = safe_snprintf(p, end, "readsb_cpr_surface %u\n", st->cpr_surface);
 #define CPU_MILLIS(x) ((unsigned long long) st->x##_cpu.tv_sec * 1000UL + st->x##_cpu.tv_nsec / 1000000UL)
     p = safe_snprintf(p, end, "readsb_cpu_background %llu\n", CPU_MILLIS(background));
     p = safe_snprintf(p, end, "readsb_cpu_demod %llu\n", CPU_MILLIS(demod));
@@ -727,6 +675,12 @@ struct char_buffer generatePromFile() {
     p = safe_snprintf(p, end, "readsb_remote_unknown_icao %u\n", st->remote_rejected_unknown_icao);
     p = safe_snprintf(p, end, "readsb_tracks_all %u\n", st->unique_aircraft);
     p = safe_snprintf(p, end, "readsb_tracks_single_message %u\n", st->single_message_aircraft);
+
+    p = safe_snprintf(p, end, "readsb_position_count_total %u\n", st->pos_all);
+    for (int i = 0; i < NUM_TYPES; i++) {
+        const char *key = addrtype_enum_string(i);
+        p = safe_snprintf(p, end, "readsb_position_count_%s %u\n", key, st->pos_by_type[i]);
+    }
 
     if (p >= end)
         fprintf(stderr, "buffer overrun stats json\n");
@@ -775,21 +729,7 @@ void countStuff(struct aircraft *a, uint64_t now) {
 static void calcStuff() {
     uint32_t total = Modes.json_ac_count_pos + Modes.json_ac_count_no_pos;
 
-    Modes.readsb_aircraft_message_type_adsb_icao = Modes.type_counts[ADDR_ADSB_ICAO];
-    Modes.readsb_aircraft_message_type_adsb_nt = Modes.type_counts[ADDR_ADSB_ICAO_NT];
-    Modes.readsb_aircraft_message_type_adsb_other = Modes.type_counts[ADDR_ADSB_OTHER];
-    Modes.readsb_aircraft_message_type_adsr_icao = Modes.type_counts[ADDR_ADSR_ICAO];
-    Modes.readsb_aircraft_message_type_adsr_other = Modes.type_counts[ADDR_ADSR_OTHER];
-    Modes.readsb_aircraft_message_type_tisb_icao = Modes.type_counts[ADDR_TISB_ICAO];
-    Modes.readsb_aircraft_message_type_tisb_other = Modes.type_counts[ADDR_TISB_OTHER];
-    Modes.readsb_aircraft_message_type_tisb_trackfile = Modes.type_counts[ADDR_TISB_TRACKFILE];
-    Modes.readsb_aircraft_message_type_mode_ac = Modes.type_counts[ADDR_MODE_A];
-    Modes.readsb_aircraft_message_type_other = Modes.type_counts[ADDR_OTHER];
-    Modes.readsb_aircraft_message_type_unknown = Modes.type_counts[ADDR_UNKNOWN];
-    Modes.readsb_aircraft_message_type_mode_s = Modes.type_counts[ADDR_MODE_S];
-    Modes.readsb_aircraft_message_type_mlat = Modes.type_counts[ADDR_MLAT];
     Modes.readsb_aircraft_mlat = Modes.type_counts[ADDR_MLAT];
-    Modes.readsb_aircraft_message_type_adsc = Modes.type_counts[ADDR_JAERO];
 
     Modes.readsb_aircraft_rssi_average /= total;
     Modes.readsb_aircraft_total = total;
@@ -806,20 +746,6 @@ void resetStuff() {
     Modes.readsb_aircraft_adsb_version_1 = 0;
     Modes.readsb_aircraft_adsb_version_2 = 0;
     Modes.readsb_aircraft_emergency = 0;
-    Modes.readsb_aircraft_message_type_adsb_icao = 0;
-    Modes.readsb_aircraft_message_type_adsb_nt = 0;
-    Modes.readsb_aircraft_message_type_adsb_other = 0;
-    Modes.readsb_aircraft_message_type_adsr_icao = 0;
-    Modes.readsb_aircraft_message_type_adsr_other = 0;
-    Modes.readsb_aircraft_message_type_tisb_icao = 0;
-    Modes.readsb_aircraft_message_type_tisb_other = 0;
-    Modes.readsb_aircraft_message_type_tisb_trackfile = 0;
-    Modes.readsb_aircraft_message_type_mode_s = 0;
-    Modes.readsb_aircraft_message_type_mode_ac = 0;
-    Modes.readsb_aircraft_message_type_mlat = 0;
-    Modes.readsb_aircraft_message_type_adsc = 0;
-    Modes.readsb_aircraft_message_type_unknown = 0;
-    Modes.readsb_aircraft_message_type_other = 0;
     Modes.readsb_aircraft_mlat = 0;
     Modes.readsb_aircraft_rssi_average = 0;
     Modes.readsb_aircraft_rssi_max = -50;
