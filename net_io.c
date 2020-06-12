@@ -76,6 +76,7 @@
 //    handled via non-blocking I/O and manually polling clients to see if
 //    they have something new to share with us when reading is needed.
 
+static int handleApiRequest(struct client *c, char *p, int remote);
 static int handleBeastCommand(struct client *c, char *p, int remote);
 static int decodeBinMessage(struct client *c, char *p, int remote);
 static int decodeHexMessage(struct client *c, char *hex, int remote);
@@ -517,6 +518,7 @@ void modesInitNet(void) {
     struct net_service *sbs_in_mlat;
     struct net_service *sbs_in_jaero;
     struct net_service *sbs_in_prio;
+    struct net_service *api_out;
 
     uint64_t now = mstime();
 
@@ -525,6 +527,9 @@ void modesInitNet(void) {
 
 
     // set up listeners
+    api_out = serviceInit("API output", &Modes.api_out, NULL, READ_MODE_ASCII, "\n", handleApiRequest);
+    serviceListen(api_out, Modes.net_bind_address, Modes.net_output_api_ports);
+
     raw_out = serviceInit("Raw TCP output", &Modes.raw_out, send_raw_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(raw_out, Modes.net_bind_address, Modes.net_output_raw_ports);
 
@@ -740,7 +745,8 @@ static void modesCloseClient(struct client *c) {
         c->sendq = NULL;
     }
 
-    autoset_modeac();
+    if (Modes.mode_ac_auto)
+        autoset_modeac();
 }
 
 static void flushClient(struct client *c, uint64_t now) {
@@ -1568,6 +1574,15 @@ void sendBeastSettings(int fd, const char *settings) {
     }
 
     anetWrite(fd, buf, len);
+}
+static int handleApiRequest(struct client *c, char *p, int remote) {
+    p = p;
+    remote = remote;
+    c = c;
+
+    writeJsonToNet(&Modes.api_out, generateAircraftJson(-1));
+
+    return 0;
 }
 
 //
@@ -2825,6 +2840,9 @@ static void modesReadFromClient(struct client *c) {
                 while (som < eod && (p = strstr(som, c->service->read_sep)) != NULL) { // end of first message if found
                     *p = '\0'; // The handler expects null terminated strings
                     if (c->service->read_handler(c, som, remote)) { // Pass message to handler.
+                        if (Modes.debug & MODES_DEBUG_NET) {
+                            fprintf(stderr, "%s: Closing connection from %s port %s\n", c->service->descr, c->host, c->port);
+                        }
                         modesCloseClient(c); // Handler returns 1 on error to signal we .
                         return; // should close the client connection
                     }

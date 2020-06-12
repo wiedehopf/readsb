@@ -78,3 +78,37 @@ struct aircraft *aircraftCreate(struct modesMessage *mm) {
 
     return a;
 }
+void apiAdd(struct aircraft *a) {
+    if (Modes.iAddrLen > API_INDEX_MAX) {
+        fprintf(stderr, "too many aircraft!.\n");
+        return;
+    }
+    struct iAddr byLat;
+    struct iAddr byLon;
+
+    byLat.addr = a->addr;
+    byLat.index = (int32_t) (a->lat * 1E6);
+
+    byLon.addr = a->addr;
+    byLon.index = (int32_t) (a->lon * 1E6);
+
+    Modes.byLat[Modes.iAddrLen] = byLat;
+    Modes.byLon[Modes.iAddrLen] = byLon;
+
+    Modes.iAddrLen++;
+}
+static int compareIndex(const void *p1, const void *p2) {
+    struct iAddr *a1 = (struct iAddr*) p1;
+    struct iAddr *a2 = (struct iAddr*) p2;
+    if (a1->index > a2->index)
+        return 1;
+
+    if (a1->index < a2->index)
+        return -1;
+
+    return 0;
+}
+void apiSort() {
+    qsort(Modes.byLat, sizeof(struct iAddr), Modes.iAddrLen, compareIndex);
+    qsort(Modes.byLon, sizeof(struct iAddr), Modes.iAddrLen, compareIndex);
+}

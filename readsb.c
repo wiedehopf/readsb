@@ -192,6 +192,7 @@ static void modesInitConfig(void) {
     Modes.net_output_vrs_ports = strdup("0");
     Modes.net_output_vrs_interval = 5 * SECONDS;
     Modes.net_output_json_ports = strdup("0");
+    Modes.net_output_api_ports = strdup("0");
     Modes.net_connector_delay = 30 * 1000;
     Modes.interactive_display_ttl = MODES_INTERACTIVE_DISPLAY_TTL;
     Modes.json_interval = 1000;
@@ -291,6 +292,11 @@ static void modesInit(void) {
 
     if((Modes.net_connector_delay <= 0) || (Modes.net_connector_delay > 86400 * 1000)) {
         Modes.net_connector_delay = 30 * 1000;
+    }
+
+    if (Modes.api) {
+        Modes.byLat = malloc(API_INDEX_MAX * sizeof(struct iAddr));
+        Modes.byLon = malloc(API_INDEX_MAX * sizeof(struct iAddr));
     }
 
     // Prepare error correction tables
@@ -682,6 +688,7 @@ static void cleanup_and_exit(int code) {
     free(Modes.net_output_sbs_ports);
     free(Modes.net_input_sbs_ports);
     free(Modes.net_output_json_ports);
+    free(Modes.net_output_api_ports);
     free(Modes.beast_serial);
     free(Modes.json_globe_special_tiles);
     free(Modes.uuidFile);
@@ -913,6 +920,11 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             free(Modes.net_output_json_ports);
             Modes.net_output_json_ports = strdup(arg);
             break;
+        case OptNetApiPorts:
+            free(Modes.net_output_api_ports);
+            Modes.net_output_api_ports = strdup(arg);
+            Modes.api = 1;
+            break;
         case OptNetSbsInPorts:
             free(Modes.net_input_sbs_ports);
             Modes.net_input_sbs_ports = strdup(arg);
@@ -1135,10 +1147,12 @@ int main(int argc, char **argv) {
     for (j = 0; j < STAT_BUCKETS; ++j)
         Modes.stats_10[j].start = Modes.stats_10[j].end = Modes.stats_current.start;
 
-    // write initial json files so they're not missing
-    writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
-    //writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson()); // rather don't do this.
-    writeJsonToFile(Modes.json_dir, "aircraft.json", generateAircraftJson(-1));
+    if (Modes.json_dir) {
+        // write initial json files so they're not missing
+        writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
+        //writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson()); // rather don't do this.
+        writeJsonToFile(Modes.json_dir, "aircraft.json", generateAircraftJson(-1));
+    }
 
     interactiveInit();
 

@@ -1582,6 +1582,8 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
 
     resetStuff();
 
+    Modes.iAddrLen = 0;
+
     int full_write = checkNewDay(); // this function does more than the return value!!!!
 
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
@@ -1631,6 +1633,9 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                 updateValidities(a, now);
 
                 countStuff(a, now);
+
+                if (Modes.api)
+                    apiAdd(a);
 
                 if (full_write && a->trace_full_write != 0xdead) {
                     a->trace_next_fw = now + 1000 * (rand() % 120); // spread over 2 mins
@@ -1701,6 +1706,10 @@ void trackPeriodicUpdate() {
     start_cpu_timing(&start_time);
 
     trackRemoveStaleAircraft(&freeList);
+
+    if (Modes.api)
+        apiSort();
+
     if (Modes.mode_ac)
         trackMatchAC(now);
 

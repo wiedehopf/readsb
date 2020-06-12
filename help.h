@@ -90,6 +90,7 @@ static struct argp_option options[] =
     {"net-vrs-port", OptNetVRSPorts, "<ports>", 0, "TCP VRS json output listen ports (default: 0)", 2},
     {"net-vrs-interval", OptNetVRSInterval, "<seconds>", 0, "TCP VRS json output interval (default: 5)", 2},
     {"net-json-port", OptNetJsonPorts, "<ports>", 0, "TCP json position output listen ports (requires --write-json-globe-index) (default: 0)", 2},
+    {"net-api-port", OptNetApiPorts, "<ports>", 0, "TCP API listen port (only for exactly one client, needs an external wrapper program communicating via this port) (work in progress) (default: 0)", 2},
     {"net-beast-reduce-out-port", OptNetBeastReducePorts, "<ports>", 0, "TCP BeastReduce output listen ports (default: 0)", 2},
     {"net-beast-reduce-interval", OptNetBeastReduceInterval, "<seconds>", 0, "BeastReduce position update interval, longer means less data (default: 0.125, valid range: 0.000 - 14.999)", 2},
     {"net-receiver-id", OptNetReceiverId, 0, 0, "forward receiver ID", 2},

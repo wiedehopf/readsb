@@ -406,6 +406,11 @@ struct
   struct net_writer json_out; // SBS-format output
   struct net_writer vrs_out; // SBS-format output
   struct net_writer fatsv_out; // FATSV-format output
+  struct net_writer api_out; // some sort of api, who knows really?
+  int api; // enable api output
+  int iAddrLen;
+  struct iAddr *byLat;
+  struct iAddr *byLon;
 
 #ifdef _WIN32
   WSADATA wsaData; // Windows socket initialisation
@@ -445,6 +450,7 @@ struct
   char *net_output_beast_ports; // List of Beast output TCP ports
   char *net_output_beast_reduce_ports; // List of Beast output TCP ports
   char *net_output_json_ports;
+  char *net_output_api_ports;
   uint64_t net_output_beast_reduce_interval; // Position update interval for data reduction
   char *net_output_vrs_ports; // List of VRS output TCP ports
   uint64_t net_output_vrs_interval;
@@ -810,6 +816,7 @@ enum {
   OptNetVRSPorts,
   OptNetVRSInterval,
   OptNetJsonPorts,
+  OptNetApiPorts,
   OptNetRoSize,
   OptNetRoRate,
   OptNetRoIntervall,
