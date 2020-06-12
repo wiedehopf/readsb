@@ -509,6 +509,7 @@ void modesInitNet(void) {
     struct net_service *vrs_out;
     struct net_service *json_out;
     struct net_service *sbs_out;
+    struct net_service *sbs_out_replay;
     struct net_service *sbs_out_mlat;
     struct net_service *sbs_out_jaero;
     struct net_service *sbs_out_prio;
@@ -542,10 +543,15 @@ void modesInitNet(void) {
     sbs_out = serviceInit("Basestation TCP output", &Modes.sbs_out, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(sbs_out, Modes.net_bind_address, Modes.net_output_sbs_ports);
 
+    sbs_out_replay = serviceInit("Basestation TCP output replay SBS IN", &Modes.sbs_out_replay, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     sbs_out_prio = serviceInit("Basestation TCP output PRIO", &Modes.sbs_out_prio, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     sbs_out_mlat = serviceInit("Basestation TCP output MLAT", &Modes.sbs_out_mlat, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     sbs_out_jaero = serviceInit("Basestation TCP output JAERO", &Modes.sbs_out_jaero, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
-    if (strlen(Modes.net_output_sbs_ports) == 5) {
+    if (strlen(Modes.net_output_sbs_ports) == 5 && Modes.net_output_sbs_ports[4] == '5') {
+
+        char *replay = strdup(Modes.net_output_sbs_ports);
+        replay[4] = '6';
+        serviceListen(sbs_out_replay, Modes.net_bind_address, replay);
 
         char *mlat = strdup(Modes.net_output_sbs_ports);
         mlat[4] = '7';
@@ -639,6 +645,8 @@ void modesInitNet(void) {
             con->service = sbs_out_jaero;
         else if (strcmp(con->protocol, "sbs_out_prio") == 0)
             con->service = sbs_out_prio;
+        else if (strcmp(con->protocol, "sbs_out_replay") == 0)
+            con->service = sbs_out_replay;
 
         pthread_mutex_lock(&con->mutex);
     }
@@ -1046,8 +1054,18 @@ static int decodeSbsLine(struct client *c, char *line, int remote) {
     char *out = NULL;
     size_t line_len = strlen(line);
 
+    out = prepareWrite(&Modes.sbs_out, 200);
+    if (out && line_len > 15 && line_len < 200) {
+        memcpy(out, line, line_len);
+        //fprintf(stderr, "%s", out);
+        out += line_len;
+        out += sprintf(out, "\r\n");
+        completeWrite(&Modes.sbs_out, out);
+    }
+
+    out = NULL;
     if (mm.source == SOURCE_SBS) {
-        out = prepareWrite(&Modes.sbs_out, 200);
+        out = prepareWrite(&Modes.sbs_out_replay, 200);
         mm.addrtype = ADDR_OTHER;
     }
     if (mm.source == SOURCE_MLAT) {
@@ -1071,7 +1089,7 @@ static int decodeSbsLine(struct client *c, char *line, int remote) {
 
 
         if (mm.source == SOURCE_SBS)
-            completeWrite(&Modes.sbs_out, out);
+            completeWrite(&Modes.sbs_out_replay, out);
         if (mm.source == SOURCE_MLAT)
             completeWrite(&Modes.sbs_out_mlat, out);
         if (mm.source == SOURCE_JAERO)
