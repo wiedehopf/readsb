@@ -634,21 +634,24 @@ static void display_total_stats(void) {
 static void backgroundTasks(void) {
     static uint64_t next_second;
 
-    uint64_t now = mstime();
-
     icaoFilterExpire();
 
-    uint64_t beforePeriodic = now;
+    struct timespec now_spec;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now_spec);
+    uint64_t before = (int64_t) now_spec.tv_sec * 1000UL + now_spec.tv_nsec / 1000000UL;
+
     if (Modes.net) {
         modesNetPeriodicWork();
     }
 
-    now = mstime();
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now_spec);
+    uint64_t after = (int64_t) now_spec.tv_sec * 1000UL + now_spec.tv_nsec / 1000000UL;
 
-    if (now > beforePeriodic + 50) {
-        fprintf(stderr, "<3>High load: work loop took %"PRIu64" ms!\n", now - beforePeriodic);
+    if (after > before + 50) {
+        fprintf(stderr, "<3>High load: work loop took %"PRIu64" ms!\n", after - before);
     }
 
+    uint64_t now = mstime();
     if (now > next_second) {
         next_second = now + 1000;
 
