@@ -1705,6 +1705,10 @@ void trackPeriodicUpdate() {
     struct timespec start_time;
     start_cpu_timing(&start_time);
 
+    struct timespec now_spec;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now_spec);
+    uint64_t before = (int64_t) now_spec.tv_sec * 1000UL + now_spec.tv_nsec / 1000000UL;
+
     trackRemoveStaleAircraft(&freeList);
 
     if (Modes.api)
@@ -1720,6 +1724,13 @@ void trackPeriodicUpdate() {
     end_cpu_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
 
     unlockThreads();
+
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now_spec);
+    uint64_t after = (int64_t) now_spec.tv_sec * 1000UL + now_spec.tv_nsec / 1000000UL;
+
+    if (after > before + 50) {
+        fprintf(stderr, "<3>High load: removeStale took %"PRIu64" ms!\n", after - before);
+    }
 
     start_cpu_timing(&start_time);
 
