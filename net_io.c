@@ -3133,6 +3133,15 @@ retry:
                 p = safe_snprintf(p, end, ",\"TAlt\":%d", a->nav_altitude_fms);
             }
 
+            if (a->position_valid.source != SOURCE_INVALID) {
+                if (a->position_valid.source == SOURCE_MLAT)
+                    p = safe_snprintf(p, end, ",\"Mlat\":true");
+                else if (a->position_valid.source == SOURCE_TISB)
+                    p = safe_snprintf(p, end, ",\"Tisb\":true");
+                else if (a->position_valid.source == SOURCE_JAERO)
+                    p = safe_snprintf(p, end, ",\"Sat\":true");
+            }
+
             if (reduced_data && a->addrtype != ADDR_JAERO && a->position_valid.source != SOURCE_JAERO)
                 goto skip_fields;
 
@@ -3174,21 +3183,14 @@ retry:
 
             p = safe_snprintf(p, end, ",\"AltT\":%d", 0);
 
+
             if (a->position_valid.source != SOURCE_INVALID) {
-                if (a->addrtype == ADDR_MLAT || a->position_valid.source == SOURCE_MLAT)
-                    p = safe_snprintf(p, end, ",\"Mlat\":true");
-                else
+                if (a->position_valid.source != SOURCE_MLAT)
                     p = safe_snprintf(p, end, ",\"Mlat\":false");
-
-                if (a->addrtype == ADDR_TISB_ICAO || a->position_valid.source == SOURCE_TISB)
-                    p = safe_snprintf(p, end, ",\"Tisb\":true");
-                else
+                if (a->position_valid.source != SOURCE_TISB)
                     p = safe_snprintf(p, end, ",\"Tisb\":false");
-
-                if (a->addrtype == ADDR_JAERO || a->position_valid.source == SOURCE_JAERO)
+                if (a->position_valid.source != SOURCE_JAERO)
                     p = safe_snprintf(p, end, ",\"Sat\":true");
-                else
-                    p = safe_snprintf(p, end, ",\"Sat\":false");
             }
 
 
