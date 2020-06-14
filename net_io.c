@@ -3068,7 +3068,7 @@ struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {
             if (a->messages < 2) { // basic filter for bad decodes
                 continue;
             }
-            if (now > a->seen + 10 * SECONDS && !trackDataValid(&a->position_valid)) // don't include stale aircraft in the JSON
+            if (now > a->seen + 10 * SECONDS) // don't include stale aircraft in the JSON
                 continue;
 
             // For now, suppress non-ICAO addresses
