@@ -3133,10 +3133,10 @@ retry:
                 p = safe_snprintf(p, end, ",\"TAlt\":%d", a->nav_altitude_fms);
             }
 
-            if (reduced_data)
+            if (reduced_data && a->addrtype != ADDR_JAERO && a->position_valid.source != SOURCE_JAERO)
                 goto skip_fields;
 
-            if (trackDataValid(&a->callsign_valid)) {
+            if (trackDataAge(now, &a->callsign_valid) < 8 * HOURS) {
                 char buf[128];
                 char buf2[16];
                 const char *trimmed = trimSpace(a->callsign, buf2, 8);
@@ -3174,14 +3174,23 @@ retry:
 
             p = safe_snprintf(p, end, ",\"AltT\":%d", 0);
 
-            if (a->position_valid.source == SOURCE_MLAT)
-                p = safe_snprintf(p, end, ",\"Mlat\":true");
-            else
-                p = safe_snprintf(p, end, ",\"Mlat\":false");
-            if (a->position_valid.source == SOURCE_TISB)
-                p = safe_snprintf(p, end, ",\"Tisb\":true");
-            else
-                p = safe_snprintf(p, end, ",\"Tisb\":false");
+            if (a->position_valid.source != SOURCE_INVALID) {
+                if (a->addrtype == ADDR_MLAT || a->position_valid.source == SOURCE_MLAT)
+                    p = safe_snprintf(p, end, ",\"Mlat\":true");
+                else
+                    p = safe_snprintf(p, end, ",\"Mlat\":false");
+
+                if (a->addrtype == ADDR_TISB_ICAO || a->position_valid.source == SOURCE_TISB)
+                    p = safe_snprintf(p, end, ",\"Tisb\":true");
+                else
+                    p = safe_snprintf(p, end, ",\"Tisb\":false");
+
+                if (a->addrtype == ADDR_JAERO || a->position_valid.source == SOURCE_JAERO)
+                    p = safe_snprintf(p, end, ",\"Sat\":true");
+                else
+                    p = safe_snprintf(p, end, ",\"Sat\":false");
+            }
+
 
             if (trackDataValid(&a->gs_valid)) {
                 p = safe_snprintf(p, end, ",\"SpdTyp\":0");
