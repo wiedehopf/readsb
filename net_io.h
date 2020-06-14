@@ -75,6 +75,9 @@ struct net_service
 struct net_connector
 {
     char *address;
+    char *address0;
+    char *address1;
+    int use_addr;
     char *port;
     char *protocol;
     struct net_service *service;

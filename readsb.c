@@ -968,8 +968,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.net_connectors[Modes.net_connectors_count++] = con;
             char *connect_string = strdup(arg);
             con->address = strtok(connect_string, ",");
+            con->address0 = con->address;
             con->port = strtok(NULL, ",");
             con->protocol = strtok(NULL, ",");
+            con->address1 = strtok(NULL, ",");
             if (pthread_mutex_init(&con->mutex, NULL)) {
                 fprintf(stderr, "Unable to initialize connector mutex!\n");
                 exit(1);

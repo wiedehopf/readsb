@@ -426,7 +426,7 @@ struct client *serviceConnect(struct net_connector *con) {
     }
 
     con->connecting = 1;
-    con->connect_timeout = mstime() + 10 * 1000;	// 10 sec TODO: Move to var
+    con->connect_timeout = mstime() + Modes.net_connector_delay / 2;
     con->fd = fd;
 
     if (anetTcpKeepAlive(Modes.aneterr, fd) != ANET_OK)
@@ -570,6 +570,7 @@ void modesInitNet(void) {
         jaero[4] = '9';
         serviceListen(sbs_out_jaero, Modes.net_bind_address, jaero);
 
+        free(replay);
         free(mlat);
         free(prio);
         free(jaero);
@@ -732,7 +733,7 @@ static void modesCloseClient(struct client *c) {
         // only wait a short time to reconnect
         c->con->connecting = 0;
         c->con->connected = 0;
-        c->con->next_reconnect = mstime() + Modes.net_connector_delay / 10;
+        c->con->next_reconnect = mstime() + Modes.net_connector_delay / 5;
     }
 
     // mark it as inactive and ready to be freed
@@ -3243,6 +3244,13 @@ static void *pthreadGetaddrinfo(void *param) {
     gai_hints.ai_canonname = NULL;
     gai_hints.ai_next = NULL;
 
+    if (con->use_addr && con->address1) {
+        con->address = con->address1;
+        con->use_addr = 0;
+    } else {
+        con->address = con->address0;
+        con->use_addr = 1;
+    }
     con->gai_error = getaddrinfo(con->address, con->port, &gai_hints, &con->addr_info);
 
     pthread_mutex_unlock(&con->mutex);
@@ -3417,7 +3425,7 @@ void cleanupNetwork(void) {
 
     for (int i = 0; i < Modes.net_connectors_count; i++) {
         struct net_connector *con = Modes.net_connectors[i];
-        free(con->address);
+        free(con->address0);
         if (con->addr_info) {
             freeaddrinfo(con->addr_info);
             con->addr_info = NULL;

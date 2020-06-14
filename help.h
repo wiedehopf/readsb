@@ -98,7 +98,7 @@ static struct argp_option options[] =
     {"uuid-file", OptUuidFile, "<path>", 0, "path to UUID file", 2},
     {"net-ro-size", OptNetRoSize, "<size>", 0, "TCP output flush size (maximum amount of internally buffered data before writing to network) (default: 1200)", 2},
     {"net-ro-interval", OptNetRoIntervall, "<rate>", 0, "TCP output flush interval in seconds (maximum interval between two network writes of accumulated data)(default: 0.05)", 2},
-    {"net-connector", OptNetConnector, "<ip,port,protocol>", 0, "Establish connection, can be specified multiple times (e.g. 127.0.0.1,23004,beast_out) Protocols: beast_out, beast_in, raw_out, raw_in, sbs_out, vrs_out, json_out", 2},
+    {"net-connector", OptNetConnector, "<ip,port,protocol>", 0, "Establish connection, can be specified multiple times (e.g. 127.0.0.1,23004,beast_out) Protocols: beast_out, beast_in, raw_out, raw_in, sbs_out, vrs_out, json_out (one failover ip/address (same port) can be specified: primary-address,port,protocol,failover-address)", 2},
     {"net-connector-delay", OptNetConnectorDelay, "<seconds>", 0, "Outbound re-connection delay (default: 30)", 2},
     {"net-heartbeat", OptNetHeartbeat, "<rate>", 0, "TCP heartbeat rate in seconds (default: 60 sec; 0 to disable)", 2},
     {"net-buffer", OptNetBuffer, "<n>", 0, "TCP buffer size 64Kb * (2^n) (default: n=2, 256Kb)", 2},
