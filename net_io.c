@@ -1217,6 +1217,9 @@ static int decodeSbsLine(struct client *c, char *line, int remote) {
     }
 
 
+    // set nic / rc to 0 / unknown
+    mm.decoded_nic = 0;
+    mm.decoded_rc = RC_UNKNOWN;
 
     //fprintf(stderr, "\n");
 

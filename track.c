@@ -530,6 +530,31 @@ static uint64_t time_between(uint64_t t1, uint64_t t2) {
         return t2 - t1;
 }
 
+
+static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t now) {
+    // Update aircraft state
+    a->lat = mm->decoded_lat;
+    a->lon = mm->decoded_lon;
+    a->pos_nic = mm->decoded_nic;
+    a->pos_rc = mm->decoded_rc;
+
+    a->pos_surface = trackDataValid(&a->airground_valid) && a->airground == AG_GROUND;
+
+    if (mm->jsonPos)
+        jsonPositionOutput(mm, a);
+
+    if (a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2 && mm->source == SOURCE_ADSB) {
+        update_range_histogram(mm->decoded_lat, mm->decoded_lon);
+        if (mm->cpr_type != CPR_SURFACE) {
+            receiverPositionReceived(mm->receiverId, mm->decoded_lat, mm->decoded_lon, now);
+            if (0 && Modes.debug_receiver)
+                fprintf(stderr, "%016"PRIx64" new Pos: %4.0f %4.0f\n",
+                        mm->receiverId,
+                        mm->decoded_lat, mm->decoded_lon);
+        }
+    }
+}
+
 static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
     int location_result = -1;
     uint64_t max_elapsed;
@@ -660,27 +685,7 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
         uint64_t now = mm->sysTimestampMsg;
         globe_stuff(a, mm, new_lat, new_lon, now);
 
-        // Update aircraft state
-        a->lat = new_lat;
-        a->lon = new_lon;
-        a->pos_nic = new_nic;
-        a->pos_rc = new_rc;
-
-        a->pos_surface = trackDataValid(&a->airground_valid) && a->airground == AG_GROUND;
-
-        if (mm->jsonPos)
-            jsonPositionOutput(mm, a);
-
-        if (a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2 && mm->source == SOURCE_ADSB) {
-            update_range_histogram(new_lat, new_lon);
-            if (mm->cpr_type != CPR_SURFACE) {
-                receiverPositionReceived(mm->receiverId, new_lat, new_lon, now);
-                if (0 && Modes.debug_receiver)
-                    fprintf(stderr, "%016"PRIx64" new Pos: %4.0f %4.0f\n",
-                            mm->receiverId,
-                            new_lat, new_lon);
-            }
-        }
+        setPosition(a, mm, now);
     }
 
 }
@@ -1468,8 +1473,7 @@ end_alt:
 
             globe_stuff(a, mm, mm->decoded_lat, mm->decoded_lon, now);
 
-            a->lat = mm->decoded_lat;
-            a->lon = mm->decoded_lon;
+            setPosition(a, mm, now);
 
             if (a->messages < 2)
                 a->messages = 2;
