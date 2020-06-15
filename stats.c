@@ -731,7 +731,13 @@ static void calcStuff() {
 
     Modes.readsb_aircraft_mlat = Modes.type_counts[ADDR_MLAT];
 
-    Modes.readsb_aircraft_rssi_average /= total;
+    if (total > 0) {
+        Modes.readsb_aircraft_rssi_average /= total;
+    } else {
+        Modes.readsb_aircraft_rssi_average = -50;
+        Modes.readsb_aircraft_rssi_max = -50;
+        Modes.readsb_aircraft_rssi_min = -50;
+    }
     Modes.readsb_aircraft_total = total;
     Modes.readsb_aircraft_with_position = Modes.json_ac_count_pos;
 }
