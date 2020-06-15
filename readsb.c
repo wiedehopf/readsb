@@ -1247,12 +1247,13 @@ int main(int argc, char **argv) {
         trackPeriodicUpdate();
     }
 
-    pthread_join(Modes.decodeThread, NULL); // Wait on json writer thread exit
-
     if (Modes.json_dir) {
 
-        //if (ALL_JSON || !Modes.json_globe_index)
-            pthread_join(Modes.jsonThread, NULL); // Wait on json writer thread exit
+        pthread_join(Modes.jsonThread, NULL); // Wait on json writer thread exit
+
+        char pathbuf[PATH_MAX];
+        snprintf(pathbuf, PATH_MAX, "%s/receiver.json", Modes.json_dir);
+        unlink(pathbuf);
 
         if (Modes.json_globe_index) {
             pthread_join(Modes.jsonGlobeThread, NULL); // Wait on json writer thread exit
@@ -1262,6 +1263,8 @@ int main(int argc, char **argv) {
             }
         }
     }
+
+    pthread_join(Modes.decodeThread, NULL); // Wait on json writer thread exit
 
     if (Modes.globe_history_dir) {
         fprintf(stderr, "saving state .....\n");
