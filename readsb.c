@@ -1198,7 +1198,19 @@ int main(int argc, char **argv) {
         fprintf(stderr, " .......... done, loaded %u aircraft!\n", count_ac);
         Modes.aircraftCount = count_ac;
         fprintf(stderr, "aircraft table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFT_BUCKETS );
+
+        char pathbuf[PATH_MAX];
+        if (mkdir(Modes.globe_history_dir, 0755) && errno != EEXIST)
+            perror(Modes.globe_history_dir);
+
+        snprintf(pathbuf, PATH_MAX, "%s/internal_state", Modes.globe_history_dir);
+        if (mkdir(pathbuf, 0755) && errno != EEXIST)
+            perror(pathbuf);
     }
+
+
+    // go over the aircraft list once and do other stuff before starting the threads.
+    trackPeriodicUpdate();
 
     pthread_create(&Modes.decodeThread, NULL, decodeThreadEntryPoint, NULL);
 
@@ -1224,19 +1236,6 @@ int main(int argc, char **argv) {
                 pthread_create(&Modes.jsonTraceThread[i], NULL, jsonTraceThreadEntryPoint, &threadNumber[i]);
             }
         }
-    }
-
-
-
-
-    if (Modes.globe_history_dir) {
-        char pathbuf[PATH_MAX];
-        if (mkdir(Modes.globe_history_dir, 0755) && errno != EEXIST)
-            perror(Modes.globe_history_dir);
-
-        snprintf(pathbuf, PATH_MAX, "%s/internal_state", Modes.globe_history_dir);
-        if (mkdir(pathbuf, 0755) && errno != EEXIST)
-            perror(pathbuf);
     }
 
     while (!Modes.exit) {
