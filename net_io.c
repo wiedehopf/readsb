@@ -2256,7 +2256,14 @@ struct char_buffer generateAircraftJson(int globe_index){
                 if (a == NULL)
                     continue;
 
-                if (a->position_valid.source != SOURCE_JAERO && now > a->seen + 5 * MINUTES)
+                int use = 0;
+
+                if (a->position_valid.source == SOURCE_JAERO)
+                    use = 1;
+                if (now < a->seen_pos + 5 * MINUTES)
+                    use = 1;
+
+                if (!use)
                     continue;
 
                 // check if we have enough space
