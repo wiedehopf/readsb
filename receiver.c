@@ -114,12 +114,9 @@ int receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft 
     }
     double latDiff = r->latMax - r->latMin;
     double lonDiff = r->lonMax - r->lonMin;
-    *lat = r->latMin + latDiff / 2;
-    *lon = r->lonMin + lonDiff / 2;
 
 
-
-    if (r->positionCounter < 250)
+    if (r->positionCounter < 500)
         return 0;
     if (lonDiff > 25 || latDiff > 25) {
         if (0 && Modes.debug_receiver)
@@ -131,6 +128,11 @@ int receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft 
         return 0;
     }
 
+    // all checks good, set reference latitude and return 1
+
+    *lat = r->latMin + latDiff / 2;
+    *lon = r->lonMin + lonDiff / 2;
+
     /*
     if (Modes.debug_receiver || a->addr == Modes.cpr_focus)
         fprintf(stderr, "%016"PRIx64" %9"PRIu64" %4.0f %4.0f %4.0f %4.0f %4.0f %4.0f\n",
@@ -138,6 +140,7 @@ int receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft 
                 r->latMin, *lat, r->latMax,
                 r->lonMin, *lon, r->lonMax);
                 */
+
     return 1;
 }
 void receiverTest() {

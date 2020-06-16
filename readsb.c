@@ -274,8 +274,9 @@ static void modesInit(void) {
     // is at 0.0 Lon,so we must check for either fLat or fLon being non zero not both.
     // Testing the flag at runtime will be much quicker than ((fLon != 0.0) || (fLat != 0.0))
     Modes.bUserFlags &= ~MODES_USER_LATLON_VALID;
-    if ((Modes.fUserLat != 0.0) || (Modes.fUserLon != 0.0)) {
+    if ((Modes.fUserLat != 0.0) || (Modes.fUserLon != 0.0) || Modes.bUserFlags & MODES_USER_LATLON_VALID) {
         Modes.bUserFlags |= MODES_USER_LATLON_VALID;
+        fprintf(stderr, "Using lat: %9.4f, lon: %9.4f\n", Modes.fUserLat, Modes.fUserLon);
     }
 
     // Limit the maximum requested raw output size to less than one Ethernet Block
