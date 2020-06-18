@@ -202,7 +202,7 @@ struct client *createGenericClient(struct net_service *service, int fd) {
 
     c->receiverId2 = 0;
 
-    c->receiverIdRemote = 0; // receiverId has been transmitted by other side.
+    c->receiverIdRemote = 1; // receiverId has been transmitted by other side.
 
     //fprintf(stderr, "c->receiverId: %016"PRIx64"\n", c->receiverId);
 
