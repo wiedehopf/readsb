@@ -238,6 +238,7 @@ int main(int argc, char **argv) {
     // Try to connect to the selected ip address and port. We only support *ONE* input connection which we initiate.here.
     s = makeBeastInputService();
     con->address = bo_connect_ipaddr;
+    con->address0 = con->address;
     con->port = bo_connect_port;
     con->service = s;
 
