@@ -317,7 +317,7 @@ static void modesInit(void) {
 //
 static void *readerThreadEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
-    srand(get_seed());
+    srandom(get_seed());
 
     sdrRun();
 
@@ -337,7 +337,7 @@ static void *readerThreadEntryPoint(void *arg) {
 
 static void *jsonThreadEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
-    srand(get_seed());
+    srandom(get_seed());
 
     struct timespec slp = {0, 0};
     uint64_t interval = Modes.json_interval;
@@ -396,7 +396,7 @@ static void *jsonThreadEntryPoint(void *arg) {
 
 static void *jsonGlobeThreadEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
-    srand(get_seed());
+    srandom(get_seed());
 
     static int part;
     int n_parts = 4; // power of 2
@@ -457,7 +457,7 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
 
 static void *decodeThreadEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
-    srand(get_seed());
+    srandom(get_seed());
 
     pthread_mutex_lock(&Modes.decodeThreadMutex);
 
@@ -1097,7 +1097,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 //
 
 int main(int argc, char **argv) {
-    srand(get_seed());
+    srandom(get_seed());
 
     int j;
 
@@ -1334,12 +1334,12 @@ static void writeHeatmap() {
     }
     fprintf(stderr, "using %"PRIu64" positions\n", len);
 #define mod (1 << 16)
-    srand(get_seed());
+    srandom(get_seed());
 
     int l = 0;
     int done[mod];
     while (l <= mod - 2000) {
-        int rnd = rand() % mod;
+        int rnd = random() % mod;
         if (done[rnd])
             continue;
         done[rnd] = 1;

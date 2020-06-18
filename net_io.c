@@ -194,11 +194,11 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     c->con = NULL;
     c->last_read = now;
 
-    c->receiverId = rand();
+    c->receiverId = random();
     c->receiverId <<= 22;
-    c->receiverId |= rand();
+    c->receiverId |= random();
     c->receiverId <<= 22;
-    c->receiverId |= rand();
+    c->receiverId |= random();
 
     c->receiverId2 = 0;
 
@@ -2486,9 +2486,9 @@ static inline void writeJsonTo (const char* dir, const char *file, struct char_b
     char *content = cb.buffer;
 
     if (!dir)
-        snprintf(tmppath, PATH_MAX, "%s.%d", file, rand());
+        snprintf(tmppath, PATH_MAX, "%s.%lx", file, random());
     else
-        snprintf(tmppath, PATH_MAX, "%s/%s.%d", dir, file, rand());
+        snprintf(tmppath, PATH_MAX, "%s/%s.%lx", dir, file, random());
 
     tmppath[PATH_MAX - 1] = 0;
     fd = open(tmppath, O_WRONLY | O_CREAT | O_EXCL, 0644);

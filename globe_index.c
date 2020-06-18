@@ -240,9 +240,9 @@ void write_trace(struct aircraft *a, uint64_t now) {
         full = generateTraceJson(a, start24, -1);
 
         if (a->trace_full_write == 0xc0ffee) {
-            a->trace_next_mw = now + 1 * 60 * 1000 + rand() % (10 * 60 * 1000);
+            a->trace_next_mw = now + 1 * 60 * 1000 + random() % (10 * 60 * 1000);
         } else {
-            a->trace_next_mw = now + 10 * 60 * 1000 + rand() % (1 * 60 * 1000);
+            a->trace_next_mw = now + 10 * 60 * 1000 + random() % (1 * 60 * 1000);
         }
 
         if (now > a->trace_next_fw || a->trace_full_write == 0xc0ffee) {
@@ -252,9 +252,9 @@ void write_trace(struct aircraft *a, uint64_t now) {
             write_perm = 1;
 
             if (a->trace_full_write == 0xc0ffee) {
-                a->trace_next_fw = now + (rand() % (GLOBE_OVERLAP - 60 - GLOBE_OVERLAP / 16 - 120)) * 1000;
+                a->trace_next_fw = now + (random() % (GLOBE_OVERLAP - 60 - GLOBE_OVERLAP / 16 - 120)) * 1000;
             } else {
-                a->trace_next_fw = now + (GLOBE_OVERLAP - 60 - rand() % GLOBE_OVERLAP / 16) * 1000;
+                a->trace_next_fw = now + (GLOBE_OVERLAP - 60 - random() % GLOBE_OVERLAP / 16) * 1000;
             }
         }
         a->trace_full_write = 0;
@@ -574,7 +574,7 @@ void *load_state(void *arg) {
     //fstat(fd, &fileinfo);
     //off_t len = fileinfo.st_size;
     int thread_number = *((int *) arg);
-    srand(get_seed());
+    srandom(get_seed());
     for (int i = 0; i < 256; i++) {
         if (i % IO_THREADS != thread_number)
             continue;
@@ -615,7 +615,7 @@ void *jsonTraceThreadEntryPoint(void *arg) {
 
     int thread = * (int *) arg;
 
-    srand(get_seed());
+    srandom(get_seed());
 
     int part = 0;
     int n_parts = 64; // power of 2
@@ -1136,7 +1136,7 @@ void save_blob(int blob) {
 }
 void *load_blobs(void *arg) {
     int thread_number = *((int *) arg);
-    srand(get_seed());
+    srandom(get_seed());
     for (int j = 0; j < STATE_BLOBS; j++) {
         if (j % IO_THREADS != thread_number)
            continue;
@@ -1331,7 +1331,7 @@ void handleHeatmap() {
         perror(pathbuf);
 
     snprintf(pathbuf, PATH_MAX, "%s/%s/heatmap/%02d.bin.ttf", Modes.globe_history_dir, tstring, half_hour);
-    snprintf(tmppath, PATH_MAX, "%s/%s/heatmap/temp_%x_%x", Modes.globe_history_dir, tstring, rand(), rand());
+    snprintf(tmppath, PATH_MAX, "%s/%s/heatmap/temp_%lx_%lx", Modes.globe_history_dir, tstring, random(), random());
 
     fprintf(stderr, "%s using %d positions\n", pathbuf, len);
 
