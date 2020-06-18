@@ -376,7 +376,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
                 && !bogus_lat_lon(*lat, *lon)
            ) {
             struct receiver *r = receiver;
-            fprintf(stderr, "id:%016"PRIx64" #pos:%9"PRIu64" lat min:%4.0f max:%4.0f lon min:%4.0f max:%4.0f\n",
+            fprintf(stderr, "id: %016"PRIx64" #pos: %9"PRIu64" lat min:%4.0f max:%4.0f lon min:%4.0f max:%4.0f\n",
                     r->id, r->positionCounter,
                     r->latMin, r->latMax,
                     r->lonMin, r->lonMax);
