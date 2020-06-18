@@ -114,7 +114,13 @@ void receiverPositionReceived(struct aircraft *a, uint64_t id, double lat, doubl
         double latDiff2 = r->latMax - r->latMin;
         double lonDiff2 = r->lonMax - r->lonMin;
 
+        int debug = 0;
+
         if (Modes.debug_receiver && (lonDiff2 > MAX_DIFF || latDiff2 > MAX_DIFF) && !(lonDiff > MAX_DIFF || latDiff > MAX_DIFF))
+            debug = 1;
+        if (Modes.debug_receiver && id == 0x33174156975948af)
+            debug = 1;
+        if (debug)
             fprintf(stderr, "hex: %06x id: %016"PRIx64" #pos: %9"PRIu64" %12.5f %12.5f %4.0f %4.0f %4.0f %4.0f\n",
                     a->addr, r->id, r->positionCounter,
                     lat, lon,

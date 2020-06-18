@@ -900,7 +900,7 @@ static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *wri
         // other dump1090 / readsb versions or beast implementations should discard unknown message types
         *p++ = 0xe3; // good enough guess no one is using this.
         for (int i = 7; i >= 0; i--) {
-            *p++ = (ch = (mm->receiverId >> (8 * i)));
+            *p++ = (ch = ((mm->receiverId >> (8 * i)) & 0xFF));
             if (0x1A == ch) {
                 *p++ = ch;
             }
