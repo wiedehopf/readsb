@@ -196,9 +196,9 @@ struct client *createGenericClient(struct net_service *service, int fd) {
 
     c->receiverId = random();
     c->receiverId <<= 22;
-    c->receiverId |= random();
+    c->receiverId ^= random();
     c->receiverId <<= 22;
-    c->receiverId |= random();
+    c->receiverId ^= random();
 
     c->receiverId2 = 0;
 
