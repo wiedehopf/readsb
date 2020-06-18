@@ -1649,15 +1649,19 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
                 p++;
             }
         }
-        // only transmitted on change, store in client struct
-        // once one receiverId arrives via network,
-        // it overwrites the random one assigned to the client on startup
         c->receiverId = receiverId;
         p++; // discard 0x1A
         ch = *p++; /// Get the message type
+
+        mm.receiverId = c->receiverId;
+    } else if (!Modes.netIngest) {
+        mm.receiverId = 0xc0ffeebabe;
     }
 
-    mm.receiverId = c->receiverId;
+    if (Modes.netIngest) {
+        mm.receiverId = c->receiverId;
+    }
+
 
 
     if (ch == '1') {
