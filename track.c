@@ -234,11 +234,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     double oldLon = a->lon;
 
     MODES_NOTUSED(mm);
-    if (
-            (lat == 0 && lon == -90)
-            || (lat > 90 || lat < -90 || lon > 180 || lon < -180)
-            || (lat == 0 && lon == 0)
-       ) {
+    if (bogus_lat_lon(lat, lon)) {
         a->speed_check_ignore = 1;
         return 0;
     }
@@ -341,7 +337,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
     int result;
     int fflag = mm->cpr_odd;
     int surface = (mm->cpr_type == CPR_SURFACE);
-    int getRef = 0;
+    struct receiver *receiver;
     double reflat, reflon;
 
     // derive NIC, Rc from the worse of the two position
@@ -353,9 +349,8 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
         // surface global CPR
         // find reference location
 
-        if (receiverGetReference(mm->receiverId, &reflat, &reflon, a)) {
+        if ((receiver = receiverGetReference(mm->receiverId, &reflat, &reflon, a))) {
             //function sets reflat and reflon on success, nothing to do here.
-            getRef = 1;
         } else if (trackDataValid(&a->position_valid)) { // Ok to try aircraft relative first
             reflat = a->lat;
             reflon = a->lon;
@@ -375,8 +370,21 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
                 a->cpr_odd_lat, a->cpr_odd_lon,
                 fflag,
                 lat, lon);
+
+        if (receiver && a->seen_pos
+                && (fabs(a->lat - *lat) > 10 || fabs(a->lon - *lon) > 10 || fabs(reflat - *lat) > 10 || fabs(reflon - *lon) > 10)
+                && !bogus_lat_lon(*lat, *lon)
+           ) {
+            struct receiver *r = receiver;
+            fprintf(stderr, "id:%016"PRIx64" #pos:%9"PRIu64" lat min:%4.0f max:%4.0f lon min:%4.0f max:%4.0f\n",
+                    r->id, r->positionCounter,
+                    r->latMin, r->latMax,
+                    r->lonMin, r->lonMax);
+            fprintf(stderr, "%06x strange receiver reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
+        }
+
         if (Modes.debug_receiver && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
-            if (getRef && !trackDataValid(&a->position_valid))
+            if (receiver && !trackDataValid(&a->position_valid))
                 fprintf(stderr, "%06x using receiver reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
             else if (a->addr == Modes.cpr_focus)
                 fprintf(stderr, "%06x using reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);

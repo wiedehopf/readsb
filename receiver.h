@@ -25,7 +25,7 @@ void receiverPositionReceived(uint64_t id, double lat, double lon, uint64_t now)
 void receiverTimeout(int part, int nParts);
 void receiverCleanup();
 void receiverTest();
-int receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft *a);
+struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft *a);
 
 
 
