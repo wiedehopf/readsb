@@ -84,7 +84,16 @@ void receiverPositionReceived(uint64_t id, double lat, double lon, uint64_t now)
     if (lat > 85.0 || lat < -85.0 || lon < -175 || lon > 175)
         return;
     struct receiver *r = receiverGet(id);
+
+    double latDiff = 0;
+    double lonDiff = 0;
+
+
+    struct receiver before;
+    int new;
+
     if (!r) {
+        new = 1;
         r = receiverCreate(id);
         if (!r)
             return;
@@ -93,6 +102,12 @@ void receiverPositionReceived(uint64_t id, double lat, double lon, uint64_t now)
         r->latMin = lat;
         r->latMax = lat;
     } else {
+        new = 0;
+        before = *r;
+
+        latDiff = r->latMax - r->latMin;
+        lonDiff = r->lonMax - r->lonMin;
+
         r->lonMin = fmin(r->lonMin, lon);
         r->lonMax = fmax(r->lonMax, lon);
         r->latMin = fmin(r->latMin, lat);
@@ -101,14 +116,16 @@ void receiverPositionReceived(uint64_t id, double lat, double lon, uint64_t now)
     r->lastSeen = now;
     r->positionCounter++;
 
-    double latDiff = r->latMax - r->latMin;
-    double lonDiff = r->lonMax - r->lonMin;
-    if (Modes.debug_receiver && (lonDiff > 25 || latDiff > 25))
-        fprintf(stderr, "id: %016"PRIx64" #pos: %9"PRIu64" %4.0f %4.0f %4.0f %4.0f %4.0f %4.0f\n",
+    double latDiff2 = r->latMax - r->latMin;
+    double lonDiff2 = r->lonMax - r->lonMin;
+
+
+    if (!new && Modes.debug_receiver && (lonDiff2 > 25 || latDiff2 > 25) && !(lonDiff > 25 || latDiff > 25))
+        fprintf(stderr, "id: %016"PRIx64" #pos: %9"PRIu64" %12.5f %12.5f %4.0f %4.0f %4.0f %4.0f\n",
                 r->id, r->positionCounter,
                 lat, lon,
-                r->latMin, r->latMax,
-                r->lonMin, r->lonMax);
+                before.latMin, before.latMax,
+                before.lonMin, before.lonMax);
 }
 
 struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft *a) {
