@@ -107,9 +107,6 @@ void receiverPositionReceived(struct aircraft *a, uint64_t id, double lat, doubl
         r->lonMax = fmax(r->lonMax, lon);
         r->latMax = fmax(r->latMax, lat);
 
-        r->lastSeen = now;
-        r->positionCounter++;
-
         double latDiff = before.latMax - before.latMin;
         double lonDiff = before.lonMax - before.lonMin;
 
@@ -129,6 +126,9 @@ void receiverPositionReceived(struct aircraft *a, uint64_t id, double lat, doubl
                     before.latMin, before.latMax,
                     before.lonMin, before.lonMax);
     }
+
+    r->lastSeen = now;
+    r->positionCounter++;
 }
 
 struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft *a) {
