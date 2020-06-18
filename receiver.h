@@ -21,7 +21,7 @@ struct receiver *receiverGet(uint64_t id);
 struct receiver *receiverCreate(uint64_t id);
 
 
-void receiverPositionReceived(uint64_t id, double lat, double lon, uint64_t now);
+void receiverPositionReceived(struct aircraft *a, uint64_t id, double lat, double lon, uint64_t now);
 void receiverTimeout(int part, int nParts);
 void receiverCleanup();
 void receiverTest();

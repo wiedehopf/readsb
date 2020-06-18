@@ -556,7 +556,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
     if (a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2 && mm->source == SOURCE_ADSB) {
         update_range_histogram(mm->decoded_lat, mm->decoded_lon);
         if (mm->cpr_type != CPR_SURFACE) {
-            receiverPositionReceived(mm->receiverId, mm->decoded_lat, mm->decoded_lon, now);
+            receiverPositionReceived(a, mm->receiverId, mm->decoded_lat, mm->decoded_lon, now);
             if (0 && Modes.debug_receiver)
                 fprintf(stderr, "%016"PRIx64" new Pos: %4.0f %4.0f\n",
                         mm->receiverId,
