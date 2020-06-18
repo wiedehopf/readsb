@@ -383,12 +383,12 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
             fprintf(stderr, "%06x strange receiver reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
         }
 
-        if (Modes.debug_receiver && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
+        if (0 && Modes.debug_receiver && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
             if (receiver && !trackDataValid(&a->position_valid))
                 fprintf(stderr, "%06x using receiver reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
-            else if (a->addr == Modes.cpr_focus)
-                fprintf(stderr, "%06x using reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
         }
+        if (receiver && a->addr == Modes.cpr_focus)
+            fprintf(stderr, "%06x using reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
     } else {
         // airborne global CPR
         result = decodeCPRairborne(a->cpr_even_lat, a->cpr_even_lon,
