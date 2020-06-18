@@ -1,5 +1,7 @@
 #include "readsb.h"
 
+#define MAX_DIFF 35.0
+
 uint32_t receiverHash(uint64_t id) {
     uint64_t h = 0x30732349f7810465ULL ^ (4 * 0x2127599bf4325c37ULL);
     h ^= mix_fasthash(id);
@@ -112,7 +114,7 @@ void receiverPositionReceived(struct aircraft *a, uint64_t id, double lat, doubl
         double latDiff2 = r->latMax - r->latMin;
         double lonDiff2 = r->lonMax - r->lonMin;
 
-        if (Modes.debug_receiver && (lonDiff2 > 25 || latDiff2 > 25) && !(lonDiff > 25 || latDiff > 25))
+        if (Modes.debug_receiver && (lonDiff2 > MAX_DIFF || latDiff2 > MAX_DIFF) && !(lonDiff > MAX_DIFF || latDiff > MAX_DIFF))
             fprintf(stderr, "hex: %06x id: %016"PRIx64" #pos: %9"PRIu64" %12.5f %12.5f %4.0f %4.0f %4.0f %4.0f\n",
                     a->addr, r->id, r->positionCounter,
                     lat, lon,
@@ -134,7 +136,7 @@ struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, str
 
     if (r->positionCounter < 500)
         return NULL;
-    if (lonDiff > 25 || latDiff > 25) {
+    if (lonDiff > MAX_DIFF || latDiff > MAX_DIFF) {
         if (0 && Modes.debug_receiver)
             fprintf(stderr, "%06x: receiver ref invalid: %016"PRIx64" %9"PRIu64" %4.0f %4.0f %4.0f %4.0f %4.0f %4.0f\n",
                     a->addr,
