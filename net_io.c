@@ -1050,6 +1050,8 @@ static int decodeSbsLine(struct client *c, char *line, int remote) {
     char *p = line;
     char *t[23]; // leave 0 indexed entry empty, place 22 tokens into array
 
+    Modes.stats_current.remote_received_basestation_invalid++;
+
     MODES_NOTUSED(c);
     mm = zeroMessage;
     if (remote >= 64)
@@ -1227,7 +1229,8 @@ static int decodeSbsLine(struct client *c, char *line, int remote) {
 
     useModesMessage(&mm);
 
-    Modes.stats_current.remote_received_basestation++;
+    Modes.stats_current.remote_received_basestation_invalid--;
+    Modes.stats_current.remote_received_basestation_valid++;
 
     return 0;
 }

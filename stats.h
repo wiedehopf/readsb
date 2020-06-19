@@ -89,39 +89,40 @@ struct stats
   // remote messages:
   uint32_t remote_received_modeac;
   uint32_t remote_received_modes;
-  uint32_t remote_received_basestation;
+  uint32_t remote_received_basestation_valid;
+  uint32_t remote_received_basestation_invalid;
   uint32_t remote_rejected_bad;
   uint32_t remote_rejected_unknown_icao;
   uint32_t remote_accepted[MODES_MAX_BITERRORS + 1];
   // total messages:
   uint32_t messages_total;
   // CPR decoding:
-  unsigned int cpr_surface;
-  unsigned int cpr_airborne;
-  unsigned int cpr_global_ok;
-  unsigned int cpr_global_bad;
-  unsigned int cpr_global_skipped;
-  unsigned int cpr_global_range_checks;
-  unsigned int cpr_global_speed_checks;
-  unsigned int cpr_local_ok;
-  unsigned int cpr_local_skipped;
-  unsigned int cpr_local_range_checks;
-  unsigned int cpr_local_speed_checks;
-  unsigned int cpr_local_aircraft_relative;
-  unsigned int cpr_local_receiver_relative;
-  unsigned int cpr_filtered;
+  uint32_t cpr_surface;
+  uint32_t cpr_airborne;
+  uint32_t cpr_global_ok;
+  uint32_t cpr_global_bad;
+  uint32_t cpr_global_skipped;
+  uint32_t cpr_global_range_checks;
+  uint32_t cpr_global_speed_checks;
+  uint32_t cpr_local_ok;
+  uint32_t cpr_local_skipped;
+  uint32_t cpr_local_range_checks;
+  uint32_t cpr_local_speed_checks;
+  uint32_t cpr_local_aircraft_relative;
+  uint32_t cpr_local_receiver_relative;
+  uint32_t cpr_filtered;
 
   uint32_t pos_all;
   uint32_t pos_by_type[NUM_TYPES];
 
   // number of altitude messages ignored because
   // we had a recent DF17/18 altitude
-  unsigned int suppressed_altitude_messages;
+  uint32_t suppressed_altitude_messages;
   // aircraft:
   // total "new" aircraft (i.e. not seen in the last 30 or 300s)
-  unsigned int unique_aircraft;
+  uint32_t unique_aircraft;
   // we saw only a single message
-  unsigned int single_message_aircraft;
+  uint32_t single_message_aircraft;
   // range histogram
 #define RANGE_BUCKET_COUNT 76
   uint32_t range_histogram[RANGE_BUCKET_COUNT];

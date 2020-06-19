@@ -309,7 +309,8 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
     // remote messages:
     target->remote_received_modeac = st1->remote_received_modeac + st2->remote_received_modeac;
     target->remote_received_modes = st1->remote_received_modes + st2->remote_received_modes;
-    target->remote_received_basestation = st1->remote_received_basestation + st2->remote_received_basestation;
+    target->remote_received_basestation_valid = st1->remote_received_basestation_valid + st2->remote_received_basestation_valid;
+    target->remote_received_basestation_invalid = st1->remote_received_basestation_invalid + st2->remote_received_basestation_invalid;
     target->remote_rejected_bad = st1->remote_rejected_bad + st2->remote_rejected_bad;
     target->remote_rejected_unknown_icao = st1->remote_rejected_unknown_icao + st2->remote_rejected_unknown_icao;
     for (i = 0; i < MODES_MAX_BITERRORS + 1; ++i)
@@ -673,15 +674,17 @@ struct char_buffer generatePromFile() {
 
     p = safe_snprintf(p, end, "readsb_messages_valid_total %u\n", st->messages_total);
 
-    p = safe_snprintf(p, end, "readsb_messages_valid_modes %u\n",
-            st->remote_accepted[0] + st->demod_accepted[0] + st->remote_accepted[1] + st->demod_accepted[1]);
-    p = safe_snprintf(p, end, "readsb_messages_valid_modeac %u\n", st->remote_received_modeac + st->demod_modeac);
-    p = safe_snprintf(p, end, "readsb_messages_valid_basestation %u\n", st->remote_received_basestation);
+    //p = safe_snprintf(p, end, "readsb_messages_modes_valid %u\n",
+    //        st->remote_accepted[0] + st->demod_accepted[0] + st->remote_accepted[1] + st->demod_accepted[1]);
+    //
+    p = safe_snprintf(p, end, "readsb_messages_modeac_valid %u\n", st->remote_received_modeac + st->demod_modeac);
+    p = safe_snprintf(p, end, "readsb_messages_basestation_valid %u\n", st->remote_received_basestation_valid);
+    p = safe_snprintf(p, end, "readsb_messages_basestation_invalid %u\n", st->remote_received_basestation_invalid);
 
-    p = safe_snprintf(p, end, "readsb_messages_modes_fixed_0 %u\n", st->remote_accepted[0] + st->demod_accepted[0]);
-    p = safe_snprintf(p, end, "readsb_messages_modes_fixed_1 %u\n", st->remote_accepted[1] + st->demod_accepted[1]);
-    p = safe_snprintf(p, end, "readsb_messages_modes_bad %u\n", st->remote_rejected_bad + st->demod_rejected_bad);
-    p = safe_snprintf(p, end, "readsb_messages_modes_unknown_icao %u\n", st->remote_rejected_unknown_icao + st->demod_rejected_unknown_icao);
+    p = safe_snprintf(p, end, "readsb_messages_modes_valid %u\n", st->remote_accepted[0] + st->demod_accepted[0]);
+    p = safe_snprintf(p, end, "readsb_messages_modes_valid_fixed_1bit %u\n", st->remote_accepted[1] + st->demod_accepted[1]);
+    p = safe_snprintf(p, end, "readsb_messages_modes_invalid_bad %u\n", st->remote_rejected_bad + st->demod_rejected_bad);
+    p = safe_snprintf(p, end, "readsb_messages_modes_invalid_unknown_icao %u\n", st->remote_rejected_unknown_icao + st->demod_rejected_unknown_icao);
     p = safe_snprintf(p, end, "readsb_tracks_all %u\n", st->unique_aircraft);
     p = safe_snprintf(p, end, "readsb_tracks_single_message %u\n", st->single_message_aircraft);
 
