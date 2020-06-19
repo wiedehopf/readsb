@@ -142,7 +142,7 @@ struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, str
     double lonDiff = r->lonMax - r->lonMin;
 
 
-    if (r->positionCounter < 500)
+    if (r->positionCounter < 100)
         return NULL;
     if (lonDiff > MAX_DIFF || latDiff > MAX_DIFF) {
         if (0 && Modes.debug_receiver)

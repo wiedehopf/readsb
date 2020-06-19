@@ -377,12 +377,13 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
                 && (fabs(a->lat - *lat) > 25 || fabs(a->lon - *lon) > 25 || fabs(reflat - *lat) > 25 || fabs(reflon - *lon) > 25)
                 && !bogus_lat_lon(*lat, *lon)
            ) {
-            struct receiver *r = receiver;
-            fprintf(stderr, "id: %016"PRIx64" #pos: %9"PRIu64" lat min:%4.0f max:%4.0f lon min:%4.0f max:%4.0f\n",
-                    r->id, r->positionCounter,
-                    r->latMin, r->latMax,
-                    r->lonMin, r->lonMax);
-            fprintf(stderr, "%06x strange receiver reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
+            //struct receiver *r = receiver;
+            //fprintf(stderr, "id: %016"PRIx64" #pos: %9"PRIu64" lat min:%4.0f max:%4.0f lon min:%4.0f max:%4.0f\n",
+            //        r->id, r->positionCounter,
+            //        r->latMin, r->latMax,
+            //        r->lonMin, r->lonMax);
+            int sc = speed_check(a, mm->source, *lat, *lon, mm);
+            fprintf(stderr, "%06x surface CPR rec. ref.: %4.0f %4.0f sc: %d result: %7.2f %7.2f --> %7.2f %7.2f\n", a->addr, reflat, reflon, sc, a->lat, a->lon, *lat, *lon);
         }
 
         if (0 && Modes.debug_receiver && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
@@ -423,10 +424,6 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
             return (-2); // we consider an out-of-range value to be bad data
         }
     }
-
-    // for mlat results, skip the speed check
-    if (mm->source == SOURCE_MLAT)
-        return result;
 
     // check speed limit
     if (!speed_check(a, mm->source, *lat, *lon, mm)) {
@@ -557,10 +554,6 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         update_range_histogram(mm->decoded_lat, mm->decoded_lon);
         if (mm->cpr_type != CPR_SURFACE) {
             receiverPositionReceived(a, mm->receiverId, mm->decoded_lat, mm->decoded_lon, now);
-            if (0 && Modes.debug_receiver)
-                fprintf(stderr, "%016"PRIx64" new Pos: %4.0f %4.0f\n",
-                        mm->receiverId,
-                        mm->decoded_lat, mm->decoded_lon);
         }
     }
 }
