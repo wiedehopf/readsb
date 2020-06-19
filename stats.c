@@ -623,9 +623,9 @@ struct char_buffer generatePromFile() {
         trace_json_cpu_millis_sum += (uint64_t) st->trace_json_cpu[i].tv_sec * 1000UL + st->trace_json_cpu[i].tv_nsec / 1000000UL;
     }
 
-    p = safe_snprintf(p, end, "readsb_aircraft_adsb_version_0 %u\n", Modes.readsb_aircraft_adsb_version_0);
-    p = safe_snprintf(p, end, "readsb_aircraft_adsb_version_1 %u\n", Modes.readsb_aircraft_adsb_version_1);
-    p = safe_snprintf(p, end, "readsb_aircraft_adsb_version_2 %u\n", Modes.readsb_aircraft_adsb_version_2);
+    p = safe_snprintf(p, end, "readsb_aircraft_adsb_version_zero %u\n", Modes.readsb_aircraft_adsb_version_0);
+    p = safe_snprintf(p, end, "readsb_aircraft_adsb_version_one %u\n", Modes.readsb_aircraft_adsb_version_1);
+    p = safe_snprintf(p, end, "readsb_aircraft_adsb_version_two %u\n", Modes.readsb_aircraft_adsb_version_2);
     p = safe_snprintf(p, end, "readsb_aircraft_emergency %u\n", Modes.readsb_aircraft_emergency);
     p = safe_snprintf(p, end, "readsb_aircraft_mlat %u\n", Modes.readsb_aircraft_mlat);
     p = safe_snprintf(p, end, "readsb_aircraft_rssi_average %.1f\n", Modes.readsb_aircraft_rssi_average);
@@ -705,7 +705,7 @@ struct char_buffer generatePromFile() {
         else
             p = safe_snprintf(p, end, "readsb_signal_peak -50.0\n");
 
-        p = safe_snprintf(p, end, "strong_signals %d\n", st->strong_signal_count);
+        p = safe_snprintf(p, end, "readsb_signal_strong %d\n", st->strong_signal_count);
     }
 
     p = safe_snprintf(p, end, "readsb_position_count_total %u\n", st->pos_all);
