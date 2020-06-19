@@ -679,7 +679,7 @@ struct char_buffer generatePromFile() {
             st->remote_rejected_unknown_icao + st->demod_rejected_unknown_icao);
 
     p = safe_snprintf(p, end, "readsb_messages_modes_valid %u\n", st->remote_accepted[0] + st->demod_accepted[0]);
-    p = safe_snprintf(p, end, "readsb_messages_modes_valid_fixed_1bit %u\n", st->remote_accepted[1] + st->demod_accepted[1]);
+    p = safe_snprintf(p, end, "readsb_messages_modes_valid_fixed_bit %u\n", st->remote_accepted[1] + st->demod_accepted[1]);
     p = safe_snprintf(p, end, "readsb_messages_modes_invalid_bad %u\n", st->remote_rejected_bad + st->demod_rejected_bad);
     p = safe_snprintf(p, end, "readsb_messages_modes_invalid_unknown_icao %u\n", st->remote_rejected_unknown_icao + st->demod_rejected_unknown_icao);
 
