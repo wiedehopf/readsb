@@ -672,19 +672,22 @@ struct char_buffer generatePromFile() {
 #undef CPU_MILLIS
     p = safe_snprintf(p, end, "readsb_max_distance %u\n", (uint32_t) st->longest_distance);
 
-    p = safe_snprintf(p, end, "readsb_messages_valid_total %u\n", st->messages_total);
-
-    //p = safe_snprintf(p, end, "readsb_messages_modes_valid %u\n",
-    //        st->remote_accepted[0] + st->demod_accepted[0] + st->remote_accepted[1] + st->demod_accepted[1]);
-    //
-    p = safe_snprintf(p, end, "readsb_messages_modeac_valid %u\n", st->remote_received_modeac + st->demod_modeac);
-    p = safe_snprintf(p, end, "readsb_messages_basestation_valid %u\n", st->remote_received_basestation_valid);
-    p = safe_snprintf(p, end, "readsb_messages_basestation_invalid %u\n", st->remote_received_basestation_invalid);
+    p = safe_snprintf(p, end, "readsb_messages_valid %u\n", st->messages_total);
+    p = safe_snprintf(p, end, "readsb_messages_invalid %u\n",
+            st->remote_received_basestation_invalid +
+            st->remote_rejected_bad + st->demod_rejected_bad +
+            st->remote_rejected_unknown_icao + st->demod_rejected_unknown_icao);
 
     p = safe_snprintf(p, end, "readsb_messages_modes_valid %u\n", st->remote_accepted[0] + st->demod_accepted[0]);
     p = safe_snprintf(p, end, "readsb_messages_modes_valid_fixed_1bit %u\n", st->remote_accepted[1] + st->demod_accepted[1]);
     p = safe_snprintf(p, end, "readsb_messages_modes_invalid_bad %u\n", st->remote_rejected_bad + st->demod_rejected_bad);
     p = safe_snprintf(p, end, "readsb_messages_modes_invalid_unknown_icao %u\n", st->remote_rejected_unknown_icao + st->demod_rejected_unknown_icao);
+
+    p = safe_snprintf(p, end, "readsb_messages_basestation_valid %u\n", st->remote_received_basestation_valid);
+    p = safe_snprintf(p, end, "readsb_messages_basestation_invalid %u\n", st->remote_received_basestation_invalid);
+
+    p = safe_snprintf(p, end, "readsb_messages_modeac_valid %u\n", st->remote_received_modeac + st->demod_modeac);
+
     p = safe_snprintf(p, end, "readsb_tracks_all %u\n", st->unique_aircraft);
     p = safe_snprintf(p, end, "readsb_tracks_single_message %u\n", st->single_message_aircraft);
 
