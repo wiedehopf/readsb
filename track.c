@@ -201,8 +201,11 @@ static void update_range_histogram(double lat, double lon) {
 
     range = greatcircle(Modes.fUserLat, Modes.fUserLon, lat, lon);
 
-    if ((range <= Modes.maxRange || Modes.maxRange == 0) && range > Modes.stats_current.longest_distance) {
-        Modes.stats_current.longest_distance = range;
+    if ((range <= Modes.maxRange || Modes.maxRange == 0)) {
+        if (range > Modes.stats_current.distance_max)
+            Modes.stats_current.distance_max = range;
+        if (range < Modes.stats_current.distance_min)
+            Modes.stats_current.distance_min = range;
     }
 
     if (Modes.stats_range_histo) {

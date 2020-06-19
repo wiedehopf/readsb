@@ -249,6 +249,7 @@ static void display_range_histogram(struct stats *st) {
 void reset_stats(struct stats *st) {
     static struct stats st_zero;
     *st = st_zero;
+    st->distance_min = 2E42;
 }
 
 void add_stats(const struct stats *st1, const struct stats *st2, struct stats *target) {
@@ -346,10 +347,15 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
         target->range_histogram[i] = st1->range_histogram[i] + st2->range_histogram[i];
 
     // Longest Distance observed
-    if (st1->longest_distance > st2->longest_distance)
-        target->longest_distance = st1->longest_distance;
+    if (st1->distance_max > st2->distance_max)
+        target->distance_max = st1->distance_max;
     else
-        target->longest_distance = st2->longest_distance;
+        target->distance_max = st2->distance_max;
+
+    if (st1->distance_min < st2->distance_min)
+        target->distance_min = st1->distance_min;
+    else
+        target->distance_min = st2->distance_min;
 }
 
 int updateStats() {
@@ -385,8 +391,6 @@ int updateStats() {
         } else {
             next_stats_update += 10000;
         }
-
-        Modes.stats_bucket = (Modes.stats_bucket + 1) % STAT_BUCKETS;
         Modes.stats_10[Modes.stats_bucket] = Modes.stats_current;
 
         add_stats(&Modes.stats_current, &Modes.stats_alltime, &Modes.stats_alltime);
@@ -412,6 +416,8 @@ int updateStats() {
 
         reset_stats(&Modes.stats_current);
         Modes.stats_current.start = Modes.stats_current.end = now;
+
+        Modes.stats_bucket = (Modes.stats_bucket + 1) % STAT_BUCKETS;
 
         return 1;
     }
@@ -542,8 +548,7 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
                 ",\"tracks\":{\"all\":%u"
                 ",\"single_message\":%u}"
                 ",\"messages\":%u"
-                ",\"max_distance_in_metres\":%ld"
-                ",\"max_distance_in_nautical_miles\":%.1lf"
+                ",\"max_distance\":%ld"
                 "}",
             st->cpr_surface,
             st->cpr_airborne,
@@ -571,8 +576,7 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
             st->unique_aircraft,
             st->single_message_aircraft,
             st->messages_total,
-            (long) st->longest_distance,
-            st->longest_distance / 1852.0);
+            (long) st->distance_max);
     }
 
     return p;
@@ -614,7 +618,6 @@ struct char_buffer generateStatsJson() {
 struct char_buffer generatePromFile() {
     struct char_buffer cb;
     char *buf = (char *) malloc(64 * 1024), *p = buf, *end = buf + 64 * 1024;
-
 
     struct stats *st = &Modes.stats_1min;
 
@@ -670,7 +673,11 @@ struct char_buffer generatePromFile() {
     p = safe_snprintf(p, end, "readsb_cpu_remove_stale %llu\n", CPU_MILLIS(remove_stale));
     p = safe_snprintf(p, end, "readsb_cpu_trace_json  %llu\n", trace_json_cpu_millis_sum);
 #undef CPU_MILLIS
-    p = safe_snprintf(p, end, "readsb_max_distance %u\n", (uint32_t) st->longest_distance);
+    p = safe_snprintf(p, end, "readsb_distance_max %u\n", (uint32_t) st->distance_max);
+    if (st->distance_min < 1E42)
+        p = safe_snprintf(p, end, "readsb_distance_min %u\n", (uint32_t) st->distance_min);
+    else
+        p = safe_snprintf(p, end, "readsb_distance_min 0\n");
 
     p = safe_snprintf(p, end, "readsb_messages_valid %u\n", st->messages_total);
     p = safe_snprintf(p, end, "readsb_messages_invalid %u\n",
@@ -691,7 +698,16 @@ struct char_buffer generatePromFile() {
     p = safe_snprintf(p, end, "readsb_tracks_all %u\n", st->unique_aircraft);
     p = safe_snprintf(p, end, "readsb_tracks_single_message %u\n", st->single_message_aircraft);
 
+    p = safe_snprintf(p, end, "readsb_position_count_total %u\n", st->pos_all);
+    for (int i = 0; i < NUM_TYPES; i++) {
+        const char *key = addrtype_enum_string(i);
+        p = safe_snprintf(p, end, "readsb_position_count_%s %u\n", key, st->pos_by_type[i]);
+    }
+
+
     if (!Modes.net_only) {
+        p = safe_snprintf(p, end, "readsb_sdr_gain %.1f\n", Modes.gain / 10.0);
+
         if (st->signal_power_sum > 0 && st->signal_power_count > 0)
             p = safe_snprintf(p, end, "readsb_signal_avg %.1f\n", 10 * log10(st->signal_power_sum / st->signal_power_count));
         else
@@ -706,12 +722,6 @@ struct char_buffer generatePromFile() {
             p = safe_snprintf(p, end, "readsb_signal_peak -50.0\n");
 
         p = safe_snprintf(p, end, "readsb_signal_strong %d\n", st->strong_signal_count);
-    }
-
-    p = safe_snprintf(p, end, "readsb_position_count_total %u\n", st->pos_all);
-    for (int i = 0; i < NUM_TYPES; i++) {
-        const char *key = addrtype_enum_string(i);
-        p = safe_snprintf(p, end, "readsb_position_count_%s %u\n", key, st->pos_by_type[i]);
     }
 
     if (p >= end)

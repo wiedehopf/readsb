@@ -219,6 +219,10 @@ static void modesInitConfig(void) {
 
     sdrInitConfig();
 
+    reset_stats(&Modes.stats_current);
+    for (int i = 0; i < 90; ++i) {
+        reset_stats(&Modes.stats_10[i]);
+    }
     //receiverTest();
 }
 //
