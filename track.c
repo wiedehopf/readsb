@@ -377,7 +377,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
         if (receiver && a->seen_pos
                 && *lat < 89
                 && *lat > -89
-                && (fabs(a->lat - *lat) > 25 || fabs(a->lon - *lon) > 25 || fabs(reflat - *lat) > 25 || fabs(reflon - *lon) > 25)
+                && (fabs(a->lat - *lat) > 35 || fabs(a->lon - *lon) > 35 || fabs(reflat - *lat) > 35 || fabs(reflon - *lon) > 35)
                 && !bogus_lat_lon(*lat, *lon)
            ) {
             //struct receiver *r = receiver;
@@ -386,7 +386,9 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
             //        r->latMin, r->latMax,
             //        r->lonMin, r->lonMax);
             int sc = speed_check(a, mm->source, *lat, *lon, mm);
-            fprintf(stderr, "%06x surface CPR rec. ref.: %4.0f %4.0f sc: %d result: %7.2f %7.2f --> %7.2f %7.2f\n", a->addr, reflat, reflon, sc, a->lat, a->lon, *lat, *lon);
+            fprintf(stderr, "%s%06x surface CPR rec. ref.: %4.0f %4.0f sc: %d result: %7.2f %7.2f --> %7.2f %7.2f\n",
+                    (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : " ",
+                    a->addr, reflat, reflon, sc, a->lat, a->lon, *lat, *lon);
         }
 
         if (0 && Modes.debug_receiver && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
