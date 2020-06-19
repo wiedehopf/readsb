@@ -144,6 +144,7 @@ static void sigintHandler(int dummy) {
 
 static void sigtermHandler(int dummy) {
     MODES_NOTUSED(dummy);
+    Modes.exit = 1; // Signal to threads that we are done
     if (Modes.decodeThread)
         pthread_kill(Modes.decodeThread, SIGUSR1);
     if (Modes.jsonThread)
@@ -155,7 +156,6 @@ static void sigtermHandler(int dummy) {
             pthread_kill(Modes.jsonTraceThread[i], SIGUSR1);
     }
     signal(SIGTERM, SIG_DFL); // reset signal handler - bit extra safety
-    Modes.exit = 1; // Signal to threads that we are done
     log_with_timestamp("Caught SIGTERM, shutting down..\n");
 }
 
@@ -1289,6 +1289,14 @@ int main(int argc, char **argv) {
         }
         fprintf(stderr, "............. done!\n");
     }
+
+    int writeStats = updateStats();
+    if (writeStats && Modes.json_dir)
+        writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson());
+
+    if (writeStats && Modes.prom_file)
+        writeJsonToFile(NULL, Modes.prom_file, generatePromFile());
+
     // If --stats were given, print statistics
     if (Modes.stats) {
         display_total_stats();

@@ -374,43 +374,44 @@ int updateStats() {
         }
     }
 
-    if (now >= next_stats_update) {
+    if (now >= next_stats_update || Modes.exit) {
         int i;
 
         if (next_stats_update == 0) {
             next_stats_update = now + 10000;
+            return 0;
         } else {
-
-            Modes.stats_bucket = (Modes.stats_bucket + 1) % STAT_BUCKETS;
-            Modes.stats_10[Modes.stats_bucket] = Modes.stats_current;
-
-            add_stats(&Modes.stats_current, &Modes.stats_alltime, &Modes.stats_alltime);
-            add_stats(&Modes.stats_current, &Modes.stats_periodic, &Modes.stats_periodic);
-
-            reset_stats(&Modes.stats_1min);
-            for (i = 0; i < 6; ++i) {
-                int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
-                add_stats(&Modes.stats_10[index], &Modes.stats_1min, &Modes.stats_1min);
-            }
-
-            reset_stats(&Modes.stats_5min);
-            for (i = 0; i < 30; ++i) {
-                int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
-                add_stats(&Modes.stats_10[index], &Modes.stats_5min, &Modes.stats_5min);
-            }
-
-            reset_stats(&Modes.stats_15min);
-            for (i = 0; i < 90; ++i) {
-                int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
-                add_stats(&Modes.stats_10[index], &Modes.stats_15min, &Modes.stats_15min);
-            }
-
-            reset_stats(&Modes.stats_current);
-            Modes.stats_current.start = Modes.stats_current.end = now;
-
             next_stats_update += 10000;
-            return 1;
         }
+
+        Modes.stats_bucket = (Modes.stats_bucket + 1) % STAT_BUCKETS;
+        Modes.stats_10[Modes.stats_bucket] = Modes.stats_current;
+
+        add_stats(&Modes.stats_current, &Modes.stats_alltime, &Modes.stats_alltime);
+        add_stats(&Modes.stats_current, &Modes.stats_periodic, &Modes.stats_periodic);
+
+        reset_stats(&Modes.stats_1min);
+        for (i = 0; i < 6; ++i) {
+            int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
+            add_stats(&Modes.stats_10[index], &Modes.stats_1min, &Modes.stats_1min);
+        }
+
+        reset_stats(&Modes.stats_5min);
+        for (i = 0; i < 30; ++i) {
+            int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
+            add_stats(&Modes.stats_10[index], &Modes.stats_5min, &Modes.stats_5min);
+        }
+
+        reset_stats(&Modes.stats_15min);
+        for (i = 0; i < 90; ++i) {
+            int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
+            add_stats(&Modes.stats_10[index], &Modes.stats_15min, &Modes.stats_15min);
+        }
+
+        reset_stats(&Modes.stats_current);
+        Modes.stats_current.start = Modes.stats_current.end = now;
+
+        return 1;
     }
     return 0;
 }
