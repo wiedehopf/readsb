@@ -428,6 +428,7 @@ struct
   int debug_receiver;
   int debug_traceCount;
   uint32_t cpr_focus;
+  int min_reliable;
   int net; // Enable networking
   int net_only; // Enable just networking
   int net_output_flush_size; // Minimum Size of output data
