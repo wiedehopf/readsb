@@ -212,7 +212,7 @@ static void modesInitConfig(void) {
     Modes.json_trace_interval = 30 * 1000;
     Modes.heatmap_current_interval = -1;
     Modes.globe_history_heatmap = 0;
-    Modes.min_reliable = 2;
+    Modes.json_reliable = 2;
 
     Modes.cpr_focus = 0xc0ffeeba;
     //Modes.cpr_focus = 0x43BF95;
@@ -859,6 +859,14 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptJsonLocAcc:
             Modes.json_location_accuracy = atoi(arg);
+            break;
+        case OptJsonReliable:
+            Modes.json_reliable = atoi(arg);
+            if (Modes.json_reliable < 0)
+                Modes.json_reliable = 0;
+            if (Modes.json_reliable > 4)
+                Modes.json_reliable = 4;
+            Modes.filter_persistence += Modes.json_reliable - 1;
             break;
         case OptJsonGzip:
             Modes.json_gzip = 1;

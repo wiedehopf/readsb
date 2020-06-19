@@ -3104,7 +3104,7 @@ retry:
                 //p = safe_snprintf(p, end, ",\"PosTime\":%"PRIu64, a->position_valid.updated);
             }
 
-            if (trackDataValid(&a->altitude_baro_valid) && a->alt_reliable >= Modes.min_reliable + 1)
+            if (trackDataValid(&a->altitude_baro_valid) && a->alt_reliable >= Modes.json_reliable + 1)
                 p = safe_snprintf(p, end, ",\"Alt\":%d", a->altitude_baro);
 
             if (trackDataValid(&a->geom_rate_valid)) {
@@ -3299,7 +3299,8 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
             else
                 p = safe_snprintf(p, end, ",\"alt_baro\":\"ground\"");
         else {
-            if (trackDataValid(&a->altitude_baro_valid) && a->alt_reliable >= Modes.min_reliable + 1)
+            if (trackDataValid(&a->altitude_baro_valid)
+                    && (a->alt_reliable >= Modes.json_reliable + 1 || a->position_valid.source <= SOURCE_JAERO ))
                 p = safe_snprintf(p, end, ",\"alt_baro\":%d", a->altitude_baro);
             if (printMode == 2)
                 p = safe_snprintf(p, end, ",\"ground\":false");
@@ -3362,7 +3363,7 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
         p = safe_snprintf(p, end, "]");
     }
     if (printMode != 1 && trackDataValid(&a->position_valid)
-            && ( (a->pos_reliable_odd >= Modes.min_reliable && a->pos_reliable_even >= Modes.min_reliable) || a->position_valid.source <= SOURCE_JAERO ) ) {
+            && ( (a->pos_reliable_odd >= Modes.json_reliable && a->pos_reliable_even >= Modes.json_reliable) || a->position_valid.source <= SOURCE_JAERO ) ) {
         p = safe_snprintf(p, end, ",\"lat\":%f,\"lon\":%f,\"nic\":%u,\"rc\":%u,\"seen_pos\":%.1f",
                 a->lat, a->lon, a->pos_nic, a->pos_rc,
                 (now < a->position_valid.updated) ? 0 : ((now - a->position_valid.updated) / 1000.0));
