@@ -1204,7 +1204,8 @@ discard_alt:
             if (a->alt_reliable <= 0) {
                 //fprintf(stderr, "Altitude INVALIDATED: %06x\n", a->addr);
                 a->alt_reliable = 0;
-                a->altitude_baro_valid.source = SOURCE_INVALID;
+                if (a->position_valid.source > SOURCE_JAERO)
+                    a->altitude_baro_valid.source = SOURCE_INVALID;
             }
 end_alt:
             ;

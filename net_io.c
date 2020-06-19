@@ -3109,7 +3109,8 @@ retry:
                 //p = safe_snprintf(p, end, ",\"PosTime\":%"PRIu64, a->position_valid.updated);
             }
 
-            if (trackDataValid(&a->altitude_baro_valid) && a->alt_reliable >= Modes.json_reliable + 1)
+            if (trackDataValid(&a->altitude_baro_valid)
+                    && (a->alt_reliable >= Modes.json_reliable + 1 || a->position_valid.source <= SOURCE_JAERO ))
                 p = safe_snprintf(p, end, ",\"Alt\":%d", a->altitude_baro);
 
             if (trackDataValid(&a->geom_rate_valid)) {
