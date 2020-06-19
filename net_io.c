@@ -1227,6 +1227,8 @@ static int decodeSbsLine(struct client *c, char *line, int remote) {
 
     useModesMessage(&mm);
 
+    Modes.stats_current.remote_received_basestation++;
+
     return 0;
 }
 //
