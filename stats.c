@@ -667,15 +667,31 @@ struct char_buffer generatePromFile() {
 #undef CPU_MILLIS
     p = safe_snprintf(p, end, "readsb_max_distance_in_metres %u\n", (uint32_t) st->longest_distance);
     p = safe_snprintf(p, end, "readsb_max_distance_in_nautical_miles %.2f\n", st->longest_distance / 1852.0);
-    p = safe_snprintf(p, end, "readsb_messages %u\n", st->messages_total);
-    p = safe_snprintf(p, end, "readsb_remote_accepted_0 %u\n", st->remote_accepted[0]);
-    p = safe_snprintf(p, end, "readsb_remote_accepted_1 %u\n", st->remote_accepted[1]);
-    p = safe_snprintf(p, end, "readsb_remote_bad %u\n", st->remote_rejected_bad);
-    p = safe_snprintf(p, end, "readsb_remote_modeac %u\n", st->remote_received_modeac);
-    p = safe_snprintf(p, end, "readsb_remote_modes %u\n", st->remote_received_modes);
-    p = safe_snprintf(p, end, "readsb_remote_unknown_icao %u\n", st->remote_rejected_unknown_icao);
+    p = safe_snprintf(p, end, "readsb_modes_total %u\n", st->messages_total);
+    p = safe_snprintf(p, end, "readsb_modes_accepted_0 %u\n", st->remote_accepted[0] + st->demod_accepted[0]);
+    p = safe_snprintf(p, end, "readsb_modes_accepted_1 %u\n", st->remote_accepted[1] + st->demod_accepted[1]);
+    p = safe_snprintf(p, end, "readsb_modes_bad %u\n", st->remote_rejected_bad + st->demod_rejected_bad);
+    p = safe_snprintf(p, end, "readsb_modes_unknown_icao %u\n", st->remote_rejected_unknown_icao + st->demod_rejected_unknown_icao);
+    p = safe_snprintf(p, end, "readsb_modeac_total %u\n", st->remote_received_modeac + st->demod_modeac);
     p = safe_snprintf(p, end, "readsb_tracks_all %u\n", st->unique_aircraft);
     p = safe_snprintf(p, end, "readsb_tracks_single_message %u\n", st->single_message_aircraft);
+
+    if (!Modes.net_only) {
+        if (st->signal_power_sum > 0 && st->signal_power_count > 0)
+            p = safe_snprintf(p, end, "readsb_signal_avg %.1f", 10 * log10(st->signal_power_sum / st->signal_power_count));
+        else
+            p = safe_snprintf(p, end, "readsb_signal_avg -50.0");
+        if (st->noise_power_sum > 0 && st->noise_power_count > 0)
+            p = safe_snprintf(p, end, "readsb_signal_noise %.1f", 10 * log10(st->noise_power_sum / st->noise_power_count));
+        else
+            p = safe_snprintf(p, end, "readsb_signal_noise -50.0");
+        if (st->peak_signal_power > 0)
+            p = safe_snprintf(p, end, "readsb_signal_peak %.1f", 10 * log10(st->peak_signal_power));
+        else
+            p = safe_snprintf(p, end, "readsb_signal_peak -50.0");
+
+        p = safe_snprintf(p, end, ",\"strong_signals\":%d}", st->strong_signal_count);
+    }
 
     p = safe_snprintf(p, end, "readsb_position_count_total %u\n", st->pos_all);
     for (int i = 0; i < NUM_TYPES; i++) {
