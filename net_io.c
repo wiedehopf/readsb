@@ -2749,6 +2749,9 @@ static void modesReadFromClient(struct client *c) {
                                 }
                             }
                         }
+                        if (eom > eod) { // Incomplete message in buffer, retry later
+                            break;
+                        }
                         p++; // skip 0x1a
                     }
 
