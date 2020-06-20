@@ -697,7 +697,7 @@ struct char_buffer generatePromFile() {
 
     p = safe_snprintf(p, end, "readsb_messages_modeac_valid %u\n", st->remote_received_modeac + st->demod_modeac);
 
-    p = safe_snprintf(p, end, "readsb_network_malformed_beast %u\n", st->remote_malformed_beast);
+    p = safe_snprintf(p, end, "readsb_network_malformed_beast_bytes %u\n", st->remote_malformed_beast);
 
     p = safe_snprintf(p, end, "readsb_tracks_all %u\n", st->unique_aircraft);
     p = safe_snprintf(p, end, "readsb_tracks_single_message %u\n", st->single_message_aircraft);

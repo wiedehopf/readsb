@@ -2717,7 +2717,7 @@ static void modesReadFromClient(struct client *c) {
 
                 while (som < eod && ((p = memchr(som, (char) 0x1a, eod - som)) != NULL)) { // The first byte of buffer 'should' be 0x1a
 
-                    Modes.stats_current.remote_malformed_beast += ((p - som)/(8 + MODES_SHORT_MSG_BYTES));
+                    Modes.stats_current.remote_malformed_beast += p - som;
                     som = p; // consume garbage up to the 0x1a
                     ++p; // skip 0x1a
 
