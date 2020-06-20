@@ -447,6 +447,8 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
     mm->correctedbits = 0;
     mm->addr = 0;
 
+    mm->addrtype = ADDR_UNKNOWN;
+
     // Do checksum work and set fields that depend on the CRC
     switch (mm->msgtype) {
         case 0: // short air-air surveillance
@@ -469,6 +471,7 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
             }
             mm->source = SOURCE_MODE_S;
             mm->addr = mm->crc;
+            mm->addrtype = ADDR_MODE_S;
             break;
 
         case 11: // All-call reply
@@ -504,6 +507,7 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
                 }
             }
             mm->source = SOURCE_MODE_S_CHECKED;
+            mm->addrtype = ADDR_MODE_S;
             break;
 
         case 17: // Extended squitter
@@ -532,6 +536,7 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
                 }
             }
 
+            mm->addrtype = ADDR_ADSB_ICAO;
             mm->source = SOURCE_ADSB; // TIS-B decoding will override this if needed
             break;
         }
@@ -546,6 +551,7 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
             // Try an exact match
             if (icaoFilterTest(mm->crc)) {
                 // OK.
+                mm->addrtype = ADDR_MODE_S;
                 mm->source = SOURCE_MODE_S;
                 mm->addr = mm->crc;
                 break;
@@ -735,9 +741,12 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
     }
 
     // MLAT overrides all other sources
-    if (mm->remote && mm->timestampMsg == MAGIC_MLAT_TIMESTAMP)
+    if (mm->remote && mm->timestampMsg == MAGIC_MLAT_TIMESTAMP) {
         mm->source = SOURCE_MLAT;
+        mm->addrtype = ADDR_MLAT;
+    }
 
+    // these are messages of unkown quality, treat them as such.
     if (mm->remote && mm->timestampMsg == 0 && mm->source != SOURCE_ADSR && mm->source != SOURCE_TISB) {
         mm->source = SOURCE_SBS;
         mm->addrtype = ADDR_OTHER;

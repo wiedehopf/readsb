@@ -1055,8 +1055,6 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         a->first_message = NULL;
     }
 
-    if (mm->source == SOURCE_MLAT)
-        mm->addrtype = ADDR_MLAT;
     // update addrtype
     if (a->addrtype_updated > now)
         a->addrtype_updated = now;
@@ -1066,11 +1064,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             || (mm->addrtype > a->addrtype && now > 90 * 1000 + a->addrtype_updated)
        ) {
 
-        if (mm->source == SOURCE_MODE_S_CHECKED || mm->source == SOURCE_MODE_S)
-            a->addrtype = ADDR_MODE_S;
-        else
-            a->addrtype = mm->addrtype;
-
+        a->addrtype = mm->addrtype;
         a->addrtype_updated = now;
     }
 
