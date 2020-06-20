@@ -893,7 +893,8 @@ static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *wri
         return;
 
     // receiverId, big-endian, in own message to make it backwards compatible
-    if (Modes.netReceiverId) {
+    // only send the receiverId when it changes
+    if (Modes.netReceiverId && writer->lastReceiverId != mm->receiverId) {
         writer->lastReceiverId = mm->receiverId;
         *p++ = 0x1a;
         // other dump1090 / readsb versions or beast implementations should discard unknown message types
@@ -1657,15 +1658,9 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
         c->receiverId = receiverId;
         p++; // discard 0x1A
         ch = *p++; /// Get the message type
-
-        mm.receiverId = c->receiverId;
-    } else if (!Modes.netIngest) {
-        mm.receiverId = 0xc0ffeebabe;
     }
 
-    if (Modes.netIngest) {
-        mm.receiverId = c->receiverId;
-    }
+    mm.receiverId = c->receiverId;
 
 
 
