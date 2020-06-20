@@ -94,6 +94,7 @@ struct stats
   uint32_t remote_rejected_bad;
   uint32_t remote_rejected_unknown_icao;
   uint32_t remote_accepted[MODES_MAX_BITERRORS + 1];
+  uint32_t remote_malformed_beast;
   // total messages:
   uint32_t messages_total;
   // CPR decoding:

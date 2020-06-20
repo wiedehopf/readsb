@@ -2705,6 +2705,7 @@ static void modesReadFromClient(struct client *c) {
             remote = 0;
         }
 
+
         if (nread > 0)
             c->last_read = now;
 
@@ -2721,7 +2722,7 @@ static void modesReadFromClient(struct client *c) {
 
                 while (som < eod && ((p = memchr(som, (char) 0x1a, eod - som)) != NULL)) { // The first byte of buffer 'should' be 0x1a
 
-                    Modes.stats_current.remote_rejected_bad += ((p - som)/(8 + MODES_SHORT_MSG_BYTES));
+                    Modes.stats_current.remote_malformed_beast += ((p - som)/(8 + MODES_SHORT_MSG_BYTES));
                     som = p; // consume garbage up to the 0x1a
                     ++p; // skip 0x1a
 
@@ -2733,6 +2734,8 @@ static void modesReadFromClient(struct client *c) {
                     char *eom; // one byte past end of message
                     unsigned char ch;
 
+                    int invalid = 0;
+
 
                     // Check for message with receiverId prepended
                     ch = *p;
@@ -2743,31 +2746,18 @@ static void modesReadFromClient(struct client *c) {
                             if (0x1A == *p) {
                                 p++;
                                 eom++;
-                                if (0x1A != *p) { // check that it's indeed a double escape
-                                    som = --p;    // if not, skip ahead to the single 0x1A
-                                    continue;
+                                if (p < eod && 0x1A != *p) { // check that it's indeed a double escape
+                                    // Not a valid beast message, skip 0x1a and try again
+                                    ++som;
+                                    invalid = 1;
+                                    break;
                                 }
                             }
                         }
-                        if (eom > eod) { // Incomplete message in buffer, retry later
+                        if (eom + 2 > eod || invalid) { // Incomplete message in buffer, retry later
                             break;
                         }
                         p++; // skip 0x1a
-                    } else if (Modes.debug & MODES_DEBUG_NET) {
-                        char *k;
-                        k = c->buf;
-                        if (p - 16 > c->buf)
-                            k = p - 16;
-                        for (; k < eod && k < p; k++) {
-                            fprintf(stderr, "%02X ", (unsigned char) *k);
-                        }
-                        fprintf(stderr, "\n");
-                        fprintf(stderr, "no id: ");
-                        fprintf(stderr, "%c ", ch);
-                        for (k = p; k < eod && k < p + 32; k++) {
-                            fprintf(stderr, "%02X ", (unsigned char) *k);
-                        }
-                        fprintf(stderr, "\n");
                     }
 
                     ch = *p;
@@ -2798,14 +2788,16 @@ static void modesReadFromClient(struct client *c) {
                         if (0x1A == *p) {
                             p++;
                             eom++;
-                            if (0x1A != *p) { // check that it's indeed a double escape
-                                som = --p;    // if not, skip ahead to the single 0x1A
-                                continue;
+                            if (p < eod && 0x1A != *p) { // check that it's indeed a double escape
+                                // Not a valid beast message, skip 0x1a and try again
+                                ++som;
+                                invalid = 1;
+                                break;
                             }
                         }
                     }
 
-                    if (eom > eod) { // Incomplete message in buffer, retry later
+                    if (eom > eod || invalid) { // Incomplete message in buffer, retry later
                         break;
                     }
 
