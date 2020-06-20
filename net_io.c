@@ -2753,6 +2753,21 @@ static void modesReadFromClient(struct client *c) {
                             break;
                         }
                         p++; // skip 0x1a
+                    } else if (Modes.debug & MODES_DEBUG_NET) {
+                        char *k;
+                        k = c->buf;
+                        if (p - 16 > c->buf)
+                            k = p - 16;
+                        for (; k < eod && k < p; k++) {
+                            fprintf(stderr, "%02X ", (unsigned char) *k);
+                        }
+                        fprintf(stderr, "\n");
+                        fprintf(stderr, "no id: ");
+                        fprintf(stderr, "%c ", ch);
+                        for (k = p; k < eod && k < p + 32; k++) {
+                            fprintf(stderr, "%02X ", (unsigned char) *k);
+                        }
+                        fprintf(stderr, "\n");
                     }
 
                     ch = *p;
