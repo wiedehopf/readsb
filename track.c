@@ -561,6 +561,17 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
             receiverPositionReceived(a, mm->receiverId, mm->decoded_lat, mm->decoded_lon, now);
         }
     }
+
+    Modes.stats_current.pos_by_type[mm->addrtype]++;
+    Modes.stats_current.pos_all++;
+
+    if (!mm->duplicate) {
+        a->seen_pos = now;
+
+        // update addrtype, we use the type from the accepted position.
+        a->addrtype = mm->addrtype;
+        a->addrtype_updated = now;
+    }
 }
 
 static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
@@ -1047,9 +1058,13 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (mm->source == SOURCE_MLAT)
         mm->addrtype = ADDR_MLAT;
     // update addrtype
-    if (a->addrtype_updated > now
+    if (a->addrtype_updated > now)
+        a->addrtype_updated = now;
+
+    if (
+            (mm->addrtype <= a->addrtype && now > 30 * 1000 + a->addrtype_updated)
             || (mm->addrtype > a->addrtype && now > 90 * 1000 + a->addrtype_updated)
-            || (mm->addrtype <= a->addrtype && now > 30 * 1000 + a->addrtype_updated)) {
+       ) {
 
         if (mm->source == SOURCE_MODE_S_CHECKED || mm->source == SOURCE_MODE_S)
             a->addrtype = ADDR_MODE_S;
@@ -1796,25 +1811,21 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
         showPositionDebug(a, mm, now);
     }
 
-    Modes.stats_current.pos_by_type[mm->addrtype]++;
-
     int keep = 0;
-    if ((a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2)
+    if ((a->pos_reliable_odd >= Modes.json_reliable && a->pos_reliable_even >= Modes.json_reliable)
             || (mm->source <= SOURCE_JAERO && now > a->seen_pos + 15 * 1000)) {
-        //keep this data point
-        keep = 1;
+
+        keep = 1; // maybe keep this data point
     }
 
     if (now < a->seen_pos + 3 * SECONDS && a->lat == new_lat && a->lon == new_lon) {
         a->position_valid.updated = mm->pos_updated_cache;
         // don't use duplicate positions for beastReduce
         mm->reduce_forward = 0;
-        return;
-    }
+        mm->duplicate = 1;
 
-    // update addrtype, we use the type from the accepted position.
-    a->addrtype = mm->addrtype;
-    a->addrtype_updated = now;
+        keep = 0; // don't keep this datapoint
+    }
 
     if (trackDataAge(now, &a->track_valid) >= 10000 && a->seen_pos) {
         double distance = greatcircle(a->lat, a->lon, new_lat, new_lon);
@@ -2061,8 +2072,6 @@ no_save_state:
         ;
         //fprintf(stderr, "Added to trace for %06x (%d).\n", a->addr, a->trace_len);
     }
-
-    a->seen_pos = now;
 
 }
 

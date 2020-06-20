@@ -289,6 +289,7 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
     for (i = 0; i < NUM_TYPES; i ++) {
         target->pos_by_type[i] = st1->pos_by_type[i] + st2->pos_by_type[i];
     }
+    target->pos_all = st1->pos_all + st2->pos_all;
 
     // noise power:
     target->noise_power_sum = st1->noise_power_sum + st2->noise_power_sum;

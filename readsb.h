@@ -554,13 +554,14 @@ struct modesMessage
   int correctedbits; // No. of bits corrected
   uint32_t addr; // Address Announced
   addrtype_t addrtype; // address format / source
-  int remote; // If set this message is from a remote station
   int score; // Scoring from scoreModesMessage, if used
+  int remote; // If set this message is from a remote station
   int sbs_in; // Signifies this message is coming from basestation input
   int reduce_forward; // forward this message for reduced beast output
+  int duplicate; // associated position is a duplicate
   int jsonPos; // output a json position
-  uint64_t pos_updated_cache;
   datasource_t source; // Characterizes the overall message source
+  uint64_t pos_updated_cache;
   double signalLevel; // RSSI, in the range [0..1], as a fraction of full-scale power
   // Raw data, just extracted directly from the message
   // The names reflect the field names in Annex 4
