@@ -730,9 +730,6 @@ static void cleanup_and_exit(int code) {
     }
     crcCleanupTables();
 
-    /* Cleanup network setup */
-    cleanupNetwork();
-
     receiverCleanup();
 
     for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
@@ -1278,6 +1275,9 @@ int main(int argc, char **argv) {
     }
 
     pthread_join(Modes.decodeThread, NULL); // Wait on json writer thread exit
+
+    /* Cleanup network setup */
+    cleanupNetwork();
 
     if (Modes.globe_history_dir) {
         fprintf(stderr, "saving state .....\n");
