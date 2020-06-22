@@ -638,11 +638,15 @@ void *jsonTraceThreadEntryPoint(void *arg) {
     while (!Modes.exit) {
         struct aircraft *a;
 
-        pthread_mutex_unlock(&Modes.jsonTraceThreadMutex[thread]);
+        struct timespec ts;
+        increment_now(&ts, &slp);
 
-        nanosleep(&slp, NULL);
-
-        pthread_mutex_lock(&Modes.jsonTraceThreadMutex[thread]);
+        int res = 0;
+        while (!Modes.exit && res == 0) {
+            res = pthread_cond_timedwait(&Modes.jsonTraceThreadCond[thread], &Modes.jsonTraceThreadMutex[thread], &ts);
+        }
+        if (Modes.exit)
+            break;
 
         struct timespec start_time;
         start_cpu_timing(&start_time);

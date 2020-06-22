@@ -359,6 +359,9 @@ int threadNumber[256];
 
 struct
 { // Internal state
+  pthread_mutex_t mainThreadMutex;
+  pthread_cond_t mainThreadCond;
+
   pthread_cond_t data_cond; // Conditional variable associated
   pthread_t reader_thread;
   pthread_mutex_t data_mutex; // Mutex to synchronize buffer access
@@ -368,9 +371,13 @@ struct
   pthread_mutex_t decodeThreadMutex;
   pthread_mutex_t jsonThreadMutex;
   pthread_mutex_t jsonGlobeThreadMutex;
+  pthread_cond_t decodeThreadCond;
+  pthread_cond_t jsonThreadCond;
+  pthread_cond_t jsonGlobeThreadCond;
 
   pthread_t jsonTraceThread[TRACE_THREADS]; // thread writing icao trace jsons
   pthread_mutex_t jsonTraceThreadMutex[TRACE_THREADS];
+  pthread_cond_t jsonTraceThreadCond[TRACE_THREADS];
 
   unsigned first_free_buffer; // Entry in mag_buffers that will next be filled with input.
   unsigned first_filled_buffer; // Entry in mag_buffers that has valid data and will be demodulated next. If equal to next_free_buffer, there is no unprocessed data.

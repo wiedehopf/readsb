@@ -52,4 +52,7 @@ void end_cpu_timing (const struct timespec *start_time, struct timespec *add_to)
 // get nanoseconds and some other stuff for use with srand
 unsigned int get_seed();
 
+// write the current time incremented by increment into target
+void increment_now(struct timespec *target, const struct timespec *increment);
+
 #endif

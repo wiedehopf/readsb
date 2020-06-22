@@ -105,3 +105,10 @@ unsigned int get_seed() {
     clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time);
     return (time.tv_sec ^ time.tv_nsec ^ (getpid() << 16) ^ pthread_self());
 }
+
+void increment_now(struct timespec *target, const struct timespec *increment) {
+    clock_gettime(CLOCK_REALTIME, target);
+    target->tv_sec += increment->tv_sec;
+    target->tv_nsec += increment->tv_nsec;
+    normalize_timespec(target);
+}
