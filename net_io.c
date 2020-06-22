@@ -2722,15 +2722,15 @@ static void modesReadFromClient(struct client *c) {
                     modesCloseClient(c);
                     Modes.stats_current.remote_malformed_beast += 100;
                     if (Modes.debug & MODES_DEBUG_NET) {
-                        fprintf(stderr, "Garbage SBS on beast input: Closing connection from/to %s port %s\n", c->host, c->port);
+                        fprintf(stderr, "SBS Garbage: Close %s port %s\n", c->host, c->port);
                     }
                     return;
                 }
                 // disconnect other garbage feeds
-                if (c->garbage > 2048) {
+                if (c->garbage > 512) {
                     modesCloseClient(c);
                     if (Modes.debug & MODES_DEBUG_NET) {
-                        fprintf(stderr, "Misc. Garbage on beast input: Closing connection from/to %s port %s\n", c->host, c->port);
+                        fprintf(stderr, "??? Garbage: Close: %s port %s\n", c->host, c->port);
                     }
                     return;
                 }
@@ -2824,9 +2824,9 @@ static void modesReadFromClient(struct client *c) {
                         return;
                     }
 
-                    // if we get some valid data, reduce the garbage counter a bit.
-                    if (c->garbage > 8)
-                        c->garbage -= 8;
+                    // if we get some valid data, reduce the garbage counter.
+                    if (c->garbage > 128)
+                        c->garbage -= 128;
 
                     // advance to next message
                     som = eom;
