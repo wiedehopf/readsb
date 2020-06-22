@@ -1615,8 +1615,8 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
         while (a) {
             if (
                     (a->messages == 1 && now > a->seen + TRACK_AIRCRAFT_ONEHIT_TTL) ||
-                    (!Modes.globe_history_dir && now > a->seen + 5 * MINUTES) ||
-                    (Modes.globe_history_dir &&
+                    (!Modes.state_dir && now > a->seen + 5 * MINUTES) ||
+                    (Modes.state_dir &&
                      (
                          (!a->seen_pos && now > a->seen + TRACK_AIRCRAFT_NO_POS_TTL) ||
                          (a->seen_pos && now > a->seen_pos + TRACK_AIRCRAFT_TTL) ||
@@ -1786,8 +1786,8 @@ static void cleanupAircraft(struct aircraft *a) {
             unlink_trace(a);
         }
 
-        if (Modes.globe_history_dir) {
-            snprintf(filename, 1024, "%s/internal_state/%02x/%06x", Modes.globe_history_dir, a->addr % 256, a->addr);
+        if (Modes.state_dir) {
+            snprintf(filename, 1024, "%s/%02x/%06x", Modes.state_dir, a->addr % 256, a->addr);
             if (unlink(filename)) {
                 //perror("unlink internal_state");
                 //fprintf(stderr, "unlink %06x: %s\n", a->addr, filename);

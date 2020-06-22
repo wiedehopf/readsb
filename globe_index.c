@@ -192,8 +192,6 @@ void write_trace(struct aircraft *a, uint64_t now) {
     struct char_buffer recent;
     struct char_buffer full;
     struct char_buffer hist;
-    size_t shadow_size = 0;
-    char *shadow = NULL;
     char filename[PATH_MAX];
     static uint32_t count2, count3, count4;
 
@@ -333,20 +331,6 @@ void write_trace(struct aircraft *a, uint64_t now) {
 
         free(hist.buffer);
     }
-
-    // no longer used
-    if (0 && shadow && shadow_size > 0) {
-        snprintf(filename, 1024, "%s/internal_state/%02x/%06x", Modes.globe_history_dir, a->addr % 256, a->addr);
-
-        int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-        if (fd < 0) {
-            perror(filename);
-        } else {
-            check_write(fd, shadow, shadow_size, filename);
-            close(fd);
-        }
-    }
-    free(shadow);
 }
 
 void *save_state(void *arg) {
@@ -357,39 +341,6 @@ void *save_state(void *arg) {
 
         //fprintf(stderr, "save_blob(%d)\n", j);
         save_blob(j);
-    }
-    return NULL;
-    // old internal state, no longer needed
-    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
-        if (j % IO_THREADS != thread_number)
-            continue;
-        for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
-            if (!a->seen_pos && a->trace_len == 0)
-                continue;
-            if (a->addr & MODES_NON_ICAO_ADDRESS)
-                continue;
-            if (a->messages < 2)
-                continue;
-
-            char filename[1024];
-            snprintf(filename, 1024, "%s/internal_state/%02x/%06x", Modes.globe_history_dir, a->addr % 256, a->addr);
-
-            int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-            if (fd < 0) {
-                perror(filename);
-            } else {
-                int res;
-                res = check_write(fd, a, sizeof(struct aircraft), filename);
-                if (res > 0 && a->trace_len > 0) {
-                    int size_state = a->trace_len * sizeof(struct state);
-                    int size_all = (a->trace_len + 3) / 4 * sizeof(struct state_all);
-                    check_write(fd, a->trace, size_state, filename);
-                    check_write(fd, a->trace_all, size_all, filename);
-                }
-
-                close(fd);
-            }
-        }
     }
     return NULL;
 }
@@ -578,7 +529,7 @@ void *load_state(void *arg) {
     for (int i = 0; i < 256; i++) {
         if (i % IO_THREADS != thread_number)
             continue;
-        snprintf(pathbuf, PATH_MAX, "%s/internal_state/%02x", Modes.globe_history_dir, i);
+        snprintf(pathbuf, PATH_MAX, "%s/%02x", Modes.state_dir, i);
 
         DIR *dp;
         struct dirent *ep;
@@ -590,7 +541,7 @@ void *load_state(void *arg) {
         while ((ep = readdir (dp))) {
             if (strlen(ep->d_name) < 6)
                 continue;
-            snprintf(pathbuf, PATH_MAX, "%s/internal_state/%02x/%s", Modes.globe_history_dir, i, ep->d_name);
+            snprintf(pathbuf, PATH_MAX, "%s/%02x/%s", Modes.state_dir, i, ep->d_name);
 
             int fd = open(pathbuf, O_RDONLY);
 
@@ -1023,7 +974,7 @@ void set_globe_index (struct aircraft *a, int new_index) {
 
 // blobs 00 to ff (0 to 255)
 void save_blob(int blob) {
-    if (!Modes.globe_history_dir)
+    if (!Modes.state_dir)
         return;
     //static int count;
     //fprintf(stderr, "Save blob: %02x, count: %d\n", blob, ++count);
@@ -1034,13 +985,13 @@ void save_blob(int blob) {
 
     char filename[1024];
     if (gzip) {
-        snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
+        snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
         unlink(filename);
-        snprintf(filename, 1024, "%s/internal_state/blob_%02x.gz", Modes.globe_history_dir, blob);
+        snprintf(filename, 1024, "%s/blob_%02x.gz", Modes.state_dir, blob);
     } else {
-        snprintf(filename, 1024, "%s/internal_state/blob_%02x.gz", Modes.globe_history_dir, blob);
+        snprintf(filename, 1024, "%s/blob_%02x.gz", Modes.state_dir, blob);
         unlink(filename);
-        snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
+        snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
     }
 
     int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
@@ -1162,7 +1113,7 @@ static void load_blob(int blob) {
     char *p;
     char *end;
 
-    snprintf(filename, 1024, "%s/internal_state/blob_%02x.gz", Modes.globe_history_dir, blob);
+    snprintf(filename, 1024, "%s/blob_%02x.gz", Modes.state_dir, blob);
     gzFile gzfp = gzopen(filename, "r");
     if (gzfp) {
         if (gzbuffer(gzfp, 256 * 1024) < 0)
@@ -1170,7 +1121,7 @@ static void load_blob(int blob) {
         cb = readWholeGz(gzfp);
         gzclose(gzfp);
     } else {
-        snprintf(filename, 1024, "%s/internal_state/blob_%02x", Modes.globe_history_dir, blob);
+        snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
         fd = open(filename, O_RDONLY);
         if (fd == -1) {
             fprintf(stderr, "missing state blob:");

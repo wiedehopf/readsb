@@ -470,6 +470,7 @@ struct
   char *net_bind_address; // Bind address
   char *json_dir; // Path to json base directory, or NULL not to write json.
   char *globe_history_dir;
+  char *state_dir;
   char *prom_file;
   uint64_t globe_history_heatmap;
   int heatmap_current_interval;
@@ -805,6 +806,7 @@ enum {
   OptJsonReliable,
   OptPromFile,
   OptGlobeHistoryDir,
+  OptStateDir,
   OptGlobeHistoryHeatmap,
   OptJsonTime,
   OptJsonLocAcc,

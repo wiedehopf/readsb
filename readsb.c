@@ -708,6 +708,7 @@ static void cleanup_and_exit(int code) {
     free(Modes.prom_file);
     free(Modes.json_dir);
     free(Modes.globe_history_dir);
+    free(Modes.state_dir);
     free(Modes.net_bind_address);
     free(Modes.net_input_beast_ports);
     free(Modes.net_output_beast_ports);
@@ -873,6 +874,15 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptGlobeHistoryDir:
             Modes.globe_history_dir = strdup(arg);
+            if (!Modes.state_dir) {
+                Modes.state_dir = malloc(PATH_MAX);
+                snprintf(Modes.state_dir, PATH_MAX, "%s/internal_state", Modes.globe_history_dir);
+            }
+            break;
+        case OptStateDir:
+            if (Modes.state_dir)
+                free(Modes.state_dir);
+            Modes.state_dir = strdup(arg);
             break;
         case OptJsonTime:
             Modes.json_interval = (uint64_t) (1000 * atof(arg));
@@ -1200,7 +1210,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (Modes.globe_history_dir) {
+    if (Modes.state_dir) {
         fprintf(stderr, "loading state .....\n");
         pthread_t threads[IO_THREADS];
         int numbers[IO_THREADS];
@@ -1235,8 +1245,7 @@ int main(int argc, char **argv) {
         if (mkdir(Modes.globe_history_dir, 0755) && errno != EEXIST)
             perror(Modes.globe_history_dir);
 
-        snprintf(pathbuf, PATH_MAX, "%s/internal_state", Modes.globe_history_dir);
-        if (mkdir(pathbuf, 0755) && errno != EEXIST)
+        if (mkdir(Modes.state_dir, 0755) && errno != EEXIST)
             perror(pathbuf);
     }
 
@@ -1312,7 +1321,7 @@ int main(int argc, char **argv) {
     /* Cleanup network setup */
     cleanupNetwork();
 
-    if (Modes.globe_history_dir) {
+    if (Modes.state_dir) {
         fprintf(stderr, "saving state .....\n");
 
         pthread_t threads[IO_THREADS];

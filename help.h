@@ -67,6 +67,7 @@ static struct argp_option options[] =
     {"write-json", OptJsonDir, "<dir>", 0, "Periodically write json output to <dir>", 1},
     {"write-prom", OptPromFile, "<filepath>", 0, "Periodically write prometheus output to <filepath>", 1},
     {"write-globe-history", OptGlobeHistoryDir, "<dir>", 0, "Extended Globe History", 1},
+    {"write-state", OptStateDir, "<dir>", 0, "Write state to disk to have traces after a restart", 1},
     {"globe-history-heatmap", OptGlobeHistoryHeatmap, "<interval in seconds>", 0, "Make Heatmap from Globe History, each aircraft at most every interval seconds(creates historydir/heatmap.bin and exit after that)", 1},
     {"write-json-every", OptJsonTime, "<t>", 0, "Write json output every t seconds (default 1)", 1},
     {"json-location-accuracy", OptJsonLocAcc , "<n>", 0, "Accuracy of receiver location in json metadata: 0=no location, 1=approximate, 2=exact", 1},
