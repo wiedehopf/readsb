@@ -65,10 +65,10 @@ struct net_service
   struct net_writer *writer; // shared writer state
   struct net_service* next;
   int *listener_fds; // listening FDs
-  const char *read_sep; // hander details for input data
-  int read_sep_len;
   const char *descr;
   struct client *clients; // linked list of clients connected to this service
+  int read_sep_len;
+  const char *read_sep; // hander details for input data
 };
 
 // Client connection
@@ -114,6 +114,7 @@ struct client
   void *sendq;  // Write buffer - allocated later
   int sendq_len; // Amount of data in SendQ
   int sendq_max; // Max size of SendQ
+  uint32_t garbage; // amount of garbage we have received from this client
   char host[NI_MAXHOST]; // For logging
   char port[NI_MAXSERV];
   struct net_connector *con;

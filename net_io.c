@@ -2715,9 +2715,30 @@ static void modesReadFromClient(struct client *c) {
                 // If there is a complete message still in the buffer, there must be the separator 'sep'
                 // in the buffer, note that we full-scan the buffer at every read for simplicity.
 
+
+                // disconnect basestation feeds
+                if (eod > som + 10 && som[0] == 'M' && som[1] == 'S' && som[2] == 'G'
+                        && som[3] == ',' && som[5] == ',' && som[7] == ',' && som[9] == ',') {
+                    modesCloseClient(c);
+                    Modes.stats_current.remote_malformed_beast += 100;
+                    if (Modes.debug & MODES_DEBUG_NET) {
+                        fprintf(stderr, "Garbage SBS on beast input: Closing connection from/to %s port %s\n", c->host, c->port);
+                    }
+                    return;
+                }
+                // disconnect other garbage feeds
+                if (c->garbage > 2048) {
+                    modesCloseClient(c);
+                    if (Modes.debug & MODES_DEBUG_NET) {
+                        fprintf(stderr, "Misc. Garbage on beast input: Closing connection from/to %s port %s\n", c->host, c->port);
+                    }
+                    return;
+                }
+
                 while (som < eod && ((p = memchr(som, (char) 0x1a, eod - som)) != NULL)) { // The first byte of buffer 'should' be 0x1a
 
                     Modes.stats_current.remote_malformed_beast += p - som;
+                    c->garbage += p - som;
                     som = p; // consume garbage up to the 0x1a
                     ++p; // skip 0x1a
 
@@ -2802,6 +2823,10 @@ static void modesReadFromClient(struct client *c) {
                         modesCloseClient(c);
                         return;
                     }
+
+                    // if we get some valid data, reduce the garbage counter a bit.
+                    if (c->garbage > 8)
+                        c->garbage -= 8;
 
                     // advance to next message
                     som = eom;
