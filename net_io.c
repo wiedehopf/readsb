@@ -3194,7 +3194,9 @@ retry:
             if (reduced_data && a->addrtype != ADDR_JAERO && a->position_valid.source != SOURCE_JAERO)
                 goto skip_fields;
 
-            if (trackDataAge(now, &a->callsign_valid) < 8 * HOURS) {
+            if (trackDataAge(now, &a->callsign_valid) < 5 * MINUTES
+                    || (a->position_valid.source == SOURCE_JAERO && trackDataAge(now, &a->callsign_valid) < 8 * HOURS)
+               ) {
                 char buf[128];
                 char buf2[16];
                 const char *trimmed = trimSpace(a->callsign, buf2, 8);
