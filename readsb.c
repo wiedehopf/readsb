@@ -217,7 +217,7 @@ static void modesInitConfig(void) {
     Modes.uuidFile = strdup("/boot/adsbx-uuid");
     Modes.json_trace_interval = 30 * 1000;
     Modes.heatmap_current_interval = -1;
-    Modes.globe_history_heatmap = 0;
+    Modes.heatmap_interval = 60 * SECONDS;
     Modes.json_reliable = 2;
 
     Modes.cpr_focus = 0xc0ffeeba;
@@ -869,8 +869,14 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.json_dir = strdup(arg);
             break;
         case OptGlobeHistoryHeatmap:
+            Modes.globe_history_heatmap = 1;
             if (atof(arg) > 0)
-                Modes.globe_history_heatmap = 1000 * atof(arg);
+                Modes.heatmap_interval = 1000 * atof(arg);
+            break;
+        case OptTempHeatmap:
+            Modes.temp_heatmap = 1;
+            if (atof(arg) > 0)
+                Modes.heatmap_interval = 1000 * atof(arg);
             break;
         case OptGlobeHistoryDir:
             Modes.globe_history_dir = strdup(arg);
@@ -909,10 +915,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptJsonGlobeIndex:
             Modes.json_globe_index = 1;
-            Modes.json_globe_special_tiles = calloc(GLOBE_SPECIAL_INDEX, sizeof(struct tile));
-            if (!Modes.json_globe_special_tiles)
-                return 1;
-            init_globe_index(Modes.json_globe_special_tiles);
             break;
 #endif
         case OptNetHeartbeat:
@@ -1208,6 +1210,17 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Heatmap requires globe history and globe index options to be enabled, disabling heatmap!\n");
             Modes.globe_history_heatmap = 0;
         }
+    }
+
+    if (Modes.json_globe_index) {
+        Modes.keep_traces = (24 * 3600 + GLOBE_OVERLAP * 2) * 1000;
+    } else if (Modes.temp_heatmap) {
+        Modes.keep_traces = 2 * HOURS;
+    }
+
+    if (Modes.keep_traces) {
+        Modes.json_globe_special_tiles = calloc(GLOBE_SPECIAL_INDEX, sizeof(struct tile));
+        init_globe_index(Modes.json_globe_special_tiles);
     }
 
     if (Modes.state_dir) {

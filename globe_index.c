@@ -1166,7 +1166,7 @@ void handleHeatmap() {
     utc.tm_sec = 0;
     uint64_t start = 1000 * (uint64_t) (timegm(&utc));
     uint64_t end = start + 30 * MINUTES;
-    int num_slices = (30 * MINUTES) / Modes.globe_history_heatmap;
+    int num_slices = (30 * MINUTES) / Modes.heatmap_interval;
 
     Modes.heatmap_current_interval = half_hour;
 
@@ -1226,8 +1226,8 @@ void handleHeatmap() {
                 if (!trace[i].flags.altitude_valid)
                     continue;
 
-                while (trace[i].timestamp > next + Modes.globe_history_heatmap) {
-                    next += Modes.globe_history_heatmap;
+                while (trace[i].timestamp > next + Modes.heatmap_interval) {
+                    next += Modes.heatmap_interval;
                     slice++;
                 }
 
@@ -1249,7 +1249,7 @@ void handleHeatmap() {
 
                 len++;
 
-                next += Modes.globe_history_heatmap;
+                next += Modes.heatmap_interval;
                 slice++;
             }
 
@@ -1259,11 +1259,11 @@ void handleHeatmap() {
 
     for (int i = 0; i < num_slices; i++) {
         struct heatEntry specialSauce = (struct heatEntry) {0};
-        uint64_t slice_stamp = start + i * Modes.globe_history_heatmap;
+        uint64_t slice_stamp = start + i * Modes.heatmap_interval;
         specialSauce.hex = 0xe7f7c9d;
         specialSauce.lat = slice_stamp >> 32;
         specialSauce.lon = slice_stamp & ((1ULL << 32) - 1);
-        specialSauce.alt = Modes.globe_history_heatmap;
+        specialSauce.alt = Modes.heatmap_interval;
 
         index[i] = (struct heatEntry) {0};
         index[i].hex = len2 + num_slices;
@@ -1278,15 +1278,26 @@ void handleHeatmap() {
     char tstring[100];
     strftime (tstring, 100, "%Y-%m-%d", &utc);
 
-    snprintf(pathbuf, PATH_MAX, "%s/%s", Modes.globe_history_dir, tstring);
-    if (mkdir(pathbuf, 0755) && errno != EEXIST)
-        perror(pathbuf);
-    snprintf(pathbuf, PATH_MAX, "%s/%s/heatmap", Modes.globe_history_dir, tstring);
+    char *base_dir = Modes.globe_history_dir;
+    char base_dir_buffer[PATH_MAX-128];
+    if (Modes.temp_heatmap) {
+        snprintf(base_dir_buffer, PATH_MAX, "%s/heatmap", Modes.json_dir);
+        base_dir = base_dir_buffer;
+
+        if (mkdir(base_dir, 0755) && errno != EEXIST)
+            perror(base_dir);
+    }
+
+    snprintf(pathbuf, PATH_MAX, "%s/%s", base_dir, tstring);
     if (mkdir(pathbuf, 0755) && errno != EEXIST)
         perror(pathbuf);
 
-    snprintf(pathbuf, PATH_MAX, "%s/%s/heatmap/%02d.bin.ttf", Modes.globe_history_dir, tstring, half_hour);
-    snprintf(tmppath, PATH_MAX, "%s/%s/heatmap/temp_%lx_%lx", Modes.globe_history_dir, tstring, random(), random());
+    snprintf(pathbuf, PATH_MAX, "%s/%s/heatmap", base_dir, tstring);
+    if (mkdir(pathbuf, 0755) && errno != EEXIST)
+        perror(pathbuf);
+
+    snprintf(pathbuf, PATH_MAX, "%s/%s/heatmap/%02d.bin.ttf", base_dir, tstring, half_hour);
+    snprintf(tmppath, PATH_MAX, "%s/%s/heatmap/temp_%lx_%lx", base_dir, tstring, random(), random());
 
     fprintf(stderr, "%s using %d positions\n", pathbuf, len);
 
@@ -1297,7 +1308,7 @@ void handleHeatmap() {
         int res;
         gzFile gzfp = gzdopen(fd, "wb");
         if (!gzfp)
-            fprintf(stderr, "gzdopen fail");
+            fprintf(stderr, "heatmap: gzdopen fail");
         else if (gzbuffer(gzfp, 1024 * 1024) < 0)
             fprintf(stderr, "gzbuffer fail");
         res = gzsetparams(gzfp, 9, Z_DEFAULT_STRATEGY);

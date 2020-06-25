@@ -1660,15 +1660,16 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                     a->trace_full_write = 0xc0ffee;
                 }
 
-                if (a->seen_pos && now > a->trace_next_fw && a->trace_full_write != 0xdead) {
-                    a->trace_write = 1;
-                    resize_trace(a, now);
+                if (Modes.keep_traces) {
+                    if (a->seen_pos && now > a->trace_next_fw && a->trace_full_write != 0xdead) {
+                        a->trace_write = 1;
+                        resize_trace(a, now);
+                    }
+                    if (a->trace_len && a->trace_len + GLOBE_STEP / 2 >= a->trace_alloc) {
+                        resize_trace(a, now);
+                        //fprintf(stderr, "%06x: new trace_alloc: %d).\n", a->addr, a->trace_alloc);
+                    }
                 }
-                if (a->trace_len && a->trace_len + GLOBE_STEP / 2 >= a->trace_alloc) {
-                    resize_trace(a, now);
-                    //fprintf(stderr, "%06x: new trace_alloc: %d).\n", a->addr, a->trace_alloc);
-                }
-
 
                 if (a->globe_index >= 0 && now > a->seen_pos + 30 * 60 * 1000) {
                     set_globe_index(a, -5);
@@ -1757,7 +1758,7 @@ void trackPeriodicUpdate() {
     if (part % (3000 / STATE_BLOBS) == 0)
         save_blob(blob++ % STATE_BLOBS);
 
-    if (Modes.globe_history_heatmap)
+    if (Modes.globe_history_heatmap || Modes.temp_heatmap)
         handleHeatmap(); // only does sth every 30 min
 
     if (writeStats && Modes.json_dir)
@@ -1824,7 +1825,7 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
     }
 
 
-    if (Modes.json_globe_index) {
+    if (Modes.keep_traces) {
 
         set_globe_index(a, globe_index(new_lat, new_lon));
 
@@ -2147,7 +2148,7 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
     }
     if (a->trace_len == GLOBE_TRACE_SIZE
             || (now > a->trace->timestamp + (4 * HOURS) && (a->addr & MODES_NON_ICAO_ADDRESS))
-            || now > a->trace->timestamp + (24 * 3600 + GLOBE_OVERLAP * 2) * 1000) {
+            || now > a->trace->timestamp + Modes.keep_traces + 20 * MINUTES) {
         int new_start = a->trace_len;
 
         if (a->trace_len < GLOBE_TRACE_SIZE) {
@@ -2161,7 +2162,7 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
                         break;
                     }
                 } else {
-                    if (now < state->timestamp + (24 * 3600 + GLOBE_OVERLAP * 2 - 20 * 60) * 1000) {
+                    if (now < state->timestamp + Modes.keep_traces) {
                         new_start = i;
                         found = 1;
                         break;
