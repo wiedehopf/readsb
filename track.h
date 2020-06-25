@@ -54,23 +54,27 @@
 #ifndef DUMP1090_TRACK_H
 #define DUMP1090_TRACK_H
 
-/* Maximum age of tracked aircraft in milliseconds */
-#define TRACK_AIRCRAFT_TTL (10*24*60*60000ULL)
-// 10 days should cover almost all turn-arounds.
-// due to new receiver relative stuff reduce this to 10 days
-//
-#define TRACK_AIRCRAFT_NO_POS_TTL (5*60000ULL)
-// only 5 minutes for aircraft without position
-
 #define HOURS (60*60*1000ULL)
 #define MINUTES (60*1000ULL)
 #define SECONDS (1000ULL)
 
-#define TRACK_AIRCRAFT_NON_ICAO_TTL (5*60000ULL)
-// 5 minutes for NON_ICAO aircraft
+
+/* Maximum age of tracked aircraft in milliseconds */
+#define TRACK_AIRCRAFT_TTL (10*24*HOURS)
+// 10 days should cover almost all turn-arounds.
+// due to new receiver relative stuff reduce this to 10 days
+//
+// reduce this to 5h if we don't save state to disk
+#define TRACK_AIRCRAFT_NO_STATE_TTL (5*HOURS)
+//
+#define TRACK_AIRCRAFT_NO_POS_TTL (5*MINUTES)
+// only 5 minutes for aircraft without position
+
+#define TRACK_AIRCRAFT_NON_ICAO_TTL (5*HOURS)
+// 5 hours for NON_ICAO aircraft
 
 /* Maximum age of a tracked aircraft with only 1 message received, in milliseconds */
-#define TRACK_AIRCRAFT_ONEHIT_TTL 60000
+#define TRACK_AIRCRAFT_ONEHIT_TTL 1*MINUTES
 
 /* Minimum number of repeated Mode A/C replies with a particular Mode A code needed in a
  * 1 second period before accepting that code.
@@ -83,13 +87,13 @@
 #define ALTITUDE_BARO_RELIABLE_MAX 20
 
 // 15 seconds
-#define TRACK_STALE (15*1000)
+#define TRACK_STALE (15*SECONDS)
 // 30 seconds
-#define TRACK_EXPIRE (30*1000)
+#define TRACK_EXPIRE (30*SECONDS)
 // 90 seconds
-#define TRACK_EXPIRE_LONG (90*1000)
+#define TRACK_EXPIRE_LONG (90*SECONDS)
 // 33 minutes
-#define TRACK_EXPIRE_JAERO (33*60*1000)
+#define TRACK_EXPIRE_JAERO (33*MINUTES)
 
 // 2.5 seconds maximum between messages used for calculating wind / temperature
 #define TRACK_WT_TIMEOUT (2500)
