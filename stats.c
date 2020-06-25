@@ -726,10 +726,15 @@ struct char_buffer generatePromFile() {
             p = safe_snprintf(p, end, "readsb_signal_peak -50.0\n");
 
         p = safe_snprintf(p, end, "readsb_signal_strong %d\n", st->strong_signal_count);
+
+        p = safe_snprintf(p, end, "readsb_demod_samples_processed %"PRIu64"\n", st->samples_processed);
+        p = safe_snprintf(p, end, "readsb_demod_samples_dropped %"PRIu64"\n", st->samples_dropped);
+
+        p = safe_snprintf(p, end, "readsb_demod_preambles %"PRIu32"\n", st->demod_preambles);
     }
 
     if (p >= end)
-        fprintf(stderr, "buffer overrun stats json\n");
+        fprintf(stderr, "buffer overrun stats prom\n");
 
     cb.len = p - buf;
     cb.buffer = buf;
