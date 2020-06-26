@@ -66,6 +66,12 @@ uint64_t mstime(void) {
     return mst;
 }
 
+uint64_t msThreadTime(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+    return ((uint64_t) ts.tv_sec * 1000 + ts.tv_nsec / (1000 * 1000));
+}
+
 int64_t receiveclock_ns_elapsed(uint64_t t1, uint64_t t2) {
     return (t2 - t1) * 1000U / 12U;
 }

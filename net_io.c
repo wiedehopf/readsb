@@ -2623,10 +2623,10 @@ static void modesReadFromClient(struct client *c) {
     int left;
     int nread;
     int bContinue = 1;
-    int loop = 0;
+    uint64_t loop_start = msThreadTime();
     uint64_t now = mstime();
 
-    while (bContinue && loop++ < 10) {
+    while (bContinue && msThreadTime() < loop_start + 300) {
         left = MODES_CLIENT_BUF_SIZE - c->buflen - 1; // leave 1 extra byte for NUL termination in the ASCII case
 
         // If our buffer is full discard it, this is some badly formatted shit

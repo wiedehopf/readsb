@@ -29,6 +29,8 @@
 /* Returns system time in milliseconds */
 uint64_t mstime (void);
 
+uint64_t msThreadTime(void);
+
 /* Returns the time elapsed, in nanoseconds, from t1 to t2,
  * where t1 and t2 are 12MHz counters.
  */
