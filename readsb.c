@@ -237,6 +237,8 @@ static void modesInitConfig(void) {
 static void modesInit(void) {
     int i;
 
+    Modes.startup_time = mstime();
+
     pthread_mutex_init(&Modes.mainThreadMutex, NULL);
     pthread_cond_init(&Modes.mainThreadCond, NULL);
 

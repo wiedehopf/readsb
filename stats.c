@@ -731,6 +731,11 @@ struct char_buffer generatePromFile() {
 
         p = safe_snprintf(p, end, "readsb_demod_preambles %"PRIu32"\n", st->demod_preambles);
     }
+    uint64_t now = mstime();
+    uint64_t uptime = now - Modes.startup_time;
+    if (now < Modes.startup_time)
+        uptime = 0;
+    p = safe_snprintf(p, end, "readsb_uptime %"PRIu64"\n", uptime);
 
     if (p >= end)
         fprintf(stderr, "buffer overrun stats prom\n");
@@ -779,8 +784,6 @@ void countStuff(struct aircraft *a, uint64_t now) {
 static void calcStuff() {
     uint32_t total = Modes.json_ac_count_pos + Modes.json_ac_count_no_pos;
 
-    Modes.readsb_aircraft_mlat = Modes.type_counts[ADDR_MLAT];
-
     if (total > 0) {
         Modes.readsb_aircraft_rssi_average /= total;
     } else {
@@ -802,7 +805,6 @@ void resetStuff() {
     Modes.readsb_aircraft_adsb_version_1 = 0;
     Modes.readsb_aircraft_adsb_version_2 = 0;
     Modes.readsb_aircraft_emergency = 0;
-    Modes.readsb_aircraft_mlat = 0;
     Modes.readsb_aircraft_rssi_average = 0;
     Modes.readsb_aircraft_rssi_max = -50;
     Modes.readsb_aircraft_rssi_min = 0;

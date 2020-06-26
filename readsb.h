@@ -538,7 +538,7 @@ struct
   uint32_t readsb_aircraft_message_type_adsc;
   uint32_t readsb_aircraft_message_type_unknown;
   uint32_t readsb_aircraft_message_type_other;
-  uint32_t readsb_aircraft_mlat;
+  uint64_t startup_time;
   double readsb_aircraft_rssi_average;
   float readsb_aircraft_rssi_max;
   float readsb_aircraft_rssi_min;
