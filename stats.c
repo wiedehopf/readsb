@@ -746,7 +746,9 @@ struct char_buffer generatePromFile() {
 }
 
 void countStuff(struct aircraft *a, uint64_t now) {
-    if (a->seen + 60 * SECONDS < now)
+    if (a->seen + 30 * SECONDS < now)
+        return;
+    if (a->messages < 2)
         return;
 
     if (trackDataValid(&a->position_valid))
@@ -771,8 +773,8 @@ void countStuff(struct aircraft *a, uint64_t now) {
 
     Modes.readsb_aircraft_rssi_average += signal;
 
-    Modes.readsb_aircraft_rssi_max = max(Modes.readsb_aircraft_rssi_max, signal);
-    Modes.readsb_aircraft_rssi_min = min(Modes.readsb_aircraft_rssi_min, signal);
+    Modes.readsb_aircraft_rssi_max = fmax(Modes.readsb_aircraft_rssi_max, signal);
+    Modes.readsb_aircraft_rssi_min = fmin(Modes.readsb_aircraft_rssi_min, signal);
     if (a->position_valid.source == SOURCE_TISB)
         Modes.readsb_aircraft_tisb++;
     if (trackDataValid(&a->callsign_valid))

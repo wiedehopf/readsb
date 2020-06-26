@@ -1279,27 +1279,12 @@ void handleHeatmap() {
     strftime (tstring, 100, "%Y-%m-%d", &utc);
 
     char *base_dir = Modes.globe_history_dir;
-    char base_dir_buffer[PATH_MAX-128];
-    if (Modes.temp_heatmap) {
-        snprintf(base_dir_buffer, PATH_MAX, "%s/heatmap", Modes.json_dir);
-        base_dir = base_dir_buffer;
-
-        if (mkdir(base_dir, 0755) && errno != EEXIST)
-            perror(base_dir);
-
-        // delete files 1 week old
-        time_t del_time = (mstime() - 30 * MINUTES - 7 * 24 * HOURS) / 1000;
-        struct tm del_tm;
-        gmtime_r(&del_time, &del_tm);
-        int del_half_hour = del_tm.tm_hour * 2 + del_tm.tm_min / 30;
-
-        char del_tstring[100];
-        strftime (del_tstring, 100, "%Y-%m-%d", &del_tm);
-
-        snprintf(pathbuf, PATH_MAX, "%s/%s/heatmap/%02d.bin.ttf", base_dir, del_tstring, del_half_hour);
-        unlink(pathbuf);
-        fprintf(stderr, "delete: %s\n", pathbuf);
+    if (Modes.heatmap_dir) {
+        base_dir = Modes.heatmap_dir;
     }
+
+    if (mkdir(base_dir, 0755) && errno != EEXIST)
+        perror(base_dir);
 
     snprintf(pathbuf, PATH_MAX, "%s/%s", base_dir, tstring);
     if (mkdir(pathbuf, 0755) && errno != EEXIST)

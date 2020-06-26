@@ -474,8 +474,8 @@ struct
   char *prom_file;
   uint64_t heatmap_interval;
   int heatmap_current_interval;
-  int globe_history_heatmap;
-  int temp_heatmap;
+  int heatmap;
+  char *heatmap_dir;
   uint32_t keep_traces; // how long traces are saved in internal memory
   int json_globe_index; // Enable extra globe indexed json files.
   uint32_t json_trace_interval; // max time ignoring new positions for trace
@@ -810,8 +810,8 @@ enum {
   OptPromFile,
   OptGlobeHistoryDir,
   OptStateDir,
-  OptGlobeHistoryHeatmap,
-  OptTempHeatmap,
+  OptHeatmap,
+  OptHeatmapDir,
   OptJsonTime,
   OptJsonLocAcc,
   OptJsonGlobeIndex,

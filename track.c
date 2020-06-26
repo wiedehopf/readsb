@@ -1040,8 +1040,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
     if (mm->signalLevel > 0) {
         a->signalLevel[a->signalNext] = mm->signalLevel;
-        a->signalNext = (a->signalNext + 1) & 7;
+    } else {
+        a->signalLevel[a->signalNext] = 1e-5;
     }
+    a->signalNext = (a->signalNext + 1) & 7;
     a->seen = mm->sysTimestampMsg;
 
     // reset to 100000 on overflow ... avoid any low message count checks
@@ -1758,7 +1760,7 @@ void trackPeriodicUpdate() {
     if (part % (3000 / STATE_BLOBS) == 0)
         save_blob(blob++ % STATE_BLOBS);
 
-    if (Modes.globe_history_heatmap || Modes.temp_heatmap)
+    if (Modes.heatmap)
         handleHeatmap(); // only does sth every 30 min
 
     if (writeStats && Modes.json_dir)

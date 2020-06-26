@@ -870,15 +870,13 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptJsonDir:
             Modes.json_dir = strdup(arg);
             break;
-        case OptGlobeHistoryHeatmap:
-            Modes.globe_history_heatmap = 1;
+        case OptHeatmap:
+            Modes.heatmap = 1;
             if (atof(arg) > 0)
                 Modes.heatmap_interval = 1000 * atof(arg);
             break;
-        case OptTempHeatmap:
-            Modes.temp_heatmap = 1;
-            if (atof(arg) > 0)
-                Modes.heatmap_interval = 1000 * atof(arg);
+        case OptHeatmapDir:
+            Modes.heatmap_dir = strdup(arg);
             break;
         case OptGlobeHistoryDir:
             Modes.globe_history_dir = strdup(arg);
@@ -1207,16 +1205,16 @@ int main(int argc, char **argv) {
 
     interactiveInit();
 
-    if (Modes.globe_history_heatmap) {
-        if (!Modes.globe_history_dir || !Modes.json_globe_index) {
-            fprintf(stderr, "Heatmap requires globe history and globe index options to be enabled, disabling heatmap!\n");
-            Modes.globe_history_heatmap = 0;
+    if (Modes.heatmap) {
+        if (!Modes.globe_history_dir && !Modes.heatmap_dir) {
+            fprintf(stderr, "Heatmap requires globe history dir or heatmap dir to be set, disabling heatmap!\n");
+            Modes.heatmap = 0;
         }
     }
 
     if (Modes.json_globe_index) {
         Modes.keep_traces = (24 * 3600 + GLOBE_OVERLAP * 2) * 1000;
-    } else if (Modes.temp_heatmap) {
+    } else if (Modes.heatmap) {
         Modes.keep_traces = 2 * HOURS;
     }
 
@@ -1386,98 +1384,3 @@ int main(int argc, char **argv) {
     log_with_timestamp("Normal exit.");
     cleanup_and_exit(0);
 }
-//
-//=========================================================================
-//
-//
-/*
-static void writeHeatmap() {
-    char pathbuf[PATH_MAX];
-    uint64_t len = 0;
-    uint64_t len2 = 0;
-    uint64_t alloc = 256 * 1024 * 1024;
-    int32_t *buffer = malloc(alloc * sizeof(int32_t));
-    int32_t *buffer2 = malloc(alloc * sizeof(int32_t));
-
-    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
-        for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
-            if (a->trace_len == 0) continue;
-
-            struct state *trace = a->trace;
-            uint64_t next = 0;
-
-            for (int i = 0; i < a->trace_len && i < 8000; i++) {
-                if (len + 3 > alloc)
-                    break;
-                if (trace[i].timestamp < next)
-                    continue;
-                if (trace[i].flags.on_ground)
-                    continue;
-                if (!trace[i].flags.altitude_valid)
-                    continue;
-
-                buffer[len++] = trace[i].lat;
-                buffer[len++] = trace[i].lon;
-                buffer[len++] = trace[i].altitude;
-
-                next = trace[i].timestamp + Modes.globe_history_heatmap;
-
-            }
-        }
-    }
-    fprintf(stderr, "using %"PRIu64" positions\n", len);
-#define mod (1 << 16)
-    srandom(get_seed());
-
-    int l = 0;
-    int done[mod];
-    while (l <= mod - 2000) {
-        int rnd = random() % mod;
-        if (done[rnd])
-            continue;
-        done[rnd] = 1;
-        l++;
-        for (unsigned k = rnd * 3; k < len; k += 3 * mod) {
-            buffer2[len2++] = buffer[k];
-            buffer2[len2++] = buffer[k+1];
-            buffer2[len2++] = buffer[k+2];
-        }
-    }
-    for (int i = 0; i < mod; i++) {
-        if (done[i])
-            continue;
-        done[i] = 1;
-        for (unsigned k = i * 3; k < len; k += 3 * mod) {
-            buffer2[len2++] = buffer[k];
-            buffer2[len2++] = buffer[k+1];
-            buffer2[len2++] = buffer[k+2];
-        }
-    }
-    snprintf(pathbuf, PATH_MAX, "%s/heatmap", Modes.globe_history_dir);
-    if (mkdir(pathbuf, 0755) && errno != EEXIST)
-        perror(pathbuf);
-
-    for (int i = 0; i < 64; i++) {
-        uint64_t start = i * len2 / 64;
-        start /= 3;
-        start *= 3;
-        uint64_t stride = len2 / 64;
-        stride /= 3;
-        stride *= 3;
-        stride *= sizeof(int32_t);
-        snprintf(pathbuf, PATH_MAX, "%s/heatmap/%02d.bin.csv", Modes.globe_history_dir, i);
-
-        int fd = open(pathbuf, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-        if (fd < 0) {
-            perror(pathbuf);
-            cleanup_and_exit(1);
-        }
-        gzFile gzfp = gzdopen(fd, "wb");
-        gzbuffer(gzfp, 256 * 1024);
-        gzsetparams(gzfp, 9, Z_DEFAULT_STRATEGY);
-        if (gzwrite(gzfp, buffer2 + start, stride) != (int) (stride))
-            perror("gzwrite");
-        gzclose(gzfp);
-    }
-}
-*/
