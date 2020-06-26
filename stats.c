@@ -643,7 +643,7 @@ struct char_buffer generatePromFile() {
 
     for (int i = 0; i < NUM_TYPES; i++) {
         const char *key = addrtype_enum_string(i);
-        p = safe_snprintf(p, end, "readsb_aircraft_by_type_%s %u\n", key, Modes.type_counts[i]);
+        p = safe_snprintf(p, end, "readsb_aircraft_%s %u\n", key, Modes.type_counts[i]);
     }
 
     p = safe_snprintf(p, end, "readsb_cpr_airborne %u\n", st->cpr_airborne);
