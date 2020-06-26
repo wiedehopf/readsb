@@ -28,7 +28,7 @@ struct converter_state;
 
 typedef enum
 {
-  INPUT_UC8 = 0, INPUT_SC16, INPUT_SC16Q11
+    INPUT_UC8 = 0, INPUT_SC16, INPUT_SC16Q11
 } input_format_t;
 
 typedef void (*iq_convert_fn)(void *iq_data,

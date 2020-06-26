@@ -39,11 +39,11 @@ static struct argp_option options[] =
     {"no-crc-check", OptNoCrcCheck, 0, 0, "Disable messages with invalid CRC (discouraged)", 1},
     {"metric", OptMetric, 0, 0, "Use metric units", 1},
     {"show-only", OptShowOnly, "<addr>", 0, "Show only messages by given ICAO on stdout", 1},
-    #ifdef ALLOW_AGGRESSIVE
-        {"aggressive", OptAggressive, 0, 0, "Enable two-bit CRC error correction", 1},
-    #else
-        {"aggressive", OptAggressive, 0, OPTION_HIDDEN, "Enable two-bit CRC error correction", 1},
-    #endif
+#ifdef ALLOW_AGGRESSIVE
+    {"aggressive", OptAggressive, 0, 0, "Enable two-bit CRC error correction", 1},
+#else
+    {"aggressive", OptAggressive, 0, OPTION_HIDDEN, "Enable two-bit CRC error correction", 1},
+#endif
 #endif
 #if defined(READSB)
     {"device-type", OptDeviceType, "<type>", 0, "Select SDR type", 1},
@@ -106,21 +106,21 @@ static struct argp_option options[] =
     {"net-heartbeat", OptNetHeartbeat, "<rate>", 0, "TCP heartbeat rate in seconds (default: 60 sec; 0 to disable)", 2},
     {"net-buffer", OptNetBuffer, "<n>", 0, "TCP buffer size 64Kb * (2^n) (default: n=2, 256Kb)", 2},
     {"net-verbatim", OptNetVerbatim, 0, 0, "Forward messages unchanged", 2},
-    #ifdef ENABLE_RTLSDR
-        {0,0,0,0, "RTL-SDR options:", 3},
-        {0,0,0, OPTION_DOC, "use with --device-type rtlsdr", 3},
-        {"device", OptDevice, "<index|serial>", 0, "Select device by index or serial number", 3},
-        {"enable-agc", OptRtlSdrEnableAgc, 0, 0, "Enable digital AGC (not tuner AGC!)", 3},
-        {"ppm", OptRtlSdrPpm, "<correction>", 0, "Set oscillator frequency correction in PPM", 3},
-    #endif
-    #ifdef ENABLE_BLADERF
-        {0,0,0,0, "BladeRF options:", 4},
-        {0,0,0, OPTION_DOC, "use with --device-type bladerf", 4},
-        {"device", OptDevice, "<ident>",  0, "Select device by bladeRF 'device identifier'", 4},
-        {"bladerf-fpga",            1001, "<path>",   0, "Use alternative FPGA bitstream ('' to disable FPGA load)", 4},
-        {"bladerf-decimation",      1002, "<N>",      0, "Assume FPGA decimates by a factor of N", 4},
-        {"bladerf-bandwidth",       1003, "<hz>",     0, "Set LPF bandwidth ('bypass' to bypass the LPF)", 4},
-    #endif
+#ifdef ENABLE_RTLSDR
+    {0,0,0,0, "RTL-SDR options:", 3},
+    {0,0,0, OPTION_DOC, "use with --device-type rtlsdr", 3},
+    {"device", OptDevice, "<index|serial>", 0, "Select device by index or serial number", 3},
+    {"enable-agc", OptRtlSdrEnableAgc, 0, 0, "Enable digital AGC (not tuner AGC!)", 3},
+    {"ppm", OptRtlSdrPpm, "<correction>", 0, "Set oscillator frequency correction in PPM", 3},
+#endif
+#ifdef ENABLE_BLADERF
+    {0,0,0,0, "BladeRF options:", 4},
+    {0,0,0, OPTION_DOC, "use with --device-type bladerf", 4},
+    {"device", OptDevice, "<ident>",  0, "Select device by bladeRF 'device identifier'", 4},
+    {"bladerf-fpga",            1001, "<path>",   0, "Use alternative FPGA bitstream ('' to disable FPGA load)", 4},
+    {"bladerf-decimation",      1002, "<N>",      0, "Assume FPGA decimates by a factor of N", 4},
+    {"bladerf-bandwidth",       1003, "<hz>",     0, "Set LPF bandwidth ('bypass' to bypass the LPF)", 4},
+#endif
     {0,0,0,0, "Modes-S Beast options:", 5},
     {0,0,0, OPTION_DOC, "use with --device-type modesbeast", 5},
     {0,0,0, OPTION_DOC, "Beast binary protocol and hardware handshake are always enabled.", 5},
@@ -142,12 +142,12 @@ static struct argp_option options[] =
     {"ifile", OptIfileName, "<path>", 0, "Read samples from given file ('-' for stdin)", 7},
     {"iformat", OptIfileFormat, "<type>", 0, "Set sample format (UC8, SC16, SC16Q11)", 7},
     {"throttle", OptIfileThrottle, 0, 0, "Process samples at the original capture speed", 7},
-    #ifdef ENABLE_PLUTOSDR
-        {0,0,0,0, "ADALM-Pluto SDR options:", 8},
-        {0,0,0, OPTION_DOC, "use with --device-type plutosdr", 8},
-        {"pluto-uri", OptPlutoUri, "<USB uri>", 0, "Create USB context from this URI.(eg. usb:1.2.5)", 8},
-        {"pluto-network", OptPlutoNetwork, "<hostname or IP>", 0, "Hostname or IP to create networks context. (default pluto.local)", 8},
-    #endif
+#ifdef ENABLE_PLUTOSDR
+    {0,0,0,0, "ADALM-Pluto SDR options:", 8},
+    {0,0,0, OPTION_DOC, "use with --device-type plutosdr", 8},
+    {"pluto-uri", OptPlutoUri, "<USB uri>", 0, "Create USB context from this URI.(eg. usb:1.2.5)", 8},
+    {"pluto-network", OptPlutoNetwork, "<hostname or IP>", 0, "Hostname or IP to create networks context. (default pluto.local)", 8},
+#endif
 #endif
     {0,0,0,0, "Help options:", 100},
     { 0 }

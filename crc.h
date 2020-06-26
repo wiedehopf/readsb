@@ -31,10 +31,10 @@
 
 struct errorinfo
 {
-  uint32_t syndrome; // CRC syndrome
-  int errors; // number of errors
-  int8_t bit[MODES_MAX_BITERRORS]; // bit positions to fix (-1 = no bit)
-  uint16_t padding;
+    uint32_t syndrome; // CRC syndrome
+    int errors; // number of errors
+    int8_t bit[MODES_MAX_BITERRORS]; // bit positions to fix (-1 = no bit)
+    uint16_t padding;
 };
 
 void modesChecksumInit (int fixBits);
