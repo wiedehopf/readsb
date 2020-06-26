@@ -632,19 +632,18 @@ struct char_buffer generatePromFile() {
     p = safe_snprintf(p, end, "readsb_aircraft_adsb_version_one %u\n", Modes.readsb_aircraft_adsb_version_1);
     p = safe_snprintf(p, end, "readsb_aircraft_adsb_version_two %u\n", Modes.readsb_aircraft_adsb_version_2);
     p = safe_snprintf(p, end, "readsb_aircraft_emergency %u\n", Modes.readsb_aircraft_emergency);
-    p = safe_snprintf(p, end, "readsb_aircraft_mlat %u\n", Modes.readsb_aircraft_mlat);
     p = safe_snprintf(p, end, "readsb_aircraft_rssi_average %.1f\n", Modes.readsb_aircraft_rssi_average);
     p = safe_snprintf(p, end, "readsb_aircraft_rssi_max %.1f\n", Modes.readsb_aircraft_rssi_max);
     p = safe_snprintf(p, end, "readsb_aircraft_rssi_min %.1f\n", Modes.readsb_aircraft_rssi_min);
-    p = safe_snprintf(p, end, "readsb_aircraft_tisb %u\n", Modes.readsb_aircraft_tisb);
     p = safe_snprintf(p, end, "readsb_aircraft_total %u\n", Modes.readsb_aircraft_total);
     p = safe_snprintf(p, end, "readsb_aircraft_with_flight_number %u\n", Modes.readsb_aircraft_with_flight_number);
     p = safe_snprintf(p, end, "readsb_aircraft_without_flight_number %u\n", Modes.readsb_aircraft_without_flight_number);
     p = safe_snprintf(p, end, "readsb_aircraft_with_position %u\n", Modes.readsb_aircraft_with_position);
+    p = safe_snprintf(p, end, "readsb_aircraft_without_position %u\n", Modes.readsb_aircraft_total - Modes.readsb_aircraft_with_position);
 
     for (int i = 0; i < NUM_TYPES; i++) {
         const char *key = addrtype_enum_string(i);
-        p = safe_snprintf(p, end, "readsb_aircraft_%s %u\n", key, Modes.type_counts[i]);
+        p = safe_snprintf(p, end, "readsb_aircraft_by_type_%s %u\n", key, Modes.type_counts[i]);
     }
 
     p = safe_snprintf(p, end, "readsb_cpr_airborne %u\n", st->cpr_airborne);
