@@ -1196,13 +1196,6 @@ int main(int argc, char **argv) {
     for (j = 0; j < STAT_BUCKETS; ++j)
         Modes.stats_10[j].start = Modes.stats_10[j].end = Modes.stats_current.start;
 
-    if (Modes.json_dir) {
-        // write initial json files so they're not missing
-        writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
-        //writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson()); // rather don't do this.
-        writeJsonToFile(Modes.json_dir, "aircraft.json", generateAircraftJson(-1));
-    }
-
     interactiveInit();
 
     if (Modes.heatmap) {
@@ -1262,6 +1255,12 @@ int main(int argc, char **argv) {
             perror(pathbuf);
     }
 
+    if (Modes.json_dir) {
+        // write initial json files so they're not missing
+        writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
+        //writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson()); // rather don't do this.
+        writeJsonToFile(Modes.json_dir, "aircraft.json", generateAircraftJson(-1));
+    }
 
     // go over the aircraft list once and do other stuff before starting the threads.
     trackPeriodicUpdate();
