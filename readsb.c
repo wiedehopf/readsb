@@ -58,6 +58,8 @@
 
 #include <stdarg.h>
 
+struct _Modes Modes;
+
 static void backgroundTasks(void);
 //
 // ============================= Program options help ==========================
@@ -179,7 +181,7 @@ static void modesInitConfig(void) {
     memset(&Modes, 0, sizeof (Modes));
 
     for (int i = 0; i < 256; i++) {
-        threadNumber[i] = i;
+        Modes.threadNumber[i] = i;
     }
 
     // Now initialise things that should not be 0/NULL to their defaults
@@ -1287,7 +1289,7 @@ int main(int argc, char **argv) {
 
             // trace_xxxxxxxxx.json
             for (int i = 0; i < TRACE_THREADS; i++) {
-                pthread_create(&Modes.jsonTraceThread[i], NULL, jsonTraceThreadEntryPoint, &threadNumber[i]);
+                pthread_create(&Modes.jsonTraceThread[i], NULL, jsonTraceThreadEntryPoint, &Modes.threadNumber[i]);
             }
         }
     }

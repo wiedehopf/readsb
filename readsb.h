@@ -351,13 +351,9 @@ struct mag_buf
 #endif
 };
 
-
-// array for thread numbers
-int threadNumber[256];
-
 // Program global state
 
-struct
+struct _Modes
 { // Internal state
     pthread_mutex_t mainThreadMutex;
     pthread_cond_t mainThreadCond;
@@ -547,7 +543,13 @@ struct
     uint32_t readsb_aircraft_with_flight_number;
     uint32_t readsb_aircraft_without_flight_number;
     uint32_t readsb_aircraft_with_position;
-} Modes;
+
+    // array for thread numbers
+    int threadNumber[256];
+
+};
+
+extern struct _Modes Modes;
 
 // The struct we use to store information about a decoded message.
 

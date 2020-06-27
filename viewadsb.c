@@ -54,6 +54,8 @@
 #include "readsb.h"
 #include "help.h"
 
+struct _Modes Modes;
+
 #define _stringize(x) x
 #define verstring(x) _stringize(x)
 
