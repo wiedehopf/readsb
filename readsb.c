@@ -710,6 +710,7 @@ static void cleanup_and_exit(int code) {
     free(Modes.prom_file);
     free(Modes.json_dir);
     free(Modes.globe_history_dir);
+    free(Modes.heatmap_dir);
     free(Modes.state_dir);
     free(Modes.net_bind_address);
     free(Modes.net_input_beast_ports);
