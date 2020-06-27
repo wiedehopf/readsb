@@ -331,6 +331,9 @@ static void modesInit(void) {
 
     if (Modes.show_only)
         icaoFilterAdd(Modes.show_only);
+
+    Modes.json_globe_special_tiles = calloc(GLOBE_SPECIAL_INDEX, sizeof(struct tile));
+    init_globe_index(Modes.json_globe_special_tiles);
 }
 
 //
@@ -1212,11 +1215,6 @@ int main(int argc, char **argv) {
         Modes.keep_traces = (24 * 3600 + GLOBE_OVERLAP * 2) * 1000;
     } else if (Modes.heatmap) {
         Modes.keep_traces = 2 * HOURS;
-    }
-
-    if (Modes.keep_traces) {
-        Modes.json_globe_special_tiles = calloc(GLOBE_SPECIAL_INDEX, sizeof(struct tile));
-        init_globe_index(Modes.json_globe_special_tiles);
     }
 
     if (Modes.state_dir) {
