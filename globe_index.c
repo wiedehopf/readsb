@@ -1157,6 +1157,11 @@ void handleHeatmap() {
     gmtime_r(&nowish, &utc);
     int half_hour = utc.tm_hour * 2 + utc.tm_min / 30;
 
+    // don't write on startup when persistent state isn't enabled
+    if (!Modes.state_dir && Modes.heatmap_current_interval == -1) {
+        Modes.heatmap_current_interval = half_hour;
+        return;
+    }
     // only do this every 30 minutes.
     if (half_hour == Modes.heatmap_current_interval)
         return;
