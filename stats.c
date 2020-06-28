@@ -786,7 +786,7 @@ void countStuff(struct aircraft *a, uint64_t now) {
         ) && signal > -49.4 && signal < 1) {
         if (Modes.rssi_table_alloc < Modes.rssi_table_len + 1) {
             Modes.rssi_table_alloc = 2 * Modes.rssi_table_len + 1024;
-            Modes.rssi_table = realloc(Modes.rssi_table, Modes.rssi_table_alloc);
+            Modes.rssi_table = realloc(Modes.rssi_table, sizeof(float) * Modes.rssi_table_alloc);
         }
         Modes.rssi_table[Modes.rssi_table_len] = signal;
         Modes.rssi_table_len++;
@@ -825,12 +825,6 @@ static int compareFloat(const void *p1, const void *p2) {
 static void calcStuff() {
     uint32_t total = Modes.json_ac_count_pos + Modes.json_ac_count_no_pos;
 
-    if (Modes.rssi_table_len > 0)
-
-    //printf("after sort\n");
-    //for (int i = 0; i < Modes.rssi_table_len; i++)
-    //    printf("%.2f\n", Modes.rssi_table[i]);
-
     for (int i = 0; i < Modes.rssi_table_len; i++) {
         float signal = Modes.rssi_table[i];
         Modes.readsb_aircraft_rssi_average += signal;
@@ -839,6 +833,10 @@ static void calcStuff() {
         //compareFloat(&Modes.readsb_aircraft_rssi_max, &Modes.readsb_aircraft_rssi_max);
 
         qsort(Modes.rssi_table, Modes.rssi_table_len, sizeof(float), compareFloat);
+        //printf("after sort\n");
+        //for (int i = 0; i < Modes.rssi_table_len; i++)
+        //    printf("%.2f\n", Modes.rssi_table[i]);
+
 
         Modes.readsb_aircraft_rssi_min = Modes.rssi_table[0];
         Modes.readsb_aircraft_rssi_quart1 = percentile(0.25, Modes.rssi_table, Modes.rssi_table_len);
