@@ -717,6 +717,7 @@ static void cleanup_and_exit(int code) {
     free(Modes.globe_history_dir);
     free(Modes.heatmap_dir);
     free(Modes.state_dir);
+    free(Modes.rssi_table);
     free(Modes.net_bind_address);
     free(Modes.net_input_beast_ports);
     free(Modes.net_output_beast_ports);
@@ -1364,12 +1365,8 @@ int main(int argc, char **argv) {
     pthread_mutex_destroy(&Modes.mainThreadMutex);
     pthread_cond_destroy(&Modes.mainThreadCond);
 
-    int writeStats = updateStats();
-    if (writeStats && Modes.json_dir)
-        writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson());
-
-    if (writeStats && Modes.prom_file)
-        writeJsonToFile(NULL, Modes.prom_file, generatePromFile());
+    // run this update to emit final stats
+    trackPeriodicUpdate();
 
     // If --stats were given, print statistics
     if (Modes.stats) {

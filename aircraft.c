@@ -98,6 +98,7 @@ void apiAdd(struct aircraft *a) {
 
     Modes.iAddrLen++;
 }
+
 static int compareIndex(const void *p1, const void *p2) {
     struct iAddr *a1 = (struct iAddr*) p1;
     struct iAddr *a2 = (struct iAddr*) p2;
@@ -109,7 +110,8 @@ static int compareIndex(const void *p1, const void *p2) {
 
     return 0;
 }
+
 void apiSort() {
-    qsort(Modes.byLat, sizeof(struct iAddr), Modes.iAddrLen, compareIndex);
-    qsort(Modes.byLon, sizeof(struct iAddr), Modes.iAddrLen, compareIndex);
+    qsort(Modes.byLat, Modes.iAddrLen, sizeof(struct iAddr), compareIndex);
+    qsort(Modes.byLon, Modes.iAddrLen, sizeof(struct iAddr), compareIndex);
 }

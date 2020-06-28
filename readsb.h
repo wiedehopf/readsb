@@ -538,6 +538,12 @@ struct _Modes
     double readsb_aircraft_rssi_average;
     float readsb_aircraft_rssi_max;
     float readsb_aircraft_rssi_min;
+    float readsb_aircraft_rssi_quart1;
+    float readsb_aircraft_rssi_median;
+    float readsb_aircraft_rssi_quart3;
+    float *rssi_table;
+    int rssi_table_len;
+    int rssi_table_alloc;
     uint32_t readsb_aircraft_tisb;
     uint32_t readsb_aircraft_total;
     uint32_t readsb_aircraft_with_flight_number;
