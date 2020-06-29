@@ -823,20 +823,16 @@ static int compareFloat(const void *p1, const void *p2) {
 }
 
 static void calcStuff() {
-    uint32_t total = Modes.json_ac_count_pos + Modes.json_ac_count_no_pos;
+    Modes.readsb_aircraft_total = Modes.json_ac_count_pos + Modes.json_ac_count_no_pos;
+    Modes.readsb_aircraft_with_position = Modes.json_ac_count_pos;
 
-    for (int i = 0; i < Modes.rssi_table_len; i++) {
-        float signal = Modes.rssi_table[i];
-        Modes.readsb_aircraft_rssi_average += signal;
-    }
     if (Modes.rssi_table_len > 0) {
-        //compareFloat(&Modes.readsb_aircraft_rssi_max, &Modes.readsb_aircraft_rssi_max);
 
         qsort(Modes.rssi_table, Modes.rssi_table_len, sizeof(float), compareFloat);
+
         //printf("after sort\n");
         //for (int i = 0; i < Modes.rssi_table_len; i++)
         //    printf("%.2f\n", Modes.rssi_table[i]);
-
 
         Modes.readsb_aircraft_rssi_min = Modes.rssi_table[0];
         Modes.readsb_aircraft_rssi_quart1 = percentile(0.25, Modes.rssi_table, Modes.rssi_table_len);
@@ -844,7 +840,10 @@ static void calcStuff() {
         Modes.readsb_aircraft_rssi_quart3 = percentile(0.75, Modes.rssi_table, Modes.rssi_table_len);
         Modes.readsb_aircraft_rssi_max = Modes.rssi_table[Modes.rssi_table_len - 1];
 
-        Modes.readsb_aircraft_rssi_average /= total;
+        for (int i = 0; i < Modes.rssi_table_len; i++) {
+            Modes.readsb_aircraft_rssi_average += Modes.rssi_table[i];
+        }
+        Modes.readsb_aircraft_rssi_average /= Modes.rssi_table_len;
     } else {
         Modes.readsb_aircraft_rssi_average = -50;
         Modes.readsb_aircraft_rssi_max = -50;
@@ -855,11 +854,6 @@ static void calcStuff() {
     }
     if (Modes.readsb_aircraft_rssi_min == 42)
         Modes.readsb_aircraft_rssi_min = -50;
-
-    Modes.readsb_aircraft_total = total;
-    Modes.readsb_aircraft_with_position = Modes.json_ac_count_pos;
-
-
 }
 
 void resetStuff() {
