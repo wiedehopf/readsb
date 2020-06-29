@@ -137,11 +137,11 @@ void reset_stats (struct stats *st);
 
 void add_timespecs (const struct timespec *x, const struct timespec *y, struct timespec *z);
 
-int updateStats();
 struct char_buffer generateStatsJson();
 struct char_buffer generatePromFile();
 
-void resetStuff();
-void countStuff(struct aircraft *a, uint64_t now);
+int statsUpdate();
+void statsReset();
+void statsCount(struct aircraft *a, uint64_t now);
 
 #endif

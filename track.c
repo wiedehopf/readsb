@@ -1604,9 +1604,10 @@ static void trackMatchAC(uint64_t now) {
 static void trackRemoveStaleAircraft(struct aircraft **freeList) {
     uint64_t now = mstime();
 
-    resetStuff();
+    statsReset();
 
-    Modes.iAddrLen = 0;
+    if (Modes.api)
+        apiClear();
 
     int full_write = checkNewDay(); // this function does more than the return value!!!!
 
@@ -1652,7 +1653,7 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
             } else {
                 updateValidities(a, now);
 
-                countStuff(a, now);
+                statsCount(a, now);
 
                 if (Modes.api)
                     apiAdd(a);
@@ -1732,15 +1733,12 @@ void trackPeriodicUpdate() {
 
     trackRemoveStaleAircraft(&freeList);
 
-    if (Modes.api)
-        apiSort();
-
     if (Modes.mode_ac)
         trackMatchAC(now);
 
     receiverTimeout((part++ % nParts), nParts);
 
-    writeStats = updateStats(); // needs to happen under lock
+    writeStats = statsUpdate(); // needs to happen under lock
 
     end_cpu_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
 
@@ -1756,6 +1754,9 @@ void trackPeriodicUpdate() {
     start_cpu_timing(&start_time);
 
     cleanupAircraft(freeList);
+
+    if (Modes.api)
+        apiSort();
 
     if (part % (3000 / STATE_BLOBS) == 0)
         save_blob(blob++ % STATE_BLOBS);

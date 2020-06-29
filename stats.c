@@ -360,7 +360,7 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
         target->distance_min = st2->distance_min;
 }
 
-int updateStats() {
+int statsUpdate() {
     static uint64_t next_stats_update, next_stats_display;
 
     uint64_t now = mstime();
@@ -750,7 +750,29 @@ struct char_buffer generatePromFile() {
     return cb;
 }
 
-void countStuff(struct aircraft *a, uint64_t now) {
+void statsReset() {
+    memset(&Modes.type_counts, 0, sizeof(Modes.type_counts));
+
+    Modes.json_ac_count_pos = 0;
+    Modes.json_ac_count_no_pos = 0;
+
+    Modes.rssi_table_len = 0;
+
+    Modes.readsb_aircraft_adsb_version_0 = 0;
+    Modes.readsb_aircraft_adsb_version_1 = 0;
+    Modes.readsb_aircraft_adsb_version_2 = 0;
+    Modes.readsb_aircraft_emergency = 0;
+    Modes.readsb_aircraft_rssi_average = 0;
+    Modes.readsb_aircraft_rssi_max = -50;
+    Modes.readsb_aircraft_rssi_min = 42;
+    Modes.readsb_aircraft_tisb = 0;
+    Modes.readsb_aircraft_total = 0;
+    Modes.readsb_aircraft_with_flight_number = 0;
+    Modes.readsb_aircraft_without_flight_number = 0;
+    Modes.readsb_aircraft_with_position = 0;
+}
+
+void statsCount(struct aircraft *a, uint64_t now) {
     if (a->seen + 30 * SECONDS < now)
         return;
     if (a->messages < 2)
@@ -854,26 +876,4 @@ static void calcStuff() {
     }
     if (Modes.readsb_aircraft_rssi_min == 42)
         Modes.readsb_aircraft_rssi_min = -50;
-}
-
-void resetStuff() {
-    memset(&Modes.type_counts, 0, sizeof(Modes.type_counts));
-
-    Modes.json_ac_count_pos = 0;
-    Modes.json_ac_count_no_pos = 0;
-
-    Modes.rssi_table_len = 0;
-
-    Modes.readsb_aircraft_adsb_version_0 = 0;
-    Modes.readsb_aircraft_adsb_version_1 = 0;
-    Modes.readsb_aircraft_adsb_version_2 = 0;
-    Modes.readsb_aircraft_emergency = 0;
-    Modes.readsb_aircraft_rssi_average = 0;
-    Modes.readsb_aircraft_rssi_max = -50;
-    Modes.readsb_aircraft_rssi_min = 42;
-    Modes.readsb_aircraft_tisb = 0;
-    Modes.readsb_aircraft_total = 0;
-    Modes.readsb_aircraft_with_flight_number = 0;
-    Modes.readsb_aircraft_without_flight_number = 0;
-    Modes.readsb_aircraft_with_position = 0;
 }

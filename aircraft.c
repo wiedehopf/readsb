@@ -79,6 +79,10 @@ struct aircraft *aircraftCreate(struct modesMessage *mm) {
 
     return a;
 }
+void apiClear() {
+    Modes.iAddrLen = 0;
+}
+
 void apiAdd(struct aircraft *a) {
     if (Modes.iAddrLen > API_INDEX_MAX) {
         fprintf(stderr, "too many aircraft!.\n");

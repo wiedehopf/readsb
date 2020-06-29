@@ -7,6 +7,7 @@ uint32_t aircraftHash(uint32_t addr);
 struct aircraft *aircraftGet(uint32_t addr);
 struct aircraft *aircraftCreate(struct modesMessage *mm);
 
+void apiClear();
 void apiAdd(struct aircraft *a);
 void apiSort();
 
