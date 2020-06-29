@@ -9,8 +9,10 @@ HAVE_BIASTEE ?= no
 
 CPPFLAGS += -DMODES_READSB_VERSION=\"$(READSB_VERSION)\" -D_GNU_SOURCE
 
+OPTIMIZE ?= -O3 -march=native
+
 DIALECT = -std=c11
-CFLAGS += $(DIALECT) -O3 -march=native -g -W -D_DEFAULT_SOURCE -Wall -Werror -fno-common
+CFLAGS += $(DIALECT) $(OPTIMIZE) -g -W -D_DEFAULT_SOURCE -Wall -Werror -fno-common
 LIBS = -pthread -lpthread -lm -lz -lrt
 
 ifeq ($(AGGRESSIVE), yes)
