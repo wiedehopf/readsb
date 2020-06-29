@@ -11,9 +11,9 @@ void apiClear();
 void apiAdd(struct aircraft *a);
 void apiSort();
 
-struct iAddr {
-    int32_t index;
+struct av {
     uint32_t addr;
+    int32_t value;
 };
 
 

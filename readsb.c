@@ -320,8 +320,8 @@ static void modesInit(void) {
     }
 
     if (Modes.api) {
-        Modes.byLat = malloc(API_INDEX_MAX * sizeof(struct iAddr));
-        Modes.byLon = malloc(API_INDEX_MAX * sizeof(struct iAddr));
+        Modes.byLat = malloc(API_INDEX_MAX * sizeof(struct av));
+        Modes.byLon = malloc(API_INDEX_MAX * sizeof(struct av));
     }
 
     // Prepare error correction tables
@@ -712,6 +712,8 @@ static void cleanup_and_exit(int code) {
     /* Free only when pointing to string in heap (strdup allocated when given as run parameter)
      * otherwise points to const string
      */
+    free(Modes.byLat);
+    free(Modes.byLon);
     free(Modes.prom_file);
     free(Modes.json_dir);
     free(Modes.globe_history_dir);

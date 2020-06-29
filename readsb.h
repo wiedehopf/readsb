@@ -411,9 +411,9 @@ struct _Modes
     struct net_writer fatsv_out; // FATSV-format output
     struct net_writer api_out; // some sort of api, who knows really?
     int api; // enable api output
-    int iAddrLen;
-    struct iAddr *byLat;
-    struct iAddr *byLon;
+    int avLen;
+    struct av *byLat;
+    struct av *byLon;
 
 #ifdef _WIN32
     WSADATA wsaData; // Windows socket initialisation

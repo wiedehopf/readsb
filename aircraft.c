@@ -80,42 +80,36 @@ struct aircraft *aircraftCreate(struct modesMessage *mm) {
     return a;
 }
 void apiClear() {
-    Modes.iAddrLen = 0;
+    Modes.avLen = 0;
 }
 
 void apiAdd(struct aircraft *a) {
-    if (Modes.iAddrLen > API_INDEX_MAX) {
+    if (Modes.avLen > API_INDEX_MAX) {
         fprintf(stderr, "too many aircraft!.\n");
         return;
     }
-    struct iAddr byLat;
-    struct iAddr byLon;
+    struct av byLat;
+    struct av byLon;
 
     byLat.addr = a->addr;
-    byLat.index = (int32_t) (a->lat * 1E6);
+    byLat.value = (int32_t) (a->lat * 1E6);
 
     byLon.addr = a->addr;
-    byLon.index = (int32_t) (a->lon * 1E6);
+    byLon.value = (int32_t) (a->lon * 1E6);
 
-    Modes.byLat[Modes.iAddrLen] = byLat;
-    Modes.byLon[Modes.iAddrLen] = byLon;
+    Modes.byLat[Modes.avLen] = byLat;
+    Modes.byLon[Modes.avLen] = byLon;
 
-    Modes.iAddrLen++;
+    Modes.avLen++;
 }
 
 static int compareIndex(const void *p1, const void *p2) {
-    struct iAddr *a1 = (struct iAddr*) p1;
-    struct iAddr *a2 = (struct iAddr*) p2;
-    if (a1->index > a2->index)
-        return 1;
-
-    if (a1->index < a2->index)
-        return -1;
-
-    return 0;
+    struct av *a1 = (struct av*) p1;
+    struct av *a2 = (struct av*) p2;
+    return (a1->value > a2->value) - (a1->value < a2->value);
 }
 
 void apiSort() {
-    qsort(Modes.byLat, Modes.iAddrLen, sizeof(struct iAddr), compareIndex);
-    qsort(Modes.byLon, Modes.iAddrLen, sizeof(struct iAddr), compareIndex);
+    qsort(Modes.byLat, Modes.avLen, sizeof(struct av), compareIndex);
+    qsort(Modes.byLon, Modes.avLen, sizeof(struct av), compareIndex);
 }
