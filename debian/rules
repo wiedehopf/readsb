@@ -34,7 +34,7 @@ ifneq ($(filter biastee,$(DEB_BUILD_PROFILES)),)
 endif
 
 override_dh_auto_build:
-	make -j4 $(CONFIG_SWITCH) READSB_VERSION='v3.8.1'
+	make -j4 $(CONFIG_SWITCH)
 
 override_dh_install:
 	dh_install

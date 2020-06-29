@@ -1,7 +1,7 @@
 Source: readsb
 Section: net
 Priority: optional
-Maintainer: Michael Wolf <michael@mictronics.de>
+Maintainer: Matthias Wirth <matthias.wirth@gmail.com>
 Build-Depends: debhelper(>=9), libusb-1.0-0-dev, pkg-config, dh-systemd, libncurses5-dev
 Build-Depends-Indep: librtlsdr0, librtlsdr-dev
 Standards-Version: 4.4.0.1
@@ -11,9 +11,5 @@ Vcs-Git: https://github.com/mictronics/readsb.git
 Package: readsb
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, adduser
-Description: ADS-B Ground Station System for various receiver hardware
- Networked Aviation Mode-S/ADS-B/TIS decoder/translator with support for RTL-SDR
- software defined radio USB devices, PlutoSDR, Modes-Beast
- and GNS5894 devices.
- .
- This is a detached fork of dump1090-fa.
+Description: ADS-B Receiver
+ This is a detached fork of Mictronics readsb
