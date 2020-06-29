@@ -1747,7 +1747,7 @@ void trackPeriodicUpdate() {
     clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now_spec);
     uint64_t after = (int64_t) now_spec.tv_sec * 1000UL + now_spec.tv_nsec / 1000000UL;
 
-    if (after > before + 50) {
+    if (after > before + 80) {
         fprintf(stderr, "<3>High load: removeStale took %"PRIu64" ms!\n", after - before);
     }
 
