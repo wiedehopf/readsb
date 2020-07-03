@@ -80,16 +80,16 @@ static struct argp_option options[] =
     {0,0,0,0, "Network options:", 2},
 #if defined(READSB) || defined(VIEWADSB)
     {"net-bind-address", OptNetBindAddr, "<ip>", 0, "IP address to bind to (default: Any; Use 127.0.0.1 for private)", 2},
-    {"net-bo-port", OptNetBoPorts, "<ports>", 0, "TCP Beast output listen ports (default: 30005)", 2},
+    {"net-bo-port", OptNetBoPorts, "<ports>", 0, "TCP Beast output listen ports (default: 0)", 2},
 #endif
 #if defined(READSB)
     {"net", OptNet, 0, 0, "Enable networking", 2},
     {"net-only", OptNetOnly, 0, 0, "Enable just networking, no RTL device or file used", 2},
-    {"net-ri-port", OptNetRiPorts, "<ports>", 0, "TCP raw input listen ports  (default: 30001)", 2},
-    {"net-ro-port", OptNetRoPorts, "<ports>", 0, "TCP raw output listen ports (default: 30002)", 2},
-    {"net-sbs-port", OptNetSbsPorts, "<ports>", 0, "TCP BaseStation output listen ports (default: 30003)", 2},
+    {"net-ri-port", OptNetRiPorts, "<ports>", 0, "TCP raw input listen ports  (default: 0)", 2},
+    {"net-ro-port", OptNetRoPorts, "<ports>", 0, "TCP raw output listen ports (default: 0)", 2},
+    {"net-sbs-port", OptNetSbsPorts, "<ports>", 0, "TCP BaseStation output listen ports (default: 0)", 2},
     {"net-sbs-in-port", OptNetSbsInPorts, "<ports>", 0, "TCP BaseStation input listen ports (default: 0)", 2},
-    {"net-bi-port", OptNetBiPorts, "<ports>", 0, "TCP Beast input listen ports  (default: 30004,30104)", 2},
+    {"net-bi-port", OptNetBiPorts, "<ports>", 0, "TCP Beast input listen ports  (default: 0)", 2},
     {"net-vrs-port", OptNetVRSPorts, "<ports>", 0, "TCP VRS json output listen ports (default: 0)", 2},
     {"net-vrs-interval", OptNetVRSInterval, "<seconds>", 0, "TCP VRS json output interval (default: 5)", 2},
     {"net-json-port", OptNetJsonPorts, "<ports>", 0, "TCP json position output listen ports (requires --write-json-globe-index) (default: 0)", 2},
