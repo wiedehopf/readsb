@@ -237,11 +237,7 @@ void write_trace(struct aircraft *a, uint64_t now) {
 
         full = generateTraceJson(a, start24, -1);
 
-        if (a->trace_full_write == 0xc0ffee) {
-            a->trace_next_mw = now + 1 * 60 * 1000 + random() % (10 * 60 * 1000);
-        } else {
-            a->trace_next_mw = now + 10 * 60 * 1000 + random() % (1 * 60 * 1000);
-        }
+        a->trace_next_mw = now + 10 * 60 * 1000 + random() % (1 * 60 * 1000);
 
         if (now > a->trace_next_fw || a->trace_full_write == 0xc0ffee) {
             if (Modes.debug_traceCount && ++count4 % 1000 == 0)
