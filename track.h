@@ -281,7 +281,8 @@ struct aircraft
   uint64_t trace_next_fw; // timestamp for next full trace write to history_dir (disk)
   uint64_t addrtype_updated;
   float tat;
-  float padding2_02;
+  uint16_t no_signal_count; // consecutive messages without signal strength specified
+  uint16_t padding;
   double padding2_03;
   uint64_t lastPosReceiverId;
 

@@ -1039,11 +1039,25 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     mm->pos_updated_cache = a->position_valid.updated;
 
     if (mm->signalLevel > 0) {
+
         a->signalLevel[a->signalNext] = mm->signalLevel;
+        a->signalNext = (a->signalNext + 1) & 7;
+
+        if (a->no_signal_count >= 10) {
+            for (int i = 0; i < 8; ++i) {
+                a->signalLevel[i] = fmax(1e-5, mm->signalLevel);
+            }
+        }
+        if (a->no_signal_count > 0)
+            a->no_signal_count = 0;
     } else {
-        a->signalLevel[a->signalNext] = 1e-5;
+        // if we haven't received a message with signal level for a bit, set it to zero
+        if (a->no_signal_count < 10 && ++a->no_signal_count >= 10) {
+            for (int i = 0; i < 8; ++i) {
+                a->signalLevel[i] = 1e-5;
+            }
+        }
     }
-    a->signalNext = (a->signalNext + 1) & 7;
     a->seen = mm->sysTimestampMsg;
 
     // reset to 100000 on overflow ... avoid any low message count checks
