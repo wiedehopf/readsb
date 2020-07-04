@@ -60,7 +60,7 @@ static bool noHandleOption(int argc, char *argv) {
 }
 
 static bool noOpen() {
-    fprintf(stderr, "Net-only mode, no SDR device or file open.\n");
+    fprintf(stderr, "No SDR device or file selected.\n");
     return true;
 }
 
@@ -99,7 +99,8 @@ static sdr_handler sdr_handlers[] = {
 
 void sdrInitConfig() {
     // Default SDR is the first type available in the handlers array.
-    Modes.sdr_type = sdr_handlers[0].sdr_type;
+    // rather don't have a default SDR ....
+    // Modes.sdr_type = sdr_handlers[0].sdr_type;
 
     for (int i = 0; sdr_handlers[i].name; ++i) {
         sdr_handlers[i].initConfig();

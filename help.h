@@ -21,7 +21,7 @@
 #define HELP_H
 
 #include <argp.h>
-const char *argp_program_bug_address = "Michael Wolf <michael@mictronics.de>";
+const char *argp_program_bug_address = "Matthias Wirth <matthias.wirth@gmail.com>";
 static error_t parse_opt (int key, char *arg, struct argp_state *state);
 
 static struct argp_option options[] =

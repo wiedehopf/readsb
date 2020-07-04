@@ -105,6 +105,7 @@ static struct argp argp = {options, parse_opt, args_doc, doc, NULL, NULL, NULL};
 // ============================= Utility functions ==========================
 //
 static void log_with_timestamp(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
+static void cleanup_and_exit(int code);
 
 static void log_with_timestamp(const char *format, ...) {
     char timebuf[128];
@@ -267,9 +268,19 @@ static void modesInit(void) {
     // Allocate the various buffers used by Modes
     Modes.trailing_samples = (MODES_PREAMBLE_US + MODES_LONG_MSG_BITS + 16) * 1e-6 * Modes.sample_rate;
 
-    if (Modes.sdr_type == SDR_NONE || Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS) {
+    if (Modes.sdr_type == SDR_NONE) {
+        if (Modes.net)
+            Modes.net_only = 1;
+        if (!Modes.net_only) {
+            fprintf(stderr, "No networking or SDR input selected, exiting!\n");
+            cleanup_and_exit(1);
+        }
+    } else if (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS) {
         Modes.net_only = 1;
+    } else {
+        Modes.net_only = 0;
     }
+
     if (!Modes.net_only) {
         for (i = 0; i < MODES_MAG_BUFFERS; ++i) {
             if ((Modes.mag_buffers[i].data = calloc(MODES_MAG_BUF_SAMPLES + Modes.trailing_samples, sizeof (uint16_t))) == NULL) {
@@ -818,6 +829,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptNetOnly:
             Modes.net = 1;
             Modes.sdr_type = SDR_NONE;
+            Modes.net_only = 1;
             break;
         case OptQuiet:
             Modes.quiet = 1;
@@ -1162,7 +1174,12 @@ int main(int argc, char **argv) {
     signal(SIGUSR1, SIG_IGN);
 
     // Parse the command line options
-    if (argp_parse(&argp, argc, argv, 0, 0, 0)) {
+    if (argp_parse(&argp, argc, argv, ARGP_NO_EXIT, 0, 0)) {
+        fprintf(stderr, "Command line used:\n");
+        for (int i = 0; i < argc; i++) {
+            fprintf(stderr, "%s ", argv[i]);
+        }
+        fprintf(stderr, "\n");
         cleanup_and_exit(1);
     }
 
