@@ -296,7 +296,6 @@ typedef enum {
 #define AIRCRAFT_BUCKETS (1 << AIRCRAFT_HASH_BITS)
 
 #define GLOBE_TRACE_SIZE 32768
-#define GLOBE_OVERLAP 3600
 #define GLOBE_STEP 32
 #define STATE_BLOBS 256
 #define IO_THREADS 8

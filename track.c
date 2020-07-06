@@ -2173,13 +2173,13 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
             for (int i = 0; i < a->trace_len; i++) {
                 struct state *state = &a->trace[i];
                 if (a->addr & MODES_NON_ICAO_ADDRESS) {
-                    if (now < a->trace->timestamp + (3 * HOURS)) {
+                    if (state->timestamp + TRACK_AIRCRAFT_NON_ICAO_TTL > now) {
                         new_start = i;
                         found = 1;
                         break;
                     }
                 } else {
-                    if (now < state->timestamp + Modes.keep_traces) {
+                    if (state->timestamp + Modes.keep_traces > now) {
                         new_start = i;
                         found = 1;
                         break;

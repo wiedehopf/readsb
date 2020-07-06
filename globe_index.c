@@ -237,7 +237,10 @@ void write_trace(struct aircraft *a, uint64_t now) {
 
         full = generateTraceJson(a, start24, -1);
 
-        a->trace_next_mw = now + 10 * 60 * 1000 + random() % (1 * 60 * 1000);
+        if (a->trace_full_write == 0xc0ffee)
+            a->trace_next_mw = now + random() % (20 * MINUTES);
+        else
+            a->trace_next_mw = now + 20 * MINUTES + random() % (2 * MINUTES);
 
         if (now > a->trace_next_fw || a->trace_full_write == 0xc0ffee) {
             if (Modes.debug_traceCount && ++count4 % 1000 == 0)
@@ -246,9 +249,9 @@ void write_trace(struct aircraft *a, uint64_t now) {
             write_perm = 1;
 
             if (a->trace_full_write == 0xc0ffee) {
-                a->trace_next_fw = now + (random() % (GLOBE_OVERLAP - 60 - GLOBE_OVERLAP / 16 - 120)) * 1000;
+                a->trace_next_fw = now + random() % (2 * HOURS);
             } else {
-                a->trace_next_fw = now + (GLOBE_OVERLAP - 60 - random() % GLOBE_OVERLAP / 16) * 1000;
+                a->trace_next_fw = now + 2 * HOURS + random() % (30 * MINUTES);
             }
         }
         a->trace_full_write = 0;

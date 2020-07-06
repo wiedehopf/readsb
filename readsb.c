@@ -1232,9 +1232,9 @@ int main(int argc, char **argv) {
     }
 
     if (Modes.json_globe_index) {
-        Modes.keep_traces = (24 * 3600 + GLOBE_OVERLAP * 2) * 1000;
+        Modes.keep_traces = 24 * HOURS + 40 * MINUTES; // include 40 minutes overlap, tar1090 needs at least 30 minutes currently
     } else if (Modes.heatmap) {
-        Modes.keep_traces = 2 * HOURS;
+        Modes.keep_traces = 35 * MINUTES; // heatmap is written every 30 minutes
     }
 
     if (Modes.state_dir) {
