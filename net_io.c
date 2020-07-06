@@ -2561,6 +2561,7 @@ static inline void writeJsonTo (const char* dir, const char *file, struct char_b
     if (rename(tmppath, pathbuf) == -1) {
         fprintf(stderr, "writeJsonTo rename(): %s -> %s", tmppath, pathbuf);
         perror("");
+        goto error_2;
     }
     if (!gzip)
         free(content);
