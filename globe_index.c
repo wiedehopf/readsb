@@ -228,16 +228,16 @@ void write_trace(struct aircraft *a, uint64_t now) {
     if (a->trace_len > 142 && a->trace_len - 142 > start24)
        start_recent = (a->trace_len - 142);
 
-    recent = generateTraceJson(a, start_recent, -1);
     // write recent trace to /run
+    recent = generateTraceJson(a, start_recent, -1);
 
     if (now > a->trace_next_mw || a->trace_full_write > 35 || now > a->trace_next_fw) {
-        // write full trace to /run
         int write_perm = 0;
 
         if (Modes.debug_traceCount && ++count3 % 1000 == 0)
             fprintf(stderr, "memory trace writes: %u\n", count3);
 
+        // write full trace to /run
         full = generateTraceJson(a, start24, -1);
 
         if (a->trace_full_write == 0xc0ffee)
@@ -246,9 +246,6 @@ void write_trace(struct aircraft *a, uint64_t now) {
             a->trace_next_mw = now + 20 * MINUTES + random() % (2 * MINUTES);
 
         if (now > a->trace_next_fw || a->trace_full_write == 0xc0ffee) {
-            if (Modes.debug_traceCount && ++count4 % 1000 == 0)
-                fprintf(stderr, "perm trace writes: %u\n", count4);
-
             write_perm = 1;
 
             if (a->trace_full_write == 0xc0ffee) {
@@ -296,17 +293,17 @@ void write_trace(struct aircraft *a, uint64_t now) {
     //pthread_mutex_unlock(&a->trace_mutex);
 
 
-    snprintf(filename, 256, "traces/%02x/trace_recent_%s%06x.json", a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
     if (recent.len > 0) {
+        snprintf(filename, 256, "traces/%02x/trace_recent_%s%06x.json", a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
+
         writeJsonToGzip(Modes.json_dir, filename, recent, 1);
         free(recent.buffer);
     }
 
-    snprintf(filename, 256, "traces/%02x/trace_full_%s%06x.json", a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
     if (full.len > 0) {
+        snprintf(filename, 256, "traces/%02x/trace_full_%s%06x.json", a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
 
         writeJsonToGzip(Modes.json_dir, filename, full, 7);
-
         free(full.buffer);
     }
 
@@ -316,12 +313,14 @@ void write_trace(struct aircraft *a, uint64_t now) {
         gmtime_r(&nineteen_ago, &utc);
         strftime (tstring, 100, "%Y-%m-%d", &utc);
 
-
         snprintf(filename, PATH_MAX, "%s/traces/%02x/trace_full_%s%06x.json", tstring, a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
         filename[PATH_MAX - 101] = 0;
-        writeJsonToGzip(Modes.globe_history_dir, filename, hist, 9);
 
+        writeJsonToGzip(Modes.globe_history_dir, filename, hist, 9);
         free(hist.buffer);
+
+        if (Modes.debug_traceCount && ++count4 % 100 == 0)
+            fprintf(stderr, "perm trace writes: %u\n", count4);
     }
 }
 
