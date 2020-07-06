@@ -1678,7 +1678,7 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                         a->trace_full_write = 0xc0ffee;
                     }
 
-                    if (a->seen_pos && now > a->trace_next_fw && a->trace_full_write != 0xdead) {
+                    if (a->trace_alloc && now > a->trace_next_fw && a->trace_full_write != 0xdead) {
                         a->trace_write = 1;
                         resize_trace(a, now);
                     }
@@ -2163,34 +2163,31 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
         //pthread_mutex_unlock(&a->trace_mutex);
         return;
     }
-    if (a->trace_len == GLOBE_TRACE_SIZE
-            || (now > a->trace->timestamp + (4 * HOURS) && (a->addr & MODES_NON_ICAO_ADDRESS))
-            || now > a->trace->timestamp + Modes.keep_traces + 20 * MINUTES) {
+    if (now < Modes.keep_traces)
+        fprintf(stderr, "now < Modes.keep_traces: %"PRIu64" %"PRIu32"\n", now, Modes.keep_traces);
+
+    uint64_t keep_after = now - Modes.keep_traces;
+
+    if (a->addr & MODES_NON_ICAO_ADDRESS)
+        keep_after = now - TRACK_AIRCRAFT_NON_ICAO_TTL;
+
+    if (a->trace_len == GLOBE_TRACE_SIZE || keep_after - 20 * MINUTES < a->trace->timestamp) {
         int new_start = a->trace_len;
 
-        if (a->trace_len < GLOBE_TRACE_SIZE) {
+        if (a->trace_len + GLOBE_STEP / 2 >= GLOBE_TRACE_SIZE) {
+            new_start = GLOBE_TRACE_SIZE / 64;
+        } else {
             int found = 0;
             for (int i = 0; i < a->trace_len; i++) {
                 struct state *state = &a->trace[i];
-                if (a->addr & MODES_NON_ICAO_ADDRESS) {
-                    if (state->timestamp + TRACK_AIRCRAFT_NON_ICAO_TTL > now) {
-                        new_start = i;
-                        found = 1;
-                        break;
-                    }
-                } else {
-                    if (state->timestamp + Modes.keep_traces > now) {
-                        new_start = i;
-                        found = 1;
-                        break;
-                    }
+                if (state->timestamp > keep_after) {
+                    new_start = i;
+                    found = 1;
+                    break;
                 }
             }
             if (!found)
                 new_start = a->trace_len;
-        }
-        if (a->trace_len == GLOBE_TRACE_SIZE) {
-            new_start = GLOBE_TRACE_SIZE / 64;
         }
 
         if (new_start != a->trace_len) {

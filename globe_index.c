@@ -215,7 +215,7 @@ void write_trace(struct aircraft *a, uint64_t now) {
 
     int start24 = 0;
     for (int i = 0; i < a->trace_len; i++) {
-        if (a->trace[i].timestamp > now - (24 * 3600 + 900) * 1000) {
+        if (a->trace[i].timestamp > now - (24 * HOURS + 15 * MINUTES)) {
             start24 = i;
             break;
         }
