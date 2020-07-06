@@ -211,6 +211,9 @@ void write_trace(struct aircraft *a, uint64_t now) {
 
     a->trace_write = 0;
 
+    if (!a->trace_alloc)
+        return;
+
     mark_legs(a);
 
     int start24 = 0;
@@ -255,12 +258,6 @@ void write_trace(struct aircraft *a, uint64_t now) {
             }
         }
         a->trace_full_write = 0;
-
-        // if the trace length is zero, the trace is deleted from run
-        // it is not written again until a new position is received
-        if (a->trace_len == 0) {
-            a->trace_full_write = 0xdead;
-        }
 
         //fprintf(stderr, "%06x\n", a->addr);
 
@@ -311,10 +308,6 @@ void write_trace(struct aircraft *a, uint64_t now) {
         writeJsonToGzip(Modes.json_dir, filename, full, 7);
 
         free(full.buffer);
-    }
-
-    if (a->trace_full_write == 0xdead) {
-        unlink_trace(a);
     }
 
     if (hist.len > 0) {
@@ -427,7 +420,7 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
     a->trace = NULL;
     a->trace_all = NULL;
 
-    if (!Modes.json_globe_index) {
+    if (!Modes.keep_traces) {
         a->trace_alloc = 0;
         a->trace_len = 0;
     }
@@ -1398,7 +1391,7 @@ int checkNewDay() {
 void unlink_trace(struct aircraft *a) {
     char filename[PATH_MAX];
 
-    if (!Modes.json_globe_index)
+    if (!Modes.json_globe_index || !Modes.json_dir)
         return;
 
     snprintf(filename, 1024, "%s/traces/%02x/trace_recent_%s%06x.json", Modes.json_dir, a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);

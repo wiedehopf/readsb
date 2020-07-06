@@ -1672,17 +1672,17 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                 if (Modes.api)
                     apiAdd(a);
 
-                if (Modes.keep_traces) {
-                    if (full_write && a->trace_full_write != 0xdead) {
-                        a->trace_next_fw = now + 1000 * (random() % 120); // spread over 2 mins
+                if (Modes.keep_traces && a->trace_alloc) {
+                    if (full_write) {
+                        a->trace_next_fw = now + random() % (2 * MINUTES); // spread over 2 mins
                         a->trace_full_write = 0xc0ffee;
                     }
 
-                    if (a->trace_alloc && now > a->trace_next_fw && a->trace_full_write != 0xdead) {
-                        a->trace_write = 1;
+                    if (now > a->trace_next_fw) {
                         resize_trace(a, now);
+                        a->trace_write = 1;
                     }
-                    if (a->trace_len && a->trace_len + GLOBE_STEP / 2 >= a->trace_alloc) {
+                    if (a->trace_len + GLOBE_STEP / 2 >= a->trace_alloc) {
                         resize_trace(a, now);
                         //fprintf(stderr, "%06x: new trace_alloc: %d).\n", a->addr, a->trace_alloc);
                     }
@@ -1796,9 +1796,7 @@ static void cleanupAircraft(struct aircraft *a) {
 
         char filename[1024];
 
-        if (Modes.json_dir) {
-            unlink_trace(a);
-        }
+        unlink_trace(a);
 
         if (Modes.state_dir) {
             snprintf(filename, 1024, "%s/%02x/%06x", Modes.state_dir, a->addr % 256, a->addr);
@@ -2155,11 +2153,18 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
 
     if (a->trace_len == 0) {
         //pthread_mutex_lock(&a->trace_mutex);
+
         free(a->trace);
         free(a->trace_all);
+
         a->trace_alloc = 0;
         a->trace = NULL;
         a->trace_all = NULL;
+
+        unlink_trace(a);
+        // if the trace length is zero, the trace is deleted from run
+        // it is not written again until a new position is received
+
         //pthread_mutex_unlock(&a->trace_mutex);
         return;
     }
