@@ -701,10 +701,11 @@ static void mark_legs(struct aircraft *a) {
         last_five[i] = 0;
     five_pos = 0;
 
-    struct state *prev_tmp = &a->trace[0];
+    int prev_tmp = 0;
     for (int i = 1; i < a->trace_len; i++) {
         struct state *state = &a->trace[i];
-        struct state *prev = prev_tmp;
+        int prev_index = prev_tmp;
+        struct state *prev = &a->trace[prev_index];
 
         uint64_t elapsed = state->timestamp - prev->timestamp;
 
@@ -721,7 +722,7 @@ static void mark_legs(struct aircraft *a) {
         if (!on_ground && !altitude_valid)
             continue;
 
-        prev_tmp = state;
+        prev_tmp = i;
 
         if (on_ground) {
             int avg = 0;
@@ -835,7 +836,16 @@ static void mark_legs(struct aircraft *a) {
             uint64_t leg_ts = 0;
 
             if (leg_now) {
-                new_leg = &a->trace[i];
+                new_leg = &a->trace[prev_index + 1];
+                for (int k = prev_index + 1; k < i; k++) {
+                    struct state *state = &a->trace[i];
+                    struct state *last = &a->trace[i - 1];
+
+                    if (state->timestamp > last->timestamp + 5 * 60 * 1000) {
+                        new_leg = state;
+                        break;
+                    }
+                }
             } else if (major_descent_index + 1 == major_climb_index) {
                 new_leg = &a->trace[major_climb_index];
             } else {
