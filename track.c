@@ -1673,15 +1673,17 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                     apiAdd(a);
 
                 if (Modes.keep_traces && a->trace_alloc) {
-                    if (full_write) {
-                        a->trace_next_fw = now + random() % (2 * MINUTES); // spread over 2 mins
-                        a->trace_full_write = 0xc0ffee;
-                    }
 
                     if (now > a->trace_next_fw) {
                         resize_trace(a, now);
                         a->trace_write = 1;
                     }
+
+                    if (full_write) {
+                        a->trace_next_fw = now + random() % (2 * MINUTES); // spread over 2 mins
+                        a->trace_full_write = 0xc0ffee;
+                    }
+
                     if (a->trace_len + GLOBE_STEP / 2 >= a->trace_alloc) {
                         resize_trace(a, now);
                         //fprintf(stderr, "%06x: new trace_alloc: %d).\n", a->addr, a->trace_alloc);

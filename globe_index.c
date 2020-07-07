@@ -816,7 +816,7 @@ static void mark_legs(struct aircraft *a) {
         if ( elapsed > 30 * 60 * 1000 && distance < 10E3 * (elapsed / (30 * 60 * 1000.0)) && distance > 1) {
             leg_now = 1;
             if (a->addr == LEG_FOCUS)
-                fprintf(stderr, "leg, elapsed: %0.fmin, distance: %0.f\n", elapsed / (60 * 1000.0), distance / 1000.0);
+                fprintf(stderr, "time/distance leg, elapsed: %0.fmin, distance: %0.f\n", elapsed / (60 * 1000.0), distance / 1000.0);
         }
 
         int leg_float = 0;
@@ -883,12 +883,21 @@ static void mark_legs(struct aircraft *a) {
             high -= threshold;
 
             if (a->addr == LEG_FOCUS) {
-                time_t nowish = leg_ts/1000;
-                struct tm utc;
-                gmtime_r(&nowish, &utc);
-                char tstring[100];
-                strftime (tstring, 100, "%H:%M:%S", &utc);
-                fprintf(stderr, "leg: %s\n", tstring);
+                if (new_leg) {
+                    time_t nowish = leg_ts/1000;
+                    struct tm utc;
+                    gmtime_r(&nowish, &utc);
+                    char tstring[100];
+                    strftime (tstring, 100, "%H:%M:%S", &utc);
+                    fprintf(stderr, "leg: %s\n", tstring);
+                } else {
+                    time_t nowish = state->timestamp/1000;
+                    struct tm utc;
+                    gmtime_r(&nowish, &utc);
+                    char tstring[100];
+                    strftime (tstring, 100, "%H:%M:%S", &utc);
+                    fprintf(stderr, "resetting major_c/d without leg: %s\n", tstring);
+                }
             }
         }
 
