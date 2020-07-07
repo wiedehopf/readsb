@@ -1,6 +1,6 @@
 #include "readsb.h"
 
-#define LEG_FOCUS 0x0
+#define LEG_FOCUS 0xA781D7
 
 static void mark_legs(struct aircraft *a);
 static void load_blob(int blob);
@@ -701,9 +701,10 @@ static void mark_legs(struct aircraft *a) {
         last_five[i] = 0;
     five_pos = 0;
 
+    struct state *prev_tmp = &a->trace[0];
     for (int i = 1; i < a->trace_len; i++) {
         struct state *state = &a->trace[i];
-        struct state *prev = &a->trace[i-1];
+        struct state *prev = prev_tmp;
 
         uint64_t elapsed = state->timestamp - prev->timestamp;
 
@@ -719,6 +720,8 @@ static void mark_legs(struct aircraft *a) {
         //
         if (!on_ground && !altitude_valid)
             continue;
+
+        prev_tmp = state;
 
         if (on_ground) {
             int avg = 0;
@@ -752,7 +755,7 @@ static void mark_legs(struct aircraft *a) {
         }
         */
 
-        if (abs(low - altitude) < threshold * 1 / 3) {
+        if (abs(low - altitude) < threshold * 1 / 3 && elapsed < 30 * MINUTES) {
             last_low = state->timestamp;
             last_low_index = i;
         }
