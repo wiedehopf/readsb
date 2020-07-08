@@ -695,6 +695,8 @@ static void mark_legs(struct aircraft *a) {
     int last_low_index = 0;
 
     uint64_t last_airborne = 0;
+    uint64_t last_ground = 0;
+
     int was_ground = 0;
 
     for (int i = 0; i < 5; i++)
@@ -729,7 +731,7 @@ static void mark_legs(struct aircraft *a) {
             for (int i = 0; i < 5; i++)
                 avg += last_five[i];
             avg /= 5;
-            altitude = avg;
+            altitude = avg - threshold / 2;
         } else {
             if (five_pos == 0) {
                 for (int i = 0; i < 5; i++)
@@ -742,6 +744,8 @@ static void mark_legs(struct aircraft *a) {
 
         if (!on_ground)
             last_airborne = state->timestamp;
+        else
+            last_ground = state->timestamp;
 
         if (altitude >= high) {
             high = altitude;
@@ -820,9 +824,11 @@ static void mark_legs(struct aircraft *a) {
         }
 
         int leg_float = 0;
-        if (major_climb && major_descent && major_climb > major_descent + 12 * 60 * 1000) {
+        if (major_climb && major_descent &&
+                (major_climb > major_descent + 8 * MINUTES || last_ground > major_descent - 2 * MINUTES)
+           ) {
             for (int i = major_descent_index + 1; i < major_climb_index; i++) {
-                if (a->trace[i].timestamp > a->trace[i - 1].timestamp + 6 * 60 * 1000) {
+                if (a->trace[i].timestamp > a->trace[i - 1].timestamp + 5 * MINUTES) {
                     leg_float = 1;
                     if (a->addr == LEG_FOCUS)
                         fprintf(stderr, "float leg\n");
