@@ -1670,7 +1670,7 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                 statsCount(a, now);
 
                 if (Modes.api)
-                    apiAdd(a);
+                    apiAdd(a, now);
 
                 if (Modes.keep_traces && a->trace_alloc) {
 
