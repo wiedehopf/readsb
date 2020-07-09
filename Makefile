@@ -19,6 +19,10 @@ ifeq ($(AGGRESSIVE), yes)
   CPPFLAGS += -DALLOW_AGGRESSIVE
 endif
 
+ifeq ($(HISTORY), yes)
+  CPPFLAGS += -DALL_JSON=1
+endif
+
 ifeq ($(RTLSDR), yes)
   SDR_OBJ += sdr_rtlsdr.o
   CPPFLAGS += -DENABLE_RTLSDR
