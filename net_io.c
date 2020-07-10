@@ -323,8 +323,11 @@ struct client *checkServiceConnected(struct net_connector *con) {
         int fd = open(Modes.uuidFile, O_RDONLY);
         int res = (fd != -1) ? read(fd, c->sendq + 2, 128) : -1;
         if (res >= 16) {
+            if (res < 130)
+                buf[res] = '\0';
+            else
+                buf[129] = '\0';
             strncpy(buf, c->sendq + 2, res);
-            buf[129] = '\0';
             fprintf(stderr, "UUID: %s\n", buf);
             c->sendq_len = res + 2;
             flushClient(c, mstime());
@@ -688,7 +691,8 @@ static uint64_t modesAcceptClients(uint64_t now) {
                             NI_NUMERICHOST | NI_NUMERICSERV);
 
                     if (Modes.debug & MODES_DEBUG_NET) {
-                        fprintf(stderr, "%s: New connection from %s port %s (fd %d)\n", c->service->descr, c->host, c->port, fd);
+                        fprintf(stderr, "%s: new c from %s port %s rId %016"PRIx64" (fd %d)\n", 
+                                c->service->descr, c->host, c->port, c->receiverId, fd);
                     }
                     if (anetTcpKeepAlive(Modes.aneterr, fd) != ANET_OK)
                         fprintf(stderr, "%s: Unable to set keepalive on connection from %s port %s (fd %d)\n", c->service->descr, c->host, c->port, fd);
