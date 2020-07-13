@@ -85,7 +85,7 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
 
     // prevent JAERO and other SBS from disrupting
     // other data sources too quickly
-    if (d->source != SOURCE_INVALID && source != SOURCE_MODE_S && source <= SOURCE_JAERO && source != d->source) {
+    if (source != SOURCE_MODE_S && source <= SOURCE_JAERO && source != d->last_source) {
         if (source != SOURCE_JAERO && receiveTime < d->updated + 60 * 1000)
             return 0;
         if (source == SOURCE_JAERO && receiveTime < d->updated + 600 * 1000)
