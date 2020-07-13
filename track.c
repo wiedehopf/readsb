@@ -69,7 +69,6 @@ static void calc_wind(struct aircraft *a, uint64_t now);
 static void calc_temp(struct aircraft *a, uint64_t now);
 static inline int declination (struct aircraft *a, double *dec);
 static const char *source_string(datasource_t source);
-static void updateValidities(struct aircraft *a, uint64_t now);
 
 // Should we accept some new data from the given source?
 // If so, update the validity and return 1
@@ -1665,9 +1664,10 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                 del->next = *freeList;
                 *freeList = del;
             } else {
-                updateValidities(a, now);
-
-                statsCount(a, now);
+                if (now < a->seen + TRACK_EXPIRE_JAERO + 1 * MINUTES)
+                    updateValidities(a, now);
+                if (now < a->seen + 30 * SECONDS && a->messages >= 2)
+                    statsCount(a, now);
 
                 if (Modes.api)
                     apiAdd(a, now);
@@ -1690,7 +1690,7 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                     }
                 }
 
-                if (a->globe_index >= 0 && now > a->seen_pos + 30 * 60 * 1000) {
+                if (a->globe_index >= 0 && now > a->seen_pos + 30 * MINUTES) {
                     set_globe_index(a, -5);
                 }
 
@@ -2609,7 +2609,7 @@ void freeAircraft(struct aircraft *a) {
         }
         free(a);
 }
-static void updateValidities(struct aircraft *a, uint64_t now) {
+void updateValidities(struct aircraft *a, uint64_t now) {
     updateValidity(&a->callsign_valid, now, TRACK_EXPIRE_LONG);
     updateValidity(&a->altitude_baro_valid, now, TRACK_EXPIRE);
     updateValidity(&a->altitude_geom_valid, now, TRACK_EXPIRE);

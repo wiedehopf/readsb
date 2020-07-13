@@ -773,10 +773,7 @@ void statsReset() {
 }
 
 void statsCount(struct aircraft *a, uint64_t now) {
-    if (a->seen + 30 * SECONDS < now)
-        return;
-    if (a->messages < 2)
-        return;
+    MODES_NOTUSED(now);
 
     if (trackDataValid(&a->position_valid))
         Modes.json_ac_count_pos++;

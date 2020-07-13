@@ -486,6 +486,8 @@ struct aircraft *trackUpdateFromMessage (struct modesMessage *mm);
 void trackPeriodicUpdate ();
 void trackUpdateUnlocked();
 
+void updateValidities(struct aircraft *a, uint64_t now);
+
 void from_state_all(struct state_all *in, struct aircraft *a , uint64_t ts);
 void freeAircraft(struct aircraft *a);
 struct aircraft *trackFindAircraft(uint32_t addr);

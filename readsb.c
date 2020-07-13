@@ -1256,12 +1256,14 @@ int main(int argc, char **argv) {
             pthread_join(threads[i], NULL);
         }
         uint32_t count_ac = 0;
+        uint64_t now = mstime();
         for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
             for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
                 int new_index = a->globe_index;
                 a->globe_index = -5;
                 set_globe_index(a, new_index);
                 count_ac++;
+                updateValidities(a, now);
             }
         }
         fprintf(stderr, " .......... done, loaded %u aircraft!\n", count_ac);
