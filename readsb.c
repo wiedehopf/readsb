@@ -520,18 +520,10 @@ static void *decodeThreadEntryPoint(void *arg) {
         while (!Modes.exit) {
             struct timespec start_time;
 
-            struct timespec now_spec;
-            clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now_spec);
-            int64_t before = (int64_t) now_spec.tv_sec * 1000UL + now_spec.tv_nsec / 1000000UL;
-
             start_cpu_timing(&start_time);
             backgroundTasks();
-            end_cpu_timing(&start_time, &Modes.stats_current.background_cpu);
+            int64_t elapsed = end_cpu_timing(&start_time, &Modes.stats_current.background_cpu);
 
-            clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now_spec);
-            int64_t after = (int64_t) now_spec.tv_sec * 1000UL + now_spec.tv_nsec / 1000000UL;
-
-            int64_t elapsed = after - before;
             if (elapsed > 80) {
                 fprintf(stderr, "<3>High load: work loop took %"PRId64" ms!\n", elapsed);
             }

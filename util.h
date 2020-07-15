@@ -49,7 +49,7 @@ void normalize_timespec (struct timespec *ts);
 void start_cpu_timing (struct timespec *start_time);
 
 /* add difference between start_time and the current CPU time to add_to */
-void end_cpu_timing (const struct timespec *start_time, struct timespec *add_to);
+int64_t end_cpu_timing (const struct timespec *start_time, struct timespec *add_to);
 
 // get nanoseconds and some other stuff for use with srand
 unsigned int get_seed();

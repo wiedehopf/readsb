@@ -97,12 +97,15 @@ void start_cpu_timing(struct timespec *start_time) {
 }
 
 /* add difference between start_time and the current CPU time to add_to */
-void end_cpu_timing(const struct timespec *start_time, struct timespec *add_to) {
+// also return milliseconds as a result
+int64_t end_cpu_timing(const struct timespec *start_time, struct timespec *add_to) {
     struct timespec end_time;
     clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end_time);
     add_to->tv_sec += end_time.tv_sec - start_time->tv_sec;
     add_to->tv_nsec += end_time.tv_nsec - start_time->tv_nsec;
     normalize_timespec(add_to);
+    return ((int64_t) end_time.tv_sec * 1000UL + end_time.tv_nsec / 1000000UL)
+            - ((int64_t) start_time->tv_sec * 1000UL + start_time->tv_nsec / 1000000UL);
 }
 
 // this is not cryptographic but much better than mstime() as a seed
