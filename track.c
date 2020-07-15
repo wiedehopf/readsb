@@ -1819,13 +1819,13 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
         showPositionDebug(a, mm, now);
     }
 
-    int keep = 0;
-    if ((a->pos_reliable_odd >= Modes.json_reliable && a->pos_reliable_even >= Modes.json_reliable)
-            || (mm->source <= SOURCE_JAERO && now > a->seen_pos + 15 * 1000)) {
-
-        keep = 1; // maybe keep this data point
+    if (trackDataAge(now, &a->track_valid) >= 10000 && a->seen_pos) {
+        double distance = greatcircle(a->lat, a->lon, new_lat, new_lon);
+        if (distance > 100)
+            a->calc_track = bearing(a->lat, a->lon, new_lat, new_lon);
     }
 
+    int keep = 1;
     if (now < a->seen_pos + 3 * SECONDS && a->lat == new_lat && a->lon == new_lon) {
         a->position_valid.updated = mm->pos_updated_cache;
         // don't use duplicate positions for beastReduce
@@ -1835,16 +1835,13 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
         keep = 0; // don't keep this datapoint
     }
 
-    if (trackDataAge(now, &a->track_valid) >= 10000 && a->seen_pos) {
-        double distance = greatcircle(a->lat, a->lon, new_lat, new_lon);
-        if (distance > 100)
-            a->calc_track = bearing(a->lat, a->lon, new_lat, new_lon);
-    }
-
-
     if (Modes.keep_traces) {
 
         set_globe_index(a, globe_index(new_lat, new_lon));
+
+        if (mm->source > SOURCE_JAERO &&
+                (a->pos_reliable_odd < Modes.json_reliable || a->pos_reliable_even < Modes.json_reliable))
+            goto no_save_state;
 
         if (!keep)
             goto no_save_state;
@@ -1905,6 +1902,10 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
         int32_t last_alt = last->altitude * 25;
 
         was_ground = last->flags.on_ground;
+
+        if (elapsed < 11 * SECONDS && mm->source <= SOURCE_JAERO
+                && (a->pos_reliable_odd < Modes.json_reliable || a->pos_reliable_even < Modes.json_reliable))
+            goto no_save_state;
 
         if (on_ground != was_ground) {
             goto save_state;
@@ -2076,9 +2077,10 @@ save_state:
         a->trace_full_write++;
         //pthread_mutex_unlock(&a->trace_mutex);
 
+        //fprintf(stderr, "Added to trace for %06x (%d).\n", a->addr, a->trace_len);
+
 no_save_state:
         ;
-        //fprintf(stderr, "Added to trace for %06x (%d).\n", a->addr, a->trace_len);
     }
 
 }
