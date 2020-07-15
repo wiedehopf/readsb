@@ -294,7 +294,7 @@ typedef enum {
 
 #define MODES_NOTUSED(V) ((void) V)
 
-#define AIRCRAFT_HASH_BITS 17
+#define AIRCRAFT_HASH_BITS 18
 #define AIRCRAFT_BUCKETS (1 << AIRCRAFT_HASH_BITS)
 
 #define GLOBE_TRACE_SIZE 32768

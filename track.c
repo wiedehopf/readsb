@@ -1778,6 +1778,7 @@ void trackPeriodicUpdate() {
     if (after > before + 80) {
         fprintf(stderr, "<3>High load: removeStale took %"PRIu64" ms!\n", after - before);
     }
+    //fprintf(stderr, "removeStale took %"PRIu64" ms!\n", after - before);
 
     start_cpu_timing(&start_time);
 
