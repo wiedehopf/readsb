@@ -23,9 +23,6 @@
 
 #include "readsb.h"
 
-// hash table size, must be a power of two:
-#define ICAO_FILTER_SIZE (AIRCRAFT_BUCKETS)
-
 // Millis between filter expiry flips:
 #define MODES_ICAO_FILTER_TTL 60000
 
@@ -35,8 +32,8 @@
 
 // Maintain two tables and switch between them to age out entries.
 
-static uint32_t icao_filter_a[ICAO_FILTER_SIZE];
-static uint32_t icao_filter_b[ICAO_FILTER_SIZE];
+static uint32_t icao_filter_a[AIRCRAFT_BUCKETS];
+static uint32_t icao_filter_b[AIRCRAFT_BUCKETS];
 static uint32_t *icao_filter_active;
 
 void icaoFilterInit() {
@@ -49,9 +46,9 @@ void icaoFilterAdd(uint32_t addr) {
     uint32_t h, h0;
     h0 = h = aircraftHash(addr);
     while (icao_filter_active[h] && icao_filter_active[h] != addr) {
-        h = (h + 1) & (ICAO_FILTER_SIZE - 1);
+        h = (h + 1) & (AIRCRAFT_BUCKETS - 1);
         if (h == h0) {
-            fprintf(stderr, "ICAO hash table full, increase ICAO_FILTER_SIZE\n");
+            fprintf(stderr, "ICAO hash table full, increase AIRCRAFT_HASH_BITS\n");
             return;
         }
     }
@@ -62,9 +59,9 @@ void icaoFilterAdd(uint32_t addr) {
     // also add with a zeroed top byte, for handling DF20/21 with Data Parity
     h0 = h = aircraftHash(addr & 0x00ffff);
     while (icao_filter_active[h] && (icao_filter_active[h] & 0x00ffff) != (addr & 0x00ffff)) {
-        h = (h + 1) & (ICAO_FILTER_SIZE - 1);
+        h = (h + 1) & (AIRCRAFT_BUCKETS - 1);
         if (h == h0) {
-            fprintf(stderr, "ICAO hash table full, increase ICAO_FILTER_SIZE\n");
+            fprintf(stderr, "ICAO hash table full, increase AIRCRAFT_BUCKETS\n");
             return;
         }
     }
@@ -78,7 +75,7 @@ int icaoFilterTest(uint32_t addr) {
 
     h0 = h = aircraftHash(addr);
     while (icao_filter_a[h] && icao_filter_a[h] != addr) {
-        h = (h + 1) & (ICAO_FILTER_SIZE - 1);
+        h = (h + 1) & (AIRCRAFT_BUCKETS - 1);
         if (h == h0)
             break;
     }
@@ -87,7 +84,7 @@ int icaoFilterTest(uint32_t addr) {
 
     h = h0;
     while (icao_filter_b[h] && icao_filter_b[h] != addr) {
-        h = (h + 1) & (ICAO_FILTER_SIZE - 1);
+        h = (h + 1) & (AIRCRAFT_BUCKETS - 1);
         if (h == h0)
             break;
     }
@@ -103,7 +100,7 @@ uint32_t icaoFilterTestFuzzy(uint32_t partial) {
     partial &= 0x00ffff;
     h0 = h = aircraftHash(partial);
     while (icao_filter_a[h] && (icao_filter_a[h] & 0x00ffff) != partial) {
-        h = (h + 1) & (ICAO_FILTER_SIZE - 1);
+        h = (h + 1) & (AIRCRAFT_BUCKETS - 1);
         if (h == h0)
             break;
     }
@@ -112,7 +109,7 @@ uint32_t icaoFilterTestFuzzy(uint32_t partial) {
 
     h = h0;
     while (icao_filter_b[h] && (icao_filter_b[h] & 0x00ffff) != partial) {
-        h = (h + 1) & (ICAO_FILTER_SIZE - 1);
+        h = (h + 1) & (AIRCRAFT_BUCKETS - 1);
         if (h == h0)
             break;
     }

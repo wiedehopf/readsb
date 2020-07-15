@@ -23,6 +23,10 @@ ifeq ($(HISTORY), yes)
   CPPFLAGS += -DALL_JSON=1
 endif
 
+ifneq ($(AIRCRAFT_HASH_BITS),)
+  CPPFLAGS += -DAIRCRAFT_HASH_BITS=$(AIRCRAFT_HASH_BITS)
+endif
+
 ifeq ($(RTLSDR), yes)
   SDR_OBJ += sdr_rtlsdr.o
   CPPFLAGS += -DENABLE_RTLSDR
