@@ -1607,6 +1607,15 @@ static void trackMatchAC(uint64_t now) {
     }
 }
 
+/*
+static void updateAircraft() {
+    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+        for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
+        }
+    }
+}
+*/
+
 //
 //=========================================================================
 //
@@ -1614,28 +1623,33 @@ static void trackMatchAC(uint64_t now) {
 // we remove the aircraft from the list.
 //
 
-static void trackRemoveStaleAircraft(struct aircraft **freeList) {
-    uint64_t now = mstime();
+static void trackRemoveStaleAircraft(struct aircraft **freeList, uint64_t now) {
 
-    statsReset();
+    if (now > Modes.next_stats_update)
+        statsReset();
 
     if (Modes.api)
         apiClear();
 
     int full_write = checkNewDay(); // this function does more than the return value!!!!
 
-    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
-        struct aircraft *a = Modes.aircraft[j];
-        struct aircraft *prev = NULL;
+    /*
+    int stride = AIRCRAFT_BUCKETS / 32;
+    int start = stride * blob;
+    int end = start + stride;
+    */
 
+    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+        struct aircraft *prev = NULL;
+        struct aircraft *a = Modes.aircraft[j];
         while (a) {
             if (
-                    (a->messages == 1 && now > a->seen + TRACK_AIRCRAFT_ONEHIT_TTL) ||
-                    (!a->seen_pos && now > a->seen + TRACK_AIRCRAFT_NO_POS_TTL) ||
-                    (a->messages <= 10 && now > a->seen + 5 * HOURS) ||
-                    ((a->addr & MODES_NON_ICAO_ADDRESS) && now > a->seen + TRACK_AIRCRAFT_NON_ICAO_TTL) ||
-                    (Modes.state_dir && a->seen_pos && now > a->seen_pos + TRACK_AIRCRAFT_TTL) ||
-                    (!Modes.state_dir && a->seen_pos && now > a->seen_pos + TRACK_AIRCRAFT_NO_STATE_TTL)
+                    (!a->seen_pos && (now > a->seen + TRACK_AIRCRAFT_NO_POS_TTL))
+                    || ((a->addr & MODES_NON_ICAO_ADDRESS) && (now > a->seen + TRACK_AIRCRAFT_NON_ICAO_TTL))
+                    || (a->seen_pos && (
+                            (Modes.state_dir && now > a->seen_pos + TRACK_AIRCRAFT_TTL) ||
+                            (!Modes.state_dir && now > a->seen_pos + TRACK_AIRCRAFT_NO_STATE_TTL)
+                            ))
                ) {
                 // Count aircraft where we saw only one message before reaping them.
                 // These are likely to be due to messages with bad addresses.
@@ -1653,11 +1667,10 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                 struct aircraft *del = a;
                 if (!prev) {
                     Modes.aircraft[j] = a->next;
-                    a = Modes.aircraft[j];
                 } else {
                     prev->next = a->next;
-                    a = prev->next;
                 }
+                a = a->next;
 
                 Modes.aircraftCount--;
 
@@ -1666,8 +1679,9 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
             } else {
                 if (now < a->seen + TRACK_EXPIRE_JAERO + 1 * MINUTES)
                     updateValidities(a, now);
-                if (now < a->seen + 30 * SECONDS && a->messages >= 2)
-                    statsCount(a, now);
+                if (now > Modes.next_stats_update
+                    && (now < a->seen + 30 * SECONDS && a->messages >= 2))
+                        statsCount(a, now);
 
                 if (Modes.api)
                     apiAdd(a, now);
@@ -1688,10 +1702,6 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList) {
                         resize_trace(a, now);
                         //fprintf(stderr, "%06x: new trace_alloc: %d).\n", a->addr, a->trace_alloc);
                     }
-                }
-
-                if (a->globe_index >= 0 && now > a->seen_pos + 30 * MINUTES) {
-                    set_globe_index(a, -5);
                 }
 
                 prev = a;
@@ -1728,17 +1738,18 @@ void trackPeriodicUpdate() {
     static uint32_t part;
     static uint32_t blob;
     int nParts = 256;
-    uint64_t now = mstime();
     int writeStats = 0;
 
     struct aircraft *freeList = NULL;
 
     // stop all threads so we can remove aircraft from the list.
-    // also servers as memory barrier so json threads get new aircraf in the list
+    // also serves as memory barrier so json threads get new aircraft in the list
     // adding aircraft does not need to be done with locking:
     // the worst case is that the newly added aircraft is skipped as it's not yet
     // in the cache used by the json threads.
     lockThreads();
+
+    uint64_t now = mstime();
 
     struct timespec start_time;
     start_cpu_timing(&start_time);
@@ -1747,14 +1758,15 @@ void trackPeriodicUpdate() {
     clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now_spec);
     uint64_t before = (int64_t) now_spec.tv_sec * 1000UL + now_spec.tv_nsec / 1000000UL;
 
-    trackRemoveStaleAircraft(&freeList);
+    trackRemoveStaleAircraft(&freeList, now);
 
     if (Modes.mode_ac)
         trackMatchAC(now);
 
     receiverTimeout((part++ % nParts), nParts);
 
-    writeStats = statsUpdate(); // needs to happen under lock
+    if (now > Modes.next_stats_update)
+        writeStats = statsUpdate(now); // needs to happen under lock
 
     end_cpu_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
 
@@ -1780,11 +1792,15 @@ void trackPeriodicUpdate() {
     if (Modes.heatmap)
         handleHeatmap(); // only does sth every 30 min
 
-    if (writeStats && Modes.json_dir)
-        writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson());
+    if (writeStats) {
+        statsCalc(); // calculate statistics stuff
 
-    if (writeStats && Modes.prom_file)
-        writeJsonToFile(NULL, Modes.prom_file, generatePromFile());
+        if (Modes.json_dir)
+            writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson());
+
+        if (Modes.prom_file)
+            writeJsonToFile(NULL, Modes.prom_file, generatePromFile());
+    }
 
     end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
 }
@@ -2612,6 +2628,10 @@ void freeAircraft(struct aircraft *a) {
         free(a);
 }
 void updateValidities(struct aircraft *a, uint64_t now) {
+    if (a->globe_index >= 0 && now > a->seen_pos + 30 * MINUTES) {
+        set_globe_index(a, -5);
+    }
+
     updateValidity(&a->callsign_valid, now, TRACK_EXPIRE_LONG);
     updateValidity(&a->altitude_baro_valid, now, TRACK_EXPIRE);
     updateValidity(&a->altitude_geom_valid, now, TRACK_EXPIRE);

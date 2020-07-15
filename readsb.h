@@ -504,6 +504,8 @@ struct _Modes
     int biastee;
     int mday;
     int traceDay;
+    uint64_t next_stats_update;
+    uint64_t next_stats_display;
     int stats_bucket; // index that has just been writte to
     struct stats stats_10[STAT_BUCKETS];
     struct stats stats_current;

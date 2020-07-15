@@ -232,6 +232,9 @@ static void modesInitConfig(void) {
     for (int i = 0; i < 90; ++i) {
         reset_stats(&Modes.stats_10[i]);
     }
+    uint64_t now = mstime();
+    Modes.next_stats_display = now + Modes.stats;
+    Modes.next_stats_update = now + 10 * SECONDS;
     //receiverTest();
 }
 //
@@ -513,26 +516,35 @@ static void *decodeThreadEntryPoint(void *arg) {
      */
 
     if (Modes.net_only) {
-        int64_t background_cpu_millis = 0;
-        int64_t prev_cpu_millis = 0;
         struct timespec slp = {0, 20 * 1000 * 1000};
         while (!Modes.exit) {
-            int64_t sleep_millis = 50;
             struct timespec start_time;
 
-            prev_cpu_millis = background_cpu_millis;
+            struct timespec now_spec;
+            clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now_spec);
+            int64_t before = (int64_t) now_spec.tv_sec * 1000UL + now_spec.tv_nsec / 1000000UL;
 
             start_cpu_timing(&start_time);
             backgroundTasks();
             end_cpu_timing(&start_time, &Modes.stats_current.background_cpu);
 
-            background_cpu_millis = (int64_t) Modes.stats_current.background_cpu.tv_sec * 1000UL +
-                Modes.stats_current.background_cpu.tv_nsec / 1000000UL;
-            sleep_millis -= (background_cpu_millis - prev_cpu_millis);
+            clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now_spec);
+            int64_t after = (int64_t) now_spec.tv_sec * 1000UL + now_spec.tv_nsec / 1000000UL;
 
-            if (sleep_millis < 2) {
-                //fprintf(stderr, "%"PRId64"\n", sleep_millis);
-                sleep_millis = 2;
+            int64_t elapsed = after - before;
+            if (elapsed > 80) {
+                fprintf(stderr, "<3>High load: work loop took %"PRId64" ms!\n", elapsed);
+            }
+
+            int64_t sleep_millis = 50 - elapsed;
+
+            //fprintf(stderr, "net work took %"PRId64" ms, sleeping %"PRId64" ms\n", elapsed, sleep_millis);
+            if (sleep_millis < 1) {
+                sleep_millis = 1;
+            }
+            if (sleep_millis > 50) {
+                fprintf(stderr, "sleep_millis out of bounds: %"PRId64"\n", sleep_millis);
+                sleep_millis = 50;
             }
 
             slp.tv_nsec = sleep_millis * 1000 * 1000;
@@ -681,19 +693,8 @@ static void backgroundTasks(void) {
 
     icaoFilterExpire();
 
-    struct timespec now_spec;
-    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now_spec);
-    uint64_t before = (int64_t) now_spec.tv_sec * 1000UL + now_spec.tv_nsec / 1000000UL;
-
     if (Modes.net) {
         modesNetPeriodicWork();
-    }
-
-    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now_spec);
-    uint64_t after = (int64_t) now_spec.tv_sec * 1000UL + now_spec.tv_nsec / 1000000UL;
-
-    if (after > before + 80) {
-        fprintf(stderr, "<3>High load: work loop took %"PRIu64" ms!\n", after - before);
     }
 
     uint64_t now = mstime();

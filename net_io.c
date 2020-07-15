@@ -2985,24 +2985,10 @@ void modesNetSecondWork(void) {
         }
     }
 }
-//
-// Perform periodic network work
-//
-void modesNetPeriodicWork(void) {
-    struct client *c;
-    struct net_service *s;
+static void readClients() {
     uint64_t now = mstime();
-    static uint64_t next_tcp_json;
-    static uint64_t next_accept;
-
-    // Accept new connections
-    if (now > next_accept) {
-        next_accept = modesAcceptClients(now);
-    }
-
-    // Read from clients, and if any need flushing, do so.
-    for (s = Modes.services; s; s = s->next) {
-        for (c = s->clients; c; c = c->next) {
+    for (struct net_service *s = Modes.services; s; s = s->next) {
+        for (struct client *c = s->clients; c; c = c->next) {
             if (!c->service)
                 continue;
 
@@ -3020,6 +3006,22 @@ void modesNetPeriodicWork(void) {
             }
         }
     }
+}
+//
+// Perform periodic network work
+//
+void modesNetPeriodicWork(void) {
+    uint64_t now = mstime();
+    static uint64_t next_tcp_json;
+    static uint64_t next_accept;
+
+    // Accept new connections
+    if (now > next_accept) {
+        next_accept = modesAcceptClients(now);
+    }
+
+    // Read from clients, and if any need flushing, do so.
+    readClients();
 
     // supply JSON to vrs_out writer
     if (Modes.vrs_out.service && Modes.vrs_out.service->connections && now >= next_tcp_json) {
@@ -3038,7 +3040,7 @@ void modesNetPeriodicWork(void) {
 
     // If we have data that has been waiting to be written for a while,
     // write it now.
-    for (s = Modes.services; s; s = s->next) {
+    for (struct net_service *s = Modes.services; s; s = s->next) {
         if (s->writer &&
                 s->writer->dataUsed &&
                 ((s->writer->lastWrite + Modes.net_output_flush_interval) <= now)) {

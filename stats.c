@@ -61,7 +61,6 @@ void add_timespecs(const struct timespec *x, const struct timespec *y, struct ti
 }
 
 static void display_range_histogram(struct stats *st);
-static void calcStuff();
 
 void display_stats(struct stats *st) {
     int j;
@@ -360,40 +359,27 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
         target->distance_min = st2->distance_min;
 }
 
-int statsUpdate() {
-    static uint64_t next_stats_update, next_stats_display;
+int statsUpdate(uint64_t now) {
 
-    uint64_t now = mstime();
     // always update end time so it is current when requests arrive
     Modes.stats_current.end = now;
 
-    calcStuff(); // calculate statistics stuff
+    if (Modes.stats && now >= Modes.next_stats_display) {
+        add_stats(&Modes.stats_periodic, &Modes.stats_current, &Modes.stats_periodic);
+        display_stats(&Modes.stats_periodic);
+        reset_stats(&Modes.stats_periodic);
 
-    if (Modes.stats && now >= next_stats_display) {
-        if (next_stats_display == 0) {
-            next_stats_display = now + Modes.stats;
-        } else {
-            add_stats(&Modes.stats_periodic, &Modes.stats_current, &Modes.stats_periodic);
-            display_stats(&Modes.stats_periodic);
-            reset_stats(&Modes.stats_periodic);
-
-            next_stats_display += Modes.stats;
-            if (next_stats_display <= now) {
-                /* something has gone wrong, perhaps the system clock jumped */
-                next_stats_display = now + Modes.stats;
-            }
+        Modes.next_stats_display += Modes.stats;
+        if (Modes.next_stats_display <= now) {
+            /* something has gone wrong, perhaps the system clock jumped */
+            Modes.next_stats_display = now + Modes.stats;
         }
     }
 
-    if (now >= next_stats_update || Modes.exit) {
+    if (now > Modes.next_stats_update || Modes.exit) {
         int i;
 
-        if (next_stats_update == 0) {
-            next_stats_update = now + 10000;
-            return 0;
-        } else {
-            next_stats_update += 10000;
-        }
+        Modes.next_stats_update += 10 * SECONDS;
         Modes.stats_10[Modes.stats_bucket] = Modes.stats_current;
 
         add_stats(&Modes.stats_current, &Modes.stats_alltime, &Modes.stats_alltime);
@@ -841,7 +827,7 @@ static int compareFloat(const void *p1, const void *p2) {
     return (a1 > a2) - (a1 < a2);
 }
 
-static void calcStuff() {
+void statsCalc() {
     Modes.readsb_aircraft_total = Modes.json_ac_count_pos + Modes.json_ac_count_no_pos;
     Modes.readsb_aircraft_with_position = Modes.json_ac_count_pos;
 
