@@ -24,7 +24,7 @@
 #include "readsb.h"
 
 // hash table size, must be a power of two:
-#define ICAO_FILTER_SIZE (1<<15)
+#define ICAO_FILTER_SIZE (AIRCRAFT_BUCKETS)
 
 // Millis between filter expiry flips:
 #define MODES_ICAO_FILTER_TTL 60000
@@ -39,21 +39,6 @@ static uint32_t icao_filter_a[ICAO_FILTER_SIZE];
 static uint32_t icao_filter_b[ICAO_FILTER_SIZE];
 static uint32_t *icao_filter_active;
 
-static uint32_t icaoHash(uint32_t a) {
-    uint64_t h = 0x30732349f7810465ULL ^ (4 * 0x2127599bf4325c37ULL);
-    uint64_t in = a;
-    uint64_t v = in << 48;
-    v ^= in << 24;
-    v ^= in;
-    h ^= mix_fasthash(v);
-
-    h -= (h >> 32);
-    h &= (1ULL << 32) - 1;
-    h -= (h >> 16);
-
-    return h & (ICAO_FILTER_SIZE - 1);
-}
-
 void icaoFilterInit() {
     memset(icao_filter_a, 0, sizeof (icao_filter_a));
     memset(icao_filter_b, 0, sizeof (icao_filter_b));
@@ -62,7 +47,7 @@ void icaoFilterInit() {
 
 void icaoFilterAdd(uint32_t addr) {
     uint32_t h, h0;
-    h0 = h = icaoHash(addr);
+    h0 = h = aircraftHash(addr);
     while (icao_filter_active[h] && icao_filter_active[h] != addr) {
         h = (h + 1) & (ICAO_FILTER_SIZE - 1);
         if (h == h0) {
@@ -75,7 +60,7 @@ void icaoFilterAdd(uint32_t addr) {
 
     /* disable as it's not being used
     // also add with a zeroed top byte, for handling DF20/21 with Data Parity
-    h0 = h = icaoHash(addr & 0x00ffff);
+    h0 = h = aircraftHash(addr & 0x00ffff);
     while (icao_filter_active[h] && (icao_filter_active[h] & 0x00ffff) != (addr & 0x00ffff)) {
         h = (h + 1) & (ICAO_FILTER_SIZE - 1);
         if (h == h0) {
@@ -91,7 +76,7 @@ void icaoFilterAdd(uint32_t addr) {
 int icaoFilterTest(uint32_t addr) {
     uint32_t h, h0;
 
-    h0 = h = icaoHash(addr);
+    h0 = h = aircraftHash(addr);
     while (icao_filter_a[h] && icao_filter_a[h] != addr) {
         h = (h + 1) & (ICAO_FILTER_SIZE - 1);
         if (h == h0)
@@ -116,7 +101,7 @@ uint32_t icaoFilterTestFuzzy(uint32_t partial) {
     uint32_t h, h0;
 
     partial &= 0x00ffff;
-    h0 = h = icaoHash(partial);
+    h0 = h = aircraftHash(partial);
     while (icao_filter_a[h] && (icao_filter_a[h] & 0x00ffff) != partial) {
         h = (h + 1) & (ICAO_FILTER_SIZE - 1);
         if (h == h0)
