@@ -225,6 +225,8 @@ static void modesInitConfig(void) {
 
     Modes.cpr_focus = 0xc0ffeeba;
     //Modes.cpr_focus = 0x43BF95;
+    //
+    //Modes.receiver_focus = 0x1aa14156975948af;
 
     sdrInitConfig();
 
@@ -1007,6 +1009,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptNetReceiverId:
             Modes.netReceiverId = 1;
             break;
+        case OptGarbage:
+            Modes.garbage_ports = strdup(arg);
+            break;
         case OptNetIngest:
             Modes.netIngest = 1;
             break;
@@ -1077,6 +1082,11 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptNetConnectorDelay:
             Modes.net_connector_delay = (uint64_t) 1000 * atof(arg);
             break;
+
+        case OptReceiverFocus:
+            Modes.receiver_focus = strtol(arg, NULL, 16);
+            fprintf(stderr, "focusing on receiver: %016"PRIx64"\n", Modes.receiver_focus);
+            break;
         case OptDebug:
             while (*arg) {
                 switch (*arg) {
@@ -1097,6 +1107,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                     case 'R': Modes.debug_receiver = 1;
                         break;
                     case 'S': Modes.debug_speed_check = 1;
+                        break;
+                    case 'G': Modes.debug_garbage = 1;
                         break;
                     case 'T': Modes.debug_traceCount = 1;
                         break;

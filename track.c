@@ -331,6 +331,13 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                     a->lat, a->lon, lat, lon);
         }
     }
+    if (Modes.garbage_ports && !inrange && source >= SOURCE_ADSR && distance > 800) {
+        struct receiver *r = receiverBad(mm->receiverId, a->addr);
+        if (r && Modes.debug_garbage && r->badCounter > 2) {
+                fprintf(stderr, "hex: %06x id: %016"PRIx64" #pos: %9"PRIu32" #garbage: %9"PRIu32"\n",
+                        a->addr, r->id, r->goodCounter, r->badCounter);
+        }
+    }
 
     return inrange;
 }
@@ -1735,9 +1742,9 @@ static void unlockThreads() {
 
 void trackPeriodicUpdate() {
     // Only do updates once per second
-    static uint32_t part;
-    static uint32_t blob;
-    int nParts = 256;
+    static uint32_t blob; // current blob
+    static uint32_t counter;
+    counter++; // free running counter
     int writeStats = 0;
 
     struct aircraft *freeList = NULL;
@@ -1759,7 +1766,8 @@ void trackPeriodicUpdate() {
     if (Modes.mode_ac)
         trackMatchAC(now);
 
-    receiverTimeout((part++ % nParts), nParts);
+    int nParts = 256;
+    receiverTimeout((counter % nParts), nParts);
 
     if (now > Modes.next_stats_update)
         writeStats = statsUpdate(now); // needs to happen under lock
@@ -1780,8 +1788,9 @@ void trackPeriodicUpdate() {
     if (Modes.api)
         apiSort();
 
-    if (part % (3000 / STATE_BLOBS) == 0)
+    if (counter % (3000 / STATE_BLOBS) == 0) {
         save_blob(blob++ % STATE_BLOBS);
+    }
 
     if (Modes.heatmap)
         handleHeatmap(); // only does sth every 30 min

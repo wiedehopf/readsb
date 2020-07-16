@@ -404,6 +404,7 @@ struct _Modes
     struct net_writer raw_out; // Raw output
     struct net_writer beast_out; // Beast-format output
     struct net_writer beast_reduce_out; // Reduced data Beast-format output
+    struct net_writer garbage_out; // Beast-format output
     struct net_writer sbs_out; // SBS-format output
     struct net_writer sbs_out_replay; // SBS-format output
     struct net_writer sbs_out_mlat; // SBS-format output
@@ -431,9 +432,11 @@ struct _Modes
     int debug; // Debugging mode
     int debug_cpr;
     int debug_speed_check;
+    int debug_garbage;
     int debug_receiver;
     int debug_traceCount;
     uint32_t cpr_focus;
+    uint64_t receiver_focus;
     int json_reliable;
     int net; // Enable networking
     int net_only; // Enable just networking
@@ -458,6 +461,7 @@ struct _Modes
     char *net_output_beast_reduce_ports; // List of Beast output TCP ports
     char *net_output_json_ports;
     char *net_output_api_ports;
+    char *garbage_ports;
     uint64_t net_output_beast_reduce_interval; // Position update interval for data reduction
     char *net_output_vrs_ports; // List of VRS output TCP ports
     uint64_t net_output_vrs_interval;
@@ -815,6 +819,7 @@ enum {
     OptGnss,
     OptSnip,
     OptDebug,
+    OptReceiverFocus,
     OptQuiet,
     OptShowOnly,
     OptJsonDir,
@@ -856,6 +861,7 @@ enum {
     OptNetVerbatim,
     OptNetReceiverId,
     OptNetIngest,
+    OptGarbage,
     OptUuidFile,
     OptRtlSdrEnableAgc,
     OptRtlSdrPpm,

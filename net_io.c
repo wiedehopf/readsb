@@ -507,6 +507,7 @@ void modesInitNet(void) {
     struct net_service *s;
     struct net_service *beast_out;
     struct net_service *beast_reduce_out;
+    struct net_service *garbage_out;
     struct net_service *beast_in;
     struct net_service *raw_out;
     struct net_service *raw_in;
@@ -541,6 +542,9 @@ void modesInitNet(void) {
 
     beast_reduce_out = serviceInit("BeastReduce TCP output", &Modes.beast_reduce_out, send_beast_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(beast_reduce_out, Modes.net_bind_address, Modes.net_output_beast_reduce_ports);
+
+    garbage_out = serviceInit("Garbage TCP output", &Modes.garbage_out, send_beast_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    serviceListen(garbage_out, Modes.net_bind_address, Modes.garbage_ports);
 
     vrs_out = serviceInit("VRS json output", &Modes.vrs_out, NULL, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(vrs_out, Modes.net_bind_address, Modes.net_output_vrs_ports);
@@ -1051,6 +1055,9 @@ static void send_raw_heartbeat(struct net_service *service) {
 static int decodeSbsLine(struct client *c, char *line, int remote) {
     struct modesMessage mm;
     static struct modesMessage zeroMessage;
+
+    if (Modes.receiver_focus && c->receiverId != Modes.receiver_focus)
+        return 0;
 
     char *p = line;
     char *t[23]; // leave 0 indexed entry empty, place 22 tokens into array
@@ -1669,7 +1676,8 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
 
     mm.receiverId = c->receiverId;
 
-
+    if (Modes.receiver_focus && mm.receiverId != Modes.receiver_focus)
+        return 0;
 
     if (ch == '1') {
         if (!Modes.mode_ac) {
@@ -1788,6 +1796,11 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
                 Modes.stats_current.demod_accepted[mm.correctedbits]++;
             }
         }
+    }
+
+    if (Modes.garbage_ports && receiverCheckBad(mm.receiverId)) {
+        modesSendBeastOutput(&mm, &Modes.garbage_out);
+        return 0;
     }
 
     if (result >= 0)
