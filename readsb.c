@@ -1083,10 +1083,15 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.net_connector_delay = (uint64_t) 1000 * atof(arg);
             break;
 
+        case OptCprFocus:
+            Modes.cpr_focus = strtol(arg, NULL, 16);
+            fprintf(stderr, "cpr_focus = %07"PRIx32"\n", Modes.cpr_focus);
+            break;
         case OptReceiverFocus:
             Modes.receiver_focus = strtol(arg, NULL, 16);
-            fprintf(stderr, "focusing on receiver: %016"PRIx64"\n", Modes.receiver_focus);
+            fprintf(stderr, "receiver_focus = %016"PRIx64"\n", Modes.receiver_focus);
             break;
+
         case OptDebug:
             while (*arg) {
                 switch (*arg) {

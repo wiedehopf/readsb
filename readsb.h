@@ -820,6 +820,7 @@ enum {
     OptSnip,
     OptDebug,
     OptReceiverFocus,
+    OptCprFocus,
     OptQuiet,
     OptShowOnly,
     OptJsonDir,

@@ -317,13 +317,13 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         if ((!inrange && source > SOURCE_INVALID) || (a->addr == Modes.cpr_focus && distance > -1)) {
 
             //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
-            fprintf(stderr, "%s %s %s R%2d tD%3.0f: %06x: %7.2fkm/%7.2fkm in %4.1f s, max %4.0f kt, %9.5f,%10.5f -> %9.5f,%10.5f\n",
+            fprintf(stderr, "%06x: %s %s %s reliable: %2d trackDiff: %3.0f: %7.2fkm/%7.2fkm in %4.1f s, max %4.0f kt, %9.5f,%10.5f -> %9.5f,%10.5f\n",
+                    a->addr,
                     source == a->position_valid.last_source ? "SQ" : "LQ",
-                    (inrange ? "    ok" : "failed"),
+                    (inrange ? "  ok" : "fail"),
                     (surface ? "S" : "A"),
                     a->pos_reliable_odd + a->pos_reliable_even,
                     track_diff,
-                    a->addr,
                     distance / 1000.0,
                     range / 1000.0,
                     elapsed / 1000.0,
@@ -1476,13 +1476,13 @@ end_alt:
 
     // If we've got a new cpr_odd or cpr_even
     if (cpr_new) {
-        if (a->addr == Modes.cpr_focus) {
+        updatePosition(a, mm);
+        if (0 && a->addr == Modes.cpr_focus) {
             fprintf(stderr, "%06x: age: odd %"PRIu64" even %"PRIu64"\n",
                     a->addr,
                     trackDataAge(mm->sysTimestampMsg, &a->cpr_odd_valid),
                     trackDataAge(mm->sysTimestampMsg, &a->cpr_even_valid));
         }
-        updatePosition(a, mm);
     }
 
     if (mm->sbs_in && mm->sbs_pos_valid) {
@@ -2681,7 +2681,8 @@ void updateValidities(struct aircraft *a, uint64_t now) {
 
 static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint64_t now) {
 
-    fprintf(stderr, "E%0.1f ", (now - a->seen_pos) / 1000.0);
+    fprintf(stderr, "%06x: ", a->addr);
+    fprintf(stderr, "elapsed: %0.1f ", (now - a->seen_pos) / 1000.0);
 
     if (mm->sbs_in) {
         fprintf(stderr, "SBS, ");
@@ -2690,8 +2691,7 @@ static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint6
         if (mm->source == SOURCE_MLAT)
             fprintf(stderr, "MLAT, ");
     } else {
-        fprintf(stderr, "%06x %s%s",
-                a->addr,
+        fprintf(stderr, "%s%s",
                 (mm->cpr_type == CPR_SURFACE) ? "surf, " : "air,  ",
                 mm->cpr_odd ? "odd,  " : "even, ");
     }
