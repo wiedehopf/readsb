@@ -2180,6 +2180,9 @@ void useModesMessage(struct modesMessage *mm) {
     // Track aircraft state
     a = trackUpdateFromMessage(mm);
 
+    if (Modes.garbage_ports && mm->source == SOURCE_INVALID)
+        return;
+
     // In non-interactive non-quiet mode, display messages on standard output
     if (!Modes.interactive && !Modes.quiet && (!Modes.show_only || mm->addr == Modes.show_only) && !mm->sbs_in) {
         displayModesMessage(mm);

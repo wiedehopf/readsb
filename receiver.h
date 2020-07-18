@@ -13,8 +13,9 @@ typedef struct receiver {
     double latMin;
     double lonMax;
     double latMax;
-    int32_t badCounter; // reset every minute or so
+    float badCounter; // reset every minute or so
     int32_t goodCounter; // reset every minute or so
+    uint64_t timedOutUntil;
 } receiver;
 
 
@@ -28,8 +29,8 @@ void receiverTimeout(int part, int nParts);
 void receiverCleanup();
 void receiverTest();
 struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft *a);
-int receiverCheckBad(uint64_t id);
-struct receiver *receiverBad(uint64_t id, uint32_t addr);
+int receiverCheckBad(uint64_t id, uint64_t now);
+struct receiver *receiverBad(uint64_t id, uint32_t addr, uint64_t now);
 
 
 

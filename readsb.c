@@ -238,6 +238,7 @@ static void modesInitConfig(void) {
     Modes.next_stats_display = now + Modes.stats;
     Modes.next_stats_update = now + 10 * SECONDS;
     //receiverTest();
+    Modes.scratch = (struct aircraft *) aligned_alloc(64, sizeof(struct aircraft));
 }
 //
 //=========================================================================
@@ -713,6 +714,7 @@ static void cleanup_and_exit(int code) {
     // Free any used memory
     geomag_destroy();
     interactiveCleanup();
+    free(Modes.scratch);
     free(Modes.dev_name);
     free(Modes.filename);
     /* Free only when pointing to string in heap (strdup allocated when given as run parameter)
@@ -1085,10 +1087,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 
         case OptCprFocus:
             Modes.cpr_focus = strtol(arg, NULL, 16);
-            fprintf(stderr, "cpr_focus = %07"PRIx32"\n", Modes.cpr_focus);
+            fprintf(stderr, "cpr_focus = %06x\n", Modes.cpr_focus);
             break;
         case OptReceiverFocus:
-            Modes.receiver_focus = strtol(arg, NULL, 16);
+            Modes.receiver_focus = strtoull(arg, NULL, 16);
             fprintf(stderr, "receiver_focus = %016"PRIx64"\n", Modes.receiver_focus);
             break;
 

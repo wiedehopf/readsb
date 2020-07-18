@@ -370,7 +370,7 @@ struct aircraft
   unsigned alert : 1; // FS Flight status alert bit
   unsigned spi : 1; // FS Flight status SPI (Special Position Identification) bit
   unsigned pos_surface : 1; // (mm->cpr_type == CPR_SURFACE) associated with current position
-  unsigned speed_check_ignore : 1; // don't reduce pos_reliable when this is set
+  unsigned padding_123 : 1;
   // 20 bit ??
   unsigned padding_b : 12;
   // 32 bit !!

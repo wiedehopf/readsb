@@ -1730,8 +1730,9 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
         }
     }
 
+    uint64_t now = mstime();
     // record reception time as the time we read it.
-    mm.sysTimestampMsg = mstime();
+    mm.sysTimestampMsg = now;
 
     ch = *p++; // Grab the signal level
     mm.signalLevel = ((unsigned char) ch / 255.0);
@@ -1798,9 +1799,9 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
         }
     }
 
-    if (Modes.garbage_ports && receiverCheckBad(mm.receiverId)) {
+    if (Modes.garbage_ports && receiverCheckBad(mm.receiverId, now)) {
         modesSendBeastOutput(&mm, &Modes.garbage_out);
-        return 0;
+        mm.garbage = 1;
     }
 
     if (result >= 0)

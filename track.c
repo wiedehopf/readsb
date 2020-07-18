@@ -63,7 +63,7 @@ uint32_t modeAC_age[4096];
 static void cleanupAircraft(struct aircraft *a);
 static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_lat, double new_lon, uint64_t now);
 static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint64_t now);
-static void position_bad(struct aircraft *a);
+static void position_bad(struct modesMessage *mm, struct aircraft *a);
 static void resize_trace(struct aircraft *a, uint64_t now);
 static void calc_wind(struct aircraft *a, uint64_t now);
 static void calc_temp(struct aircraft *a, uint64_t now);
@@ -75,6 +75,9 @@ static const char *source_string(datasource_t source);
 
 static int accept_data(data_validity *d, datasource_t source, struct modesMessage *mm, int reduce_often) {
     uint64_t receiveTime = mm->sysTimestampMsg;
+
+    if (source == SOURCE_INVALID)
+        return 0;
 
     if (receiveTime < d->updated)
         return 0;
@@ -237,7 +240,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
     MODES_NOTUSED(mm);
     if (bogus_lat_lon(lat, lon)) {
-        a->speed_check_ignore = 1;
+        mm->delayed = 1; // don't decrement pos_reliable
         return 0;
     }
 
@@ -291,19 +294,19 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     distance = greatcircle(oldLat, oldLon, lat, lon);
 
     if (!surface && distance > 1 && source > SOURCE_MLAT
-            && trackDataAge(now, &a->track_valid) < 5 * 1000
-            && trackDataAge(now, &a->position_valid) < 5 * 1000
+            && trackDataAge(now, &a->track_valid) < 7 * 1000
+            && trackDataAge(now, &a->position_valid) < 7 * 1000
             && (oldLat != lat || oldLon != lon)
        ) {
         calc_track = bearing(a->lat, a->lon, lat, lon);
         track_diff = fabs(norm_diff(a->track - calc_track, 180));
         track_bonus = speed * (90.0 - track_diff) / 90.0;
         speed += track_bonus * (1.1 - trackDataAge(now, &a->track_valid) / 5000);
-        // don't use positions going backwards for beastReduce
-        // also don't decrement pos_reliable
         if (track_diff > 170) {
-            a->speed_check_ignore = 1;
-            mm->reduce_forward = 0;
+            // don't use positions going backwards for beastReduce (disabled for the moment)
+            // mm->reduce_forward = 0;
+            //
+            mm->delayed = 1; // don't decrement pos_reliable
         }
     }
 
@@ -331,11 +334,22 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                     a->lat, a->lon, lat, lon);
         }
     }
-    if (Modes.garbage_ports && !inrange && source >= SOURCE_ADSR && distance > 800) {
-        struct receiver *r = receiverBad(mm->receiverId, a->addr);
-        if (r && Modes.debug_garbage && r->badCounter > 2) {
-                fprintf(stderr, "hex: %06x id: %016"PRIx64" #pos: %9"PRIu32" #garbage: %9"PRIu32"\n",
-                        a->addr, r->id, r->goodCounter, r->badCounter);
+    if (Modes.garbage_ports && !inrange && (source >= SOURCE_ADSR || source == SOURCE_INVALID)
+            && distance > 1200 && track_diff > 10
+            && a->pos_reliable_odd >= Modes.filter_persistence * 3 / 4
+            && a->pos_reliable_even >= Modes.filter_persistence * 3 / 4
+       ) {
+        struct receiver *r = receiverBad(mm->receiverId, a->addr, now);
+        if (r && Modes.debug_garbage && r->badCounter > 1) {
+            fprintf(stderr, "hex: %06x id: %016"PRIx64" #good: %6d #bad: %3.0f trackDiff: %3.0f: %7.2fkm/%7.2fkm in %4.1f s, max %4.0f kt\n",
+                    a->addr, r->id, r->goodCounter, r->badCounter,
+                    track_diff,
+                    distance / 1000.0,
+                    range / 1000.0,
+                    elapsed / 1000.0,
+                    speed
+                   );
+
         }
     }
 
@@ -571,13 +585,11 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
     Modes.stats_current.pos_by_type[mm->addrtype]++;
     Modes.stats_current.pos_all++;
 
-    if (!mm->duplicate) {
-        a->seen_pos = now;
+    a->seen_pos = now;
 
-        // update addrtype, we use the type from the accepted position.
-        a->addrtype = mm->addrtype;
-        a->addrtype_updated = now;
-    }
+    // update addrtype, we use the type from the accepted position.
+    a->addrtype = mm->addrtype;
+    a->addrtype_updated = now;
 }
 
 static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
@@ -625,7 +637,7 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
             // At least one of the CPRs is bad, mark them both invalid.
             // If we are not confident in the position, invalidate it as well.
 
-            position_bad(a);
+            position_bad(mm, a);
 
             return;
         } else if (location_result == -1) {
@@ -1044,6 +1056,12 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     }
     mm->pos_updated_cache = a->position_valid.updated;
 
+    if (mm->cpr_valid) {
+        memcpy(Modes.scratch, a, sizeof(struct aircraft));
+    } else if (mm->garbage) {
+        return NULL;
+    }
+
     if (mm->signalLevel > 0) {
 
         a->signalLevel[a->signalNext] = mm->signalLevel;
@@ -1071,11 +1089,6 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         a->messages = 100000;
 
     a->messages++;
-
-    if(a->messages == 3 && a->first_message) {
-        free(a->first_message);
-        a->first_message = NULL;
-    }
 
     // update addrtype
     if (a->addrtype_updated > now)
@@ -1240,6 +1253,8 @@ discard_alt:
                 if (a->position_valid.source > SOURCE_JAERO)
                     a->altitude_baro_valid.source = SOURCE_INVALID;
             }
+            if (Modes.garbage_ports)
+                mm->source = SOURCE_INVALID;
 end_alt:
             ;
     }
@@ -1501,9 +1516,7 @@ end_alt:
                 && !speed_check(a, mm->source, mm->decoded_lat, mm->decoded_lon, mm)
            )
         {
-            if (mm->source >= a->position_valid.source) {
-                position_bad(a);
-            }
+            position_bad(mm, a);
             // speed check failed, do nothing
         } else if (accept_data(&a->position_valid, mm->source, mm, 0)) {
 
@@ -1527,7 +1540,14 @@ end_alt:
         mm->reduce_forward = 1;
     }
 
-    a->speed_check_ignore = 0;
+    if (mm->cpr_valid && (mm->garbage || mm->pos_bad || mm->duplicate)) {
+        memcpy(a, Modes.scratch, sizeof(struct aircraft));
+    }
+
+    if(a->messages == 3 && a->first_message) {
+        free(a->first_message);
+        a->first_message = NULL;
+    }
 
     return (a);
 }
@@ -1832,6 +1852,8 @@ static void cleanupAircraft(struct aircraft *a) {
 }
 
 static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_lat, double new_lon, uint64_t now) {
+    if (mm->cpr_valid && (mm->garbage || mm->pos_bad || mm->duplicate))
+        return;
     a->lastPosReceiverId= mm->receiverId;
 
     if (a->addr == Modes.cpr_focus) {
@@ -1846,7 +1868,6 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
 
     int keep = 1;
     if (now < a->seen_pos + 3 * SECONDS && a->lat == new_lat && a->lon == new_lon) {
-        a->position_valid.updated = mm->pos_updated_cache;
         // don't use duplicate positions for beastReduce
         mm->reduce_forward = 0;
         mm->duplicate = 1;
@@ -2145,11 +2166,16 @@ static void adjustExpire(struct aircraft *a, uint64_t timeout) {
 }
 */
 
-static void position_bad(struct aircraft *a) {
-    if (a->speed_check_ignore) {
-        a->speed_check_ignore = 0;
+static void position_bad(struct modesMessage *mm, struct aircraft *a) {
+    mm->pos_bad = 1;
+    if (mm->garbage)
         return;
-    }
+    if (mm->delayed)
+        return;
+    if (mm->source < a->position_valid.source)
+        return;
+
+
     Modes.stats_current.cpr_global_bad++;
 
 

@@ -56,8 +56,6 @@ void receiverTimeout(int part, int nParts) {
                     b->id, b->positionCounter,
                     b->latMin, b->latMax, b->lonMin, b->lonMax);
             */
-            (*r)->badCounter /= 2;
-            (*r)->goodCounter = 0;
             if (
                     (Modes.receiverCount > RECEIVER_TABLE_SIZE && (*r)->lastSeen < now - 20 * MINUTES)
                     || ((*r)->lastSeen < now - 1 * HOURS)
@@ -132,7 +130,7 @@ void receiverPositionReceived(struct aircraft *a, uint64_t id, double lat, doubl
     r->lastSeen = now;
     r->positionCounter++;
     r->goodCounter++;
-    r->badCounter = max(0, r->badCounter - 1);
+    r->badCounter = fmax(0, r->badCounter - 0.5);
 }
 
 struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft *a) {
@@ -195,25 +193,26 @@ void receiverTest() {
     printf("%"PRIu64"\n", Modes.receiverCount);
 }
 
-int receiverCheckBad(uint64_t id) {
+int receiverCheckBad(uint64_t id, uint64_t now) {
     struct receiver *r = receiverGet(id);
-    if (r && r->badCounter > 12)
+    if (r && now + 20 * SECONDS < r->timedOutUntil)
         return 1;
     else
         return 0;
 }
 
-struct receiver *receiverBad(uint64_t id, uint32_t addr) {
+struct receiver *receiverBad(uint64_t id, uint32_t addr, uint64_t now) {
     struct receiver *r = receiverGet(id);
-    if (r) {
-        r->badCounter += 2;
-        if (r->badCounter > 12 && r->goodCounter > 100) {
-            r->badCounter /= 2;
+
+    if (r && now + 20 * SECONDS > r->timedOutUntil) {
+        r->badCounter++;
+        if (r->badCounter > 6) {
+            fprintf(stderr, "timeout receiverId: %016"PRIx64" hex: %06x #good: %6d #bad: %5.0f\n",
+                    r->id, addr, r->goodCounter, r->badCounter);
+            r->timedOutUntil = now + 60 * SECONDS;
             r->goodCounter = 0;
+            r->badCounter = 0;
         }
-        if (r->badCounter > 12)
-                fprintf(stderr, "timeout receiverId: %016"PRIx64" hex: %07x #good: %9"PRId32" #bad: %9"PRId32"\n",
-                        r->id, addr, r->goodCounter, r->badCounter);
         return r;
     } else {
         return NULL;

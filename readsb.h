@@ -562,6 +562,7 @@ struct _Modes
     // array for thread numbers
     int threadNumber[256];
 
+    struct aircraft *scratch;
 };
 
 extern struct _Modes Modes;
@@ -583,11 +584,14 @@ struct modesMessage
     uint32_t addr; // Address Announced
     addrtype_t addrtype; // address format / source
     int score; // Scoring from scoreModesMessage, if used
-    int remote; // If set this message is from a remote station
-    int sbs_in; // Signifies this message is coming from basestation input
-    int reduce_forward; // forward this message for reduced beast output
-    int duplicate; // associated position is a duplicate
-    int jsonPos; // output a json position
+    unsigned char remote; // If set this message is from a remote station
+    unsigned char sbs_in; // Signifies this message is coming from basestation input
+    unsigned char reduce_forward; // forward this message for reduced beast output
+    unsigned char duplicate; // associated position is a duplicate
+    unsigned char delayed; // associated position is old / delayed
+    unsigned char garbage; // from garbage receiver
+    unsigned char pos_bad; // speed_check failed
+    unsigned char jsonPos; // output a json position
     datasource_t source; // Characterizes the overall message source
     uint64_t pos_updated_cache;
     double signalLevel; // RSSI, in the range [0..1], as a fraction of full-scale power

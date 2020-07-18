@@ -104,6 +104,7 @@ static void view1090InitConfig(void) {
     Modes.interactive = 1;
     Modes.maxRange = 1852 * 300; // 300NM default max range
     Modes.net_connector_delay = 1 * 1000;
+    Modes.scratch = (struct aircraft *) aligned_alloc(64, sizeof(struct aircraft));
 }
 //
 //=========================================================================
