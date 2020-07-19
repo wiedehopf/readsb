@@ -1490,6 +1490,12 @@ void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a) {
 void modesQueueOutput(struct modesMessage *mm, struct aircraft *a) {
     int is_mlat = (mm->source == SOURCE_MLAT);
 
+    if (Modes.garbage_ports && (mm->garbage || mm->pos_bad)) {
+        if (!mm->delayed)
+            modesSendBeastOutput(mm, &Modes.garbage_out);
+        return;
+    }
+
     if (a && !is_mlat && mm->correctedbits < 2) {
         // Don't ever forward 2-bit-corrected messages via SBS output.
         // Don't ever forward mlat messages via SBS output.
@@ -1800,7 +1806,6 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
     }
 
     if (Modes.garbage_ports && receiverCheckBad(mm.receiverId, now)) {
-        modesSendBeastOutput(&mm, &Modes.garbage_out);
         mm.garbage = 1;
     }
 

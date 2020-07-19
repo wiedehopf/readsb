@@ -637,7 +637,7 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
             // At least one of the CPRs is bad, mark them both invalid.
             // If we are not confident in the position, invalidate it as well.
 
-            position_bad(mm, a);
+            mm->pos_bad = 1;
 
             return;
         } else if (location_result == -1) {
@@ -1516,7 +1516,7 @@ end_alt:
                 && !speed_check(a, mm->source, mm->decoded_lat, mm->decoded_lon, mm)
            )
         {
-            position_bad(mm, a);
+            mm->pos_bad = 1;
             // speed check failed, do nothing
         } else if (accept_data(&a->position_valid, mm->source, mm, 0)) {
 
@@ -1542,6 +1542,8 @@ end_alt:
 
     if (mm->cpr_valid && (mm->garbage || mm->pos_bad || mm->duplicate)) {
         memcpy(a, Modes.scratch, sizeof(struct aircraft));
+        if (mm->pos_bad)
+            position_bad(mm, a);
     }
 
     if(a->messages == 3 && a->first_message) {
@@ -2167,7 +2169,6 @@ static void adjustExpire(struct aircraft *a, uint64_t timeout) {
 */
 
 static void position_bad(struct modesMessage *mm, struct aircraft *a) {
-    mm->pos_bad = 1;
     if (mm->garbage)
         return;
     if (mm->delayed)
@@ -2182,10 +2183,12 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
     if (a->addr == Modes.cpr_focus)
         fprintf(stderr, "%06x: position_bad\n", a->addr);
 
-    a->cpr_odd_valid.source = SOURCE_INVALID;
-    a->cpr_even_valid.source = SOURCE_INVALID;
     a->pos_reliable_odd--;
     a->pos_reliable_even--;
+    if (a->pos_reliable_odd <= 1 || a->pos_reliable_even <= 1) {
+        a->cpr_odd_valid.source = SOURCE_INVALID;
+        a->cpr_even_valid.source = SOURCE_INVALID;
+    }
 
     if (a->pos_reliable_odd <= 0 || a->pos_reliable_even <=0) {
         a->position_valid.source = SOURCE_INVALID;
