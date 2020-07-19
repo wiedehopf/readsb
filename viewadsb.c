@@ -159,9 +159,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptNoFix:
             Modes.nfix_crc = 0;
             break;
-        case OptNoCrcCheck:
-            Modes.check_crc = 0;
-            break;
         case OptModeAc:
             Modes.mode_ac = 1;
             Modes.mode_ac_auto = 0;

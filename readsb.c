@@ -68,9 +68,9 @@ static void backgroundTasks(void);
 #define _stringize(x) #x
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state);
-const char *argp_program_version = MODES_READSB_VARIANT " " MODES_READSB_VERSION;
+const char *argp_program_version = VERSION_STRING;
 const char doc[] = "readsb Mode-S/ADSB/TIS Receiver   "
-        MODES_READSB_VARIANT " " MODES_READSB_VERSION
+        VERSION_STRING
         "\nBuild options: "
 #ifdef ENABLE_RTLSDR
         "ENABLE_RTLSDR "
@@ -807,9 +807,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptNoFix:
             Modes.nfix_crc = 0;
             break;
-        case OptNoCrcCheck:
-            Modes.check_crc = 0;
-            break;
         case OptRaw:
             Modes.raw = 1;
             break;
@@ -1194,6 +1191,17 @@ int main(int argc, char **argv) {
         fprintf(stderr, "\n");
         cleanup_and_exit(1);
     }
+    if (argc >= 2 && (
+                !strcmp(argv[1], "--help")
+                || !strcmp(argv[1], "--usage")
+                || !strcmp(argv[1], "--version")
+                || !strcmp(argv[1], "-V")
+                || !strcmp(argv[1], "-?")
+                )
+       ) {
+        exit(0);
+    }
+
 
 #ifdef _WIN32
     // Try to comply with the Copyright license conditions for binary distribution
@@ -1204,8 +1212,7 @@ int main(int argc, char **argv) {
 
     // Initialization
     log_with_timestamp("%s starting up.", MODES_READSB_VARIANT);
-    fprintf(stderr, "Version: %s\n", MODES_READSB_VERSION);
-
+    fprintf(stderr, VERSION_STRING);
     //fprintf(stderr, "%zu\n", sizeof(struct state_flags));
     fprintf(stderr, "struct sizes: %zu, ", sizeof(struct aircraft));
     fprintf(stderr, "%zu, ", sizeof(struct state));
@@ -1215,7 +1222,7 @@ int main(int argc, char **argv) {
     //fprintf(stderr, "%zu\n", 10000 * sizeof(struct aircraft));
     modesInit();
 
-    if (!sdrOpen()) {
+    if (Modes.sdr_type != SDR_NONE && !sdrOpen()) {
         cleanup_and_exit(1);
     }
 

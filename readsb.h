@@ -64,8 +64,10 @@
 #endif
 
 #ifndef MODES_READSB_VARIANT
-#define MODES_READSB_VARIANT     "wiedehopf dev"
+#define MODES_READSB_VARIANT     "readsb"
 #endif
+
+#define VERSION_STRING MODES_READSB_VARIANT " version: " MODES_READSB_VERSION
 
 // ============================= Include files ==========================
 
@@ -812,7 +814,6 @@ enum {
     OptMaxRange,
     OptFix,
     OptNoFix,
-    OptNoCrcCheck,
     OptAggressive,
     OptMlat,
     OptStats,
