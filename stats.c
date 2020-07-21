@@ -376,7 +376,7 @@ int statsUpdate(uint64_t now) {
         }
     }
 
-    if (now > Modes.next_stats_update || Modes.exit) {
+    if (now > Modes.next_stats_update) {
         int i;
 
         Modes.next_stats_update += 10 * SECONDS;

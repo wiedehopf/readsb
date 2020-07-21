@@ -1405,6 +1405,8 @@ int main(int argc, char **argv) {
     pthread_mutex_destroy(&Modes.mainThreadMutex);
     pthread_cond_destroy(&Modes.mainThreadCond);
 
+    // force stats to be emitted regardless of timing
+    Modes.next_stats_update = 0;
     // run this update to emit final stats
     trackPeriodicUpdate();
 
