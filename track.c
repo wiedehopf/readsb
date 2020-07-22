@@ -240,7 +240,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
     MODES_NOTUSED(mm);
     if (bogus_lat_lon(lat, lon)) {
-        mm->delayed = 1; // don't decrement pos_reliable
+        mm->pos_ignore = 1; // don't decrement pos_reliable
         return 0;
     }
 
@@ -303,10 +303,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         track_bonus = speed * (90.0 - track_diff) / 90.0;
         speed += track_bonus * (1.1 - trackDataAge(now, &a->track_valid) / 5000);
         if (track_diff > 170) {
-            // don't use positions going backwards for beastReduce (disabled for the moment)
-            // mm->reduce_forward = 0;
-            //
-            mm->delayed = 1; // don't decrement pos_reliable
+            mm->pos_ignore = 1; // don't decrement pos_reliable
         }
     }
 
@@ -1054,7 +1051,12 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (!a) { // If it's a currently unknown aircraft....
         a = aircraftCreate(mm); // ., create a new record for it,
     }
-    mm->pos_updated_cache = a->position_valid.updated;
+
+    if (mm->cpr_valid && mm->cpr_lat == 0 && mm->cpr_lon == 0) {
+        mm->pos_ignore = 1;
+        Modes.stats_current.cpr_global_bad++;
+        return NULL;
+    }
 
     if (mm->cpr_valid) {
         memcpy(Modes.scratch, a, sizeof(struct aircraft));
@@ -2171,7 +2173,7 @@ static void adjustExpire(struct aircraft *a, uint64_t timeout) {
 static void position_bad(struct modesMessage *mm, struct aircraft *a) {
     if (mm->garbage)
         return;
-    if (mm->delayed)
+    if (mm->pos_ignore)
         return;
     if (mm->source < a->position_valid.source)
         return;
