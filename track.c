@@ -331,7 +331,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                     a->lat, a->lon, lat, lon);
         }
     }
-    if (Modes.garbage_ports && !inrange && (source >= SOURCE_ADSR || source == SOURCE_INVALID)
+    if (Modes.garbage_ports && !inrange && source >= SOURCE_ADSR
             && distance > 1200 && track_diff > 10
             && a->pos_reliable_odd >= Modes.filter_persistence * 3 / 4
             && a->pos_reliable_even >= Modes.filter_persistence * 3 / 4
@@ -2187,15 +2187,13 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
 
     a->pos_reliable_odd--;
     a->pos_reliable_even--;
-    if (a->pos_reliable_odd <= 1 || a->pos_reliable_even <= 1) {
-        a->cpr_odd_valid.source = SOURCE_INVALID;
-        a->cpr_even_valid.source = SOURCE_INVALID;
-    }
 
     if (a->pos_reliable_odd <= 0 || a->pos_reliable_even <=0) {
         a->position_valid.source = SOURCE_INVALID;
         a->pos_reliable_odd = 0;
         a->pos_reliable_even = 0;
+        a->cpr_odd_valid.source = SOURCE_INVALID;
+        a->cpr_even_valid.source = SOURCE_INVALID;
     }
 }
 

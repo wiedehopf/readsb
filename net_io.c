@@ -1491,7 +1491,7 @@ void modesQueueOutput(struct modesMessage *mm, struct aircraft *a) {
     int is_mlat = (mm->source == SOURCE_MLAT);
 
     if (Modes.garbage_ports && (mm->garbage || mm->pos_bad)) {
-        if (!mm->pos_ignore)
+        if (mm->garbage || !mm->pos_ignore)
             modesSendBeastOutput(mm, &Modes.garbage_out);
         return;
     }
