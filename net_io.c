@@ -3537,6 +3537,7 @@ static void read_uuid(struct client *c, char *p, char *eod) {
     }
 
     unsigned char ch;
+    char *start = p;
     uint64_t receiverId = 0;
     uint64_t receiverId2 = 0;
     // read ascii to binary
@@ -3576,7 +3577,12 @@ static void read_uuid(struct client *c, char *p, char *eod) {
         c->receiverIdRemote = 1;
         c->receiverId = receiverId;
         c->receiverId2 = receiverId2;
-        fprintf(stderr, "ADDR %s,%s rId %016"PRIx64" UUID %016"PRIx64"%016"PRIx64"\n", c->host, c->port, c->receiverId, c->receiverId, c->receiverId2);
+
+        int len = min(eod - start, 36);
+
+        fprintf(stderr, "ADDR %s,%s rId %016"PRIx64" UUID %.*s\n",
+                c->host, c->port, c->receiverId,
+                len, start);
     }
     return;
 }
