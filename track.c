@@ -312,24 +312,23 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     range = (surface ? 0.1e3 : 0.0e3) + ((elapsed + 1000.0) / 1000.0) * (speed * 1852.0 / 3600.0);
 
     inrange = (distance <= range);
-    if (a->addr == Modes.cpr_focus || (track_diff < 190 && (Modes.debug_cpr || Modes.debug_speed_check))) {
-        //if (a->addr == 0x42435f) {
-        if ((!inrange && source > SOURCE_INVALID) || (a->addr == Modes.cpr_focus && distance > -1)) {
+    if ((source > SOURCE_MLAT && track_diff < 190 && !inrange && (Modes.debug_cpr || Modes.debug_speed_check))
+            || (a->addr == Modes.cpr_focus && distance > -1)) {
 
-            //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
-            fprintf(stderr, "%06x: %s %s %s reliable: %2d trackDiff: %3.0f: %7.2fkm/%7.2fkm in %4.1f s, max %4.0f kt, %9.5f,%10.5f -> %9.5f,%10.5f\n",
-                    a->addr,
-                    source == a->position_valid.last_source ? "SQ" : "LQ",
-                    (inrange ? "  ok" : "fail"),
-                    (surface ? "S" : "A"),
-                    a->pos_reliable_odd + a->pos_reliable_even,
-                    track_diff,
-                    distance / 1000.0,
-                    range / 1000.0,
-                    elapsed / 1000.0,
-                    speed,
-                    a->lat, a->lon, lat, lon);
-        }
+        //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
+        fprintf(stderr, "%06x: %s %s %s reliable: %2d tD: %3.0f: %7.2fkm/%7.2fkm in %4.1f s, %4.0fkt/%4.0fkt, %9.5f,%10.5f -> %9.5f,%10.5f\n",
+                a->addr,
+                source == a->position_valid.last_source ? "SQ" : "LQ",
+                (inrange ? "  ok" : "fail"),
+                (surface ? "S" : "A"),
+                a->pos_reliable_odd + a->pos_reliable_even,
+                track_diff,
+                distance / 1000.0,
+                range / 1000.0,
+                elapsed / 1000.0,
+                (distance / elapsed * 1000.0 / 1852.0 * 3600.0),
+                speed,
+                a->lat, a->lon, lat, lon);
     }
     if (Modes.garbage_ports && !inrange && source >= SOURCE_ADSR
             && distance > 1200 && track_diff > 10
@@ -589,7 +588,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
     a->addrtype_updated = now;
 }
 
-static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
+static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t now) {
     int location_result = -1;
     uint64_t max_elapsed;
     double new_lat = 0, new_lon = 0;
@@ -671,10 +670,10 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm) {
         }
     } else {
         if (a->addr == Modes.cpr_focus)
-            fprintf(stderr, "%06x: unable global CPRvalid: odd %"PRIu64" even %"PRIu64" sources %d %d %d %d types %d timed %d\n",
+            fprintf(stderr, "%06x: unable global CPRvalid: odd %0.1f even %0.1f sources %d %d %d %d types %d timed %d\n",
                     a->addr,
-                    a->cpr_odd_valid.updated,
-                    a->cpr_even_valid.updated,
+                    fmax(-1, ((double) now - a->cpr_odd_valid.updated) / 1000.0),
+                    fmax(-1, ((double) now - a->cpr_even_valid.updated) / 1000.0),
                     a->cpr_odd_valid.source, a->cpr_even_valid.source,
                     a->cpr_odd_valid.last_source, a->cpr_even_valid.last_source,
                     (a->cpr_odd_type == a->cpr_even_type),
@@ -1493,7 +1492,7 @@ end_alt:
 
     // If we've got a new cpr_odd or cpr_even
     if (cpr_new) {
-        updatePosition(a, mm);
+        updatePosition(a, mm, now);
         if (0 && a->addr == Modes.cpr_focus) {
             fprintf(stderr, "%06x: age: odd %"PRIu64" even %"PRIu64"\n",
                     a->addr,
