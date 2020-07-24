@@ -77,3 +77,41 @@ support code when building, be sure to include preprocessor define macro HAVE_BI
 - Michael Wolf (mictronics.de)
 - Matthias Wirth aka wiedehopf
 - Taner Halicioglu aka tanerH
+
+## --debug=S: speed check debugging output
+
+For current reference please see the speed_check function.
+
+hex
+
+SQ means same quality (ADS-B vs MLAT and stuff)
+LQ means lower quality
+
+fail / ok
+ok means speed check passed (displayed only with cpr-focus)
+
+A means airborne and S means surface.
+
+reliable is my reliable counter
+every good position increases each aircrafts position reliability
+if it gets to zero, speed check is no longer applied and it's allowed to "JUMP"
+"JUMP" is also allowed if we haven't had a position for 2 minutes
+
+tD is the trackDifference
+170 or 180 means the new position goes in the opposite direction of the ground track broadcast by the aircraft.
+
+then we have actual distance / allowed distance.
+the allowed distance i tweak depending on the trackDifference
+high trackDifference makes the allowed distance go slightly negative
+as i don't want aircraft to jump backwards.
+
+elapsed time
+
+actual / allowed speed (allowed speed based on allowed distance)
+
+old --> new
+lat, lon -> lat, lon
+
+oh if you want that display:
+--debug=S
+you'll have to update, just disabled the MLAT speed check from displayign stuff ... because usually it's not interesting
