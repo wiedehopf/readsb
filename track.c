@@ -1870,7 +1870,7 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
         return;
     a->lastPosReceiverId= mm->receiverId;
 
-    if (a->addr == Modes.cpr_focus) {
+    if (0 && a->addr == Modes.cpr_focus) {
         showPositionDebug(a, mm, now);
     }
 
