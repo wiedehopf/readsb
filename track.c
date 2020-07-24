@@ -244,7 +244,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         return 0;
     }
 
-    int surface = trackDataValid(&a->airground_valid) && a->airground == AG_GROUND && a->pos_surface;
+    int surface = trackDataValid(&a->airground_valid)
+        && a->airground == AG_GROUND
+        && a->pos_surface
+        && (!mm->cpr_valid || mm->cpr_type == CPR_SURFACE);
 
     if (a->pos_reliable_odd < 1 && a->pos_reliable_even < 1)
         return 1;
@@ -597,6 +600,7 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
     int surface;
 
     surface = (mm->cpr_type == CPR_SURFACE);
+    a->pos_surface = trackDataValid(&a->airground_valid) && a->airground == AG_GROUND;
 
     if (surface) {
         ++Modes.stats_current.cpr_surface;
