@@ -338,7 +338,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     }
 
     if (Modes.garbage_ports && !inrange && source >= SOURCE_ADSR
-            && distance - range > 1000 && distance / range > 2 && track_diff > 45
+            && distance - range > 1000 && track_diff > 45
             && a->pos_reliable_odd >= Modes.filter_persistence * 3 / 4
             && a->pos_reliable_even >= Modes.filter_persistence * 3 / 4
        ) {
