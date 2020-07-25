@@ -298,10 +298,11 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     // find actual distance
     distance = greatcircle(oldLat, oldLon, lat, lon);
 
-    if (!surface && distance > 1 && source > SOURCE_MLAT
+    if (!surface && distance > 5 && source > SOURCE_MLAT
             && trackDataAge(now, &a->track_valid) < 7 * 1000
             && trackDataAge(now, &a->position_valid) < 7 * 1000
             && (oldLat != lat || oldLon != lon)
+            && (a->pos_reliable_odd >= Modes.json_reliable && a->pos_reliable_even >= Modes.json_reliable)
        ) {
         calc_track = bearing(a->lat, a->lon, lat, lon);
         track_diff = fabs(norm_diff(a->track - calc_track, 180));
@@ -312,22 +313,23 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         }
     }
 
-    // 100m (surface) or 500m (airborne) base distance to allow for minor errors,
-    // plus distance covered at the given speed for the elapsed time + 1 second.
+    // 100m (surface) base distance to allow for minor errors, no airborne base distance due to ground track cross check
+    // plus distance covered at the given speed for the elapsed time + 1 seconds.
     range = (surface ? 0.1e3 : 0.0e3) + ((elapsed + 1000.0) / 1000.0) * (speed * 1852.0 / 3600.0);
 
     inrange = (distance <= range);
 
     if ((source > SOURCE_MLAT && track_diff < 190 && !inrange && (Modes.debug_cpr || Modes.debug_speed_check))
-            || (a->addr == Modes.cpr_focus && distance > -1)) {
+            || (a->addr == Modes.cpr_focus && distance > 5)) {
 
         //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
-        fprintf(stderr, "%06x: %s %s %s reliable: %2d tD: %3.0f: %7.2fkm/%7.2fkm in %4.1f s, %4.0fkt/%4.0fkt, %9.5f,%10.5f -> %9.5f,%10.5f\n",
+        fprintf(stderr, "%06x: %s %s %s %s reliable: %2d tD: %3.0f: %7.2fkm/%7.2fkm in %4.1f s, %4.0fkt/%4.0fkt, %9.5f,%10.5f -> %9.5f,%10.5f\n",
                 a->addr,
                 source == a->position_valid.last_source ? "SQ" : "LQ",
+                mm->cpr_odd ? "O" : "E",
                 (inrange ? "  ok" : "fail"),
                 (surface ? "S" : "A"),
-                a->pos_reliable_odd + a->pos_reliable_even,
+                min(a->pos_reliable_odd, a->pos_reliable_even),
                 track_diff,
                 distance / 1000.0,
                 range / 1000.0,
@@ -678,15 +680,13 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
         }
     } else {
         if (a->addr == Modes.cpr_focus)
-            fprintf(stderr, "%06x: unable global CPRvalid: odd %0.1f even %0.1f sources %d %d %d %d types %d timed %d\n",
+            fprintf(stderr, "%06x: unable global CPR, current CPR: %s, other CPR age %0.1f sources %d %d %d %d types: %s\n",
                     a->addr,
-                    fmax(-1, ((double) now - a->cpr_odd_valid.updated) / 1000.0),
-                    fmax(-1, ((double) now - a->cpr_even_valid.updated) / 1000.0),
+                    mm->cpr_odd ? " odd" : "even",
+                    mm->cpr_odd ? fmin(999, ((double) now - a->cpr_even_valid.updated) / 1000.0) : fmin(999, ((double) now - a->cpr_odd_valid.updated) / 1000.0),
                     a->cpr_odd_valid.source, a->cpr_even_valid.source,
                     a->cpr_odd_valid.last_source, a->cpr_even_valid.last_source,
-                    (a->cpr_odd_type == a->cpr_even_type),
-                    (int) (mm->sysTimestampMsg - mstime())
-                   );
+                    (a->cpr_odd_type == a->cpr_even_type) ? "same" : "diff");
     }
 
     // Otherwise try relative CPR.
