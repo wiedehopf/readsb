@@ -210,7 +210,7 @@ struct receiver *receiverBad(uint64_t id, uint32_t addr, uint64_t now) {
 
     if (r && now + timeout() / 2 > r->timedOutUntil) {
         r->badCounter++;
-        if (r->badCounter > 7.99) {
+        if (r->badCounter > 4.99) {
             if (Modes.debug_garbage) {
                 fprintf(stderr, "timeout receiverId: %016"PRIx64" hex: %06x #good: %6d #bad: %5.0f\n",
                         r->id, addr, r->goodCounter, r->badCounter);

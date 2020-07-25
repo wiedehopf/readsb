@@ -317,6 +317,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     range = (surface ? 0.1e3 : 0.0e3) + ((elapsed + 1000.0) / 1000.0) * (speed * 1852.0 / 3600.0);
 
     inrange = (distance <= range);
+
     if ((source > SOURCE_MLAT && track_diff < 190 && !inrange && (Modes.debug_cpr || Modes.debug_speed_check))
             || (a->addr == Modes.cpr_focus && distance > -1)) {
 
@@ -335,8 +336,9 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                 speed,
                 a->lat, a->lon, lat, lon);
     }
+
     if (Modes.garbage_ports && !inrange && source >= SOURCE_ADSR
-            && distance - range > 800 && distance / range > 2 && track_diff > 45
+            && distance - range > 1000 && distance / range > 2 && track_diff > 45
             && a->pos_reliable_odd >= Modes.filter_persistence * 3 / 4
             && a->pos_reliable_even >= Modes.filter_persistence * 3 / 4
        ) {
@@ -1862,13 +1864,22 @@ static void cleanupAircraft(struct aircraft *a) {
 }
 
 static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_lat, double new_lon, uint64_t now) {
-    if (mm->cpr_valid && (mm->garbage || mm->pos_bad || mm->duplicate))
-        return;
-    a->lastPosReceiverId= mm->receiverId;
 
     if (0 && a->addr == Modes.cpr_focus) {
         showPositionDebug(a, mm, now);
     }
+
+    if (now < a->seen_pos + 3 * SECONDS && a->lat == new_lat && a->lon == new_lon) {
+        // don't use duplicate positions for beastReduce
+        mm->reduce_forward = 0;
+        mm->duplicate = 1;
+        mm->pos_ignore = 1;
+    }
+
+    if (mm->cpr_valid && (mm->garbage || mm->pos_bad || mm->duplicate))
+        return;
+
+    a->lastPosReceiverId = mm->receiverId;
 
     if (trackDataAge(now, &a->track_valid) >= 10000 && a->seen_pos) {
         double distance = greatcircle(a->lat, a->lon, new_lat, new_lon);
@@ -1876,14 +1887,6 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
             a->calc_track = bearing(a->lat, a->lon, new_lat, new_lon);
     }
 
-    int keep = 1;
-    if (now < a->seen_pos + 3 * SECONDS && a->lat == new_lat && a->lon == new_lon) {
-        // don't use duplicate positions for beastReduce
-        mm->reduce_forward = 0;
-        mm->duplicate = 1;
-
-        keep = 0; // don't keep this datapoint
-    }
 
     if (Modes.keep_traces) {
 
@@ -1893,8 +1896,6 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
                 (a->pos_reliable_odd < Modes.json_reliable || a->pos_reliable_even < Modes.json_reliable))
             goto no_save_state;
 
-        if (!keep)
-            goto no_save_state;
         if (!a->trace) {
             //pthread_mutex_lock(&a->trace_mutex);
 
