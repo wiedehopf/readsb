@@ -451,6 +451,9 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
             }
 
             Modes.stats_current.cpr_global_range_checks++;
+            if (a->addr == Modes.cpr_focus || Modes.debug_cpr ) {
+                fprintf(stderr, "global CPR failure (invalid) for (%06x): out of receiver range\n", a->addr);
+            }
             return (-2); // we consider an out-of-range value to be bad data
         }
     }
@@ -635,13 +638,8 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
         //    fprintf(stderr, "%06x globalCPR result: %d\n", a->addr, location_result);
 
         if (location_result == -2) {
-            if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
-                fprintf(stderr, "global CPR failure (invalid) for (%06x).\n", a->addr);
-            }
             // Global CPR failed because the position produced implausible results.
             // This is bad data.
-            // At least one of the CPRs is bad, mark them both invalid.
-            // If we are not confident in the position, invalidate it as well.
 
             mm->pos_bad = 1;
 
