@@ -239,7 +239,9 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     double oldLon = a->lon;
 
     MODES_NOTUSED(mm);
-    if (bogus_lat_lon(lat, lon)) {
+    if (bogus_lat_lon(lat, lon) ||
+            (mm->cpr_valid && mm->cpr_lat == 0 && mm->cpr_lon == 0)
+       ) {
         mm->pos_ignore = 1; // don't decrement pos_reliable
         return 0;
     }
@@ -334,12 +336,12 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                 a->lat, a->lon, lat, lon);
     }
     if (Modes.garbage_ports && !inrange && source >= SOURCE_ADSR
-            && distance > 1200 && track_diff > 10
+            && distance - range > 800 && distance / range > 2 && track_diff > 45
             && a->pos_reliable_odd >= Modes.filter_persistence * 3 / 4
             && a->pos_reliable_even >= Modes.filter_persistence * 3 / 4
        ) {
         struct receiver *r = receiverBad(mm->receiverId, a->addr, now);
-        if (r && Modes.debug_garbage && r->badCounter > 1) {
+        if (r && Modes.debug_garbage && r->badCounter > 6) {
             fprintf(stderr, "hex: %06x id: %016"PRIx64" #good: %6d #bad: %3.0f trackDiff: %3.0f: %7.2fkm/%7.2fkm in %4.1f s, max %4.0f kt\n",
                     a->addr, r->id, r->goodCounter, r->badCounter,
                     track_diff,
@@ -1053,12 +1055,6 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     a = aircraftGet(mm->addr);
     if (!a) { // If it's a currently unknown aircraft....
         a = aircraftCreate(mm); // ., create a new record for it,
-    }
-
-    if (mm->cpr_valid && mm->cpr_lat == 0 && mm->cpr_lon == 0) {
-        mm->pos_ignore = 1;
-        Modes.stats_current.cpr_global_bad++;
-        return NULL;
     }
 
     if (mm->cpr_valid) {
