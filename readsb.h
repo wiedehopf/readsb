@@ -104,10 +104,10 @@
 // ============================= #defines ===============================
 
 #define MODES_DEFAULT_FREQ      1090000000
-#define MODES_RTL_BUFFERS       16                         // Number of RTL buffers
+#define MODES_RTL_BUFFERS       4                         // Number of RTL buffers
 #define MODES_RTL_BUF_SIZE      (16*16384)                 // 256k
 #define MODES_MAG_BUF_SAMPLES   (MODES_RTL_BUF_SIZE / 2)   // Each sample is 2 bytes
-#define MODES_MAG_BUFFERS       12                         // Number of magnitude buffers (should be smaller than RTL_BUFFERS for flowcontrol to work)
+#define MODES_MAG_BUFFERS       8                         // Number of magnitude buffers (should be smaller than RTL_BUFFERS for flowcontrol to work)
 #define MODES_AUTO_GAIN         -100                       // Use automatic gain
 #define MODES_MAX_GAIN          999999                     // Use max available gain
 #define MODEAC_MSG_BYTES        2
