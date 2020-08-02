@@ -436,6 +436,7 @@ struct _Modes
     int8_t debug_garbage;
     int8_t debug_receiver;
     int8_t debug_traceCount;
+    int8_t debug_sampleCounter;
     int8_t filter_persistence; // Maximum number of consecutive implausible positions from global CPR to invalidate a known position.
 
     int8_t net_verbatim; // if true, send the original message, not the CRC-corrected one
@@ -454,7 +455,6 @@ struct _Modes
     int8_t json_reliable;
     int8_t net; // Enable networking
     int8_t net_only; // Enable just networking
-    int8_t basestation_is_mlat;
 
     uint32_t cpr_focus;
     uint32_t show_only; // Only show messages from this ICAO

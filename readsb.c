@@ -214,7 +214,6 @@ static void modesInitConfig(void) {
     Modes.net_sndbuf_size = 2; // Default to 256 kB network write buffers
     Modes.net_output_flush_size = 1200; // Default to 1200 Bytes
     Modes.net_output_flush_interval = 50; // Default to 50 ms
-    Modes.basestation_is_mlat = 1;
     Modes.netReceiverId = 0;
     Modes.netIngest = 0;
     Modes.uuidFile = strdup("/boot/adsbx-uuid");
@@ -1115,6 +1114,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                     case 'G': Modes.debug_garbage = 1;
                         break;
                     case 'T': Modes.debug_traceCount = 1;
+                        break;
+                    case 'K': Modes.debug_sampleCounter = 1;
                         break;
                     case 'j': Modes.debug |= MODES_DEBUG_JS;
                         break;

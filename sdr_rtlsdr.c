@@ -260,6 +260,7 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
     static uint64_t sampleCounter = 0;
 
     static int antiSpam;
+    static int antiSpam2;
 
     MODES_NOTUSED(ctx);
 
@@ -311,6 +312,11 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
     // Compute the sample timestamp and system timestamp for the start of the block
     outbuf->sampleTimestamp = sampleCounter * 12e6 / Modes.sample_rate;
     sampleCounter += slen;
+
+    if (Modes.debug_sampleCounter && --antiSpam2 <= 0) {
+        fprintf(stderr, "sampleTimestamp: %020llu\n", (unsigned long long) outbuf->sampleTimestamp);
+        antiSpam2 = 3000;
+    }
 
     // Get the approx system time for the start of this block
     block_duration = 1e3 * slen / Modes.sample_rate;
