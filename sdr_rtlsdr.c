@@ -259,6 +259,8 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
     static int dropping = 0;
     static uint64_t sampleCounter = 0;
 
+    static int antiSpam;
+
     MODES_NOTUSED(ctx);
 
     // Lock the data buffer variables before accessing them
@@ -295,6 +297,11 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
         outbuf->dropped += slen;
         sampleCounter += slen;
         pthread_mutex_unlock(&Modes.data_mutex);
+
+        if (--antiSpam <= 0) {
+            fprintf(stderr, "FIFO dropped, suppressing this message for 30 seconds.");
+            antiSpam = 300;
+        }
         return;
     }
 
