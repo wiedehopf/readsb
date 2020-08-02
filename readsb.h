@@ -385,7 +385,6 @@ struct _Modes
     unsigned trailing_samples; // extra trailing samples in magnitude buffers
     int exit; // Exit from the main loop when true
     int dc_filter; // should we apply a DC filter?
-    uint32_t show_only; // Only show messages from this ICAO
     int fd; // --ifile option file descriptor
     input_format_t input_format; // --iformat option
     iq_convert_fn converter_function;
@@ -426,34 +425,53 @@ struct _Modes
 #endif
 
     // Configuration
-    int nfix_crc; // Number of crc bit error(s) to correct
-    int check_crc; // Only display messages with good CRC
-    int raw; // Raw output format
-    int mode_ac; // Enable decoding of SSR Modes A & C
-    int mode_ac_auto; // allow toggling of A/C by Beast commands
-    int debug; // Debugging mode
-    int debug_cpr;
-    int debug_speed_check;
-    int debug_garbage;
-    int debug_receiver;
-    int debug_traceCount;
+    int8_t nfix_crc; // Number of crc bit error(s) to correct
+    int8_t check_crc; // Only display messages with good CRC
+    int8_t raw; // Raw output format
+    int8_t mode_ac; // Enable decoding of SSR Modes A & C
+    int8_t mode_ac_auto; // allow toggling of A/C by Beast commands
+    int8_t debug; // Debugging mode
+    int8_t debug_cpr;
+    int8_t debug_speed_check;
+    int8_t debug_garbage;
+    int8_t debug_receiver;
+    int8_t debug_traceCount;
+    int8_t filter_persistence; // Maximum number of consecutive implausible positions from global CPR to invalidate a known position.
+
+    int8_t net_verbatim; // if true, send the original message, not the CRC-corrected one
+    int8_t netReceiverId;
+    int8_t netIngest;
+    int8_t forward_mlat; // allow forwarding of mlat messages to output ports
+    int8_t quiet; // Suppress stdout
+    int8_t interactive; // Interactive mode
+    int8_t stats_range_histo; // Collect/show a range histogram?
+    int8_t onlyaddr; // Print only ICAO addresses
+    int8_t metric; // Use metric units
+    int8_t use_gnss; // Use GNSS altitudes with H suffix ("HAE", though it isn't always) when available
+    int8_t mlat; // Use Beast ascii format for raw data output, i.e. @...; iso *...;
+    int8_t json_location_accuracy; // Accuracy of location metadata: 0=none, 1=approx, 2=exact
+
+    int8_t json_reliable;
+    int8_t net; // Enable networking
+    int8_t net_only; // Enable just networking
+    int8_t basestation_is_mlat;
+
     uint32_t cpr_focus;
+    uint32_t show_only; // Only show messages from this ICAO
     uint64_t receiver_focus;
-    int json_reliable;
-    int net; // Enable networking
-    int net_only; // Enable just networking
+
     int net_output_flush_size; // Minimum Size of output data
-    uint64_t net_connector_delay;
-    int filter_persistence; // Maximum number of consecutive implausible positions from global CPR to invalidate a known position.
-    uint64_t net_heartbeat_interval; // TCP heartbeat interval (milliseconds)
-    uint64_t net_output_flush_interval; // Maximum interval (in milliseconds) between outputwrites
+    uint32_t net_output_beast_reduce_interval; // Position update interval for data reduction
+    uint32_t net_connector_delay;
+    uint32_t net_heartbeat_interval; // TCP heartbeat interval (milliseconds)
+    uint32_t net_output_flush_interval; // Maximum interval (in milliseconds) between outputwrites
     double fUserLat; // Users receiver/antenna lat/lon needed for initial surface location
     double fUserLon; // Users receiver/antenna lat/lon needed for initial surface location
     double maxRange; // Absolute maximum decoding range, in *metres*
     double sample_rate; // actual sample rate in use (in hz)
-    uint64_t interactive_display_ttl; // Interactive mode: TTL display
+    uint32_t interactive_display_ttl; // Interactive mode: TTL display
+    uint32_t json_interval; // Interval between rewriting the json aircraft file, in milliseconds; also the advertised map refresh interval
     uint64_t stats; // Interval (millis) between stats dumps,
-    uint64_t json_interval; // Interval between rewriting the json aircraft file, in milliseconds; also the advertised map refresh interval
     char *net_output_raw_ports; // List of raw output TCP ports
     char *net_input_raw_ports; // List of raw input TCP ports
     char *net_output_sbs_ports; // List of SBS output TCP ports
@@ -464,20 +482,19 @@ struct _Modes
     char *net_output_json_ports;
     char *net_output_api_ports;
     char *garbage_ports;
-    uint64_t net_output_beast_reduce_interval; // Position update interval for data reduction
     char *net_output_vrs_ports; // List of VRS output TCP ports
     uint64_t net_output_vrs_interval;
-    int basestation_is_mlat; // Basestation input is from MLAT
     struct net_connector **net_connectors; // client connectors
     int net_connectors_count;
     int net_connectors_size;
+    char *uuidFile;
     char *filename; // Input form file, --ifile option
     char *net_bind_address; // Bind address
     char *json_dir; // Path to json base directory, or NULL not to write json.
     char *globe_history_dir;
     char *state_dir;
     char *prom_file;
-    uint64_t heatmap_interval;
+    uint32_t heatmap_interval;
     int heatmap_current_interval;
     int heatmap;
     char *heatmap_dir;
@@ -489,29 +506,20 @@ struct _Modes
     struct tile *json_globe_special_tiles;
     int json_gzip; // Enable extra globe indexed json files.
     char *beast_serial; // Modes-S Beast device path
-#if defined(__arm__)
-    uint32_t padding;
-#endif
+
     int net_sndbuf_size; // TCP output buffer size (64Kb * 2^n)
-    int net_verbatim; // if true, send the original message, not the CRC-corrected one
-    int netReceiverId;
-    int netIngest;
-    char *uuidFile;
-    int forward_mlat; // allow forwarding of mlat messages to output ports
-    int quiet; // Suppress stdout
-    int interactive; // Interactive mode
-    int stats_range_histo; // Collect/show a range histogram?
-    int onlyaddr; // Print only ICAO addresses
-    int metric; // Use metric units
-    int use_gnss; // Use GNSS altitudes with H suffix ("HAE", though it isn't always) when available
-    int mlat; // Use Beast ascii format for raw data output, i.e. @...; iso *...;
-    int json_location_accuracy; // Accuracy of location metadata: 0=none, 1=approx, 2=exact
     int json_aircraft_history_next;
     int json_aircraft_history_full;
     int bUserFlags; // Flags relating to the user details
     int biastee;
     int mday;
     int traceDay;
+
+    struct timespec reader_cpu_accumulator; // CPU time used by the reader thread, copied out and reset by the main thread under the mutex
+    struct mag_buf mag_buffers[MODES_MAG_BUFFERS]; // Converted magnitude buffers from RTL or file input
+
+    struct aircraft *scratch;
+
     uint64_t next_stats_update;
     uint64_t next_stats_display;
     int stats_bucket; // index that has just been writte to
@@ -523,9 +531,6 @@ struct _Modes
     struct stats stats_5min;
     struct stats stats_15min;
     uint32_t type_counts[NUM_TYPES];
-    struct timespec reader_cpu_accumulator; // CPU time used by the reader thread, copied out and reset by the main thread under the mutex
-    struct mag_buf mag_buffers[MODES_MAG_BUFFERS]; // Converted magnitude buffers from RTL or file input
-
 
     uint32_t readsb_aircraft_adsb_version_0;
     uint32_t readsb_aircraft_adsb_version_1;
@@ -563,8 +568,6 @@ struct _Modes
 
     // array for thread numbers
     int threadNumber[256];
-
-    struct aircraft *scratch;
 };
 
 extern struct _Modes Modes;
