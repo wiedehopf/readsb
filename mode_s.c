@@ -2194,13 +2194,8 @@ void useModesMessage(struct modesMessage *mm) {
         if (Modes.net_verbatim || mm->msgtype == 32 || !a) {
             // Unconditionally send
             modesQueueOutput(mm, a);
-        } else if (a->messages > 1) {
-            // Suppress the first message. When we receive a second message,
-            // emit the first two messages.
-            if (a->messages == 2 && a->first_message) {
-                if (!a->first_message->sbs_in)
-                    modesQueueOutput(a->first_message, a);
-            }
+        } else if (a->messages > 1 || Modes.net_only) {
+            // Suppress the first message unless running net-only
             modesQueueOutput(mm, a);
         }
     }
