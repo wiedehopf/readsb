@@ -13,9 +13,11 @@ typedef struct receiver {
     double latMin;
     double lonMax;
     double latMax;
-    float badCounter; // reset every minute or so
-    int32_t goodCounter; // reset every minute or so
+    float badCounter; // plus one for a bad position, -0.5 for a good position
+    int32_t goodCounter; // plus one for a good position
+    // reset both counters on timing out a receiver.
     uint64_t timedOutUntil;
+    uint32_t timedOutCounter; // how many times a receiver has been timed out
 } receiver;
 
 
