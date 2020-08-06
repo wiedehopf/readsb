@@ -36,11 +36,18 @@ This file contains readsb list of recently seen aircraft. The keys are:
  * messages: the total number of Mode S messages processed since readsb started.
  * aircraft: an array of JSON objects, one per known aircraft. Each aircraft has the following keys. Keys will be omitted if data is not available.
    * hex: the 24-bit ICAO identifier of the aircraft, as 6 hex digits. The identifier may start with '~', this means that the address is a non-ICAO address (e.g. from TIS-B).
-   * type: type of underlying message, one of:
+   * type: type of underlying messages / best source of current data for this position / aircraft:
+            (the following list is in order of which data is preferentially used)
      * adsb_icao: messages from a Mode S or ADS-B transponder, using a 24-bit ICAO address
      * adsb_icao_nt: messages from an ADS-B equipped "non-transponder" emitter e.g. a ground vehicle, using a 24-bit ICAO address
      * adsr_icao: rebroadcast of ADS-B messages originally sent via another data link e.g. UAT, using a 24-bit ICAO address
      * tisb_icao: traffic information about a non-ADS-B target identified by a 24-bit ICAO address, e.g. a Mode S target tracked by secondary radar
+
+     * adsc: ADS-C (received by monitoring satellite downlinks)
+     * mlat: MLAT, position calculated arrival time differences using multiple receivers, outliers and varying accuracy is expected.
+     * other: miscellaneous data received via Basestation / SBS format, quality / source is unknown.
+     * mode_s: ModeS data from the planes transponder (no position transmitted)
+
      * adsb_other: messages from an ADS-B transponder using a non-ICAO address, e.g. anonymized address
      * adsr_other: rebroadcast of ADS-B messages originally sent via another data link e.g. UAT, using a non-ICAO address
      * tisb_other: traffic information about a non-ADS-B target using a non-ICAO address
@@ -56,7 +63,7 @@ This file contains readsb list of recently seen aircraft. The keys are:
    * track_rate: Rate of change of track, degrees/second
    * roll: Roll, degrees, negative is left roll
    * mag_heading: Heading, degrees clockwise from magnetic north
-   * true_heading: Heading, degrees clockwise from true north
+   * true_heading: Heading, degrees clockwise from true north (usually only transmitted on ground, in the air usually derived from the magnetic heading using magnetic model WMM2020)
    * baro_rate: Rate of change of barometric altitude, feet/minute
    * geom_rate: Rate of change of geometric (GNSS / INS) altitude, feet/minute
    * squawk: Mode A code (Squawk), encoded as 4 octal digits
@@ -87,6 +94,8 @@ This file contains readsb list of recently seen aircraft. The keys are:
    * rssi: recent average RSSI (signal power), in dbFS; this will always be negative.
    * alert: Flight status alert bit (2.2.3.2.3.2)
    * spi: Flight status special position identification bit (2.2.3.2.3.2)
+   * wd, ws: wind direction, wind speed: calculated from ground track, true heading, true airspeed and ground speed
+   * oat, tat: outer air temperate, total air temperature: calculated from mach number and true airspeed (typically somewhat inaccurate at lower altitudes / mach numbers below 0.5)
 
 Section references (2.2.xyz) refer to DO-260B.
 

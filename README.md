@@ -12,6 +12,10 @@ It's continually under development, expect bugs, segfaults and all the good stuf
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 see the LICENSE file for details
 
+### aircraft.json format:
+
+[json file Readme](README-json.md)
+
 ### Push server support
 
 readsb tries to connect to a listening server, like a VRS push server.
