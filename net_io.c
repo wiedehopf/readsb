@@ -1992,8 +1992,28 @@ static const char *jsonEscapeString(const char *str, char *buf, int len) {
         if (ch == '"' || ch == '\\') {
             *out++ = '\\';
             *out++ = ch;
-        } else if (ch < 32 || ch > 127) {
+        } else if (ch < 32 || ch > 126) {
             out = safe_snprintf(out, end, "\\u%04x", ch);
+        } else {
+            *out++ = ch;
+        }
+    }
+
+    *out++ = 0;
+    return buf;
+}
+
+static const char *hexEscapeString(const char *str, char *buf, int len) {
+    const char *in = str;
+    char *out = buf, *end = buf + len - 10;
+
+    for (; *in && out < end; ++in) {
+        unsigned char ch = *in;
+        if (ch == '"' || ch == '\\') {
+            *out++ = '\\';
+            *out++ = ch;
+        } else if (ch < 32 || ch > 126) {
+            out = safe_snprintf(out, end, ".%02x.", ch);
         } else {
             *out++ = ch;
         }
@@ -2667,6 +2687,7 @@ static void modesReadFromClient(struct client *c) {
 
         // If our buffer is full discard it, this is some badly formatted shit
         if (left <= 0) {
+            c->garbage += c->buflen;
             c->buflen = 0;
             left = MODES_CLIENT_BUF_SIZE;
             // If there is garbage, read more to discard it ASAP
@@ -2808,14 +2829,13 @@ static void modesReadFromClient(struct client *c) {
                     modesCloseClient(c);
                     if (Modes.debug & MODES_DEBUG_NET) {
                         *eod = '\0';
-                        char sample[128];
-                        jsonEscapeString(som, sample, sizeof(sample));
-                        sample[127] = '\0';
-                        fprintf(stderr, "??? Garbage: Close: %s port %s sample: %s\n", c->host, c->port, sample);
+                        char sample[64];
+                        hexEscapeString(som, sample, sizeof(sample));
+                        sample[sizeof(sample) - 1] = '\0';
+                        fprintf(stderr, "RND Garbage: Close: %s port %s sample: %s\n", c->host, c->port, sample);
                     }
                     return;
                 }
-
                 while (som < eod && ((p = memchr(som, (char) 0x1a, eod - som)) != NULL)) { // The first byte of buffer 'should' be 0x1a
 
                     Modes.stats_current.remote_malformed_beast += p - som;
@@ -2911,6 +2931,11 @@ static void modesReadFromClient(struct client *c) {
 
                     // advance to next message
                     som = eom;
+                }
+
+                if (eod - som > 256) {
+                    c->garbage += eod - som;
+                    som = eod;
                 }
                 break;
 
