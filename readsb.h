@@ -319,6 +319,7 @@ typedef enum {
 // Include subheaders after all the #defines are in place
 
 #include "util.h"
+#include "fasthash.h"
 #include "anet.h"
 #include "net_io.h"
 #include "crc.h"
