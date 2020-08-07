@@ -2769,7 +2769,7 @@ static void modesReadFromClient(struct client *c) {
             *eod = '\0';
             char *proxy = strstr(som, "PROXY ");
             char *eop = strstr(som, "\r\n");
-            if (proxy == som) {
+            if (proxy && proxy == som) {
                 if (!eop) // incomplete proxy string (shouldn't happen but let's check anyhow)
                     break;
                 strncpy(c->proxy_string, proxy, eop - proxy);
@@ -2779,12 +2779,14 @@ static void modesReadFromClient(struct client *c) {
                 // expected string example: "PROXY TCP4 172.12.2.132 172.191.123.45 40223 30005"
 
                 char *space = proxy;
-                space = memchr(space, ' ', eop - space);
-                space = memchr(space, ' ', eop - space);
-                space = memchr(space, ' ', eop - space);
+                space = memchr(space + 1, ' ', eop - space - 1);
+                space = memchr(space + 1, ' ', eop - space - 1);
+                space = memchr(space + 1, ' ', eop - space - 1);
                 // hash up to 3rd space
-                if (0 && eop - proxy > 10)
-                    c->receiverId = fasthash64(c->proxy_string, space - proxy, 0x2127599bf4325c37ULL);
+                if (eop - proxy > 10) {
+                    //fprintf(stderr, "%ld %ld %s\n", eop - proxy, space - proxy, space);
+                    c->receiverId = fasthash64(proxy, space - proxy, 0x2127599bf4325c37ULL);
+                }
 
                 som = eop + 2;
             }
