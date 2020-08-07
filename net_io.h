@@ -103,23 +103,24 @@ struct client
     struct client* next; // Pointer to next client
     int fd; // File descriptor
     int buflen; // Amount of data on buffer
-    int modeac_requested; // 1 if this Beast output connection has asked for A/C
-    int receiverIdRemote; // receiverId has been transmitted by other side.
     uint64_t bytesReceived;
     uint64_t receiverId;
     uint64_t receiverId2;
     uint64_t last_flush;
     uint64_t last_send;
     uint64_t last_read;  // This is used on write-only clients to help check for dead connections
-    char buf[MODES_CLIENT_BUF_SIZE + 4]; // Read buffer+padding
+    uint64_t connectedSince;
+    char modeac_requested; // 1 if this Beast output connection has asked for A/C
+    char receiverIdLocked; // receiverId has been transmitted by other side.
     void *sendq;  // Write buffer - allocated later
     int sendq_len; // Amount of data in SendQ
     int sendq_max; // Max size of SendQ
     uint32_t garbage; // amount of garbage we have received from this client
+    struct net_connector *con;
+    char buf[MODES_CLIENT_BUF_SIZE + 4]; // Read buffer+padding
+    char proxy_string[108]; // store string received from PROXY protocol v1 (v2 not supported currently)
     char host[NI_MAXHOST]; // For logging
     char port[NI_MAXSERV];
-    struct net_connector *con;
-    char proxy_string[108]; // store string received from PROXY protocol v1 (v2 not supported currently)
 };
 
 // Common writer state for all output sockets of one type

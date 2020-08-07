@@ -203,7 +203,9 @@ struct client *createGenericClient(struct net_service *service, int fd) {
 
     c->receiverId2 = 0;
 
-    c->receiverIdRemote = 0; // receiverId has been transmitted by other side.
+    c->receiverIdLocked = 0;
+
+    c->connectedSince = mstime();
 
     //fprintf(stderr, "c->receiverId: %016"PRIx64"\n", c->receiverId);
 
@@ -695,9 +697,9 @@ static uint64_t modesAcceptClients(uint64_t now) {
                             c->port, sizeof(c->port),
                             NI_NUMERICHOST | NI_NUMERICSERV);
 
-                    if (Modes.debug & MODES_DEBUG_NET) {
-                        fprintf(stderr, "%s: new c from %s port %s rId %016"PRIx64" (fd %d)\n", 
-                                c->service->descr, c->host, c->port, c->receiverId, fd);
+                    if (!Modes.netIngest && (Modes.debug & MODES_DEBUG_NET)) {
+                        fprintf(stderr, "%s: new c from %s port %s (fd %d)\n", 
+                                c->service->descr, c->host, c->port, fd);
                     }
                     if (anetTcpKeepAlive(Modes.aneterr, fd) != ANET_OK)
                         fprintf(stderr, "%s: Unable to set keepalive on connection from %s port %s (fd %d)\n", c->service->descr, c->host, c->port, fd);
@@ -2751,6 +2753,30 @@ static void modesReadFromClient(struct client *c) {
                 strncpy(c->proxy_string, proxy, eop - proxy);
                 c->proxy_string[107] = '\0'; // make sure it's null terminated
                 //fprintf(stderr, "%s\n", c->proxy_string);
+
+                // expected string example: "PROXY TCP4 172.12.2.132 172.191.123.45 40223 30005"
+
+                char *space = proxy;
+                space = memchr(space, ' ', eop - space);
+                space = memchr(space, ' ', eop - space);
+                space = memchr(space, ' ', eop - space);
+                // hash up to 3rd space
+                if (eop - proxy > 10)
+                    c->receiverId = fasthash64(c->proxy_string, space - proxy, 0x2127599bf4325c37ULL);
+
+                som = eop + 2;
+            }
+        }
+
+        if (!c->receiverIdLocked && now > c->connectedSince + 10000) {
+            c->receiverIdLocked = 1;
+            if (Modes.netIngest && (Modes.debug & MODES_DEBUG_NET)) {
+                if (c->proxy_string[0] == '\0')
+                    fprintf(stderr, "%s: new c from %s port %s rId %016"PRIx64"%016"PRIx64"\n",
+                            c->service->descr, c->host, c->port, c->receiverId, c->receiverId2);
+                else
+                    fprintf(stderr, "new c %s rId %016"PRIx64"%016"PRIx64"\n", 
+                            c->proxy_string, c->receiverId, c->receiverId2);
             }
         }
 
@@ -3554,7 +3580,7 @@ void cleanupNetwork(void) {
 }
 
 static void read_uuid(struct client *c, char *p, char *eod) {
-    if (c->receiverIdRemote) { // only allow the receiverId to be set once
+    if (c->receiverIdLocked) { // only allow the receiverId to be set once
         return;
     }
 
@@ -3596,15 +3622,14 @@ static void read_uuid(struct client *c, char *p, char *eod) {
     }
 
     if (j >= 16) {
-        c->receiverIdRemote = 1;
         c->receiverId = receiverId;
         c->receiverId2 = receiverId2;
 
-        int len = min(eod - start, 36);
-
-        fprintf(stderr, "ADDR %s,%s rId %016"PRIx64" UUID %.*s\n",
-                c->host, c->port, c->receiverId,
-                len, start);
+        if (0) {
+            fprintf(stderr, "ADDR %s,%s rId %016"PRIx64" UUID %.*s\n",
+                    c->host, c->port, c->receiverId,
+                    min(eod - start, 36), start);
+        }
     }
     return;
 }
@@ -3637,11 +3662,12 @@ struct char_buffer generateClientsJson() {
                 end = buf + buflen;
             }
 
-            p = safe_snprintf(p, end, "[ \"%016"PRIx64"%016"PRIx64"\", \"%s\", %"PRIu64" ],\n",
+            p = safe_snprintf(p, end, "[ \"%016"PRIx64"%016"PRIx64"\", \"%s\", %"PRIu64", %"PRIu64" ],\n",
                     c->receiverId,
                     c->receiverId2,
                     c->proxy_string,
-                    c->bytesReceived);
+                    c->bytesReceived,
+                    (now - c->connectedSince) / 1000);
 
             if (p >= end)
                 fprintf(stderr, "buffer overrun client json\n");
