@@ -2783,7 +2783,7 @@ static void modesReadFromClient(struct client *c) {
                 space = memchr(space, ' ', eop - space);
                 space = memchr(space, ' ', eop - space);
                 // hash up to 3rd space
-                if (eop - proxy > 10)
+                if (0 && eop - proxy > 10)
                     c->receiverId = fasthash64(c->proxy_string, space - proxy, 0x2127599bf4325c37ULL);
 
                 som = eop + 2;
