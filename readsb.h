@@ -442,6 +442,7 @@ struct _Modes
 
     int8_t net_verbatim; // if true, send the original message, not the CRC-corrected one
     int8_t netReceiverId;
+    int8_t netReceiverIdPrint;
     int8_t netIngest;
     int8_t forward_mlat; // allow forwarding of mlat messages to output ports
     int8_t quiet; // Suppress stdout

@@ -1664,7 +1664,8 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
     MODES_NOTUSED(c);
 
     //mm = calloc(1, sizeof(struct modesMessage));
-    memset(&mm, 0, sizeof(struct modesMessage));
+    memset(&mm, 0, sizeof(mm));
+    memset(&msg, 0, sizeof(msg));
 
     ch = *p++; /// Get the message type
 
@@ -2806,7 +2807,11 @@ static void modesReadFromClient(struct client *c) {
                 if (c->garbage > 512) {
                     modesCloseClient(c);
                     if (Modes.debug & MODES_DEBUG_NET) {
-                        fprintf(stderr, "??? Garbage: Close: %s port %s\n", c->host, c->port);
+                        *eod = '\0';
+                        char sample[128];
+                        jsonEscapeString(som, sample, sizeof(sample));
+                        sample[127] = '\0';
+                        fprintf(stderr, "??? Garbage: Close: %s port %s sample: %s\n", c->host, c->port, sample);
                     }
                     return;
                 }
@@ -3515,6 +3520,9 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
     if (a->position_valid.source == SOURCE_SBS)
         p = safe_snprintf(p, end, ",\"sbs_other\": true");
     */
+    if (Modes.netReceiverIdPrint) {
+        p = safe_snprintf(p, end, ",\"rId\":%016"PRIx64"", a->lastPosReceiverId);
+    }
 
     if (printMode != 1) {
         p = safe_snprintf(p, end, ",\"mlat\":");
