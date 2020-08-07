@@ -2820,7 +2820,10 @@ static void modesReadFromClient(struct client *c) {
                     modesCloseClient(c);
                     Modes.stats_current.remote_malformed_beast += 100;
                     if (Modes.debug & MODES_DEBUG_NET) {
-                        fprintf(stderr, "SBS Garbage: Close %s port %s\n", c->host, c->port);
+                        if (c->proxy_string[0] != '\0')
+                            fprintf(stderr, "SBS Garbage: Close: %s\n", c->proxy_string);
+                        else
+                            fprintf(stderr, "SBS Garbage: Close %s port %s\n", c->host, c->port);
                     }
                     return;
                 }
@@ -2832,7 +2835,10 @@ static void modesReadFromClient(struct client *c) {
                         char sample[64];
                         hexEscapeString(som, sample, sizeof(sample));
                         sample[sizeof(sample) - 1] = '\0';
-                        fprintf(stderr, "RND Garbage: Close: %s port %s sample: %s\n", c->host, c->port, sample);
+                        if (c->proxy_string[0] != '\0')
+                            fprintf(stderr, "RND Garbage: Close: %s sample: %s\n", c->proxy_string, sample);
+                        else
+                            fprintf(stderr, "RND Garbage: Close: %s port %s sample: %s\n", c->host, c->port, sample);
                     }
                     return;
                 }
