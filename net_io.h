@@ -105,6 +105,7 @@ struct client
     int buflen; // Amount of data on buffer
     int modeac_requested; // 1 if this Beast output connection has asked for A/C
     int receiverIdRemote; // receiverId has been transmitted by other side.
+    uint64_t bytesReceived;
     uint64_t receiverId;
     uint64_t receiverId2;
     uint64_t last_flush;
@@ -118,6 +119,7 @@ struct client
     char host[NI_MAXHOST]; // For logging
     char port[NI_MAXSERV];
     struct net_connector *con;
+    char proxy_string[108]; // store string received from PROXY protocol v1 (v2 not supported currently)
 };
 
 // Common writer state for all output sockets of one type
@@ -168,6 +170,7 @@ struct char_buffer generateAircraftJson(int globe_index);
 struct char_buffer generateTraceJson(struct aircraft *a, int start, int last);
 struct char_buffer generateReceiverJson ();
 struct char_buffer generateHistoryJson ();
+struct char_buffer generateClientsJson();
 void writeJsonToFile (const char* dir, const char *file, struct char_buffer cb);
 void writeJsonToGzip (const char* dir, const char *file, struct char_buffer cb, int gzip);
 struct char_buffer generateVRS(int part, int n_parts, int reduced_data);

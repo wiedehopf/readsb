@@ -193,6 +193,7 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     c->sendq = NULL;
     c->con = NULL;
     c->last_read = now;
+    c->proxy_string[0] = '\0';
 
     c->receiverId = random();
     c->receiverId <<= 22;
@@ -2307,6 +2308,9 @@ struct char_buffer generateAircraftJson(int globe_index){
                 p = sprintAircraftObject(p, end, a, now, 0);
 
                 *p++ = ',';
+
+                if (p >= end)
+                    fprintf(stderr, "buffer overrun aircraft json\n");
             }
         }
     } else {
@@ -2332,6 +2336,9 @@ struct char_buffer generateAircraftJson(int globe_index){
                 p = sprintAircraftObject(p, end, a, now, 0);
 
                 *p++ = ',';
+
+                if (p >= end)
+                    fprintf(stderr, "buffer overrun aircraft json\n");
             }
         }
     }
@@ -2342,8 +2349,6 @@ struct char_buffer generateAircraftJson(int globe_index){
 
     //if (globe_index == -1)
     //    fprintf(stderr, "%u\n", ac_counter);
-    if (p >= end)
-        fprintf(stderr, "buffer overrun aircraft json\n");
 
     cb.len = p - buf;
     cb.buffer = buf;
@@ -2718,6 +2723,7 @@ static void modesReadFromClient(struct client *c) {
         }
 
         c->buflen += nread;
+        c->bytesReceived += nread;
 
         char *som = c->buf; // first byte of next message
         char *eod = som + c->buflen; // one byte past end of data
@@ -2731,6 +2737,22 @@ static void modesReadFromClient(struct client *c) {
 
         if (nread > 0)
             c->last_read = now;
+
+        // check for PROXY v1 header if connection is new / low bytes received
+        if (Modes.netIngest && c->bytesReceived <= MODES_CLIENT_BUF_SIZE && c->buflen > 5 && som[0] == 'P' && som[1] == 'R') {
+            // NUL-terminate so we are free to use strstr()
+            // nb: we never fill the last byte of the buffer with read data (see above) so this is safe
+            *eod = '\0';
+            char *proxy = strstr(som, "PROXY ");
+            char *eop = strstr(som, "\r\n");
+            if (proxy == som) {
+                if (!eop) // incomplete proxy string (shouldn't happen but let's check anyhow)
+                    break;
+                strncpy(c->proxy_string, proxy, eop - proxy);
+                c->proxy_string[107] = '\0'; // make sure it's null terminated
+                //fprintf(stderr, "%s\n", c->proxy_string);
+            }
+        }
 
         switch (c->service->read_mode) {
             case READ_MODE_IGNORE:
@@ -3585,4 +3607,53 @@ static void read_uuid(struct client *c, char *p, char *eod) {
                 len, start);
     }
     return;
+}
+
+
+struct char_buffer generateClientsJson() {
+    struct char_buffer cb;
+    uint64_t now = mstime();
+
+    size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
+    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
+
+    p = safe_snprintf(p, end, "{ \"now\" : %.1f,\n", now / 1000.0);
+
+    p = safe_snprintf(p, end, "  \"clients\" : [\n");
+
+    for (struct net_service *s = Modes.services; s; s = s->next) {
+        for (struct client *c = s->clients; c; c = c->next) {
+            if (!c->service)
+                continue;
+            if (!s->read_handler)
+                continue;
+
+            // check if we have enough space
+            if ((p + 1000) >= end) {
+                int used = p - buf;
+                buflen *= 2;
+                buf = (char *) realloc(buf, buflen);
+                p = buf + used;
+                end = buf + buflen;
+            }
+
+            p = safe_snprintf(p, end, "[ \"%016"PRIx64"%016"PRIx64"\", \"%s\", %"PRIu64" ],\n",
+                    c->receiverId,
+                    c->receiverId2,
+                    c->proxy_string,
+                    c->bytesReceived);
+
+            if (p >= end)
+                fprintf(stderr, "buffer overrun client json\n");
+        }
+    }
+
+    if (*(p-2) == ',')
+        *(p-2) = ' ';
+
+    p = safe_snprintf(p, end, "\n  ]\n}\n");
+
+    cb.len = p - buf;
+    cb.buffer = buf;
+    return cb;
 }
