@@ -607,6 +607,7 @@ struct char_buffer generateStatsJson() {
 struct char_buffer generatePromFile() {
     struct char_buffer cb;
     char *buf = (char *) malloc(64 * 1024), *p = buf, *end = buf + 64 * 1024;
+    uint64_t now = mstime();
 
     struct stats *st = &Modes.stats_1min;
 
@@ -699,6 +700,17 @@ struct char_buffer generatePromFile() {
     }
 
 
+    for (int i = 0; i < Modes.net_connectors_count; i++) {
+        struct net_connector *con = Modes.net_connectors[i];
+        int value = 0;
+        if (!con->connected)
+            value = 2;
+        else if (now < con->lastConnect + 30 * SECONDS)
+            value = 1;
+        p = safe_snprintf(p, end, "readsb_net_connector_status{host=\"%s\",port=\"%s\"} %d\n",
+                con->address, con->port, value);
+    }
+
     if (!Modes.net_only) {
         p = safe_snprintf(p, end, "readsb_sdr_gain %.1f\n", Modes.gain / 10.0);
 
@@ -722,7 +734,6 @@ struct char_buffer generatePromFile() {
 
         p = safe_snprintf(p, end, "readsb_demod_preambles %"PRIu32"\n", st->demod_preambles);
     }
-    uint64_t now = mstime();
     uint64_t uptime = now - Modes.startup_time;
     if (now < Modes.startup_time)
         uptime = 0;

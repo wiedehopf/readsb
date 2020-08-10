@@ -312,6 +312,7 @@ struct client *checkServiceConnected(struct net_connector *con) {
 
     con->connecting = 0;
     con->connected = 1;
+    con->lastConnect = mstime();
     c->con = con;
 
     fprintf(stderr, "%s: Connection established: %s%s port %s\n",
