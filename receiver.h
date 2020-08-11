@@ -13,6 +13,7 @@ typedef struct receiver {
     double latMin;
     double lonMax;
     double latMax;
+    uint64_t badExtent; // timestamp of first lat/lon (max-min) > MAX_DIFF (receiver.c)
     float badCounter; // plus one for a bad position, -0.5 for a good position
     int32_t goodCounter; // plus one for a good position
     // reset both counters on timing out a receiver.

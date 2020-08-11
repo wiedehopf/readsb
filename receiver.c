@@ -58,9 +58,10 @@ void receiverTimeout(int part, int nParts) {
             */
             if (
                     (Modes.receiverCount > RECEIVER_TABLE_SIZE && (*r)->lastSeen < now - 20 * MINUTES)
-                    || ((*r)->lastSeen < now - 1 * HOURS)
-                    || Modes.exit
+                    || (now > (*r)->lastSeen + 1 * HOURS)
+                    || ((*r)->badExtent && now > (*r)->badExtent + 12 * HOURS)
                ) {
+
                 del = *r;
                 *r = (*r)->next;
                 Modes.receiverCount--;
@@ -99,7 +100,12 @@ void receiverPositionReceived(struct aircraft *a, uint64_t id, double lat, doubl
         r->latMax = lat;
 
     } else {
+
+        // diff before applying new position
         struct receiver before = *r;
+        double latDiff = before.latMax - before.latMin;
+        double lonDiff = before.lonMax - before.lonMin;
+
 
         r->lonMin = fmin(r->lonMin, lon);
         r->latMin = fmin(r->latMin, lat);
@@ -107,13 +113,18 @@ void receiverPositionReceived(struct aircraft *a, uint64_t id, double lat, doubl
         r->lonMax = fmax(r->lonMax, lon);
         r->latMax = fmax(r->latMax, lat);
 
-        double latDiff = before.latMax - before.latMin;
-        double lonDiff = before.lonMax - before.lonMin;
-
+        // diff after applying new position
         double latDiff2 = r->latMax - r->latMin;
         double lonDiff2 = r->lonMax - r->lonMin;
 
         int debug = 0;
+
+        if (!r->badExtent && (lonDiff2 > MAX_DIFF || latDiff2 > MAX_DIFF)) {
+            r->badExtent = now;
+            //fprintf(stderr, "badExtent: %016"PRIx64" %9"PRIu64" %4.0f %4.0f %4.0f %4.0f\n",
+            //        r->id, r->positionCounter,
+            //        r->latMin, r->latMax, r->lonMin, r->lonMax);
+        }
 
         if (Modes.debug_receiver && (lonDiff2 > MAX_DIFF || latDiff2 > MAX_DIFF) && !(lonDiff > MAX_DIFF || latDiff > MAX_DIFF))
             debug = 1;
@@ -140,12 +151,13 @@ struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, str
             fprintf(stderr, "%06x: no associated receiver found.\n", a->addr);
         return NULL;
     }
-    double latDiff = r->latMax - r->latMin;
-    double lonDiff = r->lonMax - r->lonMin;
-
 
     if (r->positionCounter < 100)
         return NULL;
+
+    double latDiff = r->latMax - r->latMin;
+    double lonDiff = r->lonMax - r->lonMin;
+
     if (lonDiff > MAX_DIFF || latDiff > MAX_DIFF) {
         if (0 && Modes.debug_receiver)
             fprintf(stderr, "%06x: receiver ref invalid: %016"PRIx64" %9"PRIu64" %4.0f %4.0f %4.0f %4.0f %4.0f %4.0f\n",
