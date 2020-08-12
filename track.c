@@ -1102,6 +1102,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
         a->addrtype = mm->addrtype;
         a->addrtype_updated = now;
+
+        if (a->addrtype > ADDR_ADSB_ICAO_NT) {
+            a->adsb_version = -1; // reset ADS-B version if a non ADS-B message type is received
+        }
     }
 
     // decide on where to stash the version
