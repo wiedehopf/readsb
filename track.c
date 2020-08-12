@@ -1915,10 +1915,12 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
 
             //pthread_mutex_unlock(&a->trace_mutex);
         } else if (a->trace_len > 5) {
-            for (int i = a->trace_len - 1; i >= a->trace_len - 5; i--)
+            for (int i = a->trace_len - 1; i >= a->trace_len - 5; i--) {
                 if ( (int32_t) (new_lat * 1E6) == a->trace[i].lat
-                        && (int32_t) (new_lon * 1E6) == a->trace[i].lon )
+                        && (int32_t) (new_lon * 1E6) == a->trace[i].lon ) {
                     return;
+                }
+            }
         }
         if (a->trace_len + 1 >= a->trace_alloc) {
             fprintf(stderr, "%06x: trace_len + 1 >= a->trace_alloc (%d).\n", a->addr, a->trace_len);
@@ -1928,6 +1930,13 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
         struct state *trace = a->trace;
 
         struct state *new = &(trace[a->trace_len]);
+        memset(new, 0, sizeof(struct state));
+
+        if (now > a->seenPosReliable + 15 * 1000)
+            new->flags.stale = 1;
+
+        a->seenPosReliable = now;
+
         int on_ground = 0;
         int was_ground = 0;
         float turn_density = 5;
@@ -2058,8 +2067,6 @@ save_state:
 
         mm->jsonPos = 1;
 
-        memset(new, 0, sizeof(struct state));
-
         new->lat = (int32_t) nearbyint(new_lat * 1E6);
         new->lon = (int32_t) nearbyint(new_lon * 1E6);
         new->timestamp = now;
@@ -2076,10 +2083,6 @@ save_state:
            unsigned rate_geom:1;
         */
 
-
-
-        if (now > a->seen_pos + 15 * 1000 || (last && now > last->timestamp + 400 * 1000))
-            new->flags.stale = 1;
 
         if (on_ground)
             new->flags.on_ground = 1;

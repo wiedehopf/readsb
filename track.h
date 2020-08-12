@@ -283,7 +283,7 @@ struct aircraft
   float tat;
   uint16_t no_signal_count; // consecutive messages without signal strength specified
   uint16_t padding;
-  double padding2_03;
+  uint64_t seenPosReliable; // last time we saw a reliable position
   uint64_t lastPosReceiverId;
 
   // ----
