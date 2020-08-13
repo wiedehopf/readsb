@@ -3619,6 +3619,8 @@ void cleanupNetwork(void) {
     }
     free(Modes.net_connectors);
 
+    Modes.net_connectors_count = 0;
+
 }
 
 static void read_uuid(struct client *c, char *p, char *eod) {
