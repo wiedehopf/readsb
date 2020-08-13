@@ -1321,7 +1321,7 @@ void handleHeatmap() {
     snprintf(pathbuf, PATH_MAX, "%s/%s/heatmap/%02d.bin.ttf", base_dir, tstring, half_hour);
     snprintf(tmppath, PATH_MAX, "%s/%s/heatmap/temp_%lx_%lx", base_dir, tstring, random(), random());
 
-    fprintf(stderr, "%s using %d positions\n", pathbuf, len);
+    //fprintf(stderr, "%s using %d positions\n", pathbuf, len);
 
     int fd = open(pathbuf, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
