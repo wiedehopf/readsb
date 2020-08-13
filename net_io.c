@@ -1184,10 +1184,10 @@ static int decodeSbsLine(struct client *c, char *line, int remote) {
     // field 12, altitude
     if (t[12] && strlen(t[12]) > 0) {
         mm.altitude_baro = atoi(t[12]);
-        if (mm.altitude_baro < -5000 || mm.altitude_baro > 100000)
-            return 0;
-        mm.altitude_baro_valid = 1;
-        mm.altitude_baro_unit = UNIT_FEET;
+        if (mm.altitude_baro > -5000 && mm.altitude_baro < 100000) {
+            mm.altitude_baro_valid = 1;
+            mm.altitude_baro_unit = UNIT_FEET;
+        }
         //fprintf(stderr, "alt: %d, ", mm.altitude_baro);
     }
     // field 13, groundspeed
@@ -1218,7 +1218,7 @@ static int decodeSbsLine(struct client *c, char *line, int remote) {
         mm.baro_rate_valid = 1;
         //fprintf(stderr, "vRate: %d, ", mm.baro_rate);
     }
-    // field 18 vertical rate, assume baro
+    // field 18 squawk
     if (t[18] && strlen(t[18]) > 0) {
         long int tmp = strtol(t[18], NULL, 10);
         if (tmp > 0) {
