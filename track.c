@@ -238,6 +238,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     double oldLat = a->lat;
     double oldLon = a->lon;
 
+    // json_reliable == -1 disables the speed check
+    if (Modes.json_reliable == -1)
+        return 1;
+
     MODES_NOTUSED(mm);
     if (bogus_lat_lon(lat, lon) ||
             (mm->cpr_valid && mm->cpr_lat == 0 && mm->cpr_lon == 0)

@@ -914,8 +914,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptJsonReliable:
             Modes.json_reliable = atoi(arg);
-            if (Modes.json_reliable < 0)
-                Modes.json_reliable = 0;
+            if (Modes.json_reliable < -1)
+                Modes.json_reliable = -1;
             if (Modes.json_reliable > 4)
                 Modes.json_reliable = 4;
             Modes.filter_persistence += Modes.json_reliable - 1;
