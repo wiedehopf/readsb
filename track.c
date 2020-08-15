@@ -312,7 +312,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         track_diff = fabs(norm_diff(a->track - calc_track, 180));
         track_bonus = speed * (90.0 - track_diff) / 90.0;
         speed += track_bonus * (1.1 - trackDataAge(now, &a->track_valid) / 5000);
-        if (track_diff > 170) {
+        if (track_diff > 160) {
             mm->pos_ignore = 1; // don't decrement pos_reliable
         }
     }
@@ -561,7 +561,7 @@ static int doLocalCPR(struct aircraft *a, struct modesMessage *mm, double *lat, 
             fprintf(stderr, "Speed check for %06x with local decoding failed\n", a->addr);
         }
         Modes.stats_current.cpr_local_speed_checks++;
-        return -1;
+        return -2;
     }
 
     return relative_to;
@@ -694,6 +694,14 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
     // Otherwise try relative CPR.
     if (location_result == -1) {
         location_result = doLocalCPR(a, mm, &new_lat, &new_lon, &new_nic, &new_rc);
+
+        if (location_result == -2) {
+            // Local CPR failed because the position produced implausible results.
+            // This is bad data.
+
+            mm->pos_bad = 1;
+            return;
+        }
 
         if (a->addr == Modes.cpr_focus)
             fprintf(stderr, "%06x: localCPR: %d\n", a->addr, location_result);
