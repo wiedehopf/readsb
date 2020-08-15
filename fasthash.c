@@ -24,6 +24,9 @@
 */
 
 #include "fasthash.h"
+#if defined __has_attribute && __has_attribute (fallthrough)   /* not portable */
+#define FT __attribute__ ((fallthrough));
+#endif
 
 // Compression function for Merkle-Damgard construction.
 // This function is generated using the framework provided.
@@ -52,17 +55,17 @@ uint64_t fasthash64(const void *buf, size_t len, uint64_t seed)
 
     switch (len & 7) {
         case 7: v ^= (uint64_t)pos2[6] << 48;
-                __attribute__ ((fallthrough));
+                FT
         case 6: v ^= (uint64_t)pos2[5] << 40;
-                __attribute__ ((fallthrough));
+                FT
         case 5: v ^= (uint64_t)pos2[4] << 32;
-                __attribute__ ((fallthrough));
+                FT
         case 4: v ^= (uint64_t)pos2[3] << 24;
-                __attribute__ ((fallthrough));
+                FT
         case 3: v ^= (uint64_t)pos2[2] << 16;
-                __attribute__ ((fallthrough));
+                FT
         case 2: v ^= (uint64_t)pos2[1] << 8;
-                __attribute__ ((fallthrough));
+                FT
         case 1: v ^= (uint64_t)pos2[0];
                 h ^= mix(v);
                 h *= m;
