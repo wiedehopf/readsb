@@ -22,11 +22,11 @@ struct receiver *receiverGet(uint64_t id) {
     return r;
 }
 struct receiver *receiverCreate(uint64_t id) {
-    if (Modes.receiverCount > 4 * RECEIVER_TABLE_SIZE)
-        return NULL;
     struct receiver *r = receiverGet(id);
     if (r)
         return r;
+    if (Modes.receiverCount > 4 * RECEIVER_TABLE_SIZE)
+        return NULL;
     uint32_t hash = receiverHash(id);
     r = malloc(sizeof(struct receiver));
     *r = (struct receiver) {0};
@@ -220,9 +220,12 @@ int receiverCheckBad(uint64_t id, uint64_t now) {
 struct receiver *receiverBad(uint64_t id, uint32_t addr, uint64_t now) {
     struct receiver *r = receiverGet(id);
 
+    if (!r)
+        r = receiverCreate(id);
+
     if (r && now + timeout() / 2 > r->timedOutUntil) {
         r->badCounter++;
-        if (r->badCounter > 4.99) {
+        if (r->badCounter > 5.99) {
             r->timedOutCounter++;
             if (Modes.debug_garbage) {
                 fprintf(stderr, "timeout receiverId: %016"PRIx64" hex: %06x #good: %6d #bad: %5.0f #timeouts: %u\n",

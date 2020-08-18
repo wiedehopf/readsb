@@ -343,8 +343,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                 a->lat, a->lon, lat, lon);
     }
 
-    if (Modes.garbage_ports && !inrange && source >= SOURCE_ADSR
-            && distance - range > 1000 && track_diff > 45
+    if (!inrange && source >= SOURCE_ADSR
+            && distance - range > 1200 && track_diff > 45
             && a->pos_reliable_odd >= Modes.filter_persistence * 3 / 4
             && a->pos_reliable_even >= Modes.filter_persistence * 3 / 4
        ) {
@@ -360,6 +360,9 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                    );
 
         }
+    }
+    if (distance - range < 1000 && source >= SOURCE_ADSR && mm->cpr_type != CPR_SURFACE && a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2) {
+        receiverPositionReceived(a, mm->receiverId, mm->decoded_lat, mm->decoded_lon, now);
     }
 
     return inrange;
@@ -592,9 +595,6 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
 
     if (a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2 && mm->source == SOURCE_ADSB) {
         update_range_histogram(mm->decoded_lat, mm->decoded_lon);
-        if (mm->cpr_type != CPR_SURFACE) {
-            receiverPositionReceived(a, mm->receiverId, mm->decoded_lat, mm->decoded_lon, now);
-        }
     }
 
     Modes.stats_current.pos_by_type[mm->addrtype]++;
