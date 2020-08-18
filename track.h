@@ -369,10 +369,10 @@ struct aircraft
   unsigned sda : 2; // SDA from opstatus
   unsigned alert : 1; // FS Flight status alert bit
   unsigned spi : 1; // FS Flight status SPI (Special Position Identification) bit
-  unsigned pos_surface : 1; // (mm->cpr_type == CPR_SURFACE) associated with current position
-  unsigned padding_123 : 1;
+  unsigned pos_surface : 1; // (a->airground == AG_GROUND) associated with current position
+  unsigned last_cpr_type : 2; // mm->cpr_type associated with current position
   // 20 bit ??
-  unsigned padding_b : 12;
+  unsigned padding_b : 11;
   // 32 bit !!
 
   // ----

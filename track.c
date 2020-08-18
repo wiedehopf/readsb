@@ -584,6 +584,9 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
 
     a->pos_surface = trackDataValid(&a->airground_valid) && a->airground == AG_GROUND;
 
+    if (mm->cpr_valid)
+        a->last_cpr_type = mm->cpr_type;
+
     if (mm->jsonPos)
         jsonPositionOutput(mm, a);
 
@@ -1390,11 +1393,13 @@ end_alt:
         a->geom_rate = mm->geom_rate;
     }
 
-    if (mm->airground != AG_INVALID) {
+    if (mm->airground != AG_INVALID &&
+            !(a->last_cpr_type == CPR_SURFACE && mm->airground == AG_AIRBORNE && now < a->airground_valid.updated + TRACK_EXPIRE_LONG)
+       ) {
         // If our current state is UNCERTAIN, accept new data as normal
         // If our current state is certain but new data is not, only accept the uncertain state if the certain data has gone stale
         if (mm->airground != AG_UNCERTAIN ||
-                (mm->airground == AG_UNCERTAIN && now > a->airground_valid.updated + 30 * 1000)) {
+                (mm->airground == AG_UNCERTAIN && now > a->airground_valid.updated + TRACK_EXPIRE_LONG)) {
             if (mm->airground != a->airground)
                 mm->reduce_forward = 1;
             if (accept_data(&a->airground_valid, mm->source, mm, 0)) {
@@ -1508,6 +1513,19 @@ end_alt:
 
     // If we've got a new cpr_odd or cpr_even
     if (cpr_new) {
+        // this is in addition to the normal air / ground handling
+        // making especially sure we catch surface -> airborne transitions
+        if (a->last_cpr_type == CPR_SURFACE && mm->cpr_type == CPR_AIRBORNE
+                && accept_data(&a->airground_valid, mm->source, mm, 0)) {
+            a->airground = AG_AIRBORNE;
+            mm->reduce_forward = 1;
+        }
+        if (a->last_cpr_type == CPR_AIRBORNE && mm->cpr_type == CPR_SURFACE
+                && accept_data(&a->airground_valid, mm->source, mm, 0)) {
+            a->airground = AG_GROUND;
+            mm->reduce_forward = 1;
+        }
+
         updatePosition(a, mm, now);
         if (0 && a->addr == Modes.cpr_focus) {
             fprintf(stderr, "%06x: age: odd %"PRIu64" even %"PRIu64"\n",
@@ -2712,7 +2730,7 @@ void updateValidities(struct aircraft *a, uint64_t now) {
     updateValidity(&a->baro_rate_valid, now, TRACK_EXPIRE);
     updateValidity(&a->geom_rate_valid, now, TRACK_EXPIRE);
     updateValidity(&a->squawk_valid, now, TRACK_EXPIRE_LONG);
-    updateValidity(&a->airground_valid, now, TRACK_EXPIRE + 30 * SECONDS);
+    updateValidity(&a->airground_valid, now, TRACK_EXPIRE_LONG);
     updateValidity(&a->nav_qnh_valid, now, TRACK_EXPIRE);
     updateValidity(&a->nav_altitude_mcp_valid, now, TRACK_EXPIRE);
     updateValidity(&a->nav_altitude_fms_valid, now, TRACK_EXPIRE);
