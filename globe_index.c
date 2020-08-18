@@ -1323,9 +1323,9 @@ void handleHeatmap() {
 
     //fprintf(stderr, "%s using %d positions\n", pathbuf, len);
 
-    int fd = open(pathbuf, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    int fd = open(tmppath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
-        perror(pathbuf);
+        perror(tmppath);
     } else {
         int res;
         gzFile gzfp = gzdopen(fd, "wb");
@@ -1337,14 +1337,17 @@ void handleHeatmap() {
         if (res < 0)
             fprintf(stderr, "gzsetparams fail: %d", res);
         ssize_t toWrite = sizeof(index);
-        writeGz(gzfp, index, toWrite, pathbuf);
+        writeGz(gzfp, index, toWrite, tmppath);
 
         toWrite = len2 * sizeof(struct heatEntry);
-        writeGz(gzfp, buffer2, toWrite, pathbuf);
+        writeGz(gzfp, buffer2, toWrite, tmppath);
 
         gzclose(gzfp);
     }
-    rename(tmppath, pathbuf);
+    if (rename(tmppath, pathbuf) == -1) {
+        fprintf(stderr, "heatmap rename(): %s -> %s", tmppath, pathbuf);
+        perror("");
+    }
 
     free(buffer);
     free(buffer2);
@@ -1397,7 +1400,7 @@ int checkNewDay() {
                 perror(filename);
             }
         } else {
-            fprintf(stderr, "A new day has begun, created directory: %s\n", filename);
+            //fprintf(stderr, "A new day has begun, created directory: %s\n", filename);
         }
 
         snprintf(filename, PATH_MAX, "%s/%s/traces", Modes.globe_history_dir, tstring);
