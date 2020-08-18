@@ -1213,7 +1213,7 @@ int main(int argc, char **argv) {
 
     // Initialization
     log_with_timestamp("%s starting up.", MODES_READSB_VARIANT);
-    fprintf(stderr, VERSION_STRING);
+    fprintf(stderr, VERSION_STRING"\n");
     //fprintf(stderr, "%zu\n", sizeof(struct state_flags));
     fprintf(stderr, "struct sizes: %zu, ", sizeof(struct aircraft));
     fprintf(stderr, "%zu, ", sizeof(struct state));
