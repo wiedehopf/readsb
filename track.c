@@ -362,7 +362,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         }
     }
     if (distance - range < 1000 && source >= SOURCE_ADSR && mm->cpr_type != CPR_SURFACE && a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2) {
-        receiverPositionReceived(a, mm->receiverId, mm->decoded_lat, mm->decoded_lon, now);
+        receiverPositionReceived(a, mm->receiverId, lat, lon, now);
     }
 
     return inrange;
