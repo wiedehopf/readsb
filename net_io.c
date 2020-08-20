@@ -1624,6 +1624,7 @@ static int handleApiRequest(struct client *c, char *p, int remote) {
 // and ignore everything else.
 //
 static int handleBeastCommand(struct client *c, char *p, int remote) {
+    return 0; // disable this in this fork, no modeac unless it's enabled via config
     MODES_NOTUSED(remote);
     if (p[0] != '1') {
         // huh?
