@@ -3047,7 +3047,7 @@ const char *airground_enum_string(airground_t ag) {
 }
 
 void modesNetSecondWork(void) {
-    struct client *c, **prev;
+    struct client *c;
     struct net_service *s;
     uint64_t now = mstime();
 
@@ -3078,8 +3078,13 @@ void modesNetSecondWork(void) {
             }
         }
     }
+}
 
-    // Unlink and free closed clients
+// Unlink and free closed clients
+void netFreeClients() {
+    struct client *c, **prev;
+    struct net_service *s;
+
     for (s = Modes.services; s; s = s->next) {
         for (prev = &s->clients, c = *prev; c; c = *prev) {
             if (c->fd == -1) {

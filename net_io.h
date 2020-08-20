@@ -166,6 +166,7 @@ void modesNetSecondWork(void);
 void modesNetPeriodicWork (void);
 void modesReadSerialClient(void);
 void cleanupNetwork(void);
+void netFreeClients();
 
 // TODO: move these somewhere else
 struct char_buffer generateAircraftJson(int globe_index);

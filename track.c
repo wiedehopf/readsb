@@ -1813,9 +1813,6 @@ void trackPeriodicUpdate() {
 
     struct aircraft *freeList = NULL;
 
-    struct char_buffer clientsJson = { 0, 0 };
-    struct char_buffer receiversJson = { 0, 0 };
-
     // stop all threads so we can remove aircraft from the list.
     // also serves as memory barrier so json threads get new aircraft in the list
     // adding aircraft does not need to be done with locking:
@@ -1830,20 +1827,18 @@ void trackPeriodicUpdate() {
 
     trackRemoveStaleAircraft(&freeList, now);
 
-    if (Modes.mode_ac)
-        trackMatchAC(now);
 
     int nParts = 256;
     receiverTimeout((counter % nParts), nParts);
 
+    if (!Modes.exit)
+        netFreeClients();
+
     if (now > Modes.next_stats_update)
         writeStats = statsUpdate(now); // needs to happen under lock
 
-    if (Modes.netIngest && Modes.json_dir && counter % 5 == 0)
-        clientsJson = generateClientsJson();
-
-    if (Modes.netReceiverIdJson && Modes.json_dir && counter % 5 == 0)
-        receiversJson = generateReceiversJson();
+    if (Modes.mode_ac)
+        trackMatchAC(now);
 
     int64_t elapsed = end_cpu_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
 
@@ -1878,10 +1873,11 @@ void trackPeriodicUpdate() {
             writeJsonToFile(NULL, Modes.prom_file, generatePromFile());
     }
 
-    if (clientsJson.len)
-        writeJsonToFile(Modes.json_dir, "clients.json", clientsJson);
-    if (receiversJson.len)
-        writeJsonToFile(Modes.json_dir, "receivers.json", receiversJson);
+    if (Modes.netIngest && Modes.json_dir && counter % 5 == 0)
+        writeJsonToFile(Modes.json_dir, "clients.json", generateClientsJson());
+
+    if (Modes.netReceiverIdJson && Modes.json_dir && counter % 5 == 0)
+        writeJsonToFile(Modes.json_dir, "receivers.json", generateReceiversJson());
 
     end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
 }
