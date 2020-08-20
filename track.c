@@ -1814,6 +1814,7 @@ void trackPeriodicUpdate() {
     struct aircraft *freeList = NULL;
 
     struct char_buffer clientsJson = { 0, 0 };
+    struct char_buffer receiversJson = { 0, 0 };
 
     // stop all threads so we can remove aircraft from the list.
     // also serves as memory barrier so json threads get new aircraft in the list
@@ -1840,6 +1841,9 @@ void trackPeriodicUpdate() {
 
     if (Modes.netIngest && Modes.json_dir && counter % 5 == 0)
         clientsJson = generateClientsJson();
+
+    if (Modes.netReceiverIdJson && Modes.json_dir && counter % 5 == 0)
+        receiversJson = generateReceiversJson();
 
     int64_t elapsed = end_cpu_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
 
@@ -1876,6 +1880,8 @@ void trackPeriodicUpdate() {
 
     if (clientsJson.len)
         writeJsonToFile(Modes.json_dir, "clients.json", clientsJson);
+    if (receiversJson.len)
+        writeJsonToFile(Modes.json_dir, "receivers.json", receiversJson);
 
     end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
 }

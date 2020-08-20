@@ -240,3 +240,55 @@ struct receiver *receiverBad(uint64_t id, uint32_t addr, uint64_t now) {
         return NULL;
     }
 }
+
+struct char_buffer generateReceiversJson() {
+    struct char_buffer cb;
+    uint64_t now = mstime();
+
+    size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
+    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
+
+    p = safe_snprintf(p, end, "{ \"now\" : %.1f,\n", now / 1000.0);
+
+    //p = safe_snprintf(p, end, "  \"columns\" : [ \"receiverId\", \"\"],\n");
+    p = safe_snprintf(p, end, "  \"receivers\" : [\n");
+
+    struct receiver *r;
+
+    for (int j = 0; j < RECEIVER_TABLE_SIZE; j++) {
+        for (r = Modes.receiverTable[j]; r; r = r->next) {
+
+            // check if we have enough space
+            if ((p + 1000) >= end) {
+                int used = p - buf;
+                buflen *= 2;
+                buf = (char *) realloc(buf, buflen);
+                p = buf + used;
+                end = buf + buflen;
+            }
+
+            p = safe_snprintf(p, end, "[ \"%016"PRIx64"\", %"PRIu64", %"PRIu32", %0.2f, %0.2f, %0.2f, %0.2f ],\n",
+                    r->id,
+                    r->positionCounter,
+                    r->timedOutCounter,
+                    r->latMin,
+                    r->latMax,
+                    r->lonMin,
+                    r->lonMax);
+
+
+
+            if (p >= end)
+                fprintf(stderr, "buffer overrun client json\n");
+        }
+    }
+
+    if (*(p-2) == ',')
+        *(p-2) = ' ';
+
+    p = safe_snprintf(p, end, "\n  ]\n}\n");
+
+    cb.len = p - buf;
+    cb.buffer = buf;
+    return cb;
+}

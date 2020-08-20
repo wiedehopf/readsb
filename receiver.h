@@ -9,10 +9,10 @@ typedef struct receiver {
     struct receiver *next;
     uint64_t lastSeen;
     uint64_t positionCounter;
-    double lonMin;
     double latMin;
-    double lonMax;
     double latMax;
+    double lonMin;
+    double lonMax;
     uint64_t badExtent; // timestamp of first lat/lon (max-min) > MAX_DIFF (receiver.c)
     float badCounter; // plus one for a bad position, -0.5 for a good position
     int32_t goodCounter; // plus one for a good position
@@ -26,6 +26,7 @@ uint32_t receiverHash(uint64_t id);
 struct receiver *receiverGet(uint64_t id);
 struct receiver *receiverCreate(uint64_t id);
 
+struct char_buffer generateReceiversJson();
 
 void receiverPositionReceived(struct aircraft *a, uint64_t id, double lat, double lon, uint64_t now);
 void receiverTimeout(int part, int nParts);

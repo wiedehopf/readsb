@@ -1007,6 +1007,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptNetReceiverId:
             Modes.netReceiverId = 1;
             break;
+        case OptNetReceiverIdJson:
+            Modes.netReceiverIdJson = 1;
+            break;
         case OptGarbage:
             Modes.garbage_ports = strdup(arg);
             break;
