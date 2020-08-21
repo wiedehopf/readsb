@@ -212,7 +212,7 @@ typedef enum
 
 typedef enum
 {
-    CPR_SURFACE, CPR_AIRBORNE, CPR_COARSE
+    CPR_INVALID, CPR_SURFACE, CPR_AIRBORNE, CPR_COARSE
 } cpr_type_t;
 
 typedef enum

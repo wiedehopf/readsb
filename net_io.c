@@ -3291,7 +3291,7 @@ retry:
             if (trackDataValid(&a->altitude_geom_valid))
                 p = safe_snprintf(p, end, ",\"GAlt\":%d", a->altitude_geom);
 
-            if (trackDataValid(&a->airground_valid) && a->airground_valid.source >= SOURCE_MODE_S_CHECKED && a->airground == AG_GROUND)
+            if (trackDataValid(&a->airground_valid) && a->airground == AG_GROUND)
                 p = safe_snprintf(p, end, ",\"Gnd\":true");
             else
                 p = safe_snprintf(p, end, ",\"Gnd\":false");
@@ -3454,7 +3454,7 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
         p = safe_snprintf(p, end, ",\"flight\":\"%s\"", jsonEscapeString(a->callsign, buf, sizeof(buf)));
     }
     if (printMode != 1) {
-        if (trackDataValid(&a->airground_valid) && a->airground_valid.source >= SOURCE_MODE_S_CHECKED && a->airground == AG_GROUND)
+        if (trackDataValid(&a->airground_valid) && a->airground == AG_GROUND)
             if (printMode == 2)
                 p = safe_snprintf(p, end, ",\"ground\":true");
             else

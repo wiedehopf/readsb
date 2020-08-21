@@ -1571,31 +1571,6 @@ static const char *airground_to_string(airground_t airground) {
     }
 }
 
-static const char *addrtype_to_string(addrtype_t type) {
-    switch (type) {
-        case ADDR_ADSB_ICAO:
-            return "Mode S / ADS-B";
-        case ADDR_ADSB_ICAO_NT:
-            return "ADS-B, non-transponder";
-        case ADDR_ADSB_OTHER:
-            return "ADS-B, other addressing scheme";
-        case ADDR_TISB_ICAO:
-            return "TIS-B";
-        case ADDR_TISB_OTHER:
-            return "TIS-B, other addressing scheme";
-        case ADDR_TISB_TRACKFILE:
-            return "TIS-B, Mode A code and track file number";
-        case ADDR_ADSR_ICAO:
-            return "ADS-R";
-        case ADDR_ADSR_OTHER:
-            return "ADS-R, other addressing scheme";
-        case ADDR_MODE_A:
-            return "Mode A";
-        default:
-            return "unknown addressing scheme";
-    }
-}
-
 static const char *cpr_type_to_string(cpr_type_t type) {
     switch (type) {
         case CPR_SURFACE:
@@ -1936,9 +1911,9 @@ void displayModesMessage(struct modesMessage *mm) {
     }
 
     if (mm->addr & MODES_NON_ICAO_ADDRESS) {
-        printf("  Other Address: %06X (%s)\n", mm->addr & 0xFFFFFF, addrtype_to_string(mm->addrtype));
+        printf("  Other Address: %06X (%s)\n", mm->addr & 0xFFFFFF, addrtype_enum_string(mm->addrtype));
     } else {
-        printf("  ICAO Address:  %06X (%s)\n", mm->addr, addrtype_to_string(mm->addrtype));
+        printf("  ICAO Address:  %06X (%s)\n", mm->addr, addrtype_enum_string(mm->addrtype));
     }
 
     if (mm->airground != AG_INVALID) {

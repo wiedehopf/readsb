@@ -1072,8 +1072,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         a = aircraftCreate(mm); // ., create a new record for it,
     }
 
-    if (mm->cpr_valid) {
+    bool haveScratch = false;
+    if (mm->cpr_valid || mm->sbs_pos_valid) {
         memcpy(Modes.scratch, a, sizeof(struct aircraft));
+        haveScratch = true;
     } else if (mm->garbage) {
         return NULL;
     }
@@ -1393,17 +1395,23 @@ end_alt:
         a->geom_rate = mm->geom_rate;
     }
 
-    if (mm->airground != AG_INVALID &&
+    if (mm->airground != AG_INVALID && mm->source != SOURCE_MODE_S &&
             !(a->last_cpr_type == CPR_SURFACE && mm->airground == AG_AIRBORNE && now < a->airground_valid.updated + TRACK_EXPIRE_LONG)
        ) {
         // If our current state is UNCERTAIN, accept new data as normal
         // If our current state is certain but new data is not, only accept the uncertain state if the certain data has gone stale
-        if (mm->airground != AG_UNCERTAIN ||
+        if (a->airground == AG_UNCERTAIN || mm->airground != AG_UNCERTAIN ||
                 (mm->airground == AG_UNCERTAIN && now > a->airground_valid.updated + TRACK_EXPIRE_LONG)) {
             if (mm->airground != a->airground)
                 mm->reduce_forward = 1;
             if (accept_data(&a->airground_valid, mm->source, mm, 0)) {
                 a->airground = mm->airground;
+
+                //if (a->airground == AG_GROUND && mm->source == SOURCE_MODE_S) {
+                //if (a->addr == Modes.cpr_focus) {
+                //    displayModesMessage(mm);
+                //    fflush(stdout);
+                //}
             }
         }
     }
@@ -1575,10 +1583,11 @@ end_alt:
         mm->reduce_forward = 1;
     }
 
-    if (mm->cpr_valid && (mm->garbage || mm->pos_bad || mm->duplicate)) {
+    if (haveScratch && (mm->garbage || mm->pos_bad || mm->duplicate)) {
         memcpy(a, Modes.scratch, sizeof(struct aircraft));
-        if (mm->pos_bad)
+        if (mm->pos_bad) {
             position_bad(mm, a);
+        }
     }
 
     if(a->messages == 3 && a->first_message) {
@@ -1968,8 +1977,11 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
         struct state *new = &(trace[a->trace_len]);
         memset(new, 0, sizeof(struct state));
 
-        if (now > a->seenPosReliable + 15 * 1000)
+        if (now > a->seenPosReliable + 15 * SECONDS) {
             new->flags.stale = 1;
+            //if (a->addr == Modes.cpr_focus)
+            //    fprintf(stderr, "stale, elapsed: %0.1f\n", (now - a->seenPosReliable) / 1000.0);
+        }
 
         a->seenPosReliable = now;
 
