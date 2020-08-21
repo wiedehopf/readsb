@@ -592,14 +592,14 @@ struct modesMessage
     uint32_t addr; // Address Announced
     addrtype_t addrtype; // address format / source
     int score; // Scoring from scoreModesMessage, if used
-    unsigned char remote; // If set this message is from a remote station
-    unsigned char sbs_in; // Signifies this message is coming from basestation input
-    unsigned char reduce_forward; // forward this message for reduced beast output
-    unsigned char garbage; // from garbage receiver
-    unsigned char duplicate; // associated position is a duplicate
-    unsigned char pos_ignore; // associated position is old / delayed / misc error
-    unsigned char pos_bad; // speed_check failed
-    unsigned char jsonPos; // output a json position
+    bool remote; // If set this message is from a remote station
+    bool sbs_in; // Signifies this message is coming from basestation input
+    bool reduce_forward; // forward this message for reduced beast output
+    bool garbage; // from garbage receiver
+    bool duplicate; // associated position is a duplicate
+    bool pos_ignore; // associated position is old / delayed / misc error
+    bool pos_bad; // speed_check failed
+    bool jsonPos; // output a json position
     datasource_t source; // Characterizes the overall message source
     double signalLevel; // RSSI, in the range [0..1], as a fraction of full-scale power
     // Raw data, just extracted directly from the message

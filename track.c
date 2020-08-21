@@ -343,7 +343,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                 a->lat, a->lon, lat, lon);
     }
 
-    if (!inrange && source >= SOURCE_ADSR
+    if (!inrange && !mm->sbs_in
             && distance - range > 1200 && track_diff > 45
             && a->pos_reliable_odd >= Modes.filter_persistence * 3 / 4
             && a->pos_reliable_even >= Modes.filter_persistence * 3 / 4
@@ -361,7 +361,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
         }
     }
-    if (distance - range < 300 && source >= SOURCE_ADSR && mm->cpr_type != CPR_SURFACE && a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2) {
+    if (distance - range < 100 && !mm->sbs_in && mm->cpr_type != CPR_SURFACE && a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2) {
         receiverPositionReceived(a, mm->receiverId, lat, lon, now);
     }
 

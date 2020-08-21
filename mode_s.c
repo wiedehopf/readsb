@@ -746,8 +746,9 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
         mm->addrtype = ADDR_MLAT;
     }
 
-    // these are messages of unkown quality, treat them as such.
+    // these are messages of general bad quality, treat them as garbage when garbage_ports is in use.
     if (mm->remote && mm->timestampMsg == 0 && mm->source != SOURCE_ADSR && mm->source != SOURCE_TISB) {
+        mm->garbage = 1;
         mm->source = SOURCE_SBS;
         mm->addrtype = ADDR_OTHER;
     }
