@@ -1058,10 +1058,11 @@ static void send_raw_heartbeat(struct net_service *service) {
 //
 static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now) {
     struct modesMessage mm;
-    static struct modesMessage zeroMessage;
 
     if (Modes.receiver_focus && c->receiverId != Modes.receiver_focus)
         return 0;
+
+    memset(&mm, 0, sizeof(mm));
 
     char *p = line;
     char *t[23]; // leave 0 indexed entry empty, place 22 tokens into array
@@ -1069,7 +1070,6 @@ static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now)
     Modes.stats_current.remote_received_basestation_invalid++;
 
     MODES_NOTUSED(c);
-    mm = zeroMessage;
     if (remote >= 64)
         mm.source = remote - 64;
     else
@@ -1850,11 +1850,12 @@ static int decodeHexMessage(struct client *c, char *hex, int remote, uint64_t no
     int l = strlen(hex), j;
     unsigned char msg[MODES_LONG_MSG_BYTES];
     struct modesMessage mm;
-    static struct modesMessage zeroMessage;
 
     MODES_NOTUSED(remote);
     MODES_NOTUSED(c);
-    mm = zeroMessage;
+
+    memset(&mm, 0, sizeof(mm));
+    memset(&msg, 0, sizeof(msg));
 
     // Mark messages received over the internet as remote so that we don't try to
     // pass them off as being received by this instance when forwarding them
