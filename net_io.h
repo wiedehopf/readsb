@@ -32,7 +32,7 @@ struct aircraft;
 struct modesMessage;
 struct client;
 struct net_service;
-typedef int (*read_fn)(struct client *, char *, int);
+typedef int (*read_fn)(struct client *, char *, int, uint64_t);
 typedef void (*heartbeat_fn)(struct net_service *);
 const char *addrtype_enum_string(addrtype_t type);
 

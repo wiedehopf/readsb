@@ -76,22 +76,22 @@
 //    handled via non-blocking I/O and manually polling clients to see if
 //    they have something new to share with us when reading is needed.
 
-static int handleApiRequest(struct client *c, char *p, int remote);
-static int handleBeastCommand(struct client *c, char *p, int remote);
-static int decodeBinMessage(struct client *c, char *p, int remote);
-static int decodeHexMessage(struct client *c, char *hex, int remote);
-static int decodeSbsLine(struct client *c, char *line, int remote);
-static int decodeSbsLineMlat(struct client *c, char *line, int remote) {
+static int handleApiRequest(struct client *c, char *p, int remote, uint64_t now);
+static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t now);
+static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now);
+static int decodeHexMessage(struct client *c, char *hex, int remote, uint64_t now);
+static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now);
+static int decodeSbsLineMlat(struct client *c, char *line, int remote, uint64_t now) {
     MODES_NOTUSED(remote);
-    return decodeSbsLine(c, line, 64 + SOURCE_MLAT);
+    return decodeSbsLine(c, line, 64 + SOURCE_MLAT, now);
 }
-static int decodeSbsLinePrio(struct client *c, char *line, int remote) {
+static int decodeSbsLinePrio(struct client *c, char *line, int remote, uint64_t now) {
     MODES_NOTUSED(remote);
-    return decodeSbsLine(c, line, 64 + SOURCE_PRIO);
+    return decodeSbsLine(c, line, 64 + SOURCE_PRIO, now);
 }
-static int decodeSbsLineJaero(struct client *c, char *line, int remote) {
+static int decodeSbsLineJaero(struct client *c, char *line, int remote, uint64_t now) {
     MODES_NOTUSED(remote);
-    return decodeSbsLine(c, line, 64 + SOURCE_JAERO);
+    return decodeSbsLine(c, line, 64 + SOURCE_JAERO, now);
 }
 
 static void send_raw_heartbeat(struct net_service *service);
@@ -853,7 +853,7 @@ static void flushWrites(struct net_writer *writer) {
         }
     }
     writer->dataUsed = 0;
-    writer->lastWrite = mstime();
+    writer->lastWrite = now;
     return;
 }
 
@@ -1056,7 +1056,7 @@ static void send_raw_heartbeat(struct net_service *service) {
 //
 // Read SBS input from TCP clients
 //
-static int decodeSbsLine(struct client *c, char *line, int remote) {
+static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now) {
     struct modesMessage mm;
     static struct modesMessage zeroMessage;
 
@@ -1241,7 +1241,7 @@ static int decodeSbsLine(struct client *c, char *line, int remote) {
     //fprintf(stderr, "\n");
 
     // record reception time as the time we read it.
-    mm.sysTimestampMsg = mstime();
+    mm.sysTimestampMsg = now;
 
     useModesMessage(&mm);
 
@@ -1485,7 +1485,7 @@ void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a) {
         return;
     char *end = p + 1000;
 
-    p = sprintAircraftObject(p, end, a, mstime(), 2);
+    p = sprintAircraftObject(p, end, a, mm->sysTimestampMsg, 2);
     completeWrite(&Modes.json_out, p);
 }
 //
@@ -1605,7 +1605,8 @@ void sendBeastSettings(int fd, const char *settings) {
 
     anetWrite(fd, buf, len);
 }
-static int handleApiRequest(struct client *c, char *p, int remote) {
+static int handleApiRequest(struct client *c, char *p, int remote, uint64_t now) {
+    MODES_NOTUSED(now);
     p = p;
     remote = remote;
     c = c;
@@ -1623,9 +1624,10 @@ static int handleApiRequest(struct client *c, char *p, int remote) {
 // Currently, we just look for the Mode A/C command message
 // and ignore everything else.
 //
-static int handleBeastCommand(struct client *c, char *p, int remote) {
+static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t now) {
     return 0; // disable this in this fork, no modeac unless it's enabled via config
     MODES_NOTUSED(remote);
+    MODES_NOTUSED(now);
     if (p[0] != '1') {
         // huh?
         return 0;
@@ -1657,7 +1659,7 @@ static int handleBeastCommand(struct client *c, char *p, int remote) {
 // The function always returns 0 (success) to the caller as there is no
 // case where we want broken messages here to close the client connection.
 //
-static int decodeBinMessage(struct client *c, char *p, int remote) {
+static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now) {
     int msgLen = 0;
     int j;
     unsigned char ch;
@@ -1742,7 +1744,6 @@ static int decodeBinMessage(struct client *c, char *p, int remote) {
         }
     }
 
-    uint64_t now = mstime();
     // record reception time as the time we read it.
     mm.sysTimestampMsg = now;
 
@@ -1845,7 +1846,7 @@ static int hexDigitVal(int c) {
 // The function always returns 0 (success) to the caller as there is no
 // case where we want broken messages here to close the client connection.
 //
-static int decodeHexMessage(struct client *c, char *hex, int remote) {
+static int decodeHexMessage(struct client *c, char *hex, int remote, uint64_t now) {
     int l = strlen(hex), j;
     unsigned char msg[MODES_LONG_MSG_BYTES];
     struct modesMessage mm;
@@ -1930,7 +1931,7 @@ static int decodeHexMessage(struct client *c, char *hex, int remote) {
     }
 
     // record reception time as the time we read it.
-    mm.sysTimestampMsg = mstime();
+    mm.sysTimestampMsg = now;
 
     if (l == (MODEAC_MSG_BYTES * 2)) { // ModeA or ModeC
         Modes.stats_current.remote_received_modeac++;
@@ -2930,7 +2931,7 @@ static void modesReadFromClient(struct client *c) {
 
 
                     // Have a 0x1a followed by 1/2/3/4/5 - pass message to handler.
-                    if (c->service->read_handler(c, som + 1, remote)) {
+                    if (c->service->read_handler(c, som + 1, remote, now)) {
                         modesCloseClient(c);
                         return;
                     }
@@ -2982,7 +2983,7 @@ static void modesReadFromClient(struct client *c) {
                     }
 
                     // Have a 0x1a followed by 1 - pass message to handler.
-                    if (c->service->read_handler(c, som + 1, remote)) {
+                    if (c->service->read_handler(c, som + 1, remote, now)) {
                         modesCloseClient(c);
                         return;
                     }
@@ -3004,7 +3005,7 @@ static void modesReadFromClient(struct client *c) {
 
                 while (som < eod && (p = strstr(som, c->service->read_sep)) != NULL) { // end of first message if found
                     *p = '\0'; // The handler expects null terminated strings
-                    if (c->service->read_handler(c, som, remote)) { // Pass message to handler.
+                    if (c->service->read_handler(c, som, remote, now)) { // Pass message to handler.
                         if (Modes.debug & MODES_DEBUG_NET) {
                             fprintf(stderr, "%s: Closing connection from %s port %s\n", c->service->descr, c->host, c->port);
                         }
