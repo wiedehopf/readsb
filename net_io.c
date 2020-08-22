@@ -2681,18 +2681,31 @@ static void modesReadFromClient(struct client *c) {
     int left;
     int nread;
     int bContinue = 1;
-    //uint64_t loop_start = msThreadTime();
-    uint32_t loop = 0;
-    uint64_t now = mstime();
+    int discard = 0;
 
-    while (bContinue && loop < 100) {
+    uint64_t start = mstime();
+    uint64_t now = start;
+
+    for (int loop = 0; bContinue && loop < 32; loop++, now = mstime()) {
+
+        if (!discard && now > start + 200) {
+            discard = 1;
+            if (c->proxy_string[0] != '\0')
+                fprintf(stderr, "ERROR, not enough CPU: Discarding data from: %s\n", c->proxy_string);
+            else
+                fprintf(stderr, "%s: ERROR, not enough CPU: Discarding data from: %s port %s (fd %d)\n",
+                        c->service->descr, c->host, c->port, c->fd);
+        }
+        if (discard)
+            c->buflen = 0;
+
         left = MODES_CLIENT_BUF_SIZE - c->buflen - 1; // leave 1 extra byte for NUL termination in the ASCII case
 
         // If our buffer is full discard it, this is some badly formatted shit
         if (left <= 0) {
             c->garbage += c->buflen;
             c->buflen = 0;
-            left = MODES_CLIENT_BUF_SIZE;
+            left = MODES_CLIENT_BUF_SIZE - c->buflen - 1; // leave 1 extra byte for NUL termination in the ASCII case
             // If there is garbage, read more to discard it ASAP
         }
 #ifndef _WIN32
@@ -2748,6 +2761,9 @@ static void modesReadFromClient(struct client *c) {
             modesCloseClient(c);
             return;
         }
+
+        if (discard)
+            continue;
 
         c->buflen += nread;
         c->bytesReceived += nread;
