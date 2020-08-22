@@ -2724,17 +2724,6 @@ static void modesReadFromClient(struct client *c) {
             bContinue = 0;
         }
 
-        if (nread == 0) { // End of file
-            if (c->con) {
-                fprintf(stderr, "%s: Remote server disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
-                        c->service->descr, c->con->address, c->con->port, c->fd, c->sendq_len, c->buflen);
-            } else if (Modes.debug & MODES_DEBUG_NET) {
-                fprintf(stderr, "%s: Listen client disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
-                        c->service->descr, c->host, c->port, c->fd, c->sendq_len, c->buflen);
-            }
-            modesCloseClient(c);
-            return;
-        }
         // check for idle connection, this server version requires data
         // or a heartbeat, otherwise it will force a reconnect
         if (c->con && c->last_read + 65000 <= now
@@ -2756,9 +2745,30 @@ static void modesReadFromClient(struct client *c) {
         }
 
         if (nread < 0) { // Other errors
-            fprintf(stderr, "%s: Receive Error: %s: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
-                    c->service->descr, strerror(err), c->host, c->port,
-                    c->fd, c->sendq_len, c->buflen);
+                if (c->proxy_string[0] != '\0')
+                    fprintf(stderr, "disc: %56s rId %016"PRIx64"%016"PRIx64"\n",
+                            c->proxy_string, c->receiverId, c->receiverId2);
+                else
+                    fprintf(stderr, "%s: Receive Error: %s: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
+                            c->service->descr, strerror(err), c->host, c->port,
+                            c->fd, c->sendq_len, c->buflen);
+            modesCloseClient(c);
+            return;
+        }
+
+        if (nread == 0) { // End of file
+            if (c->con) {
+                fprintf(stderr, "%s: Remote server disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
+                        c->service->descr, c->con->address, c->con->port, c->fd, c->sendq_len, c->buflen);
+            } else if (Modes.debug & MODES_DEBUG_NET) {
+
+                if (c->proxy_string[0] != '\0')
+                    fprintf(stderr, "disc: %56s rId %016"PRIx64"%016"PRIx64"\n",
+                            c->proxy_string, c->receiverId, c->receiverId2);
+                else
+                    fprintf(stderr, "%s: Listen client disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
+                            c->service->descr, c->host, c->port, c->fd, c->sendq_len, c->buflen);
+            }
             modesCloseClient(c);
             return;
         }
@@ -2815,12 +2825,12 @@ static void modesReadFromClient(struct client *c) {
         if (!c->receiverIdLocked && now > c->connectedSince + 10000) {
             c->receiverIdLocked = 1;
             if (Modes.netIngest && (Modes.debug & MODES_DEBUG_NET)) {
-                if (c->proxy_string[0] == '\0')
+                if (c->proxy_string[0] != '\0')
+                    fprintf(stderr, "new c %56s rId %016"PRIx64"%016"PRIx64"\n", 
+                            c->proxy_string, c->receiverId, c->receiverId2);
+                else
                     fprintf(stderr, "%s: new c from %s port %s rId %016"PRIx64"%016"PRIx64"\n",
                             c->service->descr, c->host, c->port, c->receiverId, c->receiverId2);
-                else
-                    fprintf(stderr, "new c %s rId %016"PRIx64"%016"PRIx64"\n", 
-                            c->proxy_string, c->receiverId, c->receiverId2);
             }
         }
 
@@ -2836,31 +2846,18 @@ static void modesReadFromClient(struct client *c) {
                 // in the buffer, note that we full-scan the buffer at every read for simplicity.
 
 
-                // disconnect basestation feeds
-                if (eod > som + 10 && som[0] == 'M' && som[1] == 'S' && som[2] == 'G'
-                        && som[3] == ',' && som[5] == ',' && som[7] == ',' && som[9] == ',') {
-                    modesCloseClient(c);
-                    Modes.stats_current.remote_malformed_beast += 100;
-                    if (Modes.debug & MODES_DEBUG_NET) {
-                        if (c->proxy_string[0] != '\0')
-                            fprintf(stderr, "SBS Garbage: Close: %s\n", c->proxy_string);
-                        else
-                            fprintf(stderr, "SBS Garbage: Close %s port %s\n", c->host, c->port);
-                    }
-                    return;
-                }
-                // disconnect other garbage feeds
+                // disconnect garbage feeds
                 if (c->garbage > 512) {
                     modesCloseClient(c);
-                    if (Modes.debug & MODES_DEBUG_NET) {
+                    if (!Modes.netIngest) {
                         *eod = '\0';
                         char sample[64];
                         hexEscapeString(som, sample, sizeof(sample));
                         sample[sizeof(sample) - 1] = '\0';
                         if (c->proxy_string[0] != '\0')
-                            fprintf(stderr, "RND Garbage: Close: %s sample: %s\n", c->proxy_string, sample);
+                            fprintf(stderr, "Garbage: Close: %s sample: %s\n", c->proxy_string, sample);
                         else
-                            fprintf(stderr, "RND Garbage: Close: %s port %s sample: %s\n", c->host, c->port, sample);
+                            fprintf(stderr, "Garbage: Close: %s port %s sample: %s\n", c->host, c->port, sample);
                     }
                     return;
                 }
