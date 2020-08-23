@@ -838,7 +838,7 @@ static int compareFloat(const void *p1, const void *p2) {
     return (a1 > a2) - (a1 < a2);
 }
 
-void statsCalc() {
+static void statsCalc() {
     Modes.readsb_aircraft_total = Modes.json_ac_count_pos + Modes.json_ac_count_no_pos;
     Modes.readsb_aircraft_with_position = Modes.json_ac_count_pos;
 
@@ -870,4 +870,14 @@ void statsCalc() {
     }
     if (Modes.readsb_aircraft_rssi_min == 42)
         Modes.readsb_aircraft_rssi_min = -50;
+}
+
+void statsWrite() {
+        statsCalc(); // calculate statistics stuff
+
+        if (Modes.json_dir)
+            writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson());
+
+        if (Modes.prom_file)
+            writeJsonToFile(NULL, Modes.prom_file, generatePromFile());
 }

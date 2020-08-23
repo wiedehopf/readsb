@@ -1836,18 +1836,15 @@ void trackPeriodicUpdate() {
 
     trackRemoveStaleAircraft(&freeList, now);
 
+    if (Modes.mode_ac)
+        trackMatchAC(now);
+
+    writeStats = statsUpdate(now); // needs to happen under lock
 
     int nParts = 256;
     receiverTimeout((counter % nParts), nParts);
 
-    if (!Modes.exit)
-        netFreeClients();
-
-    if (now > Modes.next_stats_update)
-        writeStats = statsUpdate(now); // needs to happen under lock
-
-    if (Modes.mode_ac)
-        trackMatchAC(now);
+    netFreeClients();
 
     int64_t elapsed = end_cpu_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
 
@@ -1856,7 +1853,7 @@ void trackPeriodicUpdate() {
     if (elapsed > 80) {
         fprintf(stderr, "<3>High load: removeStale took %"PRIu64" ms!\n", elapsed);
     }
-    //fprintf(stderr, "removeStale took %"PRIu64" ms!\n", after - before);
+    fprintf(stderr, "removeStale took %"PRIu64" ms!\n", elapsed);
 
     start_cpu_timing(&start_time);
 
@@ -1872,15 +1869,8 @@ void trackPeriodicUpdate() {
     if (Modes.heatmap)
         handleHeatmap(); // only does sth every 30 min
 
-    if (writeStats) {
-        statsCalc(); // calculate statistics stuff
-
-        if (Modes.json_dir)
-            writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson());
-
-        if (Modes.prom_file)
-            writeJsonToFile(NULL, Modes.prom_file, generatePromFile());
-    }
+    if (writeStats)
+        statsWrite();
 
     if (Modes.netIngest && Modes.json_dir && counter % 5 == 0)
         writeJsonToFile(Modes.json_dir, "clients.json", generateClientsJson());
@@ -1889,6 +1879,18 @@ void trackPeriodicUpdate() {
         writeJsonToFile(Modes.json_dir, "receivers.json", generateReceiversJson());
 
     end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
+}
+
+void trackForceStats() {
+    // force stats to be emitted regardless of timing
+    Modes.next_stats_update = 0;
+    uint64_t now = mstime();
+
+    struct aircraft *freeList = NULL;
+    trackRemoveStaleAircraft(&freeList, now);
+    cleanupAircraft(freeList);
+    statsUpdate(now); // needs to happen under lock
+    statsWrite();
 }
 
 static void cleanupAircraft(struct aircraft *a) {

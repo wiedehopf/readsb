@@ -484,7 +484,8 @@ struct aircraft *trackUpdateFromMessage (struct modesMessage *mm);
 
 /* Call periodically */
 void trackPeriodicUpdate ();
-void trackUpdateUnlocked();
+
+void trackForceStats();
 
 void updateValidities(struct aircraft *a, uint64_t now);
 

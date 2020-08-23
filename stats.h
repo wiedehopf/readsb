@@ -143,6 +143,6 @@ struct char_buffer generatePromFile();
 int statsUpdate(uint64_t now);
 void statsReset();
 void statsCount(struct aircraft *a, uint64_t now);
-void statsCalc();
+void statsWrite();
 
 #endif
