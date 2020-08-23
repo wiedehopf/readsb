@@ -747,11 +747,12 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
     }
 
     // these are messages of general bad quality, treat them as garbage when garbage_ports is in use.
-    if (mm->remote && mm->timestampMsg == 0 && mm->source != SOURCE_ADSR && mm->source != SOURCE_TISB) {
+    if (mm->remote && mm->timestampMsg == 0 && mm->msgtype != 18) {
         if (Modes.garbage_ports)
             mm->garbage = 1;
         mm->source = SOURCE_SBS;
-        mm->addrtype = ADDR_OTHER;
+        if (mm->addrtype >= ADDR_OTHER)
+            mm->addrtype = ADDR_OTHER;
     }
 
     // all done
