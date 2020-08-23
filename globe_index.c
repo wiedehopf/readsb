@@ -1355,14 +1355,14 @@ void handleHeatmap() {
 }
 
 
-int checkNewDay() {
+void checkNewDay() {
     char filename[PATH_MAX];
     char tstring[100];
     uint64_t now = mstime();
     struct tm utc;
 
     if (!Modes.globe_history_dir || !Modes.json_globe_index)
-        return 0;
+        return;
 
     // nineteen_ago changes day 19 min after midnight: stop writing the previous days traces
     // twenty_ago changes day 20 min after midnight: allow webserver to read the previous days traces
@@ -1382,7 +1382,7 @@ int checkNewDay() {
         chmod(filename, 0755);
     }
 
-    // 2 seconds after midnight, start a permanent write of all traces (return 1)
+    // 2 seconds after midnight, start a permanent write of all traces
     // create the new directory for writing traces
     // prevent the webserver from reading it until they are in a finished state
     time_t nowish = (now - 2000)/1000;
@@ -1390,6 +1390,8 @@ int checkNewDay() {
 
     if (utc.tm_mday != Modes.mday) {
         Modes.mday = utc.tm_mday;
+
+        Modes.doFullTraceWrite = 1;
 
         strftime(tstring, 100, "%Y-%m-%d", &utc);
 
@@ -1413,9 +1415,8 @@ int checkNewDay() {
                 perror(filename);
         }
 
-        return 1;
     }
-    return 0;
+    return;
 }
 
 void unlink_trace(struct aircraft *a) {

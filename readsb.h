@@ -514,9 +514,10 @@ struct _Modes
     int json_aircraft_history_next;
     int json_aircraft_history_full;
     int bUserFlags; // Flags relating to the user details
-    int biastee;
-    int mday;
-    int traceDay;
+    int8_t biastee;
+    int8_t mday;
+    int8_t traceDay;
+    int8_t doFullTraceWrite;
 
     struct timespec reader_cpu_accumulator; // CPU time used by the reader thread, copied out and reset by the main thread under the mutex
     struct mag_buf mag_buffers[MODES_MAG_BUFFERS]; // Converted magnitude buffers from RTL or file input

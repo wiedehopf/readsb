@@ -1704,7 +1704,11 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList, uint64_t now) {
     if (Modes.api)
         apiClear();
 
-    int full_write = checkNewDay(); // this function does more than the return value!!!!
+    int full_write = 0;
+    if (Modes.doFullTraceWrite) {
+        Modes.doFullTraceWrite = 0;
+        full_write = 1;
+    }
 
     /*
     int stride = AIRCRAFT_BUCKETS / 32;
@@ -1822,6 +1826,8 @@ void trackPeriodicUpdate() {
 
     struct aircraft *freeList = NULL;
 
+    checkNewDay();
+
     // stop all threads so we can remove aircraft from the list.
     // also serves as memory barrier so json threads get new aircraft in the list
     // adding aircraft does not need to be done with locking:
@@ -1853,7 +1859,7 @@ void trackPeriodicUpdate() {
     if (elapsed > 80) {
         fprintf(stderr, "<3>High load: removeStale took %"PRIu64" ms!\n", elapsed);
     }
-    fprintf(stderr, "removeStale took %"PRIu64" ms!\n", elapsed);
+    //fprintf(stderr, "removeStale took %"PRIu64" ms!\n", elapsed);
 
     start_cpu_timing(&start_time);
 
