@@ -34,7 +34,7 @@ struct receiver *receiverCreate(uint64_t id) {
     r->next = Modes.receiverTable[hash];
     Modes.receiverTable[hash] = r;
     Modes.receiverCount++;
-    if (((Modes.receiverCount * 16) & (RECEIVER_TABLE_SIZE - 1)) == 0)
+    if (Modes.receiverCount % (RECEIVER_TABLE_SIZE / 8) == 0)
         fprintf(stderr, "receiverTable fill: %0.8f\n", Modes.receiverCount / (double) RECEIVER_TABLE_SIZE);
     if (Modes.debug_receiver && Modes.receiverCount % 128 == 0)
         fprintf(stderr, "receiverCount: %"PRIu64"\n", Modes.receiverCount);
@@ -58,8 +58,8 @@ void receiverTimeout(int part, int nParts) {
             */
             if (
                     (Modes.receiverCount > RECEIVER_TABLE_SIZE && (*r)->lastSeen < now - 20 * MINUTES)
-                    || (now > (*r)->lastSeen + 1 * HOURS)
-                    || ((*r)->badExtent && now > (*r)->badExtent + 12 * HOURS)
+                    || (now > (*r)->lastSeen + 24 * HOURS)
+                    || ((*r)->badExtent && now > (*r)->badExtent + 8 * HOURS)
                ) {
 
                 del = *r;
