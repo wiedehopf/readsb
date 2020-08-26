@@ -549,9 +549,11 @@ norm_angle (double a, double pi)
     return a;
 }
 static inline int bogus_lat_lon(double lat, double lon) {
-    if (lat >= 90.0 || lat <= -90.0 || lon >= 180.0 || lon <= -180.0)
+    if (fabs(lat) >= 90.0 || fabs(lon) >= 180.0)
         return 1;
     if (lat == 0 && (lon == -90 || lon == 90 || lon == 0))
+        return 1;
+    if (fabs(lat) < 0.01 && fabs(lon) < 0.01)
         return 1;
     return 0;
 }
