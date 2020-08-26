@@ -1587,6 +1587,20 @@ end_alt:
             a->rr_lat = reflat;
             a->rr_lon = reflon;
             a->rr_seen = now;
+            if (Modes.debug_rough_receiver_location
+                    && now > a->seenPosReliable + 5 * MINUTES
+                    && accept_data(&a->position_valid, SOURCE_MODE_AC, mm, 1)) {
+                a->addrtype_updated = now;
+                a->addrtype = ADDR_MODE_S;
+                mm->decoded_lat = reflat;
+                mm->decoded_lon = reflon;
+                int persist = Modes.filter_persistence;
+                a->pos_reliable_odd = min(a->pos_reliable_odd + 1, persist);
+                a->pos_reliable_even = min(a->pos_reliable_even + 1, persist);
+                globe_stuff(a, mm, reflat, reflon, now);
+                setPosition(a, mm, now);
+                set_globe_index(a, globe_index(reflat, reflon));
+            }
         }
     }
 
@@ -2002,7 +2016,8 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
             //    fprintf(stderr, "stale, elapsed: %0.1f\n", (now - a->seenPosReliable) / 1000.0);
         }
 
-        a->seenPosReliable = now;
+        if (a->position_valid.source != SOURCE_MODE_AC)
+            a->seenPosReliable = now;
 
         int on_ground = 0;
         int was_ground = 0;
