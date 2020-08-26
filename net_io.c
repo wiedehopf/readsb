@@ -3458,6 +3458,11 @@ static void *pthreadGetaddrinfo(void *param) {
 }
 
 static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now, int printMode) {
+
+    // printMode == 0: aircraft.json globe.json
+    // printMode == 1: trace.json
+    // printMode == 2: jsonPositionOutput
+
     p = safe_snprintf(p, end, "\n{");
     if (printMode == 2)
         p = safe_snprintf(p, end, "\"now\" : %.1f,", now / 1000.0);
@@ -3544,6 +3549,11 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
                 a->lat, a->lon, a->pos_nic, a->pos_rc,
                 (now < a->position_valid.updated) ? 0 : ((now - a->position_valid.updated) / 1000.0));
     }
+
+    if (now > a->seen_pos + 60 * MINUTES && now < a->rr_seen + 2 * MINUTES) {
+        p = safe_snprintf(p, end, ",\"rr_lat\":%.1f,\"rr_lon\":%.1f", a->rr_lat, a->rr_lon);
+    }
+
     if (printMode == 1 && trackDataValid(&a->position_valid)) {
         p = safe_snprintf(p, end, ",\"nic\":%u,\"rc\":%u",
                 a->pos_nic, a->pos_rc);

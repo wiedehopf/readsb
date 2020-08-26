@@ -1,6 +1,6 @@
 #include "readsb.h"
 
-#define MAX_DIFF 35.0
+#define RECEIVER_MAX_RANGE 800e3
 
 uint32_t receiverHash(uint64_t id) {
     uint64_t h = 0x30732349f7810465ULL ^ (4 * 0x2127599bf4325c37ULL);
@@ -113,29 +113,22 @@ void receiverPositionReceived(struct aircraft *a, uint64_t id, double lat, doubl
         r->lonMax = fmax(r->lonMax, lon);
         r->latMax = fmax(r->latMax, lat);
 
-        // diff after applying new position
-        double latDiff2 = r->latMax - r->latMin;
-        double lonDiff2 = r->lonMax - r->lonMin;
+        double rlat = r->latMin + latDiff / 2;
+        double rlon = r->lonMin + lonDiff / 2;
 
-        int debug = 0;
+        double distance = greatcircle(rlat, rlon, lat, lon);
 
-        if (!r->badExtent && (lonDiff2 > MAX_DIFF || latDiff2 > MAX_DIFF)) {
+        if (!r->badExtent && distance > RECEIVER_MAX_RANGE) {
             r->badExtent = now;
-            //fprintf(stderr, "badExtent: %016"PRIx64" %9"PRIu64" %4.0f %4.0f %4.0f %4.0f\n",
-            //        r->id, r->positionCounter,
-            //        r->latMin, r->latMax, r->lonMin, r->lonMax);
-        }
 
-        if (Modes.debug_receiver && (lonDiff2 > MAX_DIFF || latDiff2 > MAX_DIFF) && !(lonDiff > MAX_DIFF || latDiff > MAX_DIFF))
-            debug = 1;
-        //if (Modes.debug_receiver && id == 0x1aa14156975948af)
-        //    debug = 1;
-        if (debug)
-            fprintf(stderr, "hex: %06x id: %016"PRIx64" #pos: %9"PRIu64" %12.5f %12.5f %4.0f %4.0f %4.0f %4.0f\n",
-                    a->addr, r->id, r->positionCounter,
-                    lat, lon,
-                    before.latMin, before.latMax,
-                    before.lonMin, before.lonMax);
+            if (Modes.debug_receiver) {
+                fprintf(stderr, "receiverBadExtent: %0.0f nmi hex: %06x id: %016"PRIx64" #pos: %9"PRIu64" %12.5f %12.5f %4.0f %4.0f %4.0f %4.0f\n",
+                        distance / 1852.0, a->addr, r->id, r->positionCounter,
+                        lat, lon,
+                        before.latMin, before.latMax,
+                        before.lonMin, before.lonMax);
+            }
+        }
     }
 
     r->lastSeen = now;
@@ -145,30 +138,17 @@ void receiverPositionReceived(struct aircraft *a, uint64_t id, double lat, doubl
 }
 
 struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft *a) {
+    MODES_NOTUSED(a);
     struct receiver *r = receiverGet(id);
-    if (!r) {
-        if (a->addr == Modes.cpr_focus)
-            fprintf(stderr, "%06x: no associated receiver found.\n", a->addr);
+    if (!r)
         return NULL;
-    }
-
     if (r->positionCounter < 100)
+        return NULL;
+    if (r->badExtent)
         return NULL;
 
     double latDiff = r->latMax - r->latMin;
     double lonDiff = r->lonMax - r->lonMin;
-
-    if (lonDiff > MAX_DIFF || latDiff > MAX_DIFF) {
-        if (0 && Modes.debug_receiver)
-            fprintf(stderr, "%06x: receiver ref invalid: %016"PRIx64" %9"PRIu64" %4.0f %4.0f %4.0f %4.0f %4.0f %4.0f\n",
-                    a->addr,
-                    r->id, r->positionCounter,
-                    r->latMin, *lat, r->latMax,
-                    r->lonMin, *lon, r->lonMax);
-        return NULL;
-    }
-
-    // all checks good, set reference latitude and return 1
 
     *lat = r->latMin + latDiff / 2;
     *lon = r->lonMin + lonDiff / 2;

@@ -343,7 +343,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                 a->lat, a->lon, lat, lon);
     }
 
-    if (!inrange && !mm->sbs_in
+    if (!inrange && mm->source == SOURCE_ADSB
             && distance - range > 1200 && track_diff > 45
             && a->pos_reliable_odd >= Modes.filter_persistence * 3 / 4
             && a->pos_reliable_even >= Modes.filter_persistence * 3 / 4
@@ -361,7 +361,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
         }
     }
-    if (distance - range < 100 && !mm->sbs_in && mm->cpr_type != CPR_SURFACE && a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2) {
+    if (inrange && mm->source == SOURCE_ADSB && mm->cpr_type != CPR_SURFACE
+            && a->pos_reliable_odd >= Modes.filter_persistence * 3 / 4
+            && a->pos_reliable_even >= Modes.filter_persistence * 3 / 4
+       ) {
         receiverPositionReceived(a, mm->receiverId, lat, lon, now);
     }
 
@@ -1576,6 +1579,16 @@ end_alt:
         }
     }
 
+    if (mm->msgtype == 11 && mm->IID == 0 && mm->correctedbits == 0) {
+        double reflat;
+        double reflon;
+        struct receiver *r = receiverGetReference(mm->receiverId, &reflat, &reflon, a);
+        if (r) {
+            a->rr_lat = reflat;
+            a->rr_lon = reflon;
+            a->rr_seen = now;
+        }
+    }
 
     if (mm->msgtype == 11 && mm->IID == 0 && mm->correctedbits == 0 && now > a->next_reduce_forward_DF11) {
 

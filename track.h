@@ -280,7 +280,8 @@ struct aircraft
 
   float rr_lat; // very rough receiver latitude
   float rr_lon; // very rough receiver longitude
-  double paddingabc[3];
+  uint64_t rr_seen; // when we noted this rough position
+  double paddingabc[2];
 
   uint64_t padding23;
   uint64_t addrtype_updated;
