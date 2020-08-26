@@ -264,7 +264,7 @@ struct aircraft
 
   // ----
 
-  pthread_mutex_t trace_mutex; // 5*8bytes
+  pthread_mutex_t unused123; // 5*8bytes
   struct state *trace; // array of positions representing the aircrafts trace/trail
   struct state_all *trace_all;
   uint64_t trace_next_mw; // timestamp for next full trace write to /run (tmpfs)
@@ -414,8 +414,6 @@ struct aircraft
   data_validity position_valid;
   data_validity alert_valid;
   data_validity spi_valid;
-
-  // ----
 
   struct modesMessage *first_message; // A copy of the first message we received for this aircraft.
 

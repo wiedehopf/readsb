@@ -1956,7 +1956,6 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
             goto no_save_state;
 
         if (!a->trace) {
-            //pthread_mutex_lock(&a->trace_mutex);
 
             a->trace_alloc = GLOBE_STEP;
             a->trace = malloc(a->trace_alloc * sizeof(struct state));
@@ -1966,7 +1965,6 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
 
             //fprintf(stderr, "%06x: new trace\n", a->addr);
 
-            //pthread_mutex_unlock(&a->trace_mutex);
         } else if (a->trace_len > 5) {
             for (int i = a->trace_len - 1; i >= a->trace_len - 5; i--) {
                 if ( (int32_t) (new_lat * 1E6) == a->trace[i].lat
@@ -2187,11 +2185,9 @@ save_state:
         a->trace_llat = new_lat;
         a->trace_llon = new_lon;
 
-        //pthread_mutex_lock(&a->trace_mutex);
         (a->trace_len)++;
         a->trace_write = 1;
         a->trace_full_write++;
-        //pthread_mutex_unlock(&a->trace_mutex);
 
         //fprintf(stderr, "Added to trace for %06x (%d).\n", a->addr, a->trace_len);
 
@@ -2276,7 +2272,6 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
     }
 
     if (a->trace_len == 0) {
-        //pthread_mutex_lock(&a->trace_mutex);
 
         free(a->trace);
         free(a->trace_all);
@@ -2289,7 +2284,6 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
         // if the trace length is zero, the trace is deleted from run
         // it is not written again until a new position is received
 
-        //pthread_mutex_unlock(&a->trace_mutex);
         return;
     }
     if (now < Modes.keep_traces)
@@ -2326,7 +2320,6 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
                 fprintf(stderr, "not divisible by 4: %d %d\n", new_start, a->trace_len);
         }
 
-        //pthread_mutex_lock(&a->trace_mutex);
 
         a->trace_len -= new_start;
 
@@ -2336,17 +2329,14 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
         //a->trace_write = 1;
         //a->trace_full_write = 9999; // rewrite full history file
 
-        //pthread_mutex_unlock(&a->trace_mutex);
     }
 
     if (a->trace_len && a->trace_len + GLOBE_STEP / 2 >= a->trace_alloc) {
-        //pthread_mutex_lock(&a->trace_mutex);
         a->trace_alloc = a->trace_alloc * 5 / 4;
         if (a->trace_alloc > GLOBE_TRACE_SIZE)
             a->trace_alloc = GLOBE_TRACE_SIZE;
         a->trace = realloc(a->trace, a->trace_alloc * sizeof(struct state));
         a->trace_all = realloc(a->trace_all, (1 + a->trace_alloc / 4) * sizeof(struct state_all));
-        //pthread_mutex_unlock(&a->trace_mutex);
 
         if (a->trace_len >= GLOBE_TRACE_SIZE / 2)
             fprintf(stderr, "Quite a long trace: %06x (%d).\n", a->addr, a->trace_len);
@@ -2356,11 +2346,9 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
     }
 
     if (a->trace_len < (a->trace_alloc * 7 / 10) && a->trace_alloc >= 2 * GLOBE_STEP) {
-        //pthread_mutex_lock(&a->trace_mutex);
         a->trace_alloc = a->trace_alloc * 4 / 5;
         a->trace = realloc(a->trace, a->trace_alloc * sizeof(struct state));
         a->trace_all = realloc(a->trace_all, (1 + a->trace_alloc / 4) * sizeof(struct state_all));
-        //pthread_mutex_unlock(&a->trace_mutex);
     }
 }
 
@@ -2720,9 +2708,6 @@ static const char *source_string(datasource_t source) {
 }
 
 void freeAircraft(struct aircraft *a) {
-        pthread_mutex_unlock(&a->trace_mutex);
-        pthread_mutex_destroy(&a->trace_mutex);
-
         if (a->first_message)
             free(a->first_message);
         if (a->trace) {

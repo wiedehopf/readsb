@@ -207,8 +207,6 @@ void write_trace(struct aircraft *a, uint64_t now) {
     if (Modes.debug_traceCount && ++count2 % 1000 == 0)
         fprintf(stderr, "recent trace write: %u\n", count2);
 
-    //pthread_mutex_lock(&a->trace_mutex);
-
     a->trace_write = 0;
 
     if (!a->trace_alloc)
@@ -259,7 +257,7 @@ void write_trace(struct aircraft *a, uint64_t now) {
         //fprintf(stderr, "%06x\n", a->addr);
 
         // prepare stuff to be written to disk
-        // written to memory, then to disk outside the trace_mutex
+        // written to memory
         if (write_perm) {
             // prepare writing the permanent history
             if (a->trace_len > 0 &&
@@ -289,8 +287,6 @@ void write_trace(struct aircraft *a, uint64_t now) {
         }
     }
 
-
-    //pthread_mutex_unlock(&a->trace_mutex);
 
 
     if (recent.len > 0) {
@@ -471,11 +467,6 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
         a->trace_all = NULL;
         a->trace_len = 0;
         a->trace_alloc = 0;
-    }
-
-    if (pthread_mutex_init(&a->trace_mutex, NULL)) {
-        fprintf(stderr, "Unable to initialize trace mutex!\n");
-        exit(1);
     }
 
     if (a->globe_index > GLOBE_MAX_INDEX)
@@ -1215,8 +1206,6 @@ void handleHeatmap() {
             uint32_t squawk = 8888; // impossible squawk
             uint64_t callsign = 0; // quackery
 
-            //pthread_mutex_lock(&a->trace_mutex);
-
             for (int i = 0; i < a->trace_len; i++) {
                 if (len >= alloc)
                     break;
@@ -1276,8 +1265,6 @@ void handleHeatmap() {
                 next += Modes.heatmap_interval;
                 slice++;
             }
-
-            //pthread_mutex_unlock(&a->trace_mutex);
         }
     }
 

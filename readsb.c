@@ -748,9 +748,6 @@ static void cleanup_and_exit(int code) {
             na = a->next;
             if (a) {
 
-                pthread_mutex_unlock(&a->trace_mutex);
-                pthread_mutex_destroy(&a->trace_mutex);
-
                 if (a->first_message)
                     free(a->first_message);
                 if (a->trace) {

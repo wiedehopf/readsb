@@ -60,11 +60,6 @@ struct aircraft *aircraftCreate(struct modesMessage *mm) {
         a->globe_index = -5;
     }
 
-    if (pthread_mutex_init(&a->trace_mutex, NULL)) {
-        fprintf(stderr, "Unable to initialize trace mutex!\n");
-        exit(1);
-    }
-
     // initialize data validity ages
     //adjustExpire(a, 58);
     Modes.stats_current.unique_aircraft++;
