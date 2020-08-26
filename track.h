@@ -107,10 +107,10 @@ typedef struct
 {
   uint64_t updated; /* when it arrived */
   uint64_t next_reduce_forward; /* when to next forward the data for reduced beast output */
-  uint32_t stale; /* if it's stale 1 / 0 */
-  datasource_t source; /* where the data came from */
-  datasource_t last_source; /* where the data came from */
-  uint32_t padding;
+  datasource_t source:8; /* where the data came from */
+  datasource_t last_source:8; /* where the data came from */
+  int8_t stale; /* if it's stale 1 / 0 */
+  unsigned padding:8;
 } data_validity;
 
 struct state_flags
@@ -251,12 +251,26 @@ struct aircraft
 
   uint32_t size_struct_aircraft; // size of this struct
   uint32_t messages; // Number of Mode S messages received
+  int trace_len; // current number of points in the trace
+  int trace_write; // signal for writing the trace
+  int trace_full_write; // signal for writing the complete trace
+  int trace_alloc; // current number of allocated points
   int destroy; // aircraft is being deleted
   int signalNext; // next index of signalLevel to use
+
+  // ----
+
+  struct state *trace; // array of positions representing the aircrafts trace/trail
+  struct state_all *trace_all;
   int altitude_baro; // Altitude (Baro)
   int alt_reliable;
   int altitude_geom; // Altitude (Geometric)
   int geom_delta; // Difference between Geometric and Baro altitudes
+
+  uint64_t trace_next_mw; // timestamp for next full trace write to /run (tmpfs)
+  uint64_t trace_next_fw; // timestamp for next full trace write to history_dir (disk)
+  double trace_llat; // last saved lat
+  double trace_llon; // last saved lon
 
   // ----
 
@@ -264,21 +278,11 @@ struct aircraft
 
   // ----
 
-  pthread_mutex_t unused123; // 5*8bytes
-  struct state *trace; // array of positions representing the aircrafts trace/trail
-  struct state_all *trace_all;
-  uint64_t trace_next_mw; // timestamp for next full trace write to /run (tmpfs)
+  float rr_lat; // very rough receiver latitude
+  float rr_lon; // very rough receiver longitude
+  double paddingabc[3];
 
-  // ----
-
-  int trace_len; // current number of points in the trace
-  int trace_write; // signal for writing the trace
-  int trace_full_write; // signal for writing the complete trace
-  int trace_alloc; // current number of allocated points
-  double trace_llat; // last saved lat
-  double trace_llon; // last saved lon
-
-  uint64_t trace_next_fw; // timestamp for next full trace write to history_dir (disk)
+  uint64_t padding23;
   uint64_t addrtype_updated;
   float tat;
   uint16_t no_signal_count; // consecutive messages without signal strength specified
@@ -302,7 +306,6 @@ struct aircraft
   float oat;
   uint64_t wind_updated;
   uint64_t oat_updated;
-
 
   // ----
 
@@ -415,9 +418,10 @@ struct aircraft
   data_validity alert_valid;
   data_validity spi_valid;
 
-  struct modesMessage *first_message; // A copy of the first message we received for this aircraft.
+  uint64_t reserved[16];
 
-} __attribute__ ((aligned (64)));
+  struct modesMessage *first_message; // A copy of the first message we received for this aircraft.
+};
 
 /* Mode A/C tracking is done separately, not via the aircraft list,
  * and via a flat array rather than a list since there are only 4k possible values

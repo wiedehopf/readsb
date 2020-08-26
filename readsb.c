@@ -237,7 +237,7 @@ static void modesInitConfig(void) {
     Modes.next_stats_display = now + Modes.stats;
     Modes.next_stats_update = now + 10 * SECONDS;
     //receiverTest();
-    Modes.scratch = (struct aircraft *) aligned_alloc(64, sizeof(struct aircraft));
+    Modes.scratch = malloc(sizeof(struct aircraft));
 }
 //
 //=========================================================================

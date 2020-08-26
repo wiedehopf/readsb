@@ -402,7 +402,7 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
     if (end - *p < (long) sizeof(struct aircraft))
         return -1;
 
-    struct aircraft *a = (struct aircraft *) aligned_alloc(64, sizeof(struct aircraft));
+    struct aircraft *a = malloc(sizeof(struct aircraft));
     memcpy(a, *p, sizeof(struct aircraft));
     *p += sizeof(struct aircraft);
 

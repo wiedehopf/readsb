@@ -32,7 +32,7 @@ struct aircraft *aircraftCreate(struct modesMessage *mm) {
     struct aircraft *a = aircraftGet(addr);
     if (a)
         return a;
-    a = (struct aircraft *) aligned_alloc(64, sizeof(struct aircraft));
+    a = malloc(sizeof(struct aircraft));
 
     // Default everything to zero/NULL
     memset(a, 0, sizeof (struct aircraft));
