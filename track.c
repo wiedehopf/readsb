@@ -2001,7 +2001,11 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
             }
         }
         if (a->trace_len + 1 >= a->trace_alloc) {
-            fprintf(stderr, "%06x: trace_len + 1 >= a->trace_alloc (%d).\n", a->addr, a->trace_len);
+            static uint64_t antiSpam;
+            if (now > antiSpam + 30 * SECONDS) {
+                fprintf(stderr, "CHECK CPU LOAD (maybe loop?) %06x: trace_len + 1 >= a->trace_alloc (%d).\n", a->addr, a->trace_len);
+                antiSpam = now;
+            }
             goto no_save_state;
         }
 
