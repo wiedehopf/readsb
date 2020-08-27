@@ -2746,8 +2746,9 @@ static void modesReadFromClient(struct client *c) {
 
         if (nread < 0) { // Other errors
                 if (c->proxy_string[0] != '\0')
-                    fprintf(stderr, "disc: %56s rId %016"PRIx64"%016"PRIx64"\n",
-                            c->proxy_string, c->receiverId, c->receiverId2);
+                    fprintf(stderr, "disc: %56s rId %016"PRIx64"%016"PRIx64" %5.0f kBytes in %3.1f s\n",
+                            c->proxy_string, c->receiverId, c->receiverId2,
+                            c->bytesReceived / 1024.0, (now - c->connectedSince) / 1000.0);
                 else
                     fprintf(stderr, "%s: Receive Error: %s: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
                             c->service->descr, strerror(err), c->host, c->port,
@@ -2763,8 +2764,9 @@ static void modesReadFromClient(struct client *c) {
             } else if (Modes.debug & MODES_DEBUG_NET) {
 
                 if (c->proxy_string[0] != '\0')
-                    fprintf(stderr, "disc: %56s rId %016"PRIx64"%016"PRIx64"\n",
-                            c->proxy_string, c->receiverId, c->receiverId2);
+                    fprintf(stderr, "disc: %56s rId %016"PRIx64"%016"PRIx64" %5.0f kBytes in %3.1f s\n",
+                            c->proxy_string, c->receiverId, c->receiverId2,
+                            c->bytesReceived / 1024.0, (now - c->connectedSince) / 1000.0);
                 else
                     fprintf(stderr, "%s: Listen client disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
                             c->service->descr, c->host, c->port, c->fd, c->sendq_len, c->buflen);
@@ -2822,18 +2824,6 @@ static void modesReadFromClient(struct client *c) {
             }
         }
 
-        if (!c->receiverIdLocked && now > c->connectedSince + 10000) {
-            c->receiverIdLocked = 1;
-            if (Modes.netIngest && (Modes.debug & MODES_DEBUG_NET)) {
-                if (c->proxy_string[0] != '\0')
-                    fprintf(stderr, "new c %56s rId %016"PRIx64"%016"PRIx64"\n", 
-                            c->proxy_string, c->receiverId, c->receiverId2);
-                else
-                    fprintf(stderr, "%s: new c from %s port %s rId %016"PRIx64"%016"PRIx64"\n",
-                            c->service->descr, c->host, c->port, c->receiverId, c->receiverId2);
-            }
-        }
-
         switch (c->service->read_mode) {
             case READ_MODE_IGNORE:
                 // drop the bytes on the floor
@@ -2849,7 +2839,7 @@ static void modesReadFromClient(struct client *c) {
                 // disconnect garbage feeds
                 if (c->garbage > 512) {
                     modesCloseClient(c);
-                    if (!Modes.netIngest) {
+                    if (!Modes.netIngest || Modes.debug_receiver) {
                         *eod = '\0';
                         char sample[64];
                         hexEscapeString(som, sample, sizeof(sample));
@@ -3030,6 +3020,18 @@ static void modesReadFromClient(struct client *c) {
                 }
 
                 break;
+        }
+
+        if (!c->receiverIdLocked && (c->bytesReceived > 512 || now > c->connectedSince + 10000)) {
+            c->receiverIdLocked = 1;
+            if (Modes.netIngest && (Modes.debug & MODES_DEBUG_NET)) {
+                if (c->proxy_string[0] != '\0')
+                    fprintf(stderr, "new c %56s rId %016"PRIx64"%016"PRIx64"\n", 
+                            c->proxy_string, c->receiverId, c->receiverId2);
+                else
+                    fprintf(stderr, "%s: new c from %s port %s rId %016"PRIx64"%016"PRIx64"\n",
+                            c->service->descr, c->host, c->port, c->receiverId, c->receiverId2);
+            }
         }
 
         if (som > c->buf) { // We processed something - so
