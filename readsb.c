@@ -527,7 +527,11 @@ static void *decodeThreadEntryPoint(void *arg) {
             int64_t elapsed = end_cpu_timing(&start_time, &Modes.stats_current.background_cpu);
 
             if (elapsed > 80) {
-                fprintf(stderr, "<3>High load: work loop took %"PRId64" ms!\n", elapsed);
+                static int antiSpam;
+                if (--antiSpam <= 0) {
+                    fprintf(stderr, "<3>High load: work loop took %"PRId64" ms, suppressing for 300 loops!\n", elapsed);
+                    antiSpam = 300;
+                }
             }
 
             int64_t sleep_millis = 50 - elapsed;

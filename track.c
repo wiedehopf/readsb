@@ -1884,7 +1884,11 @@ void trackPeriodicUpdate() {
     unlockThreads();
 
     if (elapsed > 80) {
-        fprintf(stderr, "<3>High load: removeStale took %"PRIu64" ms!\n", elapsed);
+        static int antiSpam;
+        if (--antiSpam <= 0) {
+            fprintf(stderr, "<3>High load: removeStale took %"PRIu64" ms! Suppressing for around 30 seconds\n", elapsed);
+            antiSpam = 30;
+        }
     }
     //fprintf(stderr, "removeStale took %"PRIu64" ms!\n", elapsed);
 
