@@ -87,7 +87,7 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
 
     // prevent JAERO and other SBS from disrupting
     // other data sources too quickly
-    if (source != SOURCE_MODE_S && source <= SOURCE_JAERO && source != d->last_source) {
+    if (source <= SOURCE_JAERO && source < d->last_source) {
         if (source != SOURCE_JAERO && receiveTime < d->updated + 60 * 1000)
             return 0;
         if (source == SOURCE_JAERO && receiveTime < d->updated + 600 * 1000)
@@ -1597,9 +1597,9 @@ end_alt:
                 int persist = Modes.filter_persistence;
                 a->pos_reliable_odd = min(a->pos_reliable_odd + 1, persist);
                 a->pos_reliable_even = min(a->pos_reliable_even + 1, persist);
+                set_globe_index(a, globe_index(reflat, reflon));
                 globe_stuff(a, mm, reflat, reflon, now);
                 setPosition(a, mm, now);
-                set_globe_index(a, globe_index(reflat, reflon));
             }
         }
     }
