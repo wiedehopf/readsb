@@ -278,7 +278,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     }
 
     if (source <= SOURCE_MLAT) {
-        if (elapsed > 15 * SECONDS)
+        if (elapsed > 25 * SECONDS)
             return 1;
         speed = speed * 2;
         speed = min(speed, 2400);
@@ -302,7 +302,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     // find actual distance
     distance = greatcircle(oldLat, oldLon, lat, lon);
 
-    if (!surface && distance > 5 && source > SOURCE_MLAT
+    if (!surface && distance > 1 && source > SOURCE_MLAT
             && trackDataAge(now, &a->track_valid) < 7 * 1000
             && trackDataAge(now, &a->position_valid) < 7 * 1000
             && (oldLat != lat || oldLon != lon)
@@ -324,14 +324,14 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     inrange = (distance <= range);
 
     if ((source > SOURCE_MLAT && track_diff < 190 && !inrange && (Modes.debug_cpr || Modes.debug_speed_check))
-            || (a->addr == Modes.cpr_focus && distance > 5)) {
+            || (a->addr == Modes.cpr_focus && distance > 0.1)) {
 
         //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
-        fprintf(stderr, "%06x: %s %s %s %s reliable: %2d tD: %3.0f: %7.2fkm/%7.2fkm in %4.1f s, %4.0fkt/%4.0fkt, %9.5f,%10.5f -> %9.5f,%10.5f\n",
+        fprintf(stderr, "%06x: %s %s %s %s reliable: %2d tD: %3.0f: %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
                 a->addr,
                 source == a->position_valid.last_source ? "SQ" : "LQ",
                 mm->cpr_odd ? "O" : "E",
-                (inrange ? "  ok" : "fail"),
+                (inrange ? "  ok" : "FAIL"),
                 (surface ? "S" : "A"),
                 min(a->pos_reliable_odd, a->pos_reliable_even),
                 track_diff,
