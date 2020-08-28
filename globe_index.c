@@ -1020,7 +1020,7 @@ void save_blob(int blob) {
             close(fd);
             return;
         }
-        if (gzbuffer(gzfp, 1024 * 1024) < 0)
+        if (gzbuffer(gzfp, GZBUFFER_BIG) < 0)
             fprintf(stderr, "gzbuffer fail");
         res = gzsetparams(gzfp, 1, Z_DEFAULT_STRATEGY);
         if (res < 0)
@@ -1126,7 +1126,7 @@ static void load_blob(int blob) {
     snprintf(filename, 1024, "%s/blob_%02x.gz", Modes.state_dir, blob);
     gzFile gzfp = gzopen(filename, "r");
     if (gzfp) {
-        if (gzbuffer(gzfp, 256 * 1024) < 0)
+        if (gzbuffer(gzfp, GZBUFFER_BIG) < 0)
             fprintf(stderr, "gzbuffer fail");
         cb = readWholeGz(gzfp);
         gzclose(gzfp);
@@ -1318,7 +1318,7 @@ void handleHeatmap() {
         gzFile gzfp = gzdopen(fd, "wb");
         if (!gzfp)
             fprintf(stderr, "heatmap: gzdopen fail");
-        else if (gzbuffer(gzfp, 1024 * 1024) < 0)
+        else if (gzbuffer(gzfp, GZBUFFER_BIG) < 0)
             fprintf(stderr, "gzbuffer fail");
         res = gzsetparams(gzfp, 9, Z_DEFAULT_STRATEGY);
         if (res < 0)

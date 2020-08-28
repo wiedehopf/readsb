@@ -2594,7 +2594,7 @@ static inline void writeJsonTo (const char* dir, const char *file, struct char_b
         if (!gzfp)
             goto error_1;
 
-        gzbuffer(gzfp, 256 * 1024);
+        gzbuffer(gzfp, 1024 * 1024);
         gzsetparams(gzfp, gzip, Z_DEFAULT_STRATEGY);
 
         int res = gzwrite(gzfp, content, len);

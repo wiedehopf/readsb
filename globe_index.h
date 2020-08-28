@@ -7,6 +7,8 @@
 #define GLOBE_MIN_INDEX (1000)
 #define GLOBE_MAX_INDEX (180 / GLOBE_INDEX_GRID * GLOBE_LAT_MULT + 360 / GLOBE_INDEX_GRID + GLOBE_MIN_INDEX)
 
+#define GZBUFFER_BIG (4 * 1024 * 1024)
+
 struct tile {
     int south;
     int west;
