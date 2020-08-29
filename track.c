@@ -143,7 +143,7 @@ static int compare_validity(const data_validity *lhs, const data_validity *rhs) 
         return 1;
     else if (!rhs->stale && lhs->source < rhs->source)
         return -1;
-    else if (lhs->updated > rhs->updated)
+    else if (lhs->updated >= rhs->updated)
         return 1;
     else if (lhs->updated < rhs->updated)
         return -1;
@@ -1515,11 +1515,19 @@ end_alt:
     // Now handle derived data
 
     // derive geometric altitude if we have baro + delta
-    if (a->alt_reliable >= 3 && compare_validity(&a->altitude_baro_valid, &a->altitude_geom_valid) > 0 &&
+    if (a->alt_reliable >= Modes.json_reliable + 1 && compare_validity(&a->altitude_baro_valid, &a->altitude_geom_valid) > 0 &&
             compare_validity(&a->geom_delta_valid, &a->altitude_geom_valid) > 0) {
         // Baro and delta are both more recent than geometric, derive geometric from baro + delta
         a->altitude_geom = a->altitude_baro + a->geom_delta;
         combine_validity(&a->altitude_geom_valid, &a->altitude_baro_valid, &a->geom_delta_valid, now);
+    }
+
+    // to keep the barometric altitude consistent with geometric altitude, save a derived geom_delta if all data are current
+    if (mm->altitude_geom_valid && !mm->geom_delta_valid && a->alt_reliable >= Modes.json_reliable + 1
+            && trackDataAge(now, &a->altitude_baro_valid) < 1 * SECONDS
+            && accept_data(&a->geom_delta_valid, mm->source, mm, 1)
+       ) {
+        a->geom_delta = a->altitude_geom - a->altitude_baro;
     }
 
     // If we've got a new cpr_odd or cpr_even
