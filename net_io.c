@@ -2745,14 +2745,16 @@ static void modesReadFromClient(struct client *c) {
         }
 
         if (nread < 0) { // Other errors
-                if (c->proxy_string[0] != '\0')
-                    fprintf(stderr, "disc: %56s rId %016"PRIx64"%016"PRIx64" %5.0f kBytes in %3.1f s\n",
+                if (c->proxy_string[0] != '\0') {
+                    double elapsed = (now - c->connectedSince) / 1000.0;
+                    fprintf(stderr, "disc: %56s rId %016"PRIx64"%016"PRIx64" %6.2f kbit/s for %6.1f s\n",
                             c->proxy_string, c->receiverId, c->receiverId2,
-                            c->bytesReceived / 1024.0, (now - c->connectedSince) / 1000.0);
-                else
+                            c->bytesReceived / 128.0 / elapsed, elapsed);
+                } else {
                     fprintf(stderr, "%s: Receive Error: %s: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
                             c->service->descr, strerror(err), c->host, c->port,
                             c->fd, c->sendq_len, c->buflen);
+                }
             modesCloseClient(c);
             return;
         }
@@ -2763,13 +2765,15 @@ static void modesReadFromClient(struct client *c) {
                         c->service->descr, c->con->address, c->con->port, c->fd, c->sendq_len, c->buflen);
             } else if (Modes.debug & MODES_DEBUG_NET) {
 
-                if (c->proxy_string[0] != '\0')
-                    fprintf(stderr, "disc: %56s rId %016"PRIx64"%016"PRIx64" %5.0f kBytes in %3.1f s\n",
+                if (c->proxy_string[0] != '\0') {
+                    double elapsed = (now - c->connectedSince) / 1000.0;
+                    fprintf(stderr, "disc: %56s rId %016"PRIx64"%016"PRIx64" %6.2f kbit/s for %6.1f s\n",
                             c->proxy_string, c->receiverId, c->receiverId2,
-                            c->bytesReceived / 1024.0, (now - c->connectedSince) / 1000.0);
-                else
+                            c->bytesReceived / 128.0 / elapsed, elapsed);
+                } else {
                     fprintf(stderr, "%s: Listen client disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
                             c->service->descr, c->host, c->port, c->fd, c->sendq_len, c->buflen);
+                }
             }
             modesCloseClient(c);
             return;
