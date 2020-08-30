@@ -3743,12 +3743,13 @@ struct char_buffer generateClientsJson() {
                 end = buf + buflen;
             }
 
-            p = safe_snprintf(p, end, "[ \"%016"PRIx64"%016"PRIx64"\", \"%s\", %"PRIu64", %"PRIu64" ],\n",
+            double elapsed = (now - c->connectedSince) / 1000.0;
+            p = safe_snprintf(p, end, "[ \"%016"PRIx64"%016"PRIx64"\", \"%s\", %6.2f, %6.1f ],\n",
                     c->receiverId,
                     c->receiverId2,
                     c->proxy_string,
-                    c->bytesReceived,
-                    (now - c->connectedSince) / 1000);
+                    c->bytesReceived / 128.0 / elapsed,
+                    elapsed);
 
             if (p >= end)
                 fprintf(stderr, "buffer overrun client json\n");
