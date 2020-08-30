@@ -7,6 +7,7 @@
 typedef struct receiver {
     uint64_t id;
     struct receiver *next;
+    uint64_t firstSeen;
     uint64_t lastSeen;
     uint64_t positionCounter;
     double latMin;

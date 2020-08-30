@@ -32,6 +32,7 @@ struct receiver *receiverCreate(uint64_t id) {
     *r = (struct receiver) {0};
     r->id = id;
     r->next = Modes.receiverTable[hash];
+    r->firstSeen = r->lastSeen = mstime();
     Modes.receiverTable[hash] = r;
     Modes.receiverCount++;
     if (Modes.receiverCount % (RECEIVER_TABLE_SIZE / 8) == 0)
@@ -204,6 +205,7 @@ struct receiver *receiverBad(uint64_t id, uint32_t addr, uint64_t now) {
         r = receiverCreate(id);
 
     if (r && now + timeout() / 2 > r->timedOutUntil) {
+        r->lastSeen = now;
         r->badCounter++;
         if (r->badCounter > 5.99) {
             r->timedOutCounter++;
@@ -247,10 +249,11 @@ struct char_buffer generateReceiversJson() {
                 end = buf + buflen;
             }
 
-            p = safe_snprintf(p, end, "[ \"%016"PRIx64"\", %"PRIu64", %"PRIu32", %0.2f, %0.2f, %0.2f, %0.2f ],\n",
+            double elapsed = (r->lastSeen - r->firstSeen) / 1000.0 + 1.0;
+            p = safe_snprintf(p, end, "[ \"%016"PRIx64"\", %6.2f, %6.2f, %0.2f, %0.2f, %0.2f, %0.2f ],\n",
                     r->id,
-                    r->positionCounter,
-                    r->timedOutCounter,
+                    r->positionCounter / elapsed,
+                    r->timedOutCounter * 3600.0 / elapsed,
                     r->latMin,
                     r->latMax,
                     r->lonMin,
