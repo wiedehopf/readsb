@@ -993,7 +993,8 @@ void save_blob(int blob) {
 
     int gzip = 1;
 
-    char filename[1024];
+    char filename[PATH_MAX];
+    char tmppath[PATH_MAX];
     if (gzip) {
         snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
         unlink(filename);
@@ -1003,11 +1004,12 @@ void save_blob(int blob) {
         unlink(filename);
         snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
     }
+    snprintf(tmppath, PATH_MAX, "%s/tmp.%lx_%lx", Modes.state_dir, random(), random());
 
-    int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    int fd = open(tmppath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
         fprintf(stderr, "open failed:");
-        perror(filename);
+        perror(tmppath);
         return;
     }
     gzFile gzfp = NULL;
@@ -1016,7 +1018,7 @@ void save_blob(int blob) {
         gzfp = gzdopen(fd, "wb");
         if (!gzfp) {
             fprintf(stderr, "gzdopen failed:");
-            perror(filename);
+            perror(tmppath);
             close(fd);
             return;
         }
@@ -1071,9 +1073,9 @@ void save_blob(int blob) {
             if (p - buf > alloc - 4 * 1024 * 1024) {
                 fprintf(stderr, "buffer almost full: loop_write %d KB\n", (int) ((p - buf) / 1024));
                 if (gzip) {
-                    writeGz(gzfp, buf, p - buf, filename);
+                    writeGz(gzfp, buf, p - buf, tmppath);
                 } else {
-                    check_write(fd, buf, p - buf, filename);
+                    check_write(fd, buf, p - buf, tmppath);
                 }
 
                 p = buf;
@@ -1086,9 +1088,9 @@ void save_blob(int blob) {
 
     //fprintf(stderr, "end_write %d KB\n", (int) ((p - buf) / 1024));
     if (gzip) {
-        writeGz(gzfp, buf, p - buf, filename);
+        writeGz(gzfp, buf, p - buf, tmppath);
     } else {
-        check_write(fd, buf, p - buf, filename);
+        check_write(fd, buf, p - buf, tmppath);
     }
     p = buf;
 
@@ -1096,6 +1098,11 @@ void save_blob(int blob) {
         gzclose(gzfp);
     else if (fd != -1)
         close(fd);
+
+    if (rename(tmppath, filename) == -1) {
+        fprintf(stderr, "save_blob rename(): %s -> %s", tmppath, filename);
+        perror("");
+    }
 
     free(buf);
 }
