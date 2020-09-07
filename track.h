@@ -281,7 +281,10 @@ struct aircraft
   float rr_lat; // very rough receiver latitude
   float rr_lon; // very rough receiver longitude
   uint64_t rr_seen; // when we noted this rough position
-  double paddingabc[2];
+  uint64_t category_updated;
+  unsigned category; // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
+  unsigned paddingabc;
+
 
   uint64_t padding23;
   uint64_t addrtype_updated;
@@ -315,7 +318,7 @@ struct aircraft
   unsigned ias;
   unsigned tas;
   unsigned squawk; // Squawk
-  unsigned category; // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
+  unsigned padding2344;
   unsigned nav_altitude_mcp; // FCU/MCP selected altitude
   unsigned nav_altitude_fms; // FMS selected altitude
   unsigned cpr_odd_lat;

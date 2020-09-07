@@ -1223,7 +1223,8 @@ int main(int argc, char **argv) {
     //fprintf(stderr, "%zu\n", sizeof(struct state_flags));
     fprintf(stderr, "struct sizes: %zu, ", sizeof(struct aircraft));
     fprintf(stderr, "%zu, ", sizeof(struct state));
-    fprintf(stderr, "%zu\n", sizeof(struct state_all));
+    fprintf(stderr, "%zu, ", sizeof(struct state_all));
+    fprintf(stderr, "%zu\n", sizeof(struct binCraft));
     //fprintf(stderr, "%zu\n", sizeof(struct modesMessage));
     //fprintf(stderr, "%zu\n", sizeof(pthread_mutex_t));
     //fprintf(stderr, "%zu\n", 10000 * sizeof(struct aircraft));

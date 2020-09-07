@@ -1152,9 +1152,9 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         *message_version = 0;
     }
 
-    // category shouldn't change over time, don't bother with metadata
     if (mm->category_valid) {
         a->category = mm->category;
+        a->category_updated = now;
     }
 
     // operational status message
@@ -2761,9 +2761,11 @@ void freeAircraft(struct aircraft *a) {
         free(a);
 }
 void updateValidities(struct aircraft *a, uint64_t now) {
-    if (a->globe_index >= 0 && now > a->seen_pos + 30 * MINUTES) {
+    if (a->globe_index >= 0 && now > a->seen_pos + TRACK_EXPIRE_JAERO + 1 * MINUTES) {
         set_globe_index(a, -5);
     }
+
+    a->category *= (now > a->category_updated + 2 * HOURS);
 
     updateValidity(&a->callsign_valid, now, TRACK_EXPIRE_LONG);
     updateValidity(&a->altitude_baro_valid, now, TRACK_EXPIRE);
