@@ -408,7 +408,7 @@ static void *jsonThreadEntryPoint(void *arg) {
 
         uint64_t now = mstime();
 
-        struct char_buffer cb = generateAircraftJson(-1);
+        struct char_buffer cb = generateAircraftJson();
         if (Modes.json_gzip)
             writeJsonToGzip(Modes.json_dir, "aircraft.json.gz", cb, 3);
         writeJsonToFile(Modes.json_dir, "aircraft.json", cb);
@@ -417,7 +417,7 @@ static void *jsonThreadEntryPoint(void *arg) {
             char filebuf[PATH_MAX];
 
             snprintf(filebuf, PATH_MAX, "history_%d.json", Modes.json_aircraft_history_next);
-            writeJsonToFile(Modes.json_dir, filebuf, generateAircraftJson(-1));
+            writeJsonToFile(Modes.json_dir, filebuf, generateAircraftJson());
 
             if (!Modes.json_aircraft_history_full) {
                 writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson()); // number of history entries changed
@@ -476,8 +476,8 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
         for (int i = 0; i < GLOBE_SPECIAL_INDEX; i++) {
             if (i % n_parts == part) {
                 snprintf(filename, 31, "globe_%04d.json", i);
-                struct char_buffer cb = generateAircraftJson(i);
-                writeJsonToGzip(Modes.json_dir, filename, cb, 3);
+                struct char_buffer cb = generateGlobeJson(i);
+                writeJsonToGzip(Modes.json_dir, filename, cb, 1);
                 free(cb.buffer);
             }
         }
@@ -485,8 +485,8 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
             if (i % n_parts == part) {
                 if (globe_index_index(i) >= GLOBE_MIN_INDEX) {
                     snprintf(filename, 31, "globe_%04d.json", i);
-                    struct char_buffer cb = generateAircraftJson(i);
-                    writeJsonToGzip(Modes.json_dir, filename, cb, 3);
+                    struct char_buffer cb = generateGlobeJson(i);
+                    writeJsonToGzip(Modes.json_dir, filename, cb, 1);
                     free(cb.buffer);
                 }
             }
@@ -1309,7 +1309,7 @@ int main(int argc, char **argv) {
         // write initial json files so they're not missing
         writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
         //writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson()); // rather don't do this.
-        writeJsonToFile(Modes.json_dir, "aircraft.json", generateAircraftJson(-1));
+        writeJsonToFile(Modes.json_dir, "aircraft.json", generateAircraftJson());
     }
 
     // go over the aircraft list once and do other stuff before starting the threads.

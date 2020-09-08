@@ -2241,15 +2241,11 @@ static void check_state_all(struct aircraft *test, uint64_t now) {
 }
 */
 
-struct char_buffer generateAircraftJson(int globe_index){
+struct char_buffer generateGlobeJson(int globe_index){
     struct char_buffer cb;
     uint64_t now = mstime();
     struct aircraft *a;
     size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
-    if (globe_index == -1)
-        buflen *= 6;
-    if (globe_index >= 0)
-        buflen = 1024 * 1024;
     char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
 
     p = safe_snprintf(p, end,
@@ -2258,115 +2254,82 @@ struct char_buffer generateAircraftJson(int globe_index){
             now / 1000.0,
             Modes.stats_current.messages_total + Modes.stats_alltime.messages_total);
 
-    if (globe_index >= 0) {
+    p = safe_snprintf(p, end,
+            "  \"global_ac_count_withpos\" : %d,\n",
+            Modes.json_ac_count_pos
+            );
 
+    p = safe_snprintf(p, end, "  \"globeIndex\" : %d, ", globe_index);
+    if (globe_index >= GLOBE_MIN_INDEX) {
+        int grid = GLOBE_INDEX_GRID;
+        int lat = ((globe_index - GLOBE_MIN_INDEX) / GLOBE_LAT_MULT) * grid - 90;
+        int lon = ((globe_index - GLOBE_MIN_INDEX) % GLOBE_LAT_MULT) * grid - 180;
         p = safe_snprintf(p, end,
-                "  \"global_ac_count_withpos\" : %d,\n",
-                Modes.json_ac_count_pos
-                );
-
-        p = safe_snprintf(p, end, "  \"globeIndex\" : %d, ", globe_index);
-        if (globe_index >= GLOBE_MIN_INDEX) {
-            int grid = GLOBE_INDEX_GRID;
-            int lat = ((globe_index - GLOBE_MIN_INDEX) / GLOBE_LAT_MULT) * grid - 90;
-            int lon = ((globe_index - GLOBE_MIN_INDEX) % GLOBE_LAT_MULT) * grid - 180;
-            p = safe_snprintf(p, end,
-                    "\"south\" : %d, "
-                    "\"west\" : %d, "
-                    "\"north\" : %d, "
-                    "\"east\" : %d,\n",
-                    lat,
-                    lon,
-                    lat + grid,
-                    lon + grid);
-        } else {
-            struct tile *tiles = Modes.json_globe_special_tiles;
-            struct tile tile = tiles[globe_index];
-            p = safe_snprintf(p, end,
-                    "\"south\" : %d, "
-                    "\"west\" : %d, "
-                    "\"north\" : %d, "
-                    "\"east\" : %d,\n",
-                    tile.south,
-                    tile.west,
-                    tile.north,
-                    tile.east);
-        }
+                "\"south\" : %d, "
+                "\"west\" : %d, "
+                "\"north\" : %d, "
+                "\"east\" : %d,\n",
+                lat,
+                lon,
+                lat + grid,
+                lon + grid);
+    } else {
+        struct tile *tiles = Modes.json_globe_special_tiles;
+        struct tile tile = tiles[globe_index];
+        p = safe_snprintf(p, end,
+                "\"south\" : %d, "
+                "\"west\" : %d, "
+                "\"north\" : %d, "
+                "\"east\" : %d,\n",
+                tile.south,
+                tile.west,
+                tile.north,
+                tile.east);
     }
 
     p = safe_snprintf(p, end, "  \"aircraft\" : [");
 
-    if (globe_index >= 0) {
-        struct craftArray *ca = NULL;
-        int good;
-        if (globe_index <= GLOBE_MAX_INDEX) {
-            ca = &Modes.globeLists[globe_index];
-            good = 1;
-        } else {
-            fprintf(stderr, "generateAircraftJson: bad globe_index: %d\n", globe_index);
-            good = 0;
-        }
-        if (good && ca->list) {
-            for (int i = 0; i < ca->len; i++) {
-                a = ca->list[i];
-
-                if (a == NULL)
-                    continue;
-
-                int use = 0;
-
-                if (a->position_valid.source == SOURCE_JAERO)
-                    use = 1;
-                if (now < a->seen_pos + 5 * MINUTES)
-                    use = 1;
-
-                if (!use)
-                    continue;
-
-                // check if we have enough space
-                if ((p + 1000) >= end) {
-                    int used = p - buf;
-                    buflen *= 2;
-                    buf = (char *) realloc(buf, buflen);
-                    p = buf + used;
-                    end = buf + buflen;
-                }
-
-                p = sprintAircraftObject(p, end, a, now, 0);
-
-                *p++ = ',';
-
-                if (p >= end)
-                    fprintf(stderr, "buffer overrun aircraft json\n");
-            }
-        }
+    struct craftArray *ca = NULL;
+    int good;
+    if (globe_index <= GLOBE_MAX_INDEX) {
+        ca = &Modes.globeLists[globe_index];
+        good = 1;
     } else {
-        for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
-            for (a = Modes.aircraft[j]; a; a = a->next) {
-                //fprintf(stderr, "a: %05x\n", a->addr);
+        fprintf(stderr, "generateAircraftJson: bad globe_index: %d\n", globe_index);
+        good = 0;
+    }
+    if (good && ca->list) {
+        for (int i = 0; i < ca->len; i++) {
+            a = ca->list[i];
 
-                // don't include stale aircraft in the JSON
-                if (a->position_valid.source != SOURCE_JAERO && now > a->seen + 60 * 1000)
-                    continue;
-                if (a->messages < 2)
-                    continue;
+            if (a == NULL)
+                continue;
 
-                // check if we have enough space
-                if ((p + 1000) >= end) {
-                    int used = p - buf;
-                    buflen *= 2;
-                    buf = (char *) realloc(buf, buflen);
-                    p = buf + used;
-                    end = buf + buflen;
-                }
+            int use = 0;
 
-                p = sprintAircraftObject(p, end, a, now, 0);
+            if (a->position_valid.source == SOURCE_JAERO)
+                use = 1;
+            if (now < a->seen_pos + 5 * MINUTES)
+                use = 1;
 
-                *p++ = ',';
+            if (!use)
+                continue;
 
-                if (p >= end)
-                    fprintf(stderr, "buffer overrun aircraft json\n");
+            // check if we have enough space
+            if ((p + 1000) >= end) {
+                int used = p - buf;
+                buflen *= 2;
+                buf = (char *) realloc(buf, buflen);
+                p = buf + used;
+                end = buf + buflen;
             }
+
+            p = sprintAircraftObject(p, end, a, now, 0);
+
+            *p++ = ',';
+
+            if (p >= end)
+                fprintf(stderr, "buffer overrun aircraft json\n");
         }
     }
     if (*(p-1) == ',')
@@ -2374,7 +2337,58 @@ struct char_buffer generateAircraftJson(int globe_index){
 
     p = safe_snprintf(p, end, "\n  ]\n}\n");
 
-    //if (globe_index == -1)
+    cb.len = p - buf;
+    cb.buffer = buf;
+    return cb;
+}
+
+struct char_buffer generateAircraftJson(){
+    struct char_buffer cb;
+    uint64_t now = mstime();
+    struct aircraft *a;
+    size_t buflen = 6*1024*1024; // The initial buffer is resized as needed
+    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
+
+    p = safe_snprintf(p, end,
+            "{ \"now\" : %.1f,\n"
+            "  \"messages\" : %u,\n",
+            now / 1000.0,
+            Modes.stats_current.messages_total + Modes.stats_alltime.messages_total);
+
+    p = safe_snprintf(p, end, "  \"aircraft\" : [");
+
+    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+        for (a = Modes.aircraft[j]; a; a = a->next) {
+            //fprintf(stderr, "a: %05x\n", a->addr);
+
+            // don't include stale aircraft in the JSON
+            if (a->position_valid.source != SOURCE_JAERO && now > a->seen + 60 * 1000)
+                continue;
+            if (a->messages < 2)
+                continue;
+
+            // check if we have enough space
+            if ((p + 1000) >= end) {
+                int used = p - buf;
+                buflen *= 2;
+                buf = (char *) realloc(buf, buflen);
+                p = buf + used;
+                end = buf + buflen;
+            }
+
+            p = sprintAircraftObject(p, end, a, now, 0);
+
+            *p++ = ',';
+
+            if (p >= end)
+                fprintf(stderr, "buffer overrun aircraft json\n");
+        }
+    }
+    if (*(p-1) == ',')
+        p--;
+
+    p = safe_snprintf(p, end, "\n  ]\n}\n");
+
     //    fprintf(stderr, "%u\n", ac_counter);
 
     cb.len = p - buf;

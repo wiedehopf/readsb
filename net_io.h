@@ -169,7 +169,8 @@ void cleanupNetwork(void);
 void netFreeClients();
 
 // TODO: move these somewhere else
-struct char_buffer generateAircraftJson(int globe_index);
+struct char_buffer generateAircraftJson();
+struct char_buffer generateGlobeJson(int globe_index);
 struct char_buffer generateTraceJson(struct aircraft *a, int start, int last);
 struct char_buffer generateReceiverJson ();
 struct char_buffer generateHistoryJson ();
