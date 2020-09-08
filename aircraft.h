@@ -23,10 +23,12 @@ struct range {
 };
 
 struct binCraft {
+  uint32_t hex;
+  uint16_t seen_pos;
+  uint16_t seen;
+  // 8
   int32_t lat;
   int32_t lon;
-  // 8
-  char callsign[8]; // Flight number
   // 16
   int16_t altitude_baro;
   int16_t altitude_geom;
@@ -56,28 +58,29 @@ struct binCraft {
   uint16_t tas;
   uint16_t ias;
   uint16_t pos_rc; // Rc of last computed position
-  // 62
+  uint16_t messages;
+  // 64
   unsigned category:8; // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
 
   unsigned pos_nic:8; // NIC of last computed position
-  // 64
+  // 66
   nav_modes_t nav_modes:8; // enabled modes (autopilot, vnav, etc)
 
   emergency_t emergency:4; // Emergency/priority status
   addrtype_t addrtype:4; // highest priority address type seen for this aircraft
-  // 66
+  // 68
   airground_t airground:4; // air/ground status
   nav_altitude_source_t nav_altitude_src:4;  // source of altitude used by automation
 
   sil_type_t sil_type:4; // SIL supplement from TSS or opstatus
   unsigned adsb_version:4; // ADS-B version (from ADS-B operational status); -1 means no ADS-B messages seen
-  // 68
+  // 70
   unsigned adsr_version:4; // As above, for ADS-R messages
   unsigned tisb_version:4; // As above, for TIS-B messages
 
   unsigned nac_p : 4; // NACp from TSS or opstatus
   unsigned nac_v : 4; // NACv from airborne velocity or opstatus
-  // 70
+  // 72
   unsigned sil : 2; // SIL from TSS or opstatus
   unsigned gva : 2; // GVA from opstatus
   unsigned sda : 2; // SDA from opstatus
@@ -90,9 +93,9 @@ struct binCraft {
   unsigned callsign_valid:1;
   unsigned altitude_baro_valid:1;
   unsigned altitude_geom_valid:1;
-  unsigned unused_geom_delta_valid:1;
+  unsigned position_valid:1;
   unsigned gs_valid:1;
-  // 72
+  // 74
   unsigned ias_valid:1;
   unsigned tas_valid:1;
   unsigned mach_valid:1;
@@ -110,7 +113,7 @@ struct binCraft {
   unsigned nac_p_valid:1;
   unsigned nac_v_valid:1;
   unsigned sil_valid:1;
-  // 74
+  // 76
   unsigned gva_valid:1;
   unsigned sda_valid:1;
   unsigned squawk_valid:1;
@@ -123,19 +126,20 @@ struct binCraft {
   unsigned nav_altitude_src_valid:1;
   unsigned nav_heading_valid:1;
   unsigned nav_modes_valid:1;
-  unsigned position_valid:1;
   unsigned alert_valid:1;
   unsigned spi_valid:1;
   unsigned wind_valid:1;
   unsigned temp_valid:1;
-  // 76
+  unsigned unused_1:1;
+  // 78
+  char callsign[8]; // Flight number
+  // 86
   char registration[8];
-  // 84
   char type_code[4];
-  // 88
-  uint8_t db_flags1;
-  uint8_t db_flags2;
-  // 90
+  // 98
+  uint8_t signal;
+  uint8_t db_flags;
+  // 100
 } __attribute__ ((__packed__));
 
 

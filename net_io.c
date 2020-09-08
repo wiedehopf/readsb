@@ -2240,6 +2240,79 @@ static void check_state_all(struct aircraft *test, uint64_t now) {
     }
 }
 */
+struct char_buffer generateGlobeBin(int globe_index){
+    struct char_buffer cb;
+    uint64_t now = mstime();
+    struct aircraft *a;
+    size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
+    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
+
+#define memWrite(p, var) do { memcpy(p, &var, sizeof(var)); p += sizeof(var); } while(0)
+
+    memWrite(p, now);
+
+    uint32_t elementSize = sizeof(struct binCraft);
+    memWrite(p, elementSize);
+
+    uint32_t ac_count_pos = Modes.json_ac_count_pos;
+    memWrite(p, ac_count_pos);
+
+    if (p - buf > elementSize)
+        fprintf(stderr, "buffer overrun globeBin\n");
+
+    p = buf + elementSize;
+
+    struct craftArray *ca = NULL;
+    int good;
+    if (globe_index <= GLOBE_MAX_INDEX) {
+        ca = &Modes.globeLists[globe_index];
+        good = 1;
+    } else {
+        fprintf(stderr, "generateAircraftJson: bad globe_index: %d\n", globe_index);
+        good = 0;
+    }
+    if (good && ca->list) {
+        for (int i = 0; i < ca->len; i++) {
+            a = ca->list[i];
+
+            if (a == NULL)
+                continue;
+
+            int use = 0;
+
+            if (a->position_valid.source == SOURCE_JAERO)
+                use = 1;
+            if (now < a->seen_pos + 5 * MINUTES)
+                use = 1;
+
+            if (!use)
+                continue;
+
+            // check if we have enough space
+            if ((p + 1000) >= end) {
+                int used = p - buf;
+                buflen *= 2;
+                buf = (char *) realloc(buf, buflen);
+                p = buf + used;
+                end = buf + buflen;
+            }
+
+            struct binCraft bin;
+            toBinCraft(a, &bin, now);
+
+            memWrite(p, bin);
+
+            if (p >= end)
+                fprintf(stderr, "buffer overrun globeBin\n");
+        }
+    }
+
+    cb.len = p - buf;
+    cb.buffer = buf;
+    return cb;
+
+#undef memWrite
+}
 
 struct char_buffer generateGlobeJson(int globe_index){
     struct char_buffer cb;

@@ -170,6 +170,7 @@ void netFreeClients();
 
 // TODO: move these somewhere else
 struct char_buffer generateAircraftJson();
+struct char_buffer generateGlobeBin(int globe_index);
 struct char_buffer generateGlobeJson(int globe_index);
 struct char_buffer generateTraceJson(struct aircraft *a, int start, int last);
 struct char_buffer generateReceiverJson ();
@@ -189,7 +190,6 @@ __attribute__ ((format(printf, 3, 4))) static inline char *safe_snprintf(char *p
     va_end(ap);
     return p;
 }
-
 
 // keep unused functions for now
 const char *airground_enum_string(airground_t ag);

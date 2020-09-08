@@ -221,119 +221,143 @@ void apiReq(double latMin, double latMax, double lonMin, double lonMax, uint32_t
 
 void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
 
-            new->callsign_valid = trackDataValid(&a->callsign_valid);
-            for (int i = 0; i < 8; i++)
-                new->callsign[i] = a->callsign[i] * new->callsign_valid;
+    new->hex = a->addr;
+    new->seen = (now - a->seen) / 100.0;
 
-            new->position_valid = trackDataValid(&a->position_valid);
+    new->callsign_valid = trackDataValid(&a->callsign_valid);
+    for (int i = 0; i < 8; i++)
+        new->callsign[i] = a->callsign[i] * new->callsign_valid;
 
-            new->pos_nic = a->pos_nic * new->position_valid;
-            new->pos_rc = a->pos_rc * new->position_valid;
+    for (int i = 0; i < 8; i++)
+        new->registration[i] = '\0';
+    for (int i = 0; i < 4; i++)
+        new->type_code[i] = '\0';
 
-            new->lat = (int32_t) nearbyint(a->lat * 1E6) * new->position_valid;
-            new->lon = (int32_t) nearbyint(a->lon * 1E6) * new->position_valid;
+    new->db_flags = 0;
 
-            new->altitude_baro = (int16_t) nearbyint(a->altitude_baro / 25.0);
-            new->altitude_geom = (int16_t) nearbyint(a->altitude_geom / 25.0);
-            new->baro_rate = (int16_t) nearbyint(a->baro_rate / 8.0);
-            new->geom_rate = (int16_t) nearbyint(a->geom_rate / 8.0);
-            new->ias = a->ias;
-            new->tas = a->tas;
+    new->position_valid = trackDataValid(&a->position_valid);
 
-            new->squawk = a->squawk;
-            new->category = a->category * (now < a->category_updated + TRACK_EXPIRE_JAERO);
-            // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
-            new->nav_altitude_mcp = (uint16_t) nearbyint(a->nav_altitude_mcp / 4.0);
-            new->nav_altitude_fms = (uint16_t) nearbyint(a->nav_altitude_fms / 4.0);
+    new->seen_pos = (now - a->seen_pos) / 100.0 * new->position_valid;
 
-            new->nav_qnh = (int16_t) nearbyint(a->nav_qnh * 10.0);
-            new->gs = (int16_t) nearbyint(a->gs * 10.0);
-            new->mach = (int16_t) nearbyint(a->mach * 1000.0);
+    new->pos_nic = a->pos_nic * new->position_valid;
+    new->pos_rc = a->pos_rc * new->position_valid;
 
-            new->track_rate = (int16_t) nearbyint(a->track_rate * 100.0);
-            new->roll = (int16_t) nearbyint(a->roll * 100.0);
+    new->lat = (int32_t) nearbyint(a->lat * 1E6) * new->position_valid;
+    new->lon = (int32_t) nearbyint(a->lon * 1E6) * new->position_valid;
 
-            new->track = (int16_t) nearbyint(a->track * 90.0);
-            new->mag_heading = (int16_t) nearbyint(a->mag_heading * 90.0);
-            new->true_heading = (int16_t) nearbyint(a->true_heading * 90.0);
-            new->nav_heading = (int16_t) nearbyint(a->nav_heading * 90.0);
+    new->altitude_baro = (int16_t) nearbyint(a->altitude_baro / 25.0);
+    new->altitude_geom = (int16_t) nearbyint(a->altitude_geom / 25.0);
+    new->baro_rate = (int16_t) nearbyint(a->baro_rate / 8.0);
+    new->geom_rate = (int16_t) nearbyint(a->geom_rate / 8.0);
+    new->ias = a->ias;
+    new->tas = a->tas;
 
-            new->emergency = a->emergency;
-            new->airground = a->airground;
-            new->addrtype = a->addrtype;
-            new->nav_modes = a->nav_modes;
-            new->nav_altitude_src = a->nav_altitude_src;
-            new->sil_type = a->sil_type;
+    new->squawk = a->squawk;
+    new->category = a->category * (now < a->category_updated + TRACK_EXPIRE_JAERO);
+    // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
+    new->nav_altitude_mcp = (uint16_t) nearbyint(a->nav_altitude_mcp / 4.0);
+    new->nav_altitude_fms = (uint16_t) nearbyint(a->nav_altitude_fms / 4.0);
 
-            if (now < a->wind_updated + TRACK_EXPIRE && abs(a->wind_altitude - a->altitude_baro) < 500) {
-                new->wind_direction = (int) nearbyint(a->wind_direction);
-                new->wind_speed = (int) nearbyint(a->wind_speed);
-                new->wind_valid = 1;
-            }
-            if (now < a->oat_updated + TRACK_EXPIRE) {
-                new->oat = (int) nearbyint(a->oat);
-                new->tat = (int) nearbyint(a->tat);
-                new->temp_valid = 1;
-            }
+    new->nav_qnh = (int16_t) nearbyint(a->nav_qnh * 10.0);
+    new->gs = (int16_t) nearbyint(a->gs * 10.0);
+    new->mach = (int16_t) nearbyint(a->mach * 1000.0);
 
-            if (a->adsb_version < 0)
-                new->adsb_version = 15;
-            else
-                new->adsb_version = a->adsb_version;
+    new->track_rate = (int16_t) nearbyint(a->track_rate * 100.0);
+    new->roll = (int16_t) nearbyint(a->roll * 100.0);
 
-            if (a->adsr_version < 0)
-                new->adsr_version = 15;
-            else
-                new->adsr_version = a->adsr_version;
+    new->track = (int16_t) nearbyint(a->track * 90.0);
+    new->mag_heading = (int16_t) nearbyint(a->mag_heading * 90.0);
+    new->true_heading = (int16_t) nearbyint(a->true_heading * 90.0);
+    new->nav_heading = (int16_t) nearbyint(a->nav_heading * 90.0);
 
-            if (a->tisb_version < 0)
-                new->tisb_version = 15;
-            else
-                new->tisb_version = a->tisb_version;
+    new->emergency = a->emergency;
+    new->airground = a->airground;
+    new->addrtype = a->addrtype;
+    new->nav_modes = a->nav_modes;
+    new->nav_altitude_src = a->nav_altitude_src;
+    new->sil_type = a->sil_type;
 
-            new->nic_a = a->nic_a;
-            new->nic_c = a->nic_c;
-            new->nic_baro = a->nic_baro;
-            new->nac_p = a->nac_p;
-            new->nac_v = a->nac_v;
-            new->sil = a->sil;
-            new->gva = a->gva;
-            new->sda = a->sda;
-            new->alert = a->alert;
-            new->spi = a->spi;
+    if (now < a->wind_updated + TRACK_EXPIRE && abs(a->wind_altitude - a->altitude_baro) < 500) {
+        new->wind_direction = (int) nearbyint(a->wind_direction);
+        new->wind_speed = (int) nearbyint(a->wind_speed);
+        new->wind_valid = 1;
+    }
+    if (now < a->oat_updated + TRACK_EXPIRE) {
+        new->oat = (int) nearbyint(a->oat);
+        new->tat = (int) nearbyint(a->tat);
+        new->temp_valid = 1;
+    }
 
+    if (a->adsb_version < 0)
+        new->adsb_version = 15;
+    else
+        new->adsb_version = a->adsb_version;
+
+    if (a->adsr_version < 0)
+        new->adsr_version = 15;
+    else
+        new->adsr_version = a->adsr_version;
+
+    if (a->tisb_version < 0)
+        new->tisb_version = 15;
+    else
+        new->tisb_version = a->tisb_version;
+
+    new->nic_a = a->nic_a;
+    new->nic_c = a->nic_c;
+    new->nic_baro = a->nic_baro;
+    new->nac_p = a->nac_p;
+    new->nac_v = a->nac_v;
+    new->sil = a->sil;
+    new->gva = a->gva;
+    new->sda = a->sda;
+    new->alert = a->alert;
+    new->spi = a->spi;
+
+    double signal = (a->signalLevel[0] + a->signalLevel[1] + a->signalLevel[2] + a->signalLevel[3] +
+                a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7] + 1e-5) / 8.0;
+
+    signal = sqrt(signal) * 255.0;
+
+    if (signal > 0 && signal < 1) signal = 1;
+    if (signal > 255) signal = 255;
+    if (signal < 0) signal = 0;
+
+    new->signal = nearbyint(signal);
+
+    new->unused_1 = 0;
 #define F(f) do { new->f##_valid = trackDataValid(&a->f##_valid); new->f *= new->f##_valid; } while (0)
-           F(altitude_baro);
-           F(altitude_geom);
-           F(gs);
-           F(ias);
-           F(tas);
-           F(mach);
-           F(track);
-           F(track_rate);
-           F(roll);
-           F(mag_heading);
-           F(true_heading);
-           F(baro_rate);
-           F(geom_rate);
-           F(nic_a);
-           F(nic_c);
-           F(nic_baro);
-           F(nac_p);
-           F(nac_v);
-           F(sil);
-           F(gva);
-           F(sda);
-           F(squawk);
-           F(emergency);
-           F(airground);
-           F(nav_qnh);
-           F(nav_altitude_mcp);
-           F(nav_altitude_fms);
-           F(nav_altitude_src);
-           F(nav_heading);
-           F(nav_modes);
-           F(alert);
-           F(spi);
+    F(altitude_baro);
+    F(altitude_geom);
+    F(gs);
+    F(ias);
+    F(tas);
+    F(mach);
+    F(track);
+    F(track_rate);
+    F(roll);
+    F(mag_heading);
+    F(true_heading);
+    F(baro_rate);
+    F(geom_rate);
+    F(nic_a);
+    F(nic_c);
+    F(nic_baro);
+    F(nac_p);
+    F(nac_v);
+    F(sil);
+    F(gva);
+    F(sda);
+    F(squawk);
+    F(emergency);
+    F(airground);
+    F(nav_qnh);
+    F(nav_altitude_mcp);
+    F(nav_altitude_fms);
+    F(nav_altitude_src);
+    F(nav_heading);
+    F(nav_modes);
+    F(alert);
+    F(spi);
 #undef F
 }
