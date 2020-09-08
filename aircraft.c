@@ -234,6 +234,7 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
         new->type_code[i] = '\0';
 
     new->db_flags = 0;
+    new->messages = a->messages;
 
     new->position_valid = trackDataValid(&a->position_valid);
 
@@ -277,16 +278,13 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
     new->nav_altitude_src = a->nav_altitude_src;
     new->sil_type = a->sil_type;
 
-    if (now < a->wind_updated + TRACK_EXPIRE && abs(a->wind_altitude - a->altitude_baro) < 500) {
-        new->wind_direction = (int) nearbyint(a->wind_direction);
-        new->wind_speed = (int) nearbyint(a->wind_speed);
-        new->wind_valid = 1;
-    }
-    if (now < a->oat_updated + TRACK_EXPIRE) {
-        new->oat = (int) nearbyint(a->oat);
-        new->tat = (int) nearbyint(a->tat);
-        new->temp_valid = 1;
-    }
+    new->wind_valid = (now < a->wind_updated + TRACK_EXPIRE && abs(a->wind_altitude - a->altitude_baro) < 500);
+    new->wind_direction = (int) nearbyint(a->wind_direction) * new->wind_valid;
+    new->wind_speed = (int) nearbyint(a->wind_speed) * new->wind_valid;
+
+    new->temp_valid = (now < a->oat_updated + TRACK_EXPIRE);
+    new->oat = (int) nearbyint(a->oat) * new->temp_valid;
+    new->tat = (int) nearbyint(a->tat) * new->temp_valid;
 
     if (a->adsb_version < 0)
         new->adsb_version = 15;

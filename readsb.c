@@ -449,7 +449,7 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
     int n_parts = 4; // power of 2
 
     uint64_t sleep = Modes.json_interval / (3 * n_parts);
-    // write twice every json interval
+    // write three times every json interval
 
     struct timespec slp = {0, 0};
     slp.tv_sec =  (sleep / 1000);
@@ -473,23 +473,26 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
         struct timespec start_time;
         start_cpu_timing(&start_time);
 
-        for (int i = 0; i < GLOBE_SPECIAL_INDEX; i++) {
-            if (i % n_parts == part) {
-                snprintf(filename, 31, "globe_%04d.json", i);
-                struct char_buffer cb = generateGlobeJson(i);
-                writeJsonToGzip(Modes.json_dir, filename, cb, 1);
-                free(cb.buffer);
-            }
-        }
-        for (int i = GLOBE_MIN_INDEX; i <= GLOBE_MAX_INDEX; i++) {
-            if (i % n_parts == part) {
-                if (globe_index_index(i) >= GLOBE_MIN_INDEX) {
-                    snprintf(filename, 31, "globe_%04d.json", i);
-                    struct char_buffer cb = generateGlobeJson(i);
-                    writeJsonToGzip(Modes.json_dir, filename, cb, 1);
-                    free(cb.buffer);
-                }
-            }
+        for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
+            if (i == GLOBE_SPECIAL_INDEX)
+                i = GLOBE_MIN_INDEX;
+
+            if (i % n_parts != part)
+                continue;
+
+            if (i >= GLOBE_MIN_INDEX && globe_index_index(i) < GLOBE_MIN_INDEX)
+                continue;
+
+            snprintf(filename, 31, "globe_%04d.wdb", i);
+            struct char_buffer cb2 = generateGlobeBin(i);
+            writeJsonToGzip(Modes.json_dir, filename, cb2, 5);
+            free(cb2.buffer);
+
+            snprintf(filename, 31, "globe_%04d.json", i);
+            struct char_buffer cb = generateGlobeJson(i);
+            writeJsonToGzip(Modes.json_dir, filename, cb, 3);
+            free(cb.buffer);
+
         }
 
         part++;

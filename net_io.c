@@ -2247,11 +2247,13 @@ struct char_buffer generateGlobeBin(int globe_index){
     size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
     char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
 
+    uint32_t elementSize = sizeof(struct binCraft);
+    memset(p, 0, elementSize);
+
 #define memWrite(p, var) do { memcpy(p, &var, sizeof(var)); p += sizeof(var); } while(0)
 
     memWrite(p, now);
 
-    uint32_t elementSize = sizeof(struct binCraft);
     memWrite(p, elementSize);
 
     uint32_t ac_count_pos = Modes.json_ac_count_pos;
