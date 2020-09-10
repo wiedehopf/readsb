@@ -27,9 +27,11 @@
 
 #undef FT
 #define FT
-#if defined __has_attribute && __has_attribute (fallthrough)   /* not portable */
+#ifdef __has_attribute
+#if __has_attribute (fallthrough)   /* not portable */
 #undef FT
 #define FT __attribute__ ((fallthrough));
+#endif
 #endif
 
 // Compression function for Merkle-Damgard construction.
