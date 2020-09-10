@@ -55,6 +55,6 @@ int64_t end_cpu_timing (const struct timespec *start_time, struct timespec *add_
 unsigned int get_seed();
 
 // write the current time incremented by increment into target
-void increment_now(struct timespec *target, const struct timespec *increment);
+void timedWaitIncrement(struct timespec *target, const struct timespec *increment);
 
 #endif

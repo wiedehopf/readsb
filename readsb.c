@@ -391,10 +391,12 @@ static void *jsonThreadEntryPoint(void *arg) {
 
     uint64_t next_history = mstime();
 
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+
     while (!Modes.exit) {
 
-        struct timespec ts;
-        increment_now(&ts, &slp);
+        timedWaitIncrement(&ts, &slp);
 
         int res = 0;
         while (!Modes.exit && res == 0) {
@@ -457,11 +459,13 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
 
     pthread_mutex_lock(&Modes.jsonGlobeThreadMutex);
 
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+
     while (!Modes.exit) {
         char filename[32];
 
-        struct timespec ts;
-        increment_now(&ts, &slp);
+        timedWaitIncrement(&ts, &slp);
 
         int res = 0;
         while (!Modes.exit && res == 0) {
@@ -551,7 +555,8 @@ static void *decodeThreadEntryPoint(void *arg) {
             slp.tv_nsec = sleep_millis * 1000 * 1000;
 
             struct timespec ts;
-            increment_now(&ts, &slp);
+            clock_gettime(CLOCK_REALTIME, &ts);
+            timedWaitIncrement(&ts, &slp);
 
             int res = 0;
             while (!Modes.exit && res == 0) {
@@ -1346,11 +1351,13 @@ int main(int argc, char **argv) {
 
     pthread_mutex_lock(&Modes.mainThreadMutex);
 
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+
     while (!Modes.exit) {
         struct timespec slp = {1, 0};
 
-        struct timespec ts;
-        increment_now(&ts, &slp);
+        timedWaitIncrement(&ts, &slp);
 
         int res = 0;
         while (!Modes.exit && res == 0) {

@@ -115,9 +115,14 @@ unsigned int get_seed() {
     return (time.tv_sec ^ time.tv_nsec ^ (getpid() << 16) ^ pthread_self());
 }
 
-void increment_now(struct timespec *target, const struct timespec *increment) {
-    clock_gettime(CLOCK_REALTIME, target);
+void timedWaitIncrement(struct timespec *target, const struct timespec *increment) {
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME, &now);
     target->tv_sec += increment->tv_sec;
     target->tv_nsec += increment->tv_nsec;
     normalize_timespec(target);
+    if (target->tv_sec < now.tv_sec) {
+        target->tv_sec = now.tv_sec;
+        target->tv_nsec = now.tv_nsec;
+    }
 }
