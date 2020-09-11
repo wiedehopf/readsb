@@ -233,9 +233,6 @@ static void modesInitConfig(void) {
     for (int i = 0; i < 90; ++i) {
         reset_stats(&Modes.stats_10[i]);
     }
-    uint64_t now = mstime();
-    Modes.next_stats_display = now + Modes.stats;
-    Modes.next_stats_update = now + 10 * SECONDS;
     //receiverTest();
     Modes.scratch = malloc(sizeof(struct aircraft));
 }
@@ -246,6 +243,10 @@ static void modesInit(void) {
     int i;
 
     Modes.startup_time = mstime();
+
+    uint64_t now = mstime();
+    Modes.next_stats_update = now + 10 * SECONDS;
+    Modes.next_stats_display = now + Modes.stats;
 
     pthread_mutex_init(&Modes.mainThreadMutex, NULL);
     pthread_cond_init(&Modes.mainThreadCond, NULL);
