@@ -9,7 +9,7 @@ HAVE_BIASTEE ?= no
 
 CPPFLAGS += -DMODES_READSB_VERSION=\"$(READSB_VERSION)\" -D_GNU_SOURCE
 
-OPTIMIZE ?= -march=native
+#OPTIMIZE ?= -march=native
 
 DIALECT = -std=c11
 CFLAGS := $(DIALECT) -g -W -D_DEFAULT_SOURCE -Wall -Werror -fno-common -O3 $(OPTIMIZE) $(CFLAGS)
