@@ -1058,16 +1058,20 @@ static void send_raw_heartbeat(struct net_service *service) {
 //
 static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now) {
     struct modesMessage mm;
+    size_t line_len = strlen(line);
+    size_t max_len = 200;
 
     if (Modes.receiver_focus && c->receiverId != Modes.receiver_focus)
         return 0;
+    if (line_len == 0) // heartbeat
+        return 0;
+    if (line_len < 20 || line_len >= max_len)
+        goto basestation_invalid;
 
     memset(&mm, 0, sizeof(mm));
 
     char *p = line;
     char *t[23]; // leave 0 indexed entry empty, place 22 tokens into array
-
-    Modes.stats_current.remote_received_basestation_invalid++;
 
     MODES_NOTUSED(c);
     if (remote >= 64)
@@ -1076,10 +1080,9 @@ static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now)
         mm.source = SOURCE_SBS;
 
     char *out = NULL;
-    size_t line_len = strlen(line);
 
-    out = prepareWrite(&Modes.sbs_out, 200);
-    if (out && line_len > 15 && line_len < 200) {
+    out = prepareWrite(&Modes.sbs_out, max_len);
+    if (out) {
         memcpy(out, line, line_len);
         //fprintf(stderr, "%s", out);
         out += line_len;
@@ -1088,28 +1091,34 @@ static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now)
     }
 
     out = NULL;
-    if (mm.source == SOURCE_SBS) {
-        out = prepareWrite(&Modes.sbs_out_replay, 200);
-        mm.addrtype = ADDR_OTHER;
-    }
-    if (mm.source == SOURCE_MLAT) {
-        out = prepareWrite(&Modes.sbs_out_mlat, 200);
-        mm.addrtype = ADDR_MLAT;
-    }
-    if (mm.source == SOURCE_JAERO) {
-        out = prepareWrite(&Modes.sbs_out_jaero, 200);
-        mm.addrtype = ADDR_JAERO;
-    }
-    if (mm.source == SOURCE_PRIO) {
-        out = prepareWrite(&Modes.sbs_out_prio, 200);
-        mm.addrtype = ADDR_OTHER;
+    switch(mm.source) {
+        case SOURCE_SBS:
+            out = prepareWrite(&Modes.sbs_out_replay, max_len);
+            mm.addrtype = ADDR_OTHER;
+            break;
+        case SOURCE_MLAT:
+            out = prepareWrite(&Modes.sbs_out_mlat, max_len);
+            mm.addrtype = ADDR_MLAT;
+            break;
+        case SOURCE_JAERO:
+            out = prepareWrite(&Modes.sbs_out_jaero, max_len);
+            mm.addrtype = ADDR_JAERO;
+            break;
+        case SOURCE_PRIO:
+            out = prepareWrite(&Modes.sbs_out_prio, max_len);
+            mm.addrtype = ADDR_OTHER;
+            break;
+
+        default:
+            mm.addrtype = ADDR_OTHER;
     }
 
-    if (out && line_len > 15 && line_len < 200) {
+    if (out) {
         memcpy(out, line, line_len);
         //fprintf(stderr, "%s", out);
         out += line_len;
-        out += sprintf(out, "\r\n");
+        *out++ = '\r';
+        *out++ = '\n';
 
 
         if (mm.source == SOURCE_SBS)
@@ -1135,19 +1144,19 @@ static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now)
     for (int i = 1; i < 23; i++) {
         t[i] = strsep(&p, ",");
         if (!p && i < 22)
-            return 0;
+            goto basestation_invalid;
     }
 
     // check field 1
     if (!t[1] || strcmp(t[1], "MSG") != 0)
-        return 0;
+        goto basestation_invalid;
 
     if (!t[2] || strlen(t[2]) != 1)
-        return 0;
+        goto basestation_invalid;
     //int msg_type = atoi(t[2]);
 
-    if (!t[5] || strlen(t[5]) != 6)
-        return 0; // icao must be 6 characters
+    if (!t[5] || strlen(t[5]) != 6) // icao must be 6 characters
+        goto basestation_invalid;
 
     char *icao = t[5];
     unsigned char *chars = (unsigned char *) &(mm.addr);
@@ -1155,11 +1164,13 @@ static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now)
         int high = hexDigitVal(icao[j]);
         int low = hexDigitVal(icao[j + 1]);
 
-        if (high == -1 || low == -1) return 0;
+        if (high == -1 || low == -1)
+            goto basestation_invalid;
+
         chars[2 - j / 2] = (high << 4) | low;
     }
     if (mm.addr == 0)
-        return 0;
+        goto basestation_invalid;
 
     //fprintf(stderr, "%x type %s: ", mm.addr, t[2]);
     //fprintf(stderr, "%x: %d, %0.5f, %0.5f\n", mm.addr, mm.altitude_baro, mm.decoded_lat, mm.decoded_lon);
@@ -1245,9 +1256,17 @@ static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now)
 
     useModesMessage(&mm);
 
-    Modes.stats_current.remote_received_basestation_invalid--;
     Modes.stats_current.remote_received_basestation_valid++;
 
+    return 0;
+
+basestation_invalid:
+
+    for (size_t i=0; i < line_len; i++)
+        line[i] = (line[i] == '\0' ? ',' : line[i]);
+
+    fprintf(stderr, "SBS invalid: %s\n", line);
+    Modes.stats_current.remote_received_basestation_invalid++;
     return 0;
 }
 //
