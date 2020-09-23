@@ -1265,7 +1265,8 @@ basestation_invalid:
     for (size_t i=0; i < line_len; i++)
         line[i] = (line[i] == '\0' ? ',' : line[i]);
 
-    fprintf(stderr, "SBS invalid: %s\n", line);
+    if (Modes.debug_garbage)
+        fprintf(stderr, "SBS invalid: %s\n", line);
     Modes.stats_current.remote_received_basestation_invalid++;
     return 0;
 }
