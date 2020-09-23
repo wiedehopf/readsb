@@ -77,7 +77,7 @@ static struct argp_option options[] =
     {"write-receiver-id-json", OptNetReceiverIdJson, 0, 0, "Write receivers.json", 1},
     {"json-trace-interval", OptJsonTraceInt, "<seconds>", 0, "Interval after which a new position will guaranteed to be written to the trace and the json position output (default: 30)", 1},
     {"write-json-gzip", OptJsonGzip, 0, 0, "Write aircraft.json also as aircraft.json.gz", 1},
-    {"json-reliable", OptJsonReliable,"<n>", 0, "Minimum position reliability to put it into json (default: 2, home install recommendation: 1, disable speed filter: -1, max: 4)", 1},
+    {"json-reliable", OptJsonReliable,"<n>", 0, "Minimum position reliability to put it into json (default: 1, globe options will default set this to 2, disable speed filter: -1, max: 4)", 1},
 #endif
     {0,0,0,0, "Network options:", 2},
 #if defined(READSB) || defined(VIEWADSB)
