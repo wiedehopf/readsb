@@ -252,6 +252,10 @@ static void modesInit(void) {
         else
             Modes.json_reliable = 2;
     }
+    if (Modes.net_output_flush_interval < 5)
+        Modes.net_output_flush_interval = 5;
+    if (Modes.net_output_flush_interval > 1000)
+        Modes.net_output_flush_interval = 1000;
 
     Modes.filter_persistence += Modes.json_reliable - 1;
 
@@ -553,15 +557,15 @@ static void *decodeThreadEntryPoint(void *arg) {
                 }
             }
 
-            int64_t sleep_millis = 50 - elapsed;
+            int64_t sleep_millis = Modes.net_output_flush_interval - elapsed;
 
             //fprintf(stderr, "net work took %"PRId64" ms, sleeping %"PRId64" ms\n", elapsed, sleep_millis);
             if (sleep_millis < 1) {
                 sleep_millis = 1;
             }
-            if (sleep_millis > 50) {
+            if (sleep_millis > Modes.net_output_flush_interval) {
                 fprintf(stderr, "sleep_millis out of bounds: %"PRId64"\n", sleep_millis);
-                sleep_millis = 50;
+                sleep_millis = Modes.net_output_flush_interval;
             }
 
             slp.tv_nsec = sleep_millis * 1000 * 1000;
