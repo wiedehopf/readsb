@@ -199,10 +199,10 @@ typedef enum
 
 typedef enum
 {
-    AG_INVALID,
-    AG_GROUND,
-    AG_AIRBORNE,
-    AG_UNCERTAIN
+    AG_INVALID = 0,
+    AG_GROUND = 1,
+    AG_AIRBORNE = 2,
+    AG_UNCERTAIN = 3
 } airground_t;
 
 typedef enum

@@ -348,7 +348,6 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
     F(sda);
     F(squawk);
     F(emergency);
-    F(airground);
     F(nav_qnh);
     F(nav_altitude_mcp);
     F(nav_altitude_fms);

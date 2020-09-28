@@ -118,7 +118,7 @@ struct binCraft {
   unsigned sda_valid:1;
   unsigned squawk_valid:1;
   unsigned emergency_valid:1;
-  unsigned airground_valid:1;
+  unsigned spi_valid:1;
   unsigned nav_qnh_valid:1;
   unsigned nav_altitude_mcp_valid:1;
   unsigned nav_altitude_fms_valid:1;
@@ -127,10 +127,10 @@ struct binCraft {
   unsigned nav_heading_valid:1;
   unsigned nav_modes_valid:1;
   unsigned alert_valid:1;
-  unsigned spi_valid:1;
   unsigned wind_valid:1;
   unsigned temp_valid:1;
   unsigned unused_1:1;
+  unsigned unused_2:1;
   // 78
   char callsign[8]; // Flight number
   // 86

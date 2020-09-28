@@ -2279,6 +2279,9 @@ struct char_buffer generateGlobeBin(int globe_index){
     uint32_t ac_count_pos = Modes.json_ac_count_pos;
     memWrite(p, ac_count_pos);
 
+    uint32_t index = globe_index;
+    memWrite(p, index);
+
     if (p - buf > (int) elementSize)
         fprintf(stderr, "buffer overrun globeBin\n");
 
