@@ -956,7 +956,7 @@ static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *wri
         *p++ = ch;
     }
 
-    sig = round(sqrt(mm->signalLevel) * 255);
+    sig = nearbyint(sqrt(mm->signalLevel) * 255);
     if (mm->signalLevel > 0 && sig < 1)
         sig = 1;
     if (sig > 255)
@@ -3481,9 +3481,7 @@ retry:
                 p = safe_snprintf(p, end, ",\"TrkH\":true");
             }
 
-            p = safe_snprintf(p, end, ",\"Sig\":%.0f",
-                    255*((a->signalLevel[0] + a->signalLevel[1] + a->signalLevel[2] + a->signalLevel[3] +
-                            a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7] + 1e-5) / 8));
+            p = safe_snprintf(p, end, ",\"Sig\":%d", get8bitSignal(a));
 
             if (trackDataValid(&a->nav_qnh_valid))
                 p = safe_snprintf(p, end, ",\"InHg\":%.2f", a->nav_qnh * 0.02952998307);
@@ -3716,7 +3714,7 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
         p = safe_snprintf(p, end, ",\"messages\":%u,\"seen\":%.1f,\"rssi\":%.1f}",
                 a->messages, (now < a->seen) ? 0 : ((now - a->seen) / 1000.0),
                 10 * log10((a->signalLevel[0] + a->signalLevel[1] + a->signalLevel[2] + a->signalLevel[3] +
-                        a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7] + 1e-5) / 8));
+                        a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7]) / 8 + 1.125e-5));
     } else {
         p = safe_snprintf(p, end, "}");
     }

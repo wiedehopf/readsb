@@ -560,4 +560,12 @@ static inline int bogus_lat_lon(double lat, double lon) {
         return 1;
     return 0;
 }
+static inline int get8bitSignal(struct aircraft *a) {
+    double signal = (a->signalLevel[0] + a->signalLevel[1] + a->signalLevel[2] + a->signalLevel[3] +
+            a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7]) / 8.0;
+    signal = sqrt(signal) * 255.0;
+    if (signal > 255) signal = 255;
+    if (signal < 1 && signal > 0) signal = 1;
+    return nearbyint(signal);
+}
 #endif

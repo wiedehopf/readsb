@@ -43,7 +43,7 @@ struct aircraft *aircraftCreate(struct modesMessage *mm) {
     a->addr = mm->addr;
     a->addrtype = ADDR_UNKNOWN;
     for (int i = 0; i < 8; ++i) {
-        a->signalLevel[i] = fmax(1e-5, mm->signalLevel);
+        a->signalLevel[i] = fmax(0, mm->signalLevel);
     }
     a->signalNext = 0;
 
@@ -312,16 +312,7 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
     new->alert = a->alert;
     new->spi = a->spi;
 
-    double signal = (a->signalLevel[0] + a->signalLevel[1] + a->signalLevel[2] + a->signalLevel[3] +
-                a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7] + 1e-5) / 8.0;
-
-    signal = sqrt(signal) * 255.0;
-
-    if (signal > 0 && signal < 1) signal = 1;
-    if (signal > 255) signal = 255;
-    if (signal < 0) signal = 0;
-
-    new->signal = nearbyint(signal);
+    new->signal = get8bitSignal(a);
 
     new->unused_1 = 0;
 #define F(f) do { new->f##_valid = trackDataValid(&a->f##_valid); new->f *= new->f##_valid; } while (0)

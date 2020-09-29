@@ -1090,7 +1090,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
         if (a->no_signal_count >= 10) {
             for (int i = 0; i < 8; ++i) {
-                a->signalLevel[i] = fmax(1e-5, mm->signalLevel);
+                a->signalLevel[i] = fmax(0, mm->signalLevel);
             }
         }
         if (a->no_signal_count > 0)
@@ -1099,7 +1099,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         // if we haven't received a message with signal level for a bit, set it to zero
         if (a->no_signal_count < 10 && ++a->no_signal_count >= 10) {
             for (int i = 0; i < 8; ++i) {
-                a->signalLevel[i] = 1e-5;
+                a->signalLevel[i] = 0;
             }
         }
     }
@@ -1584,6 +1584,11 @@ end_alt:
 
             if (a->messages < 2)
                 a->messages = 2;
+
+            for (int i = 0; i < 8; ++i) {
+                a->signalLevel[i] = 0;
+            }
+            a->no_signal_count = 10;
         }
     }
 
