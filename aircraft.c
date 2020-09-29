@@ -272,7 +272,8 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
     new->nav_heading = (int16_t) nearbyint(a->nav_heading * 90.0);
 
     new->emergency = a->emergency;
-    new->airground = a->airground;
+    new->airground = a->airground * trackDataValid(&a->airground_valid);
+
     new->addrtype = a->addrtype;
     new->nav_modes = a->nav_modes;
     new->nav_altitude_src = a->nav_altitude_src;
@@ -315,6 +316,7 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
     new->signal = get8bitSignal(a);
 
     new->unused_1 = 0;
+    new->unused_2 = 0;
 #define F(f) do { new->f##_valid = trackDataValid(&a->f##_valid); new->f *= new->f##_valid; } while (0)
     F(altitude_baro);
     F(altitude_geom);

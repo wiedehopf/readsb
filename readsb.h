@@ -161,24 +161,24 @@ typedef enum
  */
 typedef enum
 {
-    ADDR_ADSB_ICAO, /* ADS-B, ICAO address, transponder sourced */
-    ADDR_ADSB_ICAO_NT, /* ADS-B, ICAO address, non-transponder */
-    ADDR_ADSR_ICAO, /* ADS-R, ICAO address */
-    ADDR_TISB_ICAO, /* TIS-B, ICAO address */
+    ADDR_ADSB_ICAO = 0, /* ADS-B, ICAO address, transponder sourced */
+    ADDR_ADSB_ICAO_NT = 1, /* ADS-B, ICAO address, non-transponder */
+    ADDR_ADSR_ICAO = 2, /* ADS-R, ICAO address */
+    ADDR_TISB_ICAO = 3, /* TIS-B, ICAO address */
 
-    ADDR_JAERO,
-    ADDR_MLAT,
-    ADDR_OTHER,
-    ADDR_MODE_S,
+    ADDR_JAERO = 4,
+    ADDR_MLAT = 5,
+    ADDR_OTHER = 6,
+    ADDR_MODE_S = 7,
 
-    ADDR_ADSB_OTHER, /* ADS-B, other address format */
-    ADDR_ADSR_OTHER, /* ADS-R, other address format */
-    ADDR_TISB_TRACKFILE, /* TIS-B, Mode A code + track file number */
-    ADDR_TISB_OTHER, /* TIS-B, other address format */
+    ADDR_ADSB_OTHER = 8, /* ADS-B, other address format */
+    ADDR_ADSR_OTHER = 9, /* ADS-R, other address format */
+    ADDR_TISB_TRACKFILE = 10, /* TIS-B, Mode A code + track file number */
+    ADDR_TISB_OTHER = 11, /* TIS-B, other address format */
 
-    ADDR_MODE_A, /* Mode A */
+    ADDR_MODE_A = 12, /* Mode A */
 
-    ADDR_UNKNOWN /* unknown address format */
+    ADDR_UNKNOWN = 15/* unknown address format */
 } addrtype_t;
 
 // number of types as defined above
