@@ -28,6 +28,27 @@ case "$1" in
         ;;
 
     remove)
+        changed=false
+        if [ -e /etc/lighttpd/conf-enabled/89-readsb.conf ]
+        then
+            echo "Disabling lighttpd integration.." >&2
+            lighty-disable-mod readsb || true
+            changed=true
+        fi
+
+        if [ -e /etc/lighttpd/conf-enabled/88-readsb-statcache.conf ]
+        then
+            echo "Disabling lighttpd integration (stat cache).." >&2
+            lighty-disable-mod readsb-statcache || true
+            changed=true
+        fi
+
+        if $changed
+        then
+            echo "Restarting lighttpd.." >&2
+            invoke-rc.d lighttpd force-reload || echo "Warning: lighttpd failed to reload configuration." >&2
+            invoke-rc.d lighttpd restart || echo "Warning: lighttpd failed to restart." >&2
+        fi
         ;;
 
     upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)

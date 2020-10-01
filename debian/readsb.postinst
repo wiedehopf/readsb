@@ -36,6 +36,24 @@ case "$1" in
 	# dialout required for Mode-S Beast and GNS5894 ttyAMA0 access
 	adduser "$RUNAS" dialout
 
+        # set up lighttpd
+        if dpkg --compare-versions "$2" lt "3.1.0"
+        then
+            echo "Enabling lighttpd integration.." >&2
+            lighty-enable-mod readsb || true
+
+            # only enable the statcache config if there is nothing else around that already
+            # configures it, because lighttpd fails if it's configured twice
+            if ! grep -q -E '^\S*server.stat-cache-engine' /etc/lighttpd/conf-enabled/*.conf
+            then
+                echo "Enabling lighttpd integration (stat cache).." >&2
+                lighty-enable-mod readsb-statcache || true
+            fi
+        fi
+
+        echo "Restarting lighttpd.." >&2
+        invoke-rc.d lighttpd force-reload || true
+        invoke-rc.d lighttpd restart || true
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
