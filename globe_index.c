@@ -281,7 +281,7 @@ void write_trace(struct aircraft *a, uint64_t now) {
                         end = i;
                     }
                 }
-                if (start >= 0 && end >= 0)
+                if (start >= 0 && end >= 0 && end >= start)
                     hist = generateTraceJson(a, start, end);
             }
         }

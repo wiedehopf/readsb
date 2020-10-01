@@ -2511,7 +2511,7 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
 
     p = safe_snprintf(p, end, "{\"icao\":\"%s%06x\"", (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
 
-    if (a->trace_len > start) {
+    if (start <= last && last < a->trace_len) {
         p = safe_snprintf(p, end, ",\n\"timestamp\": %.3f", (a->trace + start)->timestamp / 1000.0);
 
         p = safe_snprintf(p, end, ",\n\"trace\":[ ");
