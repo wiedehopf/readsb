@@ -2770,7 +2770,8 @@ void updateValidities(struct aircraft *a, uint64_t now) {
         set_globe_index(a, -5);
     }
 
-    a->category *= (now > a->category_updated + 2 * HOURS);
+    if (now > a->category_updated + 2 * HOURS)
+        a->category = 0;
 
     updateValidity(&a->callsign_valid, now, TRACK_EXPIRE_LONG);
     updateValidity(&a->altitude_baro_valid, now, TRACK_EXPIRE);
