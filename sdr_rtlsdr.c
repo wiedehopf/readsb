@@ -57,14 +57,18 @@
 
 #include <rtl-sdr.h>
 
+#ifdef __arm__
+// Assume we need to use a bounce buffer to avoid performance problems on Pis running kernel 5.x and using zerocopy
+#  define USE_BOUNCE_BUFFER
+#endif
+
 static struct {
     iq_convert_fn converter;
     struct converter_state *converter_state;
     rtlsdr_dev_t *dev;
+    uint8_t *bounce_buffer;
     int ppm_error;
     bool digital_agc;
-    uint8_t padding1;
-    uint16_t padding2;
 } RTLSDR;
 
 //
@@ -77,6 +81,7 @@ void rtlsdrInitConfig() {
     RTLSDR.ppm_error = 0;
     RTLSDR.converter = NULL;
     RTLSDR.converter_state = NULL;
+    RTLSDR.bounce_buffer = NULL;
 }
 
 static void show_rtlsdr_devices() {
@@ -243,6 +248,14 @@ bool rtlsdrOpen(void) {
         return false;
     }
 
+#ifdef USE_BOUNCE_BUFFER
+    if (!(RTLSDR.bounce_buffer = malloc(MODES_RTL_BUF_SIZE))) {
+        fprintf(stderr, "rtlsdr: can't allocate bounce buffer\n");
+        rtlsdrClose();
+        return false;
+    }
+#endif
+
     return true;
 }
 
@@ -329,6 +342,12 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
         memset(outbuf->data, 0, Modes.trailing_samples * sizeof (uint16_t));
     }
 
+#ifdef USE_BOUNCE_BUFFER
+    // Work around zero-copy slowness on Pis with 5.x kernels
+    memcpy(RTLSDR.bounce_buffer, buf, slen * 2);
+    buf = RTLSDR.bounce_buffer;
+#endif
+
     // Convert the new data
     outbuf->length = slen;
     RTLSDR.converter(buf, &outbuf->data[Modes.trailing_samples], slen, RTLSDR.converter_state, &outbuf->mean_level, &outbuf->mean_power);
@@ -372,4 +391,7 @@ void rtlsdrClose() {
         RTLSDR.converter = NULL;
         RTLSDR.converter_state = NULL;
     }
+
+    free(RTLSDR.bounce_buffer);
+    RTLSDR.bounce_buffer = NULL;
 }
