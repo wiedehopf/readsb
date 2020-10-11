@@ -3562,9 +3562,12 @@ static void *pthreadGetaddrinfo(void *param) {
 
     if (con->use_addr && con->address1) {
         con->address = con->address1;
+        if (con->port1)
+            con->port = con->port1;
         con->use_addr = 0;
     } else {
         con->address = con->address0;
+        con->port = con->port0;
         con->use_addr = 1;
     }
     con->gai_error = getaddrinfo(con->address, con->port, &gai_hints, &con->addr_info);
