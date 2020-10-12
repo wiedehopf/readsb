@@ -1055,14 +1055,11 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             struct net_connector *con = calloc(1, sizeof(struct net_connector));
             Modes.net_connectors[Modes.net_connectors_count++] = con;
             char *connect_string = strdup(arg);
-            con->address0 = strtok(connect_string, ",");
-            con->port0 = strtok(NULL, ",");
+            con->address = con->address0 = strtok(connect_string, ",");
+            con->port = con->port0 = strtok(NULL, ",");
             con->protocol = strtok(NULL, ",");
             con->address1 = strtok(NULL, ",");
             con->port1 = strtok(NULL, ",");
-
-            con->address = con->address0;
-            con->port = con->port0;
 
             if (pthread_mutex_init(&con->mutex, NULL)) {
                 fprintf(stderr, "Unable to initialize connector mutex!\n");

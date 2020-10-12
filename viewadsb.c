@@ -237,9 +237,8 @@ int main(int argc, char **argv) {
 
     // Try to connect to the selected ip address and port. We only support *ONE* input connection which we initiate.here.
     s = makeBeastInputService();
-    con->address = bo_connect_ipaddr;
-    con->address0 = con->address;
-    con->port = bo_connect_port;
+    con->address = con->address0 = bo_connect_ipaddr;
+    con->port = con->port0 = bo_connect_port;
     con->service = s;
 
     if (pthread_mutex_init(&con->mutex, NULL)) {
