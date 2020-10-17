@@ -503,7 +503,7 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
             if (i >= GLOBE_MIN_INDEX && globe_index_index(i) < GLOBE_MIN_INDEX)
                 continue;
 
-            snprintf(filename, 31, "globe_%04d.ttf", i);
+            snprintf(filename, 31, "globe_%04d.binCraft", i);
             struct char_buffer cb2 = generateGlobeBin(i);
             writeJsonToGzip(Modes.json_dir, filename, cb2, 5);
             free(cb2.buffer);
