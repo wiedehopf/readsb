@@ -640,6 +640,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
 
 static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t now) {
     int location_result = -1;
+    int globalCPR = 0;
     uint64_t max_elapsed;
     double new_lat = 0, new_lon = 0;
     unsigned new_nic = 0;
@@ -695,11 +696,7 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
             if (accept_data(&a->position_valid, mm->source, mm, 1)) {
                 Modes.stats_current.cpr_global_ok++;
 
-                incrementReliable(a, mm, now, mm->cpr_odd);
-
-                if (trackDataValid(&a->gs_valid))
-                    a->gs_last_pos = a->gs;
-
+                globalCPR = 1;
             } else {
                 Modes.stats_current.cpr_global_skipped++;
                 location_result = -2;
@@ -735,9 +732,6 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
             Modes.stats_current.cpr_local_ok++;
             mm->cpr_relative = 1;
 
-            if (trackDataValid(&a->gs_valid))
-                a->gs_last_pos = a->gs;
-
             if (location_result == 1) {
                 Modes.stats_current.cpr_local_aircraft_relative++;
             }
@@ -751,12 +745,18 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
     }
 
     if (location_result >= 0) {
-        // If we sucessfully decoded, back copy the results to mm so that we can print them in list output
+        // If we sucessfully decoded, back copy the results to mm
         mm->cpr_decoded = 1;
         mm->decoded_lat = new_lat;
         mm->decoded_lon = new_lon;
         mm->decoded_nic = new_nic;
         mm->decoded_rc = new_rc;
+
+        if (trackDataValid(&a->gs_valid))
+            a->gs_last_pos = a->gs;
+
+        if (globalCPR)
+            incrementReliable(a, mm, now, mm->cpr_odd);
 
         setPosition(a, mm, now);
     }
@@ -2853,12 +2853,14 @@ static void incrementReliable(struct aircraft *a, struct modesMessage *mm, uint6
 
     if (mm->source > SOURCE_JAERO && now > a->seenPosReliable + 2 * MINUTES
             && a->pos_reliable_odd <= 0 && a->pos_reliable_even <= 0) {
-        double range = greatcircle(a->latReliable, a->lonReliable, mm->decoded_lat, mm->decoded_lon);
+        double distance = greatcircle(a->latReliable, a->lonReliable, mm->decoded_lat, mm->decoded_lon);
         // if aircraft is close to last reliable position, treat new position as reliable immediately.
         // based on 2 minutes, 12 km equals 360 km/h or 194 knots
-        if (range < 12e3) {
+        if (distance < 12e3) {
             a->pos_reliable_odd = max(1, Modes.json_reliable);
             a->pos_reliable_even = max(1, Modes.json_reliable);
+            if (a->addr == Modes.cpr_focus)
+                fprintf(stderr, "%06x: fast track json_reliable\n", a->addr);
             return;
         }
     }
