@@ -422,7 +422,8 @@ struct aircraft
   data_validity alert_valid;
   data_validity spi_valid;
 
-  uint64_t reserved[16];
+  uint64_t seenPosGlobal; // seen global CPR or other hopefully reliable position
+  uint64_t reserved[15];
 
   struct modesMessage *first_message; // A copy of the first message we received for this aircraft.
 };
