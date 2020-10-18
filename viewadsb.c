@@ -105,6 +105,9 @@ static void view1090InitConfig(void) {
     Modes.maxRange = 1852 * 300; // 300NM default max range
     Modes.net_connector_delay = 1 * 1000;
     Modes.scratch = malloc(sizeof(struct aircraft));
+
+    Modes.json_globe_special_tiles = calloc(GLOBE_SPECIAL_INDEX, sizeof(struct tile));
+    init_globe_index(Modes.json_globe_special_tiles);
 }
 //
 //=========================================================================
