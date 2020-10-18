@@ -69,7 +69,7 @@ static void calc_wind(struct aircraft *a, uint64_t now);
 static void calc_temp(struct aircraft *a, uint64_t now);
 static inline int declination (struct aircraft *a, double *dec);
 static const char *source_string(datasource_t source);
-static void incrementReliable(struct aircraft *a, uint64_t now, int odd);
+static void incrementReliable(struct aircraft *a, struct modesMessage *mm, uint64_t now, int odd);
 
 // Should we accept some new data from the given source?
 // If so, update the validity and return 1
@@ -612,6 +612,8 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
             (a->pos_reliable_odd >= Modes.json_reliable && a->pos_reliable_even >= Modes.json_reliable)) {
         globe_stuff(a, mm, mm->decoded_lat, mm->decoded_lon, now);
         a->seenPosReliable = now; // must be after globe_stuff for trace stale detection
+        a->latReliable = mm->decoded_lat;
+        a->lonReliable = mm->decoded_lon;
     }
 
     a->pos_surface = trackDataValid(&a->airground_valid) && a->airground == AG_GROUND;
@@ -693,7 +695,7 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
             if (accept_data(&a->position_valid, mm->source, mm, 1)) {
                 Modes.stats_current.cpr_global_ok++;
 
-                incrementReliable(a, now, mm->cpr_odd);
+                incrementReliable(a, mm, now, mm->cpr_odd);
 
                 if (trackDataValid(&a->gs_valid))
                     a->gs_last_pos = a->gs;
@@ -1588,7 +1590,7 @@ end_alt:
             // speed check failed, do nothing
         } else if (accept_data(&a->position_valid, mm->source, mm, 0)) {
 
-            incrementReliable(a, now, 2);
+            incrementReliable(a, mm, now, 2);
 
             setPosition(a, mm, now);
 
@@ -1617,7 +1619,7 @@ end_alt:
                 a->addrtype = ADDR_MODE_S;
                 mm->decoded_lat = reflat;
                 mm->decoded_lon = reflon;
-                incrementReliable(a, now, 2);
+                incrementReliable(a, mm, now, 2);
                 set_globe_index(a, globe_index(reflat, reflon));
                 setPosition(a, mm, now);
             }
@@ -2790,8 +2792,8 @@ void updateValidities(struct aircraft *a, uint64_t now) {
     updateValidity(&a->gva_valid, now, TRACK_EXPIRE);
     updateValidity(&a->sda_valid, now, TRACK_EXPIRE);
 
-    // reset position reliability when no position was received for 120 seconds
-    if (trackDataAge(now, &a->position_valid) > 120 * 1000 || now > a->seenPosGlobal + 10 * MINUTES) {
+    // reset position reliability when no position was received for 2 minutes
+    if (trackDataAge(now, &a->position_valid) > 2 * MINUTES || now > a->seenPosGlobal + 10 * MINUTES) {
         a->pos_reliable_odd = 0;
         a->pos_reliable_even = 0;
     }
@@ -2846,8 +2848,20 @@ static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint6
     fprintf(stderr, "\n");
 }
 
-static void incrementReliable(struct aircraft *a, uint64_t now, int odd) {
+static void incrementReliable(struct aircraft *a, struct modesMessage *mm, uint64_t now, int odd) {
     a->seenPosGlobal = now;
+
+    if (mm->source > SOURCE_JAERO && now > a->seenPosReliable + 2 * MINUTES
+            && a->pos_reliable_odd <= 0 && a->pos_reliable_even <= 0) {
+        double range = greatcircle(a->latReliable, a->lonReliable, mm->decoded_lat, mm->decoded_lon);
+        // if aircraft is close to last reliable position, treat new position as reliable immediately.
+        // based on 2 minutes, 12 km equals 360 km/h or 194 knots
+        if (range < 12e3) {
+            a->pos_reliable_odd = max(1, Modes.json_reliable);
+            a->pos_reliable_even = max(1, Modes.json_reliable);
+            return;
+        }
+    }
 
     if (a->pos_reliable_odd <= 0 || a->pos_reliable_even <= 0) {
         a->pos_reliable_odd = 1;

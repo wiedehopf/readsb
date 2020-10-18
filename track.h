@@ -423,7 +423,9 @@ struct aircraft
   data_validity spi_valid;
 
   uint64_t seenPosGlobal; // seen global CPR or other hopefully reliable position
-  uint64_t reserved[15];
+  double latReliable; // last reliable position based on json_reliable threshold
+  double lonReliable; // last reliable position based on json_reliable threshold
+  uint64_t reserved[13];
 
   struct modesMessage *first_message; // A copy of the first message we received for this aircraft.
 };
