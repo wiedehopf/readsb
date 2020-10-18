@@ -495,7 +495,9 @@ static int doLocalCPR(struct aircraft *a, struct modesMessage *mm, double *lat, 
         *rc = a->cpr_even_rc;
     }
 
-    if (mm->sysTimestampMsg < a->position_valid.updated + (10*60*1000)) {
+    uint64_t now = mm->sysTimestampMsg;
+    if (now < a->seenPosReliable + 5 * MINUTES && trackDataValid(&a->position_valid)
+            && now < a->position_valid.updated + (10*60*1000)) {
         reflat = a->lat;
         reflon = a->lon;
 
@@ -582,11 +584,34 @@ static uint64_t time_between(uint64_t t1, uint64_t t2) {
 
 
 static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t now) {
+    if (0 && a->addr == Modes.cpr_focus) {
+        showPositionDebug(a, mm, now);
+    }
+
+    if (now < a->seen_pos + 3 * SECONDS && a->lat == mm->decoded_lat && a->lon == mm->decoded_lon) {
+        // don't use duplicate positions for beastReduce
+        mm->reduce_forward = 0;
+        mm->duplicate = 1;
+        mm->pos_ignore = 1;
+        return;
+    }
+
+    if (mm->cpr_valid && (mm->garbage || mm->pos_bad || mm->duplicate))
+        return;
+
     // Update aircraft state
     a->lat = mm->decoded_lat;
     a->lon = mm->decoded_lon;
     a->pos_nic = mm->decoded_nic;
     a->pos_rc = mm->decoded_rc;
+
+    a->lastPosReceiverId = mm->receiverId;
+
+    if (mm->source <= SOURCE_JAERO ||
+            (a->pos_reliable_odd >= Modes.json_reliable && a->pos_reliable_even >= Modes.json_reliable)) {
+        globe_stuff(a, mm, mm->decoded_lat, mm->decoded_lon, now);
+        a->seenPosReliable = now; // must be after globe_stuff for trace stale detection
+    }
 
     a->pos_surface = trackDataValid(&a->airground_valid) && a->airground == AG_GROUND;
 
@@ -738,9 +763,6 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
         mm->decoded_lon = new_lon;
         mm->decoded_nic = new_nic;
         mm->decoded_rc = new_rc;
-
-        uint64_t now = mm->sysTimestampMsg;
-        globe_stuff(a, mm, new_lat, new_lon, now);
 
         setPosition(a, mm, now);
     }
@@ -1578,8 +1600,6 @@ end_alt:
             a->pos_reliable_odd = min(a->pos_reliable_odd + 1, persist);
             a->pos_reliable_even = min(a->pos_reliable_even + 1, persist);
 
-            globe_stuff(a, mm, mm->decoded_lat, mm->decoded_lon, now);
-
             setPosition(a, mm, now);
 
             if (a->messages < 2)
@@ -1611,7 +1631,6 @@ end_alt:
                 a->pos_reliable_odd = min(a->pos_reliable_odd + 1, persist);
                 a->pos_reliable_even = min(a->pos_reliable_even + 1, persist);
                 set_globe_index(a, globe_index(reflat, reflon));
-                globe_stuff(a, mm, reflat, reflon, now);
                 setPosition(a, mm, now);
             }
         }
@@ -1968,36 +1987,15 @@ static void cleanupAircraft(struct aircraft *a) {
 
 static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_lat, double new_lon, uint64_t now) {
 
-    if (0 && a->addr == Modes.cpr_focus) {
-        showPositionDebug(a, mm, now);
-    }
-
-    if (now < a->seen_pos + 3 * SECONDS && a->lat == new_lat && a->lon == new_lon) {
-        // don't use duplicate positions for beastReduce
-        mm->reduce_forward = 0;
-        mm->duplicate = 1;
-        mm->pos_ignore = 1;
-    }
-
-    if (mm->cpr_valid && (mm->garbage || mm->pos_bad || mm->duplicate))
-        return;
-
-    a->lastPosReceiverId = mm->receiverId;
-
     if (trackDataAge(now, &a->track_valid) >= 10000 && a->seen_pos) {
         double distance = greatcircle(a->lat, a->lon, new_lat, new_lon);
         if (distance > 100)
             a->calc_track = bearing(a->lat, a->lon, new_lat, new_lon);
     }
 
+    set_globe_index(a, globe_index(new_lat, new_lon));
 
     if (Modes.keep_traces) {
-
-        set_globe_index(a, globe_index(new_lat, new_lon));
-
-        if (mm->source > SOURCE_JAERO &&
-                (a->pos_reliable_odd < Modes.json_reliable || a->pos_reliable_even < Modes.json_reliable))
-            goto no_save_state;
 
         if (!a->trace) {
 
@@ -2036,9 +2034,6 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
             //if (a->addr == Modes.cpr_focus)
             //    fprintf(stderr, "stale, elapsed: %0.1f\n", (now - a->seenPosReliable) / 1000.0);
         }
-
-        if (a->position_valid.source != SOURCE_MODE_AC)
-            a->seenPosReliable = now;
 
         int on_ground = 0;
         int was_ground = 0;
