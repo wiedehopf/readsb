@@ -246,7 +246,7 @@ static void modesInit(void) {
 
     if (Modes.json_reliable == -13) {
         if (Modes.json_globe_index || Modes.globe_history_dir)
-            Modes.json_reliable = 3;
+            Modes.json_reliable = 2;
         else if (Modes.bUserFlags & MODES_USER_LATLON_VALID)
             Modes.json_reliable = 1;
         else
