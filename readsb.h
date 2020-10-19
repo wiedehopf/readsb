@@ -519,6 +519,7 @@ struct _Modes
     int8_t mday;
     int8_t traceDay;
     int8_t doFullTraceWrite;
+    int8_t jsonBinCraft; // only write binCraft for globe (1) and also aircraft.json (2)
 
     struct timespec reader_cpu_accumulator; // CPU time used by the reader thread, copied out and reset by the main thread under the mutex
     struct mag_buf mag_buffers[MODES_MAG_BUFFERS]; // Converted magnitude buffers from RTL or file input
@@ -837,6 +838,7 @@ enum {
     OptShowOnly,
     OptJsonDir,
     OptJsonGzip,
+    OptJsonBinCraft,
     OptJsonReliable,
     OptPromFile,
     OptGlobeHistoryDir,

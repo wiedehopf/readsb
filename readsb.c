@@ -508,11 +508,12 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
             writeJsonToGzip(Modes.json_dir, filename, cb2, 5);
             free(cb2.buffer);
 
-            snprintf(filename, 31, "globe_%04d.json", i);
-            struct char_buffer cb = generateGlobeJson(i);
-            writeJsonToGzip(Modes.json_dir, filename, cb, 3);
-            free(cb.buffer);
-
+            if (!Modes.jsonBinCraft) {
+                snprintf(filename, 31, "globe_%04d.json", i);
+                struct char_buffer cb = generateGlobeJson(i);
+                writeJsonToGzip(Modes.json_dir, filename, cb, 3);
+                free(cb.buffer);
+            }
         }
 
         part++;
@@ -946,6 +947,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptJsonGzip:
             Modes.json_gzip = 1;
+            break;
+        case OptJsonBinCraft:
+            Modes.jsonBinCraft = atoi(arg);
             break;
         case OptJsonTraceInt:
             if (atof(arg) > 0)
