@@ -135,20 +135,22 @@ struct binCraft {
   // 78
   char callsign[8]; // Flight number
   // 86
-  char registration[8];
-  char typeCode[4];
-  // 98
   uint8_t signal;
   uint8_t dbFlags;
-  // 100
+  // 88
+  char typeCode[4];
+  // 92
+  char registration[12];
+  // 104
+  // javascript sucks, this must be a multiple of 4 bytes for Int32Array to work correctly
 } __attribute__ ((__packed__));
 
 typedef struct dbEntry {
     struct dbEntry *next;
     uint32_t addr;
     char typeCode[4];
-    char registration[10];
-    char typeLong[54];
+    char registration[12];
+    char typeLong[63];
     uint8_t dbFlags;
 } dbEntry;
 

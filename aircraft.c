@@ -239,12 +239,12 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
     new->seen = (now - a->seen) / 100.0;
 
     new->callsign_valid = trackDataValid(&a->callsign_valid);
-    for (int i = 0; i < 8; i++)
+    for (unsigned i = 0; i < sizeof(new->callsign); i++)
         new->callsign[i] = a->callsign[i] * new->callsign_valid;
 
-    for (int i = 0; i < 8; i++)
+    for (unsigned i = 0; i < sizeof(new->registration); i++)
         new->registration[i] = '\0';
-    for (int i = 0; i < 4; i++)
+    for (unsigned i = 0; i < sizeof(new->typeCode); i++)
         new->typeCode[i] = '\0';
 
     new->dbFlags = 0;
@@ -432,7 +432,7 @@ int dbUpdate() {
         memcpy(curr.typeLong, sot, min(sizeof(curr.typeLong), eot - sot));
 
         if (false) // debugging output
-            fprintf(stdout, "%06X;%.10s;%.4s;%c%c;%.54s\n",
+            fprintf(stdout, "%06X;%.12s;%.4s;%c%c;%.54s\n",
                     curr.addr,
                     curr.registration,
                     curr.typeCode,
