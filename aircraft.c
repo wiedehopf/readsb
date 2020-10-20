@@ -242,10 +242,14 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
     for (unsigned i = 0; i < sizeof(new->callsign); i++)
         new->callsign[i] = a->callsign[i] * new->callsign_valid;
 
-    for (unsigned i = 0; i < sizeof(new->registration); i++)
-        new->registration[i] = '\0';
-    for (unsigned i = 0; i < sizeof(new->typeCode); i++)
-        new->typeCode[i] = '\0';
+    dbEntry *d = dbGet(a->addr, Modes.dbIndex);
+    if (d) {
+        memcpy(new->registration, d->registration, sizeof(new->registration));
+        memcpy(new->typeCode, d->typeCode, sizeof(new->typeCode));
+    } else {
+        memset(new->registration, 0, sizeof(new->registration));
+        memset(new->typeCode, 0, sizeof(new->typeCode));
+    }
 
     new->dbFlags = 0;
     new->messages = a->messages;
@@ -449,10 +453,13 @@ int dbUpdate() {
     close(fd);
     free(cb.buffer);
     fprintf(stderr, "db update done!\n");
+    writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
     return 1;
 }
 
 dbEntry *dbGet(uint32_t addr, dbEntry **index) {
+    if (!index)
+        return NULL;
     dbEntry *d = index[dbHash(addr)];
 
     while (d && d->addr != addr) {
