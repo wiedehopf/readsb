@@ -377,26 +377,6 @@ static struct char_buffer readWholeGz(gzFile gzfp) {
     }
 }
 
-static struct char_buffer readWholeFile(int fd) {
-    struct char_buffer cb;
-    int alloc = 32 * 1024 * 1024;
-    cb.buffer = malloc(alloc);
-    cb.len = 0;
-    int res;
-    int toRead = alloc;
-    char *p = cb.buffer;
-    while (true) {
-        res = read(fd, p, toRead);
-        if (res <= 0)
-            return cb;
-        p += res;
-        cb.len += res;
-        toRead -= res;
-        if (toRead == 0)
-            fprintf(stderr, "readWholeFile ran out of buffer!\n");
-    }
-}
-
 static int load_aircraft(char **p, char *end, uint64_t now) {
 
     if (end - *p < (long) sizeof(struct aircraft))
@@ -526,8 +506,12 @@ void *load_state(void *arg) {
             snprintf(pathbuf, PATH_MAX, "%s/%02x/%s", Modes.state_dir, i, ep->d_name);
 
             int fd = open(pathbuf, O_RDONLY);
+            if (fd == -1)
+                continue;
 
             struct char_buffer cb = readWholeFile(fd);
+            if (!cb.buffer)
+                continue;
             char *p = cb.buffer;
             char *end = p + cb.len;
 
@@ -1148,6 +1132,8 @@ static void load_blob(int blob) {
             return;
         }
         cb = readWholeFile(fd);
+        if (!cb.buffer)
+            return;
         close(fd);
     }
     p = cb.buffer;

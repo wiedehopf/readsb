@@ -14,6 +14,20 @@ uint32_t aircraftHash(uint32_t addr) {
 
     return h & (AIRCRAFT_BUCKETS - 1);
 }
+uint32_t dbHash(uint32_t addr) {
+    uint64_t h = 0x30732349f7810465ULL ^ (4 * 0x2127599bf4325c37ULL);
+    uint64_t in = addr;
+    uint64_t v = in << 48;
+    v ^= in << 24;
+    v ^= in;
+    h ^= mix_fasthash(v);
+
+    h -= (h >> 32);
+    h &= (1ULL << 32) - 1;
+    h -= (h >> DB_HASH_BITS);
+
+    return h & (DB_BUCKETS - 1);
+}
 struct aircraft *aircraftGet(uint32_t addr) {
     struct aircraft *a = Modes.aircraft[aircraftHash(addr)];
 
@@ -355,4 +369,25 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
     F(alert);
     F(spi);
 #undef F
+}
+
+
+int dbUpdate() {
+    int fd = open("/opt/readsb/aircraft.csv", O_RDONLY);
+    if (fd == -1)
+        return 0;
+
+    struct char_buffer cb = readWholeFile(fd);
+    if (!cb.buffer)
+        return 0;
+
+    Modes.db2 = malloc((1<<20) * sizeof(dbEntry));
+    Modes.db2Index = malloc(DB_BUCKETS * sizeof(void*));
+
+    //int i = 0;
+    //dbEntry curr = Modes.db2[i];
+
+    close(fd);
+    free(cb.buffer);
+    return 1;
 }

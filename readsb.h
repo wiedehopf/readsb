@@ -301,6 +301,9 @@ typedef enum {
 #endif
 #define AIRCRAFT_BUCKETS (1 << AIRCRAFT_HASH_BITS) // this is critical for hashing purposes
 
+#define DB_HASH_BITS 20
+#define DB_BUCKETS (1 << DB_HASH_BITS) // this is critical for hashing purposes
+
 #define GLOBE_TRACE_SIZE 32768
 #define GLOBE_STEP 32
 #define STATE_BLOBS 256
@@ -401,6 +404,10 @@ struct _Modes
     struct aircraft * volatile aircraft[AIRCRAFT_BUCKETS]; // pointers are volatile
     struct craftArray globeLists[GLOBE_MAX_INDEX+1];
     struct receiver *receiverTable[RECEIVER_TABLE_SIZE];
+    dbEntry *db;
+    dbEntry **dbIndex;
+    dbEntry *db2;
+    dbEntry **db2Index;
     uint64_t aircraftCount;
     uint64_t receiverCount;
     struct net_writer raw_out; // Raw output

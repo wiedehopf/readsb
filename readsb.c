@@ -769,6 +769,8 @@ static void cleanup_and_exit(int code) {
     free(Modes.beast_serial);
     free(Modes.json_globe_special_tiles);
     free(Modes.uuidFile);
+    free(Modes.dbIndex);
+    free(Modes.db);
     /* Go through tracked aircraft chain and free up any used memory */
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
         struct aircraft *a = Modes.aircraft[j], *na;

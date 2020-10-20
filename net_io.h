@@ -153,12 +153,6 @@ struct client *createGenericClient (struct net_service *service, int fd);
 struct net_service *makeBeastInputService (void);
 struct net_service *makeFatsvOutputService (void);
 
-struct char_buffer
-{
-    char *buffer;
-    size_t len;
-};
-
 void sendBeastSettings (int fd, const char *settings);
 
 void modesInitNet (void);

@@ -1877,12 +1877,28 @@ void trackPeriodicUpdate() {
 
     checkNewDay();
 
+    // db update approx. every 30 min and on startup
+    int dbUpdated = 0;
+    if (counter % 1800 == 0) {
+        dbUpdated = dbUpdate();
+    }
+
     // stop all threads so we can remove aircraft from the list.
     // also serves as memory barrier so json threads get new aircraft in the list
     // adding aircraft does not need to be done with locking:
     // the worst case is that the newly added aircraft is skipped as it's not yet
     // in the cache used by the json threads.
     lockThreads();
+
+    // finish db update under thread lock
+    if (dbUpdated) {
+        free(Modes.dbIndex);
+        free(Modes.db);
+        Modes.dbIndex = Modes.db2Index;
+        Modes.db = Modes.db2;
+        Modes.db2Index = NULL;
+        Modes.db2 = NULL;
+    }
 
     uint64_t now = mstime();
 

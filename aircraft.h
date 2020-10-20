@@ -4,6 +4,7 @@
 #define API_INDEX_MAX 32000
 
 uint32_t aircraftHash(uint32_t addr);
+uint32_t dbHash(uint32_t addr);
 struct aircraft *aircraftGet(uint32_t addr);
 struct aircraft *aircraftCreate(struct modesMessage *mm);
 
@@ -142,8 +143,16 @@ struct binCraft {
   // 100
 } __attribute__ ((__packed__));
 
+typedef struct dbEntry {
+    struct dbEntry *next;
+    uint32_t addr;
+    char type_code[4];
+    char registration[8];
+    char type_long[46];
+    uint16_t db_flags;
+} dbEntry;
 
 void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now);
-
+int dbUpdate();
 
 #endif

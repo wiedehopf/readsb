@@ -26,6 +26,13 @@
 
 #include <stdint.h>
 
+struct char_buffer
+{
+    char *buffer;
+    size_t len;
+};
+struct char_buffer readWholeFile(int fd);
+
 /* Returns system time in milliseconds */
 uint64_t mstime (void);
 

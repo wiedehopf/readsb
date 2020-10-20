@@ -126,3 +126,40 @@ void timedWaitIncrement(struct timespec *target, const struct timespec *incremen
         target->tv_nsec = now.tv_nsec;
     }
 }
+
+struct char_buffer readWholeFile(int fd) {
+    struct char_buffer cb = {0};
+    struct stat fileinfo = {0};
+    if (fstat(fd, &fileinfo)) {
+        fprintf(stderr, "readWholeFile: fstat failed, wat?!\n");
+        return cb;
+    }
+    size_t fsize = fileinfo.st_size;
+    if (fsize == 0)
+        return cb;
+
+    cb.buffer = malloc(fsize + 1);
+    if (!cb.buffer) {
+        fprintf(stderr, "readWholeFile couldn't allocate buffer!\n");
+        return cb;
+    }
+    int res;
+    int toRead = fsize;
+    char *p = cb.buffer;
+    while (true) {
+        res = read(fd, p, toRead);
+        if (res == EINTR)
+            continue;
+        if (res <= 0)
+            break;
+        p += res;
+        cb.len += res;
+        toRead -= res;
+    }
+    cb.buffer[fsize] = '\0'; // for good measure put a null byte to terminate the string. (consumers should honor cb.len)
+    if (res < 0 || cb.len != fsize) {
+        free(cb.buffer);
+        cb = (struct char_buffer) {0};
+    }
+    return cb;
+}
