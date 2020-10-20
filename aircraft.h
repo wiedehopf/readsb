@@ -136,20 +136,20 @@ struct binCraft {
   char callsign[8]; // Flight number
   // 86
   char registration[8];
-  char type_code[4];
+  char typeCode[4];
   // 98
   uint8_t signal;
-  uint8_t db_flags;
+  uint8_t dbFlags;
   // 100
 } __attribute__ ((__packed__));
 
 typedef struct dbEntry {
     struct dbEntry *next;
     uint32_t addr;
-    char type_code[4];
-    char registration[8];
-    char type_long[46];
-    uint16_t db_flags;
+    char typeCode[4];
+    char registration[10];
+    char typeLong[54];
+    uint8_t dbFlags;
 } dbEntry;
 
 void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now);

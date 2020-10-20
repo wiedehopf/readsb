@@ -1396,7 +1396,6 @@ void checkNewDay() {
             if (mkdir(filename, 0755) && errno != EEXIST)
                 perror(filename);
         }
-
     }
     return;
 }

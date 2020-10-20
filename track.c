@@ -1878,10 +1878,8 @@ void trackPeriodicUpdate() {
     checkNewDay();
 
     // db update approx. every 30 min and on startup
-    int dbUpdated = 0;
-    if (counter % 1800 == 0) {
-        dbUpdated = dbUpdate();
-    }
+    if (counter % 1800 == 2)
+        dbUpdate();
 
     // stop all threads so we can remove aircraft from the list.
     // also serves as memory barrier so json threads get new aircraft in the list
@@ -1891,7 +1889,7 @@ void trackPeriodicUpdate() {
     lockThreads();
 
     // finish db update under thread lock
-    if (dbUpdated) {
+    if (Modes.db2 && Modes.db2Index) {
         free(Modes.dbIndex);
         free(Modes.db);
         Modes.dbIndex = Modes.db2Index;
@@ -1947,10 +1945,10 @@ void trackPeriodicUpdate() {
     if (writeStats)
         statsWrite();
 
-    if (Modes.netIngest && Modes.json_dir && counter % 5 == 0)
+    if (Modes.netIngest && Modes.json_dir && counter % 5 == 2)
         writeJsonToFile(Modes.json_dir, "clients.json", generateClientsJson());
 
-    if (Modes.netReceiverIdJson && Modes.json_dir && counter % 5 == 0)
+    if (Modes.netReceiverIdJson && Modes.json_dir && counter % 5 == 2)
         writeJsonToFile(Modes.json_dir, "receivers.json", generateReceiversJson());
 
     end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);

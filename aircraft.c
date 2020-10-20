@@ -245,9 +245,9 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
     for (int i = 0; i < 8; i++)
         new->registration[i] = '\0';
     for (int i = 0; i < 4; i++)
-        new->type_code[i] = '\0';
+        new->typeCode[i] = '\0';
 
-    new->db_flags = 0;
+    new->dbFlags = 0;
     new->messages = a->messages;
 
     new->position_valid = trackDataValid(&a->position_valid)
@@ -371,23 +371,82 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
 #undef F
 }
 
+// get next CSV token based on the assumption eot points to the previous delimiter
+static inline int nextToken(char delim, char **sot, char **eot, char **eol) {
+    *sot = *eot + 1;
+    if (*sot >= *eol)
+        return 0;
+    *eot = memchr(*sot, delim, *eol - *sot);
+
+    if (!*eot)
+        return 0;
+
+    **eot = '\0';
+    return 1;
+}
 
 int dbUpdate() {
     int fd = open("/opt/readsb/aircraft.csv", O_RDONLY);
     if (fd == -1)
         return 0;
 
+    fprintf(stderr, "db update!\n");
     struct char_buffer cb = readWholeFile(fd);
     if (!cb.buffer)
         return 0;
 
-    Modes.db2 = malloc((1<<20) * sizeof(dbEntry));
+    int alloc = (1<<20);
+    Modes.db2 = malloc(alloc * sizeof(dbEntry));
     Modes.db2Index = malloc(DB_BUCKETS * sizeof(void*));
 
-    //int i = 0;
-    //dbEntry curr = Modes.db2[i];
+    char *eob = cb.buffer + cb.len;
+    char *sol = cb.buffer;
+    char *eol;
+    for (int i = 0; eob > sol && (eol = memchr(sol, '\n', eob - sol)); sol = eol + 1) {
+
+        char *sot;
+        char *eot = sol - 1; // this pointer must not be dereferenced, nextToken will increment it.
+
+        dbEntry curr = Modes.db2[i];
+        curr = (dbEntry) {0};
+
+        if (!nextToken(';', &sot, &eot, &eol)) continue;
+        curr.addr = strtol(sot, NULL, 16);
+        if (curr.addr == 0)
+            continue;
+
+        if (!nextToken(';', &sot, &eot, &eol)) continue;
+        memcpy(curr.registration, sot, min(sizeof(curr.registration), eot - sot));
+
+        if (!nextToken(';', &sot, &eot, &eol)) continue;
+        memcpy(curr.typeCode, sot, min(sizeof(curr.typeCode), eot - sot));
+
+        if (!nextToken(';', &sot, &eot, &eol)) continue;
+        for (int j = 0; j < 16 && sot < eot; j++, sot++)
+            curr.dbFlags |= ((*sot == '1') << j);
+
+
+        // nextToken wouldn't work as there is no trailing ;, set sot / eot by hand
+        sot = eot + 1;
+        eot = eol;
+        memcpy(curr.typeLong, sot, min(sizeof(curr.typeLong), eot - sot));
+
+        if (false) // debugging output
+            fprintf(stdout, "%06X;%.10s;%.4s;%c%c;%.54s\n",
+                    curr.addr,
+                    curr.registration,
+                    curr.typeCode,
+                    curr.dbFlags & 1 ? '1' : '0',
+                    curr.dbFlags & 2 ? '1' : '0',
+                    curr.typeLong);
+
+        i++; // increment db array index
+        // TODO: add to hashtable
+    }
+    //fflush(stdout);
 
     close(fd);
     free(cb.buffer);
+    fprintf(stderr, "db update done!\n");
     return 1;
 }
