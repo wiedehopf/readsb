@@ -78,6 +78,7 @@ struct aircraft *aircraftCreate(struct modesMessage *mm) {
     //adjustExpire(a, 58);
     Modes.stats_current.unique_aircraft++;
 
+    updateTypeReg(a);
 
     uint32_t hash = aircraftHash(addr);
     a->next = Modes.aircraft[hash];
@@ -242,16 +243,11 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
     for (unsigned i = 0; i < sizeof(new->callsign); i++)
         new->callsign[i] = a->callsign[i] * new->callsign_valid;
 
-    dbEntry *d = dbGet(a->addr, Modes.dbIndex);
-    if (d) {
-        memcpy(new->registration, d->registration, sizeof(new->registration));
-        memcpy(new->typeCode, d->typeCode, sizeof(new->typeCode));
-    } else {
-        memset(new->registration, 0, sizeof(new->registration));
-        memset(new->typeCode, 0, sizeof(new->typeCode));
-    }
+    memcpy(new->registration, a->registration, sizeof(new->registration));
+    memcpy(new->typeCode, a->typeCode, sizeof(new->typeCode));
 
-    new->dbFlags = 0;
+    new->dbFlags = a->dbFlags;
+
     new->messages = a->messages;
 
     new->position_valid = trackDataValid(&a->position_valid)
@@ -472,4 +468,19 @@ void dbPut(uint32_t addr, dbEntry **index, dbEntry *d) {
     uint32_t hash = dbHash(addr);
     d->next = index[hash];
     index[hash] = d;
+}
+
+void updateTypeReg(struct aircraft *a) {
+    dbEntry *d = dbGet(a->addr, Modes.dbIndex);
+    if (d) {
+        memcpy(a->registration, d->registration, sizeof(a->registration));
+        memcpy(a->typeCode, d->typeCode, sizeof(a->typeCode));
+        memcpy(a->typeLong, d->typeLong, sizeof(a->typeLong));
+        a->dbFlags = d->dbFlags;
+    } else {
+        memset(a->registration, 0, sizeof(a->registration));
+        memset(a->typeCode, 0, sizeof(a->typeCode));
+        memset(a->typeLong, 0, sizeof(a->typeLong));
+        a->dbFlags = 0;
+    }
 }

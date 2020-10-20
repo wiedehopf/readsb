@@ -425,7 +425,11 @@ struct aircraft
   uint64_t seenPosGlobal; // seen global CPR or other hopefully reliable position
   double latReliable; // last reliable position based on json_reliable threshold
   double lonReliable; // last reliable position based on json_reliable threshold
-  uint64_t reserved[13];
+  char typeCode[4];
+  char registration[12];
+  char typeLong[63];
+  uint8_t dbFlags;
+  uint64_t reserved[3];
 
   struct modesMessage *first_message; // A copy of the first message we received for this aircraft.
 };

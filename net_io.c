@@ -2511,15 +2511,12 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
 
     p = safe_snprintf(p, end, "{\"icao\":\"%s%06x\"", (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
 
-    dbEntry *d = dbGet(a->addr, Modes.dbIndex);
-    if (d) {
-        if (d->registration[0])
-            p = safe_snprintf(p, end, "\n,\"r\":\"%.*s\"", (int) sizeof(d->registration), d->registration);
-        if (d->typeCode[0])
-            p = safe_snprintf(p, end, "\n,\"t\":\"%.*s\"", (int) sizeof(d->typeCode), d->typeCode);
-        if (d->typeLong[0])
-            p = safe_snprintf(p, end, "\n,\"desc\":\"%.*s\"", (int) sizeof(d->typeLong), d->typeLong);
-    }
+    if (a->registration[0])
+        p = safe_snprintf(p, end, "\n,\"r\":\"%.*s\"", (int) sizeof(a->registration), a->registration);
+    if (a->typeCode[0])
+        p = safe_snprintf(p, end, "\n,\"t\":\"%.*s\"", (int) sizeof(a->typeCode), a->typeCode);
+    if (a->typeLong[0])
+        p = safe_snprintf(p, end, "\n,\"desc\":\"%.*s\"", (int) sizeof(a->typeLong), a->typeLong);
 
     if (start <= last && last < a->trace_len) {
         p = safe_snprintf(p, end, ",\n\"timestamp\": %.3f", (a->trace + start)->timestamp / 1000.0);
@@ -3608,13 +3605,10 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
         p = safe_snprintf(p, end, ",\"flight\":\"%s\"", jsonEscapeString(a->callsign, buf, sizeof(buf)));
     }
     if (printMode == 0) {
-        dbEntry *d = dbGet(a->addr, Modes.dbIndex);
-        if (d) {
-        if (d->registration[0])
-            p = safe_snprintf(p, end, ",\"r\":\"%.*s\"", (int) sizeof(d->registration), d->registration);
-        if (d->typeCode[0])
-            p = safe_snprintf(p, end, ",\"t\":\"%.*s\"", (int) sizeof(d->typeCode), d->typeCode);
-        }
+        if (a->registration[0])
+            p = safe_snprintf(p, end, ",\"r\":\"%.*s\"", (int) sizeof(a->registration), a->registration);
+        if (a->typeCode[0])
+            p = safe_snprintf(p, end, ",\"t\":\"%.*s\"", (int) sizeof(a->typeCode), a->typeCode);
     }
     if (printMode != 1) {
         if (trackDataValid(&a->airground_valid) && a->airground == AG_GROUND)

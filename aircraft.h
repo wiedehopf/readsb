@@ -160,4 +160,6 @@ struct binCraft {
 void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now);
 int dbUpdate();
 
+void updateTypeReg(struct aircraft *a);
+
 #endif

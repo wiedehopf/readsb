@@ -1888,16 +1888,6 @@ void trackPeriodicUpdate() {
     // in the cache used by the json threads.
     lockThreads();
 
-    // finish db update under thread lock
-    if (Modes.db2 && Modes.db2Index) {
-        free(Modes.dbIndex);
-        free(Modes.db);
-        Modes.dbIndex = Modes.db2Index;
-        Modes.db = Modes.db2;
-        Modes.db2Index = NULL;
-        Modes.db2 = NULL;
-    }
-
     uint64_t now = mstime();
 
     struct timespec start_time;
@@ -1950,6 +1940,23 @@ void trackPeriodicUpdate() {
 
     if (Modes.netReceiverIdJson && Modes.json_dir && counter % 5 == 2)
         writeJsonToFile(Modes.json_dir, "receivers.json", generateReceiversJson());
+
+
+    // finish db update
+    if (Modes.db2 && Modes.db2Index) {
+        free(Modes.dbIndex);
+        free(Modes.db);
+        Modes.dbIndex = Modes.db2Index;
+        Modes.db = Modes.db2;
+        Modes.db2Index = NULL;
+        Modes.db2 = NULL;
+
+        for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+            for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
+                updateTypeReg(a);
+            }
+        }
+    }
 
     end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
 }
