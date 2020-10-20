@@ -397,7 +397,7 @@ int dbUpdate() {
 
     int alloc = (1<<20);
     Modes.db2 = malloc(alloc * sizeof(dbEntry));
-    Modes.db2Index = malloc(DB_BUCKETS * sizeof(void*));
+    Modes.db2Index = calloc(DB_BUCKETS, sizeof(void*));
 
     char *eob = cb.buffer + cb.len;
     char *sol = cb.buffer;
@@ -407,41 +407,42 @@ int dbUpdate() {
         char *sot;
         char *eot = sol - 1; // this pointer must not be dereferenced, nextToken will increment it.
 
-        dbEntry curr = Modes.db2[i];
-        curr = (dbEntry) {0};
+        dbEntry *curr = &Modes.db2[i];
+        memset(curr, 0, sizeof(dbEntry));
 
         if (!nextToken(';', &sot, &eot, &eol)) continue;
-        curr.addr = strtol(sot, NULL, 16);
-        if (curr.addr == 0)
+        curr->addr = strtol(sot, NULL, 16);
+        if (curr->addr == 0)
             continue;
 
         if (!nextToken(';', &sot, &eot, &eol)) continue;
-        memcpy(curr.registration, sot, min(sizeof(curr.registration), eot - sot));
+        memcpy(curr->registration, sot, min(sizeof(curr->registration), eot - sot));
 
         if (!nextToken(';', &sot, &eot, &eol)) continue;
-        memcpy(curr.typeCode, sot, min(sizeof(curr.typeCode), eot - sot));
+        memcpy(curr->typeCode, sot, min(sizeof(curr->typeCode), eot - sot));
 
         if (!nextToken(';', &sot, &eot, &eol)) continue;
         for (int j = 0; j < 16 && sot < eot; j++, sot++)
-            curr.dbFlags |= ((*sot == '1') << j);
+            curr->dbFlags |= ((*sot == '1') << j);
 
 
         // nextToken wouldn't work as there is no trailing ;, set sot / eot by hand
         sot = eot + 1;
         eot = eol;
-        memcpy(curr.typeLong, sot, min(sizeof(curr.typeLong), eot - sot));
+        memcpy(curr->typeLong, sot, min(sizeof(curr->typeLong), eot - sot));
 
         if (false) // debugging output
             fprintf(stdout, "%06X;%.12s;%.4s;%c%c;%.54s\n",
-                    curr.addr,
-                    curr.registration,
-                    curr.typeCode,
-                    curr.dbFlags & 1 ? '1' : '0',
-                    curr.dbFlags & 2 ? '1' : '0',
-                    curr.typeLong);
+                    curr->addr,
+                    curr->registration,
+                    curr->typeCode,
+                    curr->dbFlags & 1 ? '1' : '0',
+                    curr->dbFlags & 2 ? '1' : '0',
+                    curr->typeLong);
 
         i++; // increment db array index
-        // TODO: add to hashtable
+        // add to hashtable
+        dbPut(curr->addr, Modes.db2Index, curr);
     }
     //fflush(stdout);
 
@@ -449,4 +450,19 @@ int dbUpdate() {
     free(cb.buffer);
     fprintf(stderr, "db update done!\n");
     return 1;
+}
+
+dbEntry *dbGet(uint32_t addr, dbEntry **index) {
+    dbEntry *d = index[dbHash(addr)];
+
+    while (d && d->addr != addr) {
+        d = d->next;
+    }
+    return d;
+}
+
+void dbPut(uint32_t addr, dbEntry **index, dbEntry *d) {
+    uint32_t hash = dbHash(addr);
+    d->next = index[hash];
+    index[hash] = d;
 }

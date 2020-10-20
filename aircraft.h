@@ -4,9 +4,21 @@
 #define API_INDEX_MAX 32000
 
 uint32_t aircraftHash(uint32_t addr);
-uint32_t dbHash(uint32_t addr);
 struct aircraft *aircraftGet(uint32_t addr);
 struct aircraft *aircraftCreate(struct modesMessage *mm);
+
+typedef struct dbEntry {
+    struct dbEntry *next;
+    uint32_t addr;
+    char typeCode[4];
+    char registration[12];
+    char typeLong[63];
+    uint8_t dbFlags;
+} dbEntry;
+
+uint32_t dbHash(uint32_t addr);
+dbEntry *dbGet(uint32_t addr, dbEntry **index);
+void dbPut(uint32_t addr, dbEntry **index, dbEntry *d);
 
 void apiClear();
 void apiAdd(struct aircraft *a, uint64_t now);
@@ -144,15 +156,6 @@ struct binCraft {
   // 104
   // javascript sucks, this must be a multiple of 4 bytes for Int32Array to work correctly
 } __attribute__ ((__packed__));
-
-typedef struct dbEntry {
-    struct dbEntry *next;
-    uint32_t addr;
-    char typeCode[4];
-    char registration[12];
-    char typeLong[63];
-    uint8_t dbFlags;
-} dbEntry;
 
 void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now);
 int dbUpdate();
