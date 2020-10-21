@@ -51,7 +51,6 @@ int64_t receiveclock_ms_elapsed (uint64_t t1, uint64_t t2);
 /* Normalize the value in ts so that ts->nsec lies in
  * [0,999999999]
  */
-struct timespec;
 void normalize_timespec (struct timespec *ts);
 
 struct timespec msToTimespec(uint64_t ms);

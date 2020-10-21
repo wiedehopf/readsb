@@ -1946,7 +1946,6 @@ void trackPeriodicUpdate() {
     if (counter % 300 == 0)
         dbUpdate();
 
-
     end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
 }
 
