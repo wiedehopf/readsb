@@ -408,6 +408,7 @@ struct _Modes
     dbEntry **dbIndex;
     dbEntry *db2;
     dbEntry **db2Index;
+    uint64_t dbModificationTime;
     uint64_t aircraftCount;
     uint64_t receiverCount;
     struct net_writer raw_out; // Raw output

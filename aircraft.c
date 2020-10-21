@@ -386,13 +386,34 @@ static inline int nextToken(char delim, char **sot, char **eot, char **eol) {
 }
 
 int dbUpdate() {
-    char *filename = "/opt/readsb/aircraft.csv";
+    char *filename = "/usr/local/share/tar1090/git-db/aircraft.csv.gz";
     int fd = open(filename, O_RDONLY);
+    if (fd == -1) {
+        filename = "/opt/readsb/aircraft.csv.gz";
+        fd = open(filename, O_RDONLY);
+    }
     if (fd == -1)
         return 0;
 
-    fprintf(stderr, "db update!\n");
-    struct char_buffer cb = readWholeFile(fd, filename);
+    struct stat fileinfo = {0};
+    if (fstat(fd, &fileinfo)) {
+        fprintf(stderr, "%s: dbUpdate: fstat failed, wat?!\n", filename);
+        return 0;
+    }
+    uint64_t modTime = fileinfo.st_mtim.tv_sec;
+
+
+    if (Modes.dbModificationTime == modTime)
+        return 0;
+
+    gzFile gzfp = gzdopen(fd, "r");
+    if (!gzfp)
+        fprintf(stderr, "db update error: gzdopen failed.\n");
+
+    Modes.dbModificationTime = modTime;
+
+
+    struct char_buffer cb = readWholeGz(gzfp, filename);
     if (!cb.buffer)
         return 0;
 
@@ -447,12 +468,31 @@ int dbUpdate() {
     }
     //fflush(stdout);
 
-    close(fd);
+    gzclose(gzfp);
     free(cb.buffer);
     fprintf(stderr, "db update done!\n");
     writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
     return 1;
 }
+
+void dbFinishUpdate() {
+    // finish db update
+    if (Modes.db2 && Modes.db2Index) {
+        free(Modes.dbIndex);
+        free(Modes.db);
+        Modes.dbIndex = Modes.db2Index;
+        Modes.db = Modes.db2;
+        Modes.db2Index = NULL;
+        Modes.db2 = NULL;
+
+        for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+            for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
+                updateTypeReg(a);
+            }
+        }
+    }
+}
+
 
 dbEntry *dbGet(uint32_t addr, dbEntry **index) {
     if (!index)
