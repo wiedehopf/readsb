@@ -111,7 +111,9 @@ typedef struct
   datasource_t last_source:8; /* where the data came from */
   int8_t stale; /* if it's stale 1 / 0 */
   unsigned padding:8;
+  int padding2;
 } data_validity;
+// size must be multiple of 64 bits so it can be aligned in struct aircraft.
 
 struct state_flags
 {
@@ -294,11 +296,12 @@ struct aircraft
   uint64_t seenPosReliable; // last time we saw a reliable position
   uint64_t lastPosReceiverId;
 
-  // ----
+  // ---- the following section has 9 instead of 8 times 8 bytes. but that's not critical as long as the 8 byte alignment is ok
 
   unsigned pos_nic; // NIC of last computed position
   unsigned pos_rc; // Rc of last computed position
-  double lat, lon; // Coordinates obtained from CPR encoded data
+  double lat; // Coordinates obtained from CPR encoded data
+  double lon; // Coordinates obtained from CPR encoded data
   int pos_reliable_odd; // Number of good global CPRs, indicates position reliability
   int pos_reliable_even;
   int padding1234; // unused
