@@ -498,12 +498,8 @@ void *jsonTraceThreadEntryPoint(void *arg) {
     //fprintf(stderr, "%d %d\n", thread_start, thread_end);
     int section_len = thread_section_len / n_parts;
 
-    struct timespec slp = {0, 0};
     // write each part every 10 seconds
-    uint64_t sleep = 10 * SECONDS / n_parts;
-
-    slp.tv_sec =  (sleep / 1000);
-    slp.tv_nsec = (sleep % 1000) * 1000 * 1000;
+    uint64_t sleep_ms = 10 * SECONDS / n_parts;
 
     pthread_mutex_lock(&Modes.jsonTraceThreadMutex[thread]);
 
@@ -513,7 +509,7 @@ void *jsonTraceThreadEntryPoint(void *arg) {
     while (!Modes.exit) {
         struct aircraft *a;
 
-        timedWaitIncrement(&ts, &slp);
+        incTimedwait(&ts, sleep_ms);
 
         int res = 0;
         while (!Modes.exit && res == 0) {

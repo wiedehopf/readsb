@@ -91,19 +91,37 @@ void normalize_timespec(struct timespec *ts) {
     }
 }
 
+// convert ms to timespec
+struct timespec msToTimespec(uint64_t ms)  {
+    struct timespec ts;
+    ts.tv_sec =  (ms / 1000);
+    ts.tv_nsec = (ms % 1000) * 1000 * 1000;
+    return ts;
+}
+
 /* record current CPU time in start_time */
 void start_cpu_timing(struct timespec *start_time) {
     clock_gettime(CLOCK_THREAD_CPUTIME_ID, start_time);
 }
 
 /* add difference between start_time and the current CPU time to add_to */
-// also return milliseconds as a result
-int64_t end_cpu_timing(const struct timespec *start_time, struct timespec *add_to) {
+void end_cpu_timing(const struct timespec *start_time, struct timespec *add_to) {
     struct timespec end_time;
     clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end_time);
     add_to->tv_sec += end_time.tv_sec - start_time->tv_sec;
     add_to->tv_nsec += end_time.tv_nsec - start_time->tv_nsec;
     normalize_timespec(add_to);
+}
+
+/* record current monotonic time in start_time */
+void startWatch(struct timespec *start_time) {
+    clock_gettime(CLOCK_MONOTONIC, start_time);
+}
+
+// return elapsed time
+int64_t stopWatch(const struct timespec *start_time) {
+    struct timespec end_time;
+    clock_gettime(CLOCK_MONOTONIC, &end_time);
     return ((int64_t) end_time.tv_sec * 1000UL + end_time.tv_nsec / 1000000UL)
             - ((int64_t) start_time->tv_sec * 1000UL + start_time->tv_nsec / 1000000UL);
 }
@@ -115,12 +133,15 @@ unsigned int get_seed() {
     return (time.tv_sec ^ time.tv_nsec ^ (getpid() << 16) ^ pthread_self());
 }
 
-void timedWaitIncrement(struct timespec *target, const struct timespec *increment) {
+// increment target by increment in ms, if result is in the past, set target to now.
+// specialized function for scheduling threads using pthreadcondtimedwait
+void incTimedwait(struct timespec *target, uint64_t increment) {
+    struct timespec inc = msToTimespec(increment);
+    target->tv_sec += inc.tv_sec;
+    target->tv_nsec += inc.tv_nsec;
+    normalize_timespec(target);
     struct timespec now;
     clock_gettime(CLOCK_REALTIME, &now);
-    target->tv_sec += increment->tv_sec;
-    target->tv_nsec += increment->tv_nsec;
-    normalize_timespec(target);
     if (target->tv_sec < now.tv_sec) {
         target->tv_sec = now.tv_sec;
         target->tv_nsec = now.tv_nsec;

@@ -1886,6 +1886,8 @@ void trackPeriodicUpdate() {
 
     uint64_t now = mstime();
 
+    struct timespec watch;
+    startWatch(&watch);
     struct timespec start_time;
     start_cpu_timing(&start_time);
 
@@ -1901,7 +1903,8 @@ void trackPeriodicUpdate() {
 
     netFreeClients();
 
-    int64_t elapsed = end_cpu_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
+    end_cpu_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
+    int64_t elapsed = stopWatch(&watch);
 
     unlockThreads();
 

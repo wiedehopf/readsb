@@ -398,10 +398,7 @@ static void *jsonThreadEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
     srandom(get_seed());
 
-    struct timespec slp = {0, 0};
-    uint64_t interval = Modes.json_interval;
-    slp.tv_sec =  (interval / 1000);
-    slp.tv_nsec = (interval % 1000) * 1000 * 1000;
+    uint64_t sleep_ms = Modes.json_interval;
 
     pthread_mutex_lock(&Modes.jsonThreadMutex);
 
@@ -412,7 +409,7 @@ static void *jsonThreadEntryPoint(void *arg) {
 
     while (!Modes.exit) {
 
-        timedWaitIncrement(&ts, &slp);
+        incTimedwait(&ts, sleep_ms);
 
         int res = 0;
         while (!Modes.exit && res == 0) {
@@ -466,11 +463,7 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
     static int part;
     int n_parts = 4; // power of 2
 
-    uint64_t sleep = Modes.json_interval / n_parts;
-
-    struct timespec slp = {0, 0};
-    slp.tv_sec =  (sleep / 1000);
-    slp.tv_nsec = (sleep % 1000) * 1000 * 1000;
+    uint64_t sleep_ms = Modes.json_interval / n_parts;
 
     pthread_mutex_lock(&Modes.jsonGlobeThreadMutex);
 
@@ -480,7 +473,7 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
     while (!Modes.exit) {
         char filename[32];
 
-        timedWaitIncrement(&ts, &slp);
+        incTimedwait(&ts, sleep_ms);
 
         int res = 0;
         while (!Modes.exit && res == 0) {
@@ -541,13 +534,19 @@ static void *decodeThreadEntryPoint(void *arg) {
      */
 
     if (Modes.net_only) {
-        struct timespec slp = {0, 20 * 1000 * 1000};
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
         while (!Modes.exit) {
             struct timespec start_time;
+            struct timespec watch;
 
+            startWatch(&watch);
             start_cpu_timing(&start_time);
+
             backgroundTasks();
-            int64_t elapsed = end_cpu_timing(&start_time, &Modes.stats_current.background_cpu);
+
+            end_cpu_timing(&start_time, &Modes.stats_current.background_cpu);
+            int64_t elapsed = stopWatch(&watch);
 
             if (elapsed > 80) {
                 static int antiSpam;
@@ -556,23 +555,9 @@ static void *decodeThreadEntryPoint(void *arg) {
                     antiSpam = 300;
                 }
             }
+            //fprintf(stderr, "net work took %"PRId64" ms\n", elapsed);
 
-            int64_t sleep_millis = Modes.net_output_flush_interval - elapsed;
-
-            //fprintf(stderr, "net work took %"PRId64" ms, sleeping %"PRId64" ms\n", elapsed, sleep_millis);
-            if (sleep_millis < 1) {
-                sleep_millis = 1;
-            }
-            if (sleep_millis > Modes.net_output_flush_interval) {
-                fprintf(stderr, "sleep_millis out of bounds: %"PRId64"\n", sleep_millis);
-                sleep_millis = Modes.net_output_flush_interval;
-            }
-
-            slp.tv_nsec = sleep_millis * 1000 * 1000;
-
-            struct timespec ts;
-            clock_gettime(CLOCK_REALTIME, &ts);
-            timedWaitIncrement(&ts, &slp);
+            incTimedwait(&ts, Modes.net_output_flush_interval);
 
             int res = 0;
             while (!Modes.exit && res == 0) {
@@ -1379,9 +1364,8 @@ int main(int argc, char **argv) {
     clock_gettime(CLOCK_REALTIME, &ts);
 
     while (!Modes.exit) {
-        struct timespec slp = {1, 0};
-
-        timedWaitIncrement(&ts, &slp);
+        int64_t sleep_ms = 1000;
+        incTimedwait(&ts, sleep_ms);
 
         int res = 0;
         while (!Modes.exit && res == 0) {

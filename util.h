@@ -54,16 +54,23 @@ int64_t receiveclock_ms_elapsed (uint64_t t1, uint64_t t2);
 struct timespec;
 void normalize_timespec (struct timespec *ts);
 
+struct timespec msToTimespec(uint64_t ms);
+
 /* record current CPU time in start_time */
 void start_cpu_timing (struct timespec *start_time);
 
 /* add difference between start_time and the current CPU time to add_to */
-int64_t end_cpu_timing (const struct timespec *start_time, struct timespec *add_to);
+void end_cpu_timing (const struct timespec *start_time, struct timespec *add_to);
+
+// stopwatch, returns elapsed time in milliseconds
+void startWatch(struct timespec *start_time);
+int64_t stopWatch(const struct timespec *start_time);
 
 // get nanoseconds and some other stuff for use with srand
 unsigned int get_seed();
 
-// write the current time incremented by increment into target
-void timedWaitIncrement(struct timespec *target, const struct timespec *increment);
+// increment target by increment in ms, if result is in the past, set target to now.
+// specialized function for scheduling threads using pthreadcondtimedwait
+void incTimedwait(struct timespec *target, uint64_t increment);
 
 #endif
