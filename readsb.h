@@ -467,6 +467,7 @@ struct _Modes
     int8_t json_reliable;
     int8_t net; // Enable networking
     int8_t net_only; // Enable just networking
+    int8_t dbExchange;
 
     uint32_t cpr_focus;
     uint32_t show_only; // Only show messages from this ICAO

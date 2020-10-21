@@ -391,6 +391,7 @@ int dbUpdate() {
     if (fd == -1) {
         filename = "/opt/readsb/aircraft.csv.gz";
         fd = open(filename, O_RDONLY);
+        Modes.dbExchange = 1;
     }
     if (fd == -1)
         return 0;
