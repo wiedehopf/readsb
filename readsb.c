@@ -1333,6 +1333,9 @@ int main(int argc, char **argv) {
         if (mkdir(Modes.state_dir, 0755) && errno != EEXIST)
             perror(pathbuf);
     }
+    // db update on startup
+    dbUpdate();
+    dbFinishUpdate();
 
     if (Modes.json_dir) {
         // write initial json files so they're not missing

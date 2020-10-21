@@ -1937,10 +1937,10 @@ void trackPeriodicUpdate() {
     if (Modes.netReceiverIdJson && Modes.json_dir && counter % 5 == 2)
         writeJsonToFile(Modes.json_dir, "receivers.json", generateReceiversJson());
 
-    // one loop later, finish db update if necessary
+    // one iteration later, finish db update if db was updated
     dbFinishUpdate();
-    // db update on startup, then check every 60 seconds
-    if (counter % 60 == 2)
+    // db update check every 5 min
+    if (counter % 300 == 0)
         dbUpdate();
 
 
