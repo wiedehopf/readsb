@@ -3609,6 +3609,8 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
             p = safe_snprintf(p, end, ",\"r\":\"%.*s\"", (int) sizeof(a->registration), a->registration);
         if (a->typeCode[0])
             p = safe_snprintf(p, end, ",\"t\":\"%.*s\"", (int) sizeof(a->typeCode), a->typeCode);
+        if (a->typeLong[0])
+            p = safe_snprintf(p, end, "\n,\"desc\":\"%.*s\"", (int) sizeof(a->typeLong), a->typeLong);
     }
     if (printMode != 1) {
         if (trackDataValid(&a->airground_valid) && a->airground == AG_GROUND)
