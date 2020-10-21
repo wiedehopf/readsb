@@ -127,11 +127,11 @@ void timedWaitIncrement(struct timespec *target, const struct timespec *incremen
     }
 }
 
-struct char_buffer readWholeFile(int fd) {
+struct char_buffer readWholeFile(int fd, char *errorContext) {
     struct char_buffer cb = {0};
     struct stat fileinfo = {0};
     if (fstat(fd, &fileinfo)) {
-        fprintf(stderr, "readWholeFile: fstat failed, wat?!\n");
+        fprintf(stderr, "%s: readWholeFile: fstat failed, wat?!\n", errorContext);
         return cb;
     }
     size_t fsize = fileinfo.st_size;
@@ -140,7 +140,7 @@ struct char_buffer readWholeFile(int fd) {
 
     cb.buffer = malloc(fsize + 1);
     if (!cb.buffer) {
-        fprintf(stderr, "readWholeFile couldn't allocate buffer!\n");
+        fprintf(stderr, "%s: readWholeFile couldn't allocate buffer!\n", errorContext);
         return cb;
     }
     int res;
@@ -162,4 +162,74 @@ struct char_buffer readWholeFile(int fd) {
         cb = (struct char_buffer) {0};
     }
     return cb;
+}
+struct char_buffer readWholeGz(gzFile gzfp, char *errorContext) {
+    struct char_buffer cb = {0};
+    if (gzbuffer(gzfp, GZBUFFER_BIG) < 0) {
+        fprintf(stderr, "reading %s: gzbuffer fail!\n", errorContext);
+        return cb;
+    }
+    int alloc = 64 * 1024 * 1024;
+    cb.buffer = malloc(alloc);
+    if (!cb.buffer) {
+        fprintf(stderr, "reading %s: readWholeGz alloc fail!\n", errorContext);
+        return cb;
+    }
+    int res;
+    int toRead = alloc;
+    char *p = cb.buffer;
+    while (true) {
+        res = gzread(gzfp, p, toRead);
+        if (res <= 0)
+            break;
+        p += res;
+        cb.len += res;
+        toRead -= res;
+        if (toRead == 0) {
+            toRead = alloc * 0.5;
+            alloc += toRead;
+            if (!realloc(cb.buffer, alloc)) {
+                free(cb.buffer);
+                fprintf(stderr, "reading %s: readWholeGz alloc fail!\n", errorContext);
+                return (struct char_buffer) {0};
+            }
+        }
+    }
+    if (res < 0) {
+        free(cb.buffer);
+        int error;
+        fprintf(stderr, "readWholeGz: gzread failed: %s (res == %d)\n", gzerror(gzfp, &error), res);
+        if (error == Z_ERRNO)
+            perror(errorContext);
+        return (struct char_buffer) {0};
+    }
+
+    return cb;
+}
+
+// wrapper to write to an opened gzFile
+int writeGz(gzFile gzfp, void *source, int toWrite, char *errorContext) {
+    int res, error;
+    int nwritten = 0;
+    char *p = source;
+    if (!gzfp) {
+        fprintf(stderr, "writeGz: gzfp was NULL .............\n");
+        return -1;
+    }
+    while (toWrite > 0) {
+        int len = toWrite;
+        //if (len > 8 * 1024 * 1024)
+        //    len = 8 * 1024 * 1024;
+        res = gzwrite(gzfp, p, len);
+        if (res <= 0) {
+            fprintf(stderr, "gzwrite of length %d failed: %s (res == %d)\n", toWrite, gzerror(gzfp, &error), res);
+            if (error == Z_ERRNO)
+                perror(errorContext);
+            return -1;
+        }
+        p += res;
+        nwritten += res;
+        toWrite -= res;
+    }
+    return nwritten;
 }

@@ -332,51 +332,6 @@ void *save_state(void *arg) {
     return NULL;
 }
 
-static int writeGz(gzFile gzfp, void *source, int toWrite, char *errorContext) {
-    int res, error;
-    int nwritten = 0;
-    char *p = source;
-    if (!gzfp) {
-        fprintf(stderr, "writeGz: gzfp was NULL .............\n");
-        return -1;
-    }
-    while (toWrite > 0) {
-        int len = toWrite;
-        //if (len > 8 * 1024 * 1024)
-        //    len = 8 * 1024 * 1024;
-        res = gzwrite(gzfp, p, len);
-        if (res <= 0) {
-            fprintf(stderr, "gzwrite of length %d failed: %s (res == %d)\n", toWrite, gzerror(gzfp, &error), res);
-            if (error == Z_ERRNO)
-                perror(errorContext);
-            return -1;
-        }
-        p += res;
-        nwritten += res;
-        toWrite -= res;
-    }
-    return nwritten;
-}
-static struct char_buffer readWholeGz(gzFile gzfp) {
-    struct char_buffer cb;
-    int alloc = 32 * 1024 * 1024;
-    cb.buffer = malloc(alloc);
-    cb.len = 0;
-    int res;
-    int toRead = alloc;
-    char *p = cb.buffer;
-    while (true) {
-        res = gzread(gzfp, p, toRead);
-        if (res <= 0)
-            return cb;
-        p += res;
-        cb.len += res;
-        toRead -= res;
-        if (toRead == 0)
-            fprintf(stderr, "readWholeGz ran out of buffer!\n");
-    }
-}
-
 static int load_aircraft(char **p, char *end, uint64_t now) {
 
     if (end - *p < (long) sizeof(struct aircraft))
@@ -509,7 +464,7 @@ void *load_state(void *arg) {
             if (fd == -1)
                 continue;
 
-            struct char_buffer cb = readWholeFile(fd);
+            struct char_buffer cb = readWholeFile(fd, pathbuf);
             if (!cb.buffer)
                 continue;
             char *p = cb.buffer;
@@ -1119,9 +1074,7 @@ static void load_blob(int blob) {
     snprintf(filename, 1024, "%s/blob_%02x.gz", Modes.state_dir, blob);
     gzFile gzfp = gzopen(filename, "r");
     if (gzfp) {
-        if (gzbuffer(gzfp, GZBUFFER_BIG) < 0)
-            fprintf(stderr, "gzbuffer fail");
-        cb = readWholeGz(gzfp);
+        cb = readWholeGz(gzfp, filename);
         gzclose(gzfp);
     } else {
         snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
@@ -1131,11 +1084,11 @@ static void load_blob(int blob) {
             perror(filename);
             return;
         }
-        cb = readWholeFile(fd);
-        if (!cb.buffer)
-            return;
+        cb = readWholeFile(fd, filename);
         close(fd);
     }
+    if (!cb.buffer)
+        return;
     p = cb.buffer;
     end = p + cb.len;
 
@@ -1313,7 +1266,7 @@ void handleHeatmap() {
         gzFile gzfp = gzdopen(fd, "wb");
         if (!gzfp)
             fprintf(stderr, "heatmap: gzdopen fail");
-        else if (gzbuffer(gzfp, GZBUFFER_BIG) < 0)
+        if (gzbuffer(gzfp, GZBUFFER_BIG) < 0)
             fprintf(stderr, "gzbuffer fail");
         res = gzsetparams(gzfp, 9, Z_DEFAULT_STRATEGY);
         if (res < 0)

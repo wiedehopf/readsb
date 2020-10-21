@@ -386,12 +386,13 @@ static inline int nextToken(char delim, char **sot, char **eot, char **eol) {
 }
 
 int dbUpdate() {
-    int fd = open("/opt/readsb/aircraft.csv", O_RDONLY);
+    char *filename = "/opt/readsb/aircraft.csv";
+    int fd = open(filename, O_RDONLY);
     if (fd == -1)
         return 0;
 
     fprintf(stderr, "db update!\n");
-    struct char_buffer cb = readWholeFile(fd);
+    struct char_buffer cb = readWholeFile(fd, filename);
     if (!cb.buffer)
         return 0;
 

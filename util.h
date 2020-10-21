@@ -31,7 +31,9 @@ struct char_buffer
     char *buffer;
     size_t len;
 };
-struct char_buffer readWholeFile(int fd);
+struct char_buffer readWholeFile(int fd, char *errorContext);
+struct char_buffer readWholeGz(gzFile gzfp, char *errorContext);
+int writeGz(gzFile gzfp, void *source, int toWrite, char *errorContext);
 
 /* Returns system time in milliseconds */
 uint64_t mstime (void);
