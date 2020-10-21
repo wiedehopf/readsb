@@ -166,14 +166,12 @@ struct char_buffer readWholeFile(int fd, char *errorContext) {
     }
     int res;
     int toRead = fsize;
-    char *p = cb.buffer;
     while (true) {
-        res = read(fd, p, toRead);
+        res = read(fd, cb.buffer + cb.len, toRead);
         if (res == EINTR)
             continue;
         if (res <= 0)
             break;
-        p += res;
         cb.len += res;
         toRead -= res;
     }
@@ -198,19 +196,19 @@ struct char_buffer readWholeGz(gzFile gzfp, char *errorContext) {
     }
     int res;
     int toRead = alloc;
-    char *p = cb.buffer;
     while (true) {
-        res = gzread(gzfp, p, toRead);
+        res = gzread(gzfp, cb.buffer + cb.len, toRead);
         if (res <= 0)
             break;
-        p += res;
         cb.len += res;
         toRead -= res;
         if (toRead == 0) {
-            toRead = alloc / 2;
+            toRead = alloc;
             alloc += toRead;
-            if (!realloc(cb.buffer, alloc)) {
-                free(cb.buffer);
+            char *oldBuffer = cb.buffer;
+            cb.buffer = realloc(cb.buffer, alloc);
+            if (!cb.buffer) {
+                free(oldBuffer);
                 fprintf(stderr, "reading %s: readWholeGz alloc fail!\n", errorContext);
                 return (struct char_buffer) {0};
             }
