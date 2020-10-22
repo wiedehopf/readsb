@@ -389,7 +389,7 @@ int dbUpdate() {
     char *filename = "/usr/local/share/tar1090/git-db/aircraft.csv.gz";
     int fd = open(filename, O_RDONLY);
     if (fd == -1) {
-        filename = "/opt/readsb/aircraft.csv.gz";
+        filename = "/opt/html/aircraft.csv.gz";
         fd = open(filename, O_RDONLY);
         Modes.dbExchange = 1;
     }
