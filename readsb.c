@@ -551,7 +551,7 @@ static void *decodeThreadEntryPoint(void *arg) {
             if (elapsed > 80) {
                 static int antiSpam;
                 if (--antiSpam <= 0) {
-                    fprintf(stderr, "<3>High load: work loop took %"PRId64" ms, suppressing for 300 loops!\n", elapsed);
+                    fprintf(stderr, "<3>High load: net work took %"PRId64" ms, suppressing for 300 loops!\n", elapsed);
                     antiSpam = 300;
                 }
             }
