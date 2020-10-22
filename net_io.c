@@ -2511,14 +2511,19 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
 
     p = safe_snprintf(p, end, "{\"icao\":\"%s%06x\"", (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
 
-    if (a->registration[0])
-        p = safe_snprintf(p, end, "\n,\"r\":\"%.*s\"", (int) sizeof(a->registration), a->registration);
-    if (a->typeCode[0])
-        p = safe_snprintf(p, end, "\n,\"t\":\"%.*s\"", (int) sizeof(a->typeCode), a->typeCode);
-    if (a->typeLong[0])
-        p = safe_snprintf(p, end, "\n,\"desc\":\"%.*s\"", (int) sizeof(a->typeLong), a->typeLong);
-    if (a->dbFlags)
-        p = safe_snprintf(p, end, "\n,\"dbFlags\":%u", a->dbFlags);
+    if (Modes.db) {
+        char *regInfo = p;
+        if (a->registration[0])
+            p = safe_snprintf(p, end, "\n,\"r\":\"%.*s\"", (int) sizeof(a->registration), a->registration);
+        if (a->typeCode[0])
+            p = safe_snprintf(p, end, "\n,\"t\":\"%.*s\"", (int) sizeof(a->typeCode), a->typeCode);
+        if (a->typeLong[0])
+            p = safe_snprintf(p, end, "\n,\"desc\":\"%.*s\"", (int) sizeof(a->typeLong), a->typeLong);
+        if (a->dbFlags)
+            p = safe_snprintf(p, end, "\n,\"dbFlags\":%u", a->dbFlags);
+        if (p == regInfo)
+            p = safe_snprintf(p, end, "\n,\"noRegData\":true");
+    }
 
     if (start <= last && last < a->trace_len) {
         p = safe_snprintf(p, end, ",\n\"timestamp\": %.3f", (a->trace + start)->timestamp / 1000.0);
@@ -3607,17 +3612,19 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
         char buf[128];
         p = safe_snprintf(p, end, ",\"flight\":\"%s\"", jsonEscapeString(a->callsign, buf, sizeof(buf)));
     }
-    if (printMode == 0 || printMode == 3) {
-        if (a->registration[0])
-            p = safe_snprintf(p, end, ",\"r\":\"%.*s\"", (int) sizeof(a->registration), a->registration);
-        if (a->typeCode[0])
-            p = safe_snprintf(p, end, ",\"t\":\"%.*s\"", (int) sizeof(a->typeCode), a->typeCode);
-        if (a->dbFlags)
-            p = safe_snprintf(p, end, ",\"dbFlags\":%u", a->dbFlags);
-    }
-    if (printMode == 0 && !Modes.dbExchange) {
-        if (a->typeLong[0])
-            p = safe_snprintf(p, end, ",\"desc\":\"%.*s\"", (int) sizeof(a->typeLong), a->typeLong);
+    if (Modes.db) {
+        if (printMode == 0 || printMode == 3) {
+            if (a->registration[0])
+                p = safe_snprintf(p, end, ",\"r\":\"%.*s\"", (int) sizeof(a->registration), a->registration);
+            if (a->typeCode[0])
+                p = safe_snprintf(p, end, ",\"t\":\"%.*s\"", (int) sizeof(a->typeCode), a->typeCode);
+            if (a->dbFlags)
+                p = safe_snprintf(p, end, ",\"dbFlags\":%u", a->dbFlags);
+        }
+        if (printMode == 0 && !Modes.dbExchange) {
+            if (a->typeLong[0])
+                p = safe_snprintf(p, end, ",\"desc\":\"%.*s\"", (int) sizeof(a->typeLong), a->typeLong);
+        }
     }
     if (printMode != 1) {
         if (trackDataValid(&a->airground_valid) && a->airground == AG_GROUND)

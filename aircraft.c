@@ -243,10 +243,15 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
     for (unsigned i = 0; i < sizeof(new->callsign); i++)
         new->callsign[i] = a->callsign[i] * new->callsign_valid;
 
-    memcpy(new->registration, a->registration, sizeof(new->registration));
-    memcpy(new->typeCode, a->typeCode, sizeof(new->typeCode));
-
-    new->dbFlags = a->dbFlags;
+    if (Modes.db) {
+        memcpy(new->registration, a->registration, sizeof(new->registration));
+        memcpy(new->typeCode, a->typeCode, sizeof(new->typeCode));
+        new->dbFlags = a->dbFlags;
+    } else {
+        memset(new->registration, 0, sizeof(new->registration));
+        memset(new->typeCode, 0, sizeof(new->typeCode));
+        new->dbFlags = 0;
+    }
 
     new->messages = a->messages;
 
