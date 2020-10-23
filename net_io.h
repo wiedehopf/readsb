@@ -166,7 +166,7 @@ void netFreeClients();
 
 // TODO: move these somewhere else
 struct char_buffer generateAircraftJson();
-struct char_buffer generateGlobeBin(int globe_index);
+struct char_buffer generateGlobeBin(int globe_index, int mil);
 struct char_buffer generateGlobeJson(int globe_index);
 struct char_buffer generateTraceJson(struct aircraft *a, int start, int last);
 struct char_buffer generateReceiverJson ();

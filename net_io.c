@@ -2260,7 +2260,7 @@ static void check_state_all(struct aircraft *test, uint64_t now) {
     }
 }
 */
-struct char_buffer generateGlobeBin(int globe_index){
+struct char_buffer generateGlobeBin(int globe_index, int mil) {
     struct char_buffer cb;
     uint64_t now = mstime();
     struct aircraft *a;
@@ -2301,6 +2301,8 @@ struct char_buffer generateGlobeBin(int globe_index){
             a = ca->list[i];
 
             if (a == NULL)
+                continue;
+            if (mil && !(a->dbFlags & 1))
                 continue;
 
             int use = 0;
