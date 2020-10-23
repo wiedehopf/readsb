@@ -1369,6 +1369,8 @@ int main(int argc, char **argv) {
     clock_gettime(CLOCK_REALTIME, &ts);
 
     while (!Modes.exit) {
+        trackPeriodicUpdate();
+
         int64_t sleep_ms = 1000;
         incTimedwait(&ts, sleep_ms);
 
@@ -1376,10 +1378,6 @@ int main(int argc, char **argv) {
         while (!Modes.exit && res == 0) {
             res = pthread_cond_timedwait(&Modes.mainThreadCond, &Modes.mainThreadMutex, &ts);
         }
-        if (Modes.exit)
-            break;
-
-        trackPeriodicUpdate();
     }
 
     pthread_mutex_unlock(&Modes.mainThreadMutex);

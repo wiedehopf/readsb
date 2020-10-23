@@ -2838,6 +2838,7 @@ static void modesReadFromClient(struct client *c) {
         // If our buffer is full discard it, this is some badly formatted shit
         if (left <= 0) {
             c->garbage += c->buflen;
+            Modes.stats_current.remote_malformed_beast += c->buflen;
             c->buflen = 0;
             left = MODES_CLIENT_BUF_SIZE - c->buflen - 1; // leave 1 extra byte for NUL termination in the ASCII case
             // If there is garbage, read more to discard it ASAP
@@ -2990,8 +2991,9 @@ static void modesReadFromClient(struct client *c) {
                 }
                 while (som < eod && ((p = memchr(som, (char) 0x1a, eod - som)) != NULL)) { // The first byte of buffer 'should' be 0x1a
 
-                    Modes.stats_current.remote_malformed_beast += p - som;
                     c->garbage += p - som;
+                    Modes.stats_current.remote_malformed_beast += p - som;
+
                     som = p; // consume garbage up to the 0x1a
                     ++p; // skip 0x1a
 
@@ -3016,16 +3018,19 @@ static void modesReadFromClient(struct client *c) {
                                 p++;
                                 eom++;
                                 if (p < eod && 0x1A != *p) { // check that it's indeed a double escape
-                                    // Not a valid beast message, skip 0x1a and try again
-                                    ++som;
+                                    // might be start of message rather than double escape.
+                                    c->garbage += p - 1 - som;
+                                    Modes.stats_current.remote_malformed_beast += p - 1 - som;
+                                    som = p - 1;
                                     invalid = 1;
                                     break;
                                 }
                             }
                         }
-                        if (eom + 2 > eod || invalid) { // Incomplete message in buffer, retry later
+                        if (invalid) // skip to potential start of a message
+                            continue;
+                        if (eom + 2 > eod)// Incomplete message in buffer, retry later
                             break;
-                        }
                         p++; // skip 0x1a
                     }
 
@@ -3058,17 +3063,19 @@ static void modesReadFromClient(struct client *c) {
                             p++;
                             eom++;
                             if (p < eod && 0x1A != *p) { // check that it's indeed a double escape
-                                // Not a valid beast message, skip 0x1a and try again
-                                ++som;
+                                // might be start of message rather than double escape.
+                                c->garbage += p - 1 - som;
+                                Modes.stats_current.remote_malformed_beast += p - 1 - som;
+                                som = p - 1;
                                 invalid = 1;
                                 break;
                             }
                         }
                     }
-
-                    if (eom > eod || invalid) { // Incomplete message in buffer, retry later
+                    if (invalid) // skip to potential start of a message
+                        continue;
+                    if (eom > eod) // Incomplete message in buffer, retry later
                         break;
-                    }
 
 
                     // Have a 0x1a followed by 1/2/3/4/5 - pass message to handler.
@@ -3087,6 +3094,7 @@ static void modesReadFromClient(struct client *c) {
 
                 if (eod - som > 256) {
                     c->garbage += eod - som;
+                    Modes.stats_current.remote_malformed_beast += eod - som;
                     som = eod;
                 }
                 break;
