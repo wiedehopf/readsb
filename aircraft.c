@@ -404,28 +404,38 @@ int dbUpdate() {
     struct stat fileinfo = {0};
     if (fstat(fd, &fileinfo)) {
         fprintf(stderr, "%s: dbUpdate: fstat failed, wat?!\n", filename);
-        return 0;
+        goto DBU0;
     }
     uint64_t modTime = fileinfo.st_mtim.tv_sec;
 
 
     if (Modes.dbModificationTime == modTime)
-        return 0;
-
-    gzFile gzfp = gzdopen(fd, "r");
-    if (!gzfp)
-        fprintf(stderr, "db update error: gzdopen failed.\n");
-
-    Modes.dbModificationTime = modTime;
-
-
-    struct char_buffer cb = readWholeGz(gzfp, filename);
-    if (!cb.buffer)
-        return 0;
+        goto DBU0;
 
     int alloc = (1<<20);
     Modes.db2 = malloc(alloc * sizeof(dbEntry));
     Modes.db2Index = calloc(DB_BUCKETS, sizeof(void*));
+
+    if (!Modes.db2 || !Modes.db2Index) {
+        fprintf(stderr, "db update error: malloc failure!\n");
+        free(Modes.db2);
+        free(Modes.db2Index);
+        goto DBU0;
+    }
+
+    gzFile gzfp = gzdopen(fd, "r");
+    if (!gzfp) {
+        fprintf(stderr, "db update error: gzdopen failed.\n");
+        goto DBU0;
+    }
+
+
+    struct char_buffer cb = readWholeGz(gzfp, filename);
+    if (!cb.buffer) {
+        gzclose(gzfp);
+        goto DBU0;
+    }
+
 
     char *eob = cb.buffer + cb.len;
     char *sol = cb.buffer;
@@ -476,9 +486,15 @@ int dbUpdate() {
 
     gzclose(gzfp);
     free(cb.buffer);
+    Modes.dbModificationTime = modTime;
     fprintf(stderr, "db update done!\n");
     writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
     return 1;
+DBU0:
+    Modes.db2 = NULL;
+    Modes.db2Index = NULL;
+    close(fd);
+    return 0;
 }
 
 void dbFinishUpdate() {
