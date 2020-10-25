@@ -391,6 +391,7 @@ static inline int nextToken(char delim, char **sot, char **eot, char **eol) {
 }
 
 int dbUpdate() {
+    struct char_buffer cb = {0};
     char *filename = "/usr/local/share/tar1090/git-db/aircraft.csv.gz";
     int fd = open(filename, O_RDONLY);
     if (fd == -1) {
@@ -418,8 +419,6 @@ int dbUpdate() {
 
     if (!Modes.db2 || !Modes.db2Index) {
         fprintf(stderr, "db update error: malloc failure!\n");
-        free(Modes.db2);
-        free(Modes.db2Index);
         goto DBU0;
     }
 
@@ -430,8 +429,14 @@ int dbUpdate() {
     }
 
 
-    struct char_buffer cb = readWholeGz(gzfp, filename);
+    cb = readWholeGz(gzfp, filename);
     if (!cb.buffer) {
+        fprintf(stderr, "readWholeGz failed.\n");
+        gzclose(gzfp);
+        goto DBU0;
+    }
+    if (cb.len < 1000) {
+        fprintf(stderr, "database file very small, bailing out of dbUpdate.\n");
         gzclose(gzfp);
         goto DBU0;
     }
@@ -491,6 +496,9 @@ int dbUpdate() {
     writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
     return 1;
 DBU0:
+    free(cb.buffer);
+    free(Modes.db2);
+    free(Modes.db2Index);
     Modes.db2 = NULL;
     Modes.db2Index = NULL;
     close(fd);
