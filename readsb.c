@@ -1144,6 +1144,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         break;
                     case 'O': Modes.debug_rough_receiver_location = 1;
                         break;
+                    case 'U': Modes.debug_dbJson = 1;
+                        break;
                     default:
                         fprintf(stderr, "Unknown debugging flag: %c\n", *arg);
                         return 1;

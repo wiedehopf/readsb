@@ -376,6 +376,72 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
 #undef F
 }
 
+// rudimentary sanitization so the json output hopefully won't be invalid
+static inline void sanitize(char *str, unsigned len) {
+    char b2 = (1<<7) + (1<<6); // 2 byte code or more
+    char b3 = (1<<7) + (1<<6) + (1<<5); // 3 byte code or more
+    char b4 = (1<<7) + (1<<6) + (1<<5) + (1<<4); // 4 byte code
+
+    if (len >= 3 && (str[len - 3] & b4) == b4) {
+        //fprintf(stderr, "%c\n", str[len - 3]);
+        str[len - 3] = '\0';
+    }
+    if (len >= 2 && (str[len - 2] & b3) == b3) {
+        //fprintf(stderr, "%c\n", str[len - 2]);
+        str[len - 2] = '\0';
+    }
+    if (len >= 1 && (str[len - 1] & b2) == b2) {
+        //fprintf(stderr, "%c\n", str[len - 1]);
+        str[len - 1] = '\0';
+    }
+    char *p = str;
+    while(p < str + len && *p) {
+        if (*p == '"')
+            *p = '\'';
+        if (*p > 0 && *p < 0x1f)
+            *p = ' ';
+        p++;
+    }
+    if (p - 1 >= str && *(p - 1) == '\\') {
+        *(p - 1) = '\0';
+    }
+}
+static char *sprintDB(char *p, char *end, dbEntry *d) {
+    p = safe_snprintf(p, end, "{\"icao\":\"%s%06x\"", (d->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", d->addr & 0xFFFFFF);
+    char *regInfo = p;
+    if (d->registration[0])
+        p = safe_snprintf(p, end, "\n,\"r\":\"%.*s\"", (int) sizeof(d->registration), d->registration);
+    if (d->typeCode[0])
+        p = safe_snprintf(p, end, "\n,\"t\":\"%.*s\"", (int) sizeof(d->typeCode), d->typeCode);
+    if (d->typeLong[0])
+        p = safe_snprintf(p, end, "\n,\"desc\":\"%.*s\"", (int) sizeof(d->typeLong), d->typeLong);
+    if (d->dbFlags)
+        p = safe_snprintf(p, end, "\n,\"dbFlags\":%u", d->dbFlags);
+    if (p == regInfo)
+        p = safe_snprintf(p, end, "\n,\"noRegData\":true");
+    p = safe_snprintf(p, end, "},");
+    return p;
+}
+static void dbToJson() {
+    size_t buflen = 256 * 1024 * 1024;
+    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
+    p = safe_snprintf(p, end, "{ \"db\":[ ");
+
+    for (int j = 0; j < DB_BUCKETS; j++) {
+        for (dbEntry *d = Modes.db2Index[j]; d; d = d->next) {
+            p = sprintDB(p, end, d);
+        }
+    }
+
+    if (*(p-1) == ',')
+        p--;
+    p = safe_snprintf(p, end, "]}");
+    struct char_buffer cb2;
+    cb2.len = p - buf;
+    cb2.buffer = buf;
+    writeJsonToFile(Modes.json_dir, "db.json", cb2); // location changed
+}
+
 // get next CSV token based on the assumption eot points to the previous delimiter
 static inline int nextToken(char delim, char **sot, char **eot, char **eol) {
     *sot = *eot + 1;
@@ -441,7 +507,6 @@ int dbUpdate() {
         goto DBU0;
     }
 
-
     char *eob = cb.buffer + cb.len;
     char *sol = cb.buffer;
     char *eol;
@@ -460,9 +525,11 @@ int dbUpdate() {
 
         if (!nextToken(';', &sot, &eot, &eol)) continue;
         memcpy(curr->registration, sot, min(sizeof(curr->registration), eot - sot));
+        sanitize(curr->registration, sizeof(curr->registration));
 
         if (!nextToken(';', &sot, &eot, &eol)) continue;
         memcpy(curr->typeCode, sot, min(sizeof(curr->typeCode), eot - sot));
+        sanitize(curr->typeCode, sizeof(curr->typeCode));
 
         if (!nextToken(';', &sot, &eot, &eol)) continue;
         for (int j = 0; j < 16 && sot < eot; j++, sot++)
@@ -473,6 +540,7 @@ int dbUpdate() {
         sot = eot + 1;
         eot = eol;
         memcpy(curr->typeLong, sot, min(sizeof(curr->typeLong), eot - sot));
+        sanitize(curr->typeLong, sizeof(curr->typeLong));
 
         if (false) // debugging output
             fprintf(stdout, "%06X;%.12s;%.4s;%c%c;%.54s\n",
@@ -508,6 +576,8 @@ DBU0:
 void dbFinishUpdate() {
     // finish db update
     if (Modes.db2 && Modes.db2Index) {
+        if (Modes.debug_dbJson)
+            dbToJson();
         free(Modes.dbIndex);
         free(Modes.db);
         Modes.dbIndex = Modes.db2Index;

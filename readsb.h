@@ -447,6 +447,7 @@ struct _Modes
     int8_t debug_rough_receiver_location;
     int8_t debug_traceCount;
     int8_t debug_sampleCounter;
+    int8_t debug_dbJson;
     int8_t filter_persistence; // Maximum number of consecutive implausible positions from global CPR to invalidate a known position.
 
     int8_t net_verbatim; // if true, send the original message, not the CRC-corrected one
