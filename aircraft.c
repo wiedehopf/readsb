@@ -407,35 +407,44 @@ static inline void sanitize(char *str, unsigned len) {
     }
 }
 static char *sprintDB(char *p, char *end, dbEntry *d) {
-    p = safe_snprintf(p, end, "{\"icao\":\"%s%06x\"", (d->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", d->addr & 0xFFFFFF);
+    p = safe_snprintf(p, end, "\n\"%s%06x\":{", (d->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", d->addr & 0xFFFFFF);
     char *regInfo = p;
     if (d->registration[0])
-        p = safe_snprintf(p, end, "\n,\"r\":\"%.*s\"", (int) sizeof(d->registration), d->registration);
+        p = safe_snprintf(p, end, "\"r\":\"%.*s\",", (int) sizeof(d->registration), d->registration);
     if (d->typeCode[0])
-        p = safe_snprintf(p, end, "\n,\"t\":\"%.*s\"", (int) sizeof(d->typeCode), d->typeCode);
+        p = safe_snprintf(p, end, "\"t\":\"%.*s\",", (int) sizeof(d->typeCode), d->typeCode);
     if (d->typeLong[0])
-        p = safe_snprintf(p, end, "\n,\"desc\":\"%.*s\"", (int) sizeof(d->typeLong), d->typeLong);
+        p = safe_snprintf(p, end, "\"desc\":\"%.*s\",", (int) sizeof(d->typeLong), d->typeLong);
     if (d->dbFlags)
-        p = safe_snprintf(p, end, "\n,\"dbFlags\":%u", d->dbFlags);
+        p = safe_snprintf(p, end, "\"dbFlags\":%u,", d->dbFlags);
     if (p == regInfo)
-        p = safe_snprintf(p, end, "\n,\"noRegData\":true");
+        p = safe_snprintf(p, end, "\"noRegData\":true");
+    if (*(p-1) == ',')
+        p--;
     p = safe_snprintf(p, end, "},");
     return p;
 }
 static void dbToJson() {
-    size_t buflen = 256 * 1024 * 1024;
+    size_t buflen = 32 * 1024 * 1024;
     char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
-    p = safe_snprintf(p, end, "{ \"db\":[ ");
+    p = safe_snprintf(p, end, "{");
 
     for (int j = 0; j < DB_BUCKETS; j++) {
         for (dbEntry *d = Modes.db2Index[j]; d; d = d->next) {
             p = sprintDB(p, end, d);
+            if ((p + 1000) >= end) {
+                int used = p - buf;
+                buflen *= 2;
+                buf = (char *) realloc(buf, buflen);
+                p = buf + used;
+                end = buf + buflen;
+            }
         }
     }
 
     if (*(p-1) == ',')
         p--;
-    p = safe_snprintf(p, end, "]}");
+    p = safe_snprintf(p, end, "\n}");
     struct char_buffer cb2;
     cb2.len = p - buf;
     cb2.buffer = buf;

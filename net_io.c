@@ -2516,15 +2516,15 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
     if (Modes.db) {
         char *regInfo = p;
         if (a->registration[0])
-            p = safe_snprintf(p, end, "\n,\"r\":\"%.*s\"", (int) sizeof(a->registration), a->registration);
+            p = safe_snprintf(p, end, ",\n\"r\":\"%.*s\"", (int) sizeof(a->registration), a->registration);
         if (a->typeCode[0])
-            p = safe_snprintf(p, end, "\n,\"t\":\"%.*s\"", (int) sizeof(a->typeCode), a->typeCode);
+            p = safe_snprintf(p, end, ",\n\"t\":\"%.*s\"", (int) sizeof(a->typeCode), a->typeCode);
         if (a->typeLong[0])
-            p = safe_snprintf(p, end, "\n,\"desc\":\"%.*s\"", (int) sizeof(a->typeLong), a->typeLong);
+            p = safe_snprintf(p, end, ",\n\"desc\":\"%.*s\"", (int) sizeof(a->typeLong), a->typeLong);
         if (a->dbFlags)
-            p = safe_snprintf(p, end, "\n,\"dbFlags\":%u", a->dbFlags);
+            p = safe_snprintf(p, end, ",\n\"dbFlags\":%u", a->dbFlags);
         if (p == regInfo)
-            p = safe_snprintf(p, end, "\n,\"noRegData\":true");
+            p = safe_snprintf(p, end, ",\n\"noRegData\":true");
     }
 
     if (start <= last && last < a->trace_len) {
