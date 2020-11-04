@@ -43,6 +43,7 @@ typedef struct {
     bool(*handleOption)(int, char*);
     bool(*open)();
     void (*run)();
+    void (*cancel)();
     void (*close)();
     const char *name;
     sdr_type_t sdr_type;
@@ -67,6 +68,9 @@ static bool noOpen() {
 static void noRun() {
 }
 
+static void noCancel() {
+}
+
 static void noClose() {
 }
 
@@ -77,24 +81,24 @@ static bool unsupportedOpen() {
 
 static sdr_handler sdr_handlers[] = {
 #ifdef ENABLE_RTLSDR
-    { rtlsdrInitConfig, rtlsdrHandleOption, rtlsdrOpen, rtlsdrRun, rtlsdrClose, "rtlsdr", SDR_RTLSDR, 0},
+    { rtlsdrInitConfig, rtlsdrHandleOption, rtlsdrOpen, rtlsdrRun, rtlsdrCancel, rtlsdrClose, "rtlsdr", SDR_RTLSDR, 0},
 #endif
 
 #ifdef ENABLE_BLADERF
-    { bladeRFInitConfig, bladeRFHandleOption, bladeRFOpen, bladeRFRun, bladeRFClose, "bladerf", SDR_BLADERF, 0},
-    { ubladeRFInitConfig, ubladeRFHandleOption, ubladeRFOpen, ubladeRFRun, ubladeRFClose, "ubladerf", SDR_MICROBLADERF, 0},
+    { bladeRFInitConfig, bladeRFHandleOption, bladeRFOpen, bladeRFRun, noCancel, bladeRFClose, "bladerf", SDR_BLADERF, 0},
+    { ubladeRFInitConfig, ubladeRFHandleOption, ubladeRFOpen, ubladeRFRun, noCancel, ubladeRFClose, "ubladerf", SDR_MICROBLADERF, 0},
 #endif
 
 #ifdef ENABLE_PLUTOSDR
-    { plutosdrInitConfig, plutosdrHandleOption, plutosdrOpen, plutosdrRun, plutosdrClose, "plutosdr", SDR_PLUTOSDR, 0},
+    { plutosdrInitConfig, plutosdrHandleOption, plutosdrOpen, plutosdrRun, noCancel, plutosdrClose, "plutosdr", SDR_PLUTOSDR, 0},
 #endif
 
-    { beastInitConfig, beastHandleOption, beastOpen, noRun, noClose, "modesbeast", SDR_MODESBEAST, 0},
-    { beastInitConfig, beastHandleOption, beastOpen, noRun, noClose, "gns5894", SDR_GNS, 0},
-    { ifileInitConfig, ifileHandleOption, ifileOpen, ifileRun, ifileClose, "ifile", SDR_IFILE, 0},
-    { noInitConfig, noHandleOption, noOpen, noRun, noClose, "none", SDR_NONE, 0},
+    { beastInitConfig, beastHandleOption, beastOpen, noRun, noCancel, noClose, "modesbeast", SDR_MODESBEAST, 0},
+    { beastInitConfig, beastHandleOption, beastOpen, noRun, noCancel, noClose, "gns5894", SDR_GNS, 0},
+    { ifileInitConfig, ifileHandleOption, ifileOpen, ifileRun, noCancel, ifileClose, "ifile", SDR_IFILE, 0},
+    { noInitConfig, noHandleOption, noOpen, noRun, noCancel, noClose, "none", SDR_NONE, 0},
 
-    { NULL, NULL, NULL, NULL, NULL, NULL, SDR_NONE, 0} /* must come last */
+    { NULL, NULL, NULL, NULL, NULL, NULL, NULL, SDR_NONE, 0} /* must come last */
 };
 
 void sdrInitConfig() {
@@ -134,7 +138,7 @@ bool sdrHandleOption(int argc, char *argv) {
 }
 
 static sdr_handler *current_handler() {
-    static sdr_handler unsupported_handler = {noInitConfig, noHandleOption, unsupportedOpen, noRun, noClose, "unsupported", SDR_NONE, 0};
+    static sdr_handler unsupported_handler = {noInitConfig, noHandleOption, unsupportedOpen, noRun, noCancel, noClose, "unsupported", SDR_NONE, 0};
 
     for (int i = 0; sdr_handlers[i].name; ++i) {
         if (Modes.sdr_type == sdr_handlers[i].sdr_type) {
@@ -151,6 +155,10 @@ bool sdrOpen() {
 
 void sdrRun() {
     return current_handler()->run();
+}
+
+void sdrCancel() {
+    return current_handler()->cancel();
 }
 
 void sdrClose() {

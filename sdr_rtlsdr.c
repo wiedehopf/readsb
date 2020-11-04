@@ -379,6 +379,9 @@ void rtlsdrRun() {
         fprintf(stderr,"rtlsdr_read_async returned unexpectedly, probably lost the USB device, bailing out");
     }
 }
+void rtlsdrCancel() {
+    rtlsdr_cancel_async(RTLSDR.dev); // interrupt read_async
+}
 
 void rtlsdrClose() {
     if (RTLSDR.dev) {

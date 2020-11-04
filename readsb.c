@@ -572,7 +572,7 @@ static void *decodeThreadEntryPoint(void *arg) {
                 break;
         }
     } else {
-        int watchdogCounter = 10; // about 1 second
+        int watchdogCounter = 50; // about 5 seconds
 
         // Create the thread that will read the data from the device.
         pthread_mutex_lock(&Modes.data_mutex);
@@ -633,13 +633,14 @@ static void *decodeThreadEntryPoint(void *arg) {
                 Modes.first_filled_buffer = (Modes.first_filled_buffer + 1) % MODES_MAG_BUFFERS;
                 pthread_cond_signal(&Modes.data_cond);
                 pthread_mutex_unlock(&Modes.data_mutex);
-                watchdogCounter = 10;
+                watchdogCounter = 50;
             } else {
                 // Nothing to process this time around.
                 pthread_mutex_unlock(&Modes.data_mutex);
                 if (--watchdogCounter <= 0) {
-                    log_with_timestamp("No data received from the SDR for a long time, it may have wedged");
-                    watchdogCounter = 600;
+                    log_with_timestamp("No data received from the SDR for a long time, it may have wedged, exiting!");
+                    Modes.exit = 1;
+                    sdrCancel();
                 }
             }
 
@@ -652,9 +653,20 @@ static void *decodeThreadEntryPoint(void *arg) {
         pthread_mutex_unlock(&Modes.data_mutex);
 
         log_with_timestamp("Waiting for receive thread termination");
-        pthread_join(Modes.reader_thread, NULL); // Wait on reader thread exit
-        pthread_cond_destroy(&Modes.data_cond); // Thread cleanup - only after the reader thread is dead!
-        pthread_mutex_destroy(&Modes.data_mutex);
+        int res;
+        int count = 100;
+        // Wait on reader thread exit
+        while (count-- > 0 && (res = pthread_tryjoin_np(Modes.reader_thread, NULL))) {
+            struct timespec slp = {0, 100 * 1000 * 1000};
+            nanosleep(&slp, NULL);
+        }
+        if (res) {
+            log_with_timestamp("Receive thread termination failed, will raise SIGKILL on exit!");
+            Modes.exit = SIGKILL;
+        } else {
+            pthread_cond_destroy(&Modes.data_cond); // Thread cleanup - only after the reader thread is dead!
+            pthread_mutex_destroy(&Modes.data_mutex);
+        }
     }
 
     pthread_mutex_unlock(&Modes.decodeThreadMutex);
@@ -1441,6 +1453,9 @@ int main(int argc, char **argv) {
     // If --stats were given, print statistics
     if (Modes.stats) {
         display_total_stats();
+    }
+    if (Modes.exit == SIGKILL) {
+        raise(SIGKILL);
     }
     sdrClose();
     if (Modes.exit != 1) {
