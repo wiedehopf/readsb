@@ -467,7 +467,9 @@ static inline int nextToken(char delim, char **sot, char **eot, char **eol) {
 
 int dbUpdate() {
     struct char_buffer cb = {0};
-    char *filename = "/usr/local/share/tar1090/git-db/aircraft.csv.gz";
+    char *filename = Modes.db_file;
+    if (!strlen(filename) || !strcmp(filename, "none"))
+        return 0;
     int fd = open(filename, O_RDONLY);
     if (fd == -1) {
         filename = "/opt/html/aircraft.csv.gz";

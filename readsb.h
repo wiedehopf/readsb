@@ -486,6 +486,7 @@ struct _Modes
     uint32_t interactive_display_ttl; // Interactive mode: TTL display
     uint32_t json_interval; // Interval between rewriting the json aircraft file, in milliseconds; also the advertised map refresh interval
     uint64_t stats; // Interval (millis) between stats dumps,
+    char *db_file;
     char *net_output_raw_ports; // List of raw output TCP ports
     char *net_input_raw_ports; // List of raw input TCP ports
     char *net_output_sbs_ports; // List of SBS output TCP ports
@@ -850,6 +851,7 @@ enum {
     OptJsonGzip,
     OptJsonBinCraft,
     OptJsonReliable,
+    OptDbFile,
     OptPromFile,
     OptGlobeHistoryDir,
     OptStateDir,

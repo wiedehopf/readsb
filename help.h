@@ -79,6 +79,7 @@ static struct argp_option options[] =
     {"write-json-gzip", OptJsonGzip, 0, 0, "Write aircraft.json also as aircraft.json.gz", 1},
     {"write-json-binCraft-only", OptJsonBinCraft, "<n>", 0, "Use only binary binCraft format for globe files (1), for aircraft.json as well (2)", 1},
     {"json-reliable", OptJsonReliable,"<n>", 0, "Minimum position reliability to put it into json (default: 1, globe options will default set this to 2, disable speed filter: -1, max: 4)", 1},
+    {"db-file", OptDbFile, "<file.csv.gz>", 0, "disable db loading: --db-file none Default: /usr/local/share/tar1090/git-db/aircraft.csv.gz", 1},
 #endif
     {0,0,0,0, "Network options:", 2},
 #if defined(READSB) || defined(VIEWADSB)
