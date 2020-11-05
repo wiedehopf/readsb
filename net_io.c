@@ -3623,7 +3623,7 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
         p = safe_snprintf(p, end, ",\"flight\":\"%s\"", jsonEscapeString(a->callsign, buf, sizeof(buf)));
     }
     if (Modes.db) {
-        if (printMode == 0 || printMode == 3) {
+        if (printMode != 1) {
             if (a->registration[0])
                 p = safe_snprintf(p, end, ",\"r\":\"%.*s\"", (int) sizeof(a->registration), a->registration);
             if (a->typeCode[0])
@@ -3631,7 +3631,7 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
             if (a->dbFlags)
                 p = safe_snprintf(p, end, ",\"dbFlags\":%u", a->dbFlags);
         }
-        if (printMode == 0 && !Modes.dbExchange) {
+        if ((printMode == 0 || printMode == 2)&& !Modes.dbExchange) {
             if (a->typeLong[0])
                 p = safe_snprintf(p, end, ",\"desc\":\"%.*s\"", (int) sizeof(a->typeLong), a->typeLong);
         }
