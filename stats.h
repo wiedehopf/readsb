@@ -114,6 +114,8 @@ struct stats
   uint32_t cpr_filtered;
 
   uint32_t pos_all;
+  uint32_t pos_duplicate;
+  uint32_t pos_garbage;
   uint32_t pos_by_type[NUM_TYPES];
 
   // number of altitude messages ignored because

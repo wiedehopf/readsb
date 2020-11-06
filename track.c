@@ -594,11 +594,21 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         mm->reduce_forward = 0;
         mm->duplicate = 1;
         mm->pos_ignore = 1;
+    }
+
+    Modes.stats_current.pos_by_type[mm->addrtype]++;
+    Modes.stats_current.pos_all++;
+
+    // mm->pos_bad should never arrive here, handle it just in case
+    if (mm->cpr_valid && (mm->garbage || mm->pos_bad)) {
+        Modes.stats_current.pos_garbage++;
         return;
     }
 
-    if (mm->cpr_valid && (mm->garbage || mm->pos_bad || mm->duplicate))
+    if (mm->duplicate) {
+        Modes.stats_current.pos_duplicate++;
         return;
+    }
 
     // Update aircraft state
     a->lat = mm->decoded_lat;
@@ -627,9 +637,6 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
     if (a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2 && mm->source == SOURCE_ADSB) {
         update_range_histogram(mm->decoded_lat, mm->decoded_lon);
     }
-
-    Modes.stats_current.pos_by_type[mm->addrtype]++;
-    Modes.stats_current.pos_all++;
 
     a->seen_pos = now;
 
@@ -1095,6 +1102,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (mm->cpr_valid || mm->sbs_pos_valid) {
         memcpy(Modes.scratch, a, sizeof(struct aircraft));
         haveScratch = true;
+        // messages from receivers classified garbage with position get processed to see if they still send garbage
     } else if (mm->garbage) {
         return NULL;
     }

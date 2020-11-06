@@ -289,6 +289,8 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
         target->pos_by_type[i] = st1->pos_by_type[i] + st2->pos_by_type[i];
     }
     target->pos_all = st1->pos_all + st2->pos_all;
+    target->pos_duplicate = st1->pos_duplicate + st2->pos_duplicate;
+    target->pos_garbage = st1->pos_garbage + st2->pos_garbage;
 
     // noise power:
     target->noise_power_sum = st1->noise_power_sum + st2->noise_power_sum;
@@ -694,6 +696,8 @@ struct char_buffer generatePromFile() {
     p = safe_snprintf(p, end, "readsb_tracks_single_message %u\n", st->single_message_aircraft);
 
     p = safe_snprintf(p, end, "readsb_position_count_total %u\n", st->pos_all);
+    p = safe_snprintf(p, end, "readsb_position_count_duplicate %u\n", st->pos_duplicate);
+    p = safe_snprintf(p, end, "readsb_position_count_garbage %u\n", st->pos_garbage);
     for (int i = 0; i < NUM_TYPES; i++) {
         const char *key = addrtype_enum_string(i);
         p = safe_snprintf(p, end, "readsb_position_count_%s %u\n", key, st->pos_by_type[i]);
