@@ -606,6 +606,7 @@ struct modesMessage
     uint32_t addr; // Address Announced
     addrtype_t addrtype; // address format / source
     int score; // Scoring from scoreModesMessage, if used
+    uint16_t receiverCountMlat; // number of receivers for MLAT messages
     bool remote; // If set this message is from a remote station
     bool sbs_in; // Signifies this message is coming from basestation input
     bool reduce_forward; // forward this message for reduced beast output

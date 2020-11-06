@@ -605,9 +605,13 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         return;
     }
 
-    uint16_t simpleHash = (uint16_t) mm->receiverId;
-    simpleHash = simpleHash ? simpleHash : 1;
-    a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = simpleHash;
+    if (mm->source == SOURCE_MLAT) {
+        a->receiverCountMlat = mm->receiverCountMlat;
+    } else {
+        uint16_t simpleHash = (uint16_t) mm->receiverId;
+        simpleHash = simpleHash ? simpleHash : 1;
+        a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = simpleHash;
+    }
 
     if (mm->duplicate) {
         Modes.stats_current.pos_duplicate++;

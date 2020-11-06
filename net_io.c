@@ -1238,6 +1238,14 @@ static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now)
             //fprintf(stderr, "squawk: %04x %s, ", mm.squawk, t[18]);
         }
     }
+    // field 19 (originally squawk change) used to indicate by some versions of mlat-server the number of receivers which contributed to the postiions
+    if (mm.source == SOURCE_MLAT && t[19] && strlen(t[19]) > 0) {
+        long int tmp = strtol(t[19], NULL, 10);
+        if (tmp > 0) {
+            mm.receiverCountMlat = tmp;
+        }
+    }
+
     // field 22 ground status
     if (t[22] && strlen(t[22]) > 0 && atoi(t[22]) > 0) {
         mm.airground = AG_GROUND;

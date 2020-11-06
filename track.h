@@ -287,7 +287,8 @@ struct aircraft
   uint64_t rr_seen; // when we noted this rough position
   uint64_t category_updated;
   unsigned category; // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
-  unsigned paddingabc;
+  uint16_t receiverCountMlat;
+  uint16_t paddingabc;
 
 
   uint64_t padding23;
