@@ -236,6 +236,7 @@ void apiReq(double latMin, double latMax, double lonMin, double lonMax, uint32_t
 
 void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
 
+    memset(new, 0, sizeof(struct binCraft));
     new->hex = a->addr;
     new->seen = (now - a->seen) / 100.0;
 
@@ -247,10 +248,6 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
         memcpy(new->registration, a->registration, sizeof(new->registration));
         memcpy(new->typeCode, a->typeCode, sizeof(new->typeCode));
         new->dbFlags = a->dbFlags;
-    } else {
-        memset(new->registration, 0, sizeof(new->registration));
-        memset(new->typeCode, 0, sizeof(new->typeCode));
-        new->dbFlags = 0;
     }
 
     new->messages = a->messages;
@@ -340,8 +337,18 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
 
     new->signal = get8bitSignal(a);
 
-    new->unused_1 = 0;
-    new->unused_2 = 0;
+    uint16_t *set1 = a->receiverIds;
+    uint16_t set2[16] = { 0 };
+    int div = 0;
+    for (int k = 0; k < RECEIVERIDBUFFER; k++) {
+        int unequal = 0;
+        for (int j = 0; j < div; j++) {
+            unequal += (set1[k] != set2[j]);
+        }
+        if (unequal == div && set1[k])
+            set2[div++] = set1[k];
+    }
+    new->receiverDiversity = div;
 #define F(f) do { new->f##_valid = trackDataValid(&a->f##_valid); new->f *= new->f##_valid; } while (0)
     F(altitude_geom);
     F(gs);

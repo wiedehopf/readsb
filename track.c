@@ -605,6 +605,10 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         return;
     }
 
+    uint16_t simpleHash = (uint16_t) mm->receiverId;
+    simpleHash = simpleHash ? simpleHash : 1;
+    a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = simpleHash;
+
     if (mm->duplicate) {
         Modes.stats_current.pos_duplicate++;
         return;
@@ -1817,6 +1821,8 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList, uint64_t now) {
                     && (now < a->seen + 30 * SECONDS && a->messages >= 2))
                         statsCount(a, now);
 
+                a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = 0;
+
                 if (Modes.api)
                     apiAdd(a, now);
 
@@ -1877,8 +1883,8 @@ static void unlockThreads() {
 void trackPeriodicUpdate() {
     // Only do updates once per second
     static uint32_t blob; // current blob
-    static uint32_t counter;
-    counter++; // free running counter
+    static uint32_t upcount;
+    upcount++; // free running counter
     int writeStats = 0;
 
     struct aircraft *freeList = NULL;
@@ -1907,7 +1913,7 @@ void trackPeriodicUpdate() {
     writeStats = statsUpdate(now); // needs to happen under lock
 
     int nParts = 256;
-    receiverTimeout((counter % nParts), nParts);
+    receiverTimeout((upcount % nParts), nParts);
 
     netFreeClients();
 
@@ -1932,7 +1938,7 @@ void trackPeriodicUpdate() {
     if (Modes.api)
         apiSort();
 
-    if (counter % (3000 / STATE_BLOBS) == 0) {
+    if (upcount % (3000 / STATE_BLOBS) == 0) {
         save_blob(blob++ % STATE_BLOBS);
     }
 
@@ -1942,16 +1948,16 @@ void trackPeriodicUpdate() {
     if (writeStats)
         statsWrite();
 
-    if (Modes.netIngest && Modes.json_dir && counter % 5 == 2)
+    if (Modes.netIngest && Modes.json_dir && upcount % 5 == 2)
         writeJsonToFile(Modes.json_dir, "clients.json", generateClientsJson());
 
-    if (Modes.netReceiverIdJson && Modes.json_dir && counter % 5 == 2)
+    if (Modes.netReceiverIdJson && Modes.json_dir && upcount % 5 == 2)
         writeJsonToFile(Modes.json_dir, "receivers.json", generateReceiversJson());
 
     // one iteration later, finish db update if db was updated
     dbFinishUpdate();
     // db update check every 5 min
-    if (counter % 300 == 0)
+    if (upcount % 300 == 0)
         dbUpdate();
 
     end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);

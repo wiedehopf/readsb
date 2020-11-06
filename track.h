@@ -98,6 +98,8 @@
 // 2.5 seconds maximum between messages used for calculating wind / temperature
 #define TRACK_WT_TIMEOUT (2500)
 
+#define RECEIVERIDBUFFER (12)
+
 // data moves through three states:
 //  fresh: data is valid. Updates from a less reliable source are not accepted.
 //  stale: data is valid. Updates from a less reliable source are accepted.
@@ -292,7 +294,7 @@ struct aircraft
   uint64_t addrtype_updated;
   float tat;
   uint16_t no_signal_count; // consecutive messages without signal strength specified
-  uint16_t padding;
+  uint16_t receiverIdsNext;
   uint64_t seenPosReliable; // last time we saw a reliable position
   uint64_t lastPosReceiverId;
 
@@ -432,7 +434,7 @@ struct aircraft
   char registration[12];
   char typeLong[63];
   uint8_t dbFlags;
-  uint64_t reserved[3];
+  uint16_t receiverIds[RECEIVERIDBUFFER]; // RECEIVERIDBUFFER = 12
 
   struct modesMessage *first_message; // A copy of the first message we received for this aircraft.
 };

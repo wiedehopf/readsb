@@ -154,6 +154,9 @@ struct binCraft {
   // 92
   char registration[12];
   // 104
+  uint8_t receiverDiversity;
+  uint8_t reserved[3];
+  // 108
   // javascript sucks, this must be a multiple of 4 bytes for Int32Array to work correctly
 } __attribute__ ((__packed__));
 
