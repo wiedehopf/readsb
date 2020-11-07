@@ -308,7 +308,7 @@ typedef enum {
 #define GLOBE_STEP 32
 #define STATE_BLOBS 256
 #define IO_THREADS 8
-#define TRACE_THREADS 4
+#define TRACE_THREADS 8
 
 #define STAT_BUCKETS 90 // 90 * 10 seconds = 15 min (max interval in stats.json)
 
