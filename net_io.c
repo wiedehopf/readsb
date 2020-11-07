@@ -2470,7 +2470,7 @@ struct char_buffer generateAircraftJson(){
             //fprintf(stderr, "a: %05x\n", a->addr);
 
             // don't include stale aircraft in the JSON
-            if (a->position_valid.source != SOURCE_JAERO && now > a->seen + 60 * 1000)
+            if (a->position_valid.source != SOURCE_JAERO && now > a->seen + 15 * SECONDS && now > a->seen_pos + 60 * SECONDS)
                 continue;
             if (a->messages < 2)
                 continue;

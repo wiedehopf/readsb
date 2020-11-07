@@ -2790,7 +2790,7 @@ void updateValidities(struct aircraft *a, uint64_t now) {
     if (now > a->category_updated + 2 * HOURS)
         a->category = 0;
 
-    updateValidity(&a->callsign_valid, now, TRACK_EXPIRE_LONG);
+    updateValidity(&a->callsign_valid, now, 2 * TRACK_EXPIRE_LONG);
     updateValidity(&a->altitude_baro_valid, now, TRACK_EXPIRE);
     updateValidity(&a->altitude_geom_valid, now, TRACK_EXPIRE);
     updateValidity(&a->geom_delta_valid, now, TRACK_EXPIRE);

@@ -86,13 +86,9 @@
 
 #define ALTITUDE_BARO_RELIABLE_MAX 20
 
-// 15 seconds
 #define TRACK_STALE (15*SECONDS)
-// 45 seconds
 #define TRACK_EXPIRE (45*SECONDS)
-// 90 seconds
-#define TRACK_EXPIRE_LONG (90*SECONDS)
-// 33 minutes
+#define TRACK_EXPIRE_LONG (120*SECONDS)
 #define TRACK_EXPIRE_JAERO (33*MINUTES)
 
 // 2.5 seconds maximum between messages used for calculating wind / temperature
