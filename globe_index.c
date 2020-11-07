@@ -188,7 +188,7 @@ int globe_index_index(int index) {
 }
 
 
-void write_trace(struct aircraft *a, uint64_t now) {
+static void write_trace(struct aircraft *a, uint64_t now, int init) {
     struct char_buffer recent;
     struct char_buffer full;
     struct char_buffer hist;
@@ -212,7 +212,9 @@ void write_trace(struct aircraft *a, uint64_t now) {
     if (!a->trace_alloc)
         return;
 
-    mark_legs(a);
+    if (!init) {
+        mark_legs(a);
+    }
 
     int start24 = 0;
     for (int i = 0; i < a->trace_len; i++) {
@@ -222,9 +224,10 @@ void write_trace(struct aircraft *a, uint64_t now) {
         }
     }
 
-    int start_recent = start24;
-    if (a->trace_len > 142 && a->trace_len - 142 > start24)
-       start_recent = (a->trace_len - 142);
+    int recent_points = init ? 42 : 142;
+    int start_recent = a->trace_len - recent_points;
+    if (start_recent < start24)
+        start_recent = start24;
 
     // write recent trace to /run
     recent = generateTraceJson(a, start_recent, -1);
@@ -432,7 +435,7 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
         // the value below is again overwritten in track.c when a fullWrite is done on startup
         a->trace_next_mw = a->trace_next_fw = now + 1 * MINUTES + random() % (2 * MINUTES);
         // setting mw and fw ensures only the recent trace is written, full trace would take too long
-        write_trace(a, now);
+        write_trace(a, now, 1);
     }
 
     return 0;
@@ -534,7 +537,7 @@ void *jsonTraceThreadEntryPoint(void *arg) {
         for (int j = start; j < end; j++) {
             for (a = Modes.aircraft[j]; a; a = a->next) {
                 if (a->trace_write)
-                    write_trace(a, now);
+                    write_trace(a, now, 0);
             }
         }
 
