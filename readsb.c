@@ -1303,6 +1303,16 @@ int main(int argc, char **argv) {
         Modes.keep_traces = 35 * MINUTES; // heatmap is written every 30 minutes
     }
 
+    if (Modes.json_dir && Modes.json_globe_index) {
+        char pathbuf[PATH_MAX];
+        snprintf(pathbuf, PATH_MAX, "%s/traces", Modes.json_dir);
+        mkdir(pathbuf, 0755);
+        for (int i = 0; i < 256; i++) {
+            snprintf(pathbuf, PATH_MAX, "%s/traces/%02x", Modes.json_dir, i);
+            mkdir(pathbuf, 0755);
+        }
+    }
+
     if (Modes.state_dir) {
         fprintf(stderr, "loading state .....\n");
         pthread_t threads[IO_THREADS];
@@ -1364,15 +1374,6 @@ int main(int argc, char **argv) {
         pthread_create(&Modes.jsonThread, NULL, jsonThreadEntryPoint, NULL);
 
         if (Modes.json_globe_index) {
-
-            char pathbuf[PATH_MAX];
-            snprintf(pathbuf, PATH_MAX, "%s/traces", Modes.json_dir);
-            mkdir(pathbuf, 0755);
-            for (int i = 0; i < 256; i++) {
-                snprintf(pathbuf, PATH_MAX, "%s/traces/%02x", Modes.json_dir, i);
-                mkdir(pathbuf, 0755);
-            }
-
             // globe_xxxx.json
             pthread_create(&Modes.jsonGlobeThread, NULL, jsonGlobeThreadEntryPoint, NULL);
 

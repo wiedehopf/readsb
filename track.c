@@ -1769,10 +1769,10 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList, uint64_t now) {
     if (Modes.api)
         apiClear();
 
-    int full_write = 0;
+    int fullWrite = 0;
     if (Modes.doFullTraceWrite) {
         Modes.doFullTraceWrite = 0;
-        full_write = 1;
+        fullWrite = 1;
     }
 
     /*
@@ -1838,9 +1838,14 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList, uint64_t now) {
                             a->trace_write = 1;
                         }
 
-                        if (full_write) {
-                            a->trace_next_fw = now + random() % (2 * MINUTES); // spread over 2 mins
-                            a->trace_full_write = 0xc0ffee;
+                        if (fullWrite) {
+                            if (now < a->seen_pos + 3 * HOURS) {
+                                a->trace_next_fw = now + random() % (2 * MINUTES); // spread over 2 mins
+                                a->trace_full_write = 0xc0ffee;
+                            } else {
+                                a->trace_next_fw = now + 3 * MINUTES + random() % (2 * MINUTES); // spread over 2 mins
+                                a->trace_full_write = 0xc0ffee;
+                            }
                         }
                     } else {
                         if (now > a->trace_next_fw) {

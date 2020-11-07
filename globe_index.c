@@ -256,34 +256,30 @@ void write_trace(struct aircraft *a, uint64_t now) {
 
         //fprintf(stderr, "%06x\n", a->addr);
 
-        // prepare stuff to be written to disk
-        // written to memory
-        if (write_perm) {
-            // prepare writing the permanent history
-            if (a->trace_len > 0 &&
-                    Modes.globe_history_dir && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
+        // prepare writing the permanent history
+        if (write_perm && a->trace_len > 0 &&
+                Modes.globe_history_dir && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
 
-                struct tm utc;
-                gmtime_r(&nineteen_ago, &utc);
-                utc.tm_sec = 0;
-                utc.tm_min = 0;
-                utc.tm_hour = 0;
-                uint64_t start_of_day = 1000 * (uint64_t) (timegm(&utc));
-                uint64_t end_of_day = 1000 * (uint64_t) (timegm(&utc) + 86400);
+            struct tm utc;
+            gmtime_r(&nineteen_ago, &utc);
+            utc.tm_sec = 0;
+            utc.tm_min = 0;
+            utc.tm_hour = 0;
+            uint64_t start_of_day = 1000 * (uint64_t) (timegm(&utc));
+            uint64_t end_of_day = 1000 * (uint64_t) (timegm(&utc) + 86400);
 
-                int start = -1;
-                int end = -1;
-                for (int i = 0; i < a->trace_len; i++) {
-                    if (start == -1 && a->trace[i].timestamp > start_of_day) {
-                        start = i;
-                    }
-                    if (a->trace[i].timestamp < end_of_day) {
-                        end = i;
-                    }
+            int start = -1;
+            int end = -1;
+            for (int i = 0; i < a->trace_len; i++) {
+                if (start == -1 && a->trace[i].timestamp > start_of_day) {
+                    start = i;
                 }
-                if (start >= 0 && end >= 0 && end >= start)
-                    hist = generateTraceJson(a, start, end);
+                if (a->trace[i].timestamp < end_of_day) {
+                    end = i;
+                }
             }
+            if (start >= 0 && end >= 0 && end >= start)
+                hist = generateTraceJson(a, start, end);
         }
     }
 
@@ -430,6 +426,13 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
     } else {
         a->next = Modes.aircraft[hash];
         Modes.aircraft[hash] = a;
+    }
+
+    if (a->trace_alloc && Modes.json_dir && Modes.json_globe_index && now < a->seen_pos + 5 * MINUTES) {
+        // the value below is again overwritten in track.c when a fullWrite is done on startup
+        a->trace_next_mw = a->trace_next_fw = now + 1 * MINUTES + random() % (2 * MINUTES);
+        // setting mw and fw ensures only the recent trace is written, full trace would take too long
+        write_trace(a, now);
     }
 
     return 0;
