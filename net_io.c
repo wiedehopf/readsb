@@ -1063,7 +1063,7 @@ static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now)
 
     if (Modes.receiver_focus && c->receiverId != Modes.receiver_focus)
         return 0;
-    if (line_len == 0) // heartbeat
+    if (line_len < 2) // heartbeat
         return 0;
     if (line_len < 20 || line_len >= max_len)
         goto basestation_invalid;
@@ -1270,11 +1270,11 @@ static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now)
 
 basestation_invalid:
 
-    for (size_t i=0; i < line_len; i++)
+    for (size_t i = 0; i < line_len; i++)
         line[i] = (line[i] == '\0' ? ',' : line[i]);
 
     if (Modes.debug_garbage)
-        fprintf(stderr, "SBS invalid: %s\n", line);
+        fprintf(stderr, "SBS invalid: %.*s\n", (int) line_len, line);
     Modes.stats_current.remote_received_basestation_invalid++;
     return 0;
 }
