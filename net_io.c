@@ -2832,11 +2832,15 @@ static void modesReadFromClient(struct client *c) {
 
         if (!discard && now > start + 200) {
             discard = 1;
-            if (c->proxy_string[0] != '\0')
-                fprintf(stderr, "ERROR, not enough CPU: Discarding data from: %s\n", c->proxy_string);
-            else
-                fprintf(stderr, "%s: ERROR, not enough CPU: Discarding data from: %s port %s (fd %d)\n",
-                        c->service->descr, c->host, c->port, c->fd);
+            static int antiSpam;
+            if (--antiSpam <= 0) {
+                antiSpam = 100;
+                if (c->proxy_string[0] != '\0')
+                    fprintf(stderr, "<3>ERROR, not enough CPU: Discarding data from: %s\n", c->proxy_string);
+                else
+                    fprintf(stderr, "<3>%s: ERROR, not enough CPU: Discarding data from: %s port %s (fd %d)\n",
+                            c->service->descr, c->host, c->port, c->fd);
+            }
         }
         if (discard)
             c->buflen = 0;
