@@ -173,11 +173,11 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     anetNonBlock(Modes.aneterr, fd);
 
     if (!service || fd == -1) {
-        fprintf(stderr, "Fatal: createGenericClient called with invalid parameters!\n");
+        fprintf(stderr, "<3> FATAL: createGenericClient called with invalid parameters!\n");
         exit(1);
     }
     if (!(c = (struct client *) calloc(1, sizeof (*c)))) {
-        fprintf(stderr, "Out of memory allocating a new %s network client\n", service->descr);
+        fprintf(stderr, "<3> FATAL: Out of memory allocating a new %s network client\n", service->descr);
         exit(1);
     }
 
@@ -752,11 +752,6 @@ static void modesCloseClient(struct client *c) {
     c->fd = -1;
     c->service = NULL;
     c->modeac_requested = 0;
-    c->sendq_len = 0;
-    if (c->sendq) {
-        free(c->sendq);
-        c->sendq = NULL;
-    }
 
     if (Modes.mode_ac_auto)
         autoset_modeac();
@@ -787,6 +782,7 @@ static void flushClient(struct client *c, uint64_t now) {
                         c->service->descr, strerror(err), c->host, c->port,
                         c->fd, c->sendq_len, c->buflen);
                 modesCloseClient(c);
+                return;
             }
             done = 1;	// Blocking, just bail, try later.
         } else {
@@ -818,6 +814,7 @@ static void flushClient(struct client *c, uint64_t now) {
     if (c->last_flush + 5000 < now) {
         fprintf(stderr, "%s: Unable to send data, disconnecting: %s port %s (fd %d, SendQ %d)\n", c->service->descr, c->host, c->port, c->fd, c->sendq_len);
         modesCloseClient(c);
+        return;
     }
 }
 
@@ -2988,7 +2985,6 @@ static void modesReadFromClient(struct client *c) {
 
                 // disconnect garbage feeds
                 if (c->garbage > 512) {
-                    modesCloseClient(c);
                     if (!Modes.netIngest || Modes.debug_receiver) {
                         *eod = '\0';
                         char sample[64];
@@ -2999,6 +2995,7 @@ static void modesReadFromClient(struct client *c) {
                         else
                             fprintf(stderr, "Garbage: Close: %s port %s sample: %s\n", c->host, c->port, sample);
                     }
+                    modesCloseClient(c);
                     return;
                 }
                 while (som < eod && ((p = memchr(som, (char) 0x1a, eod - som)) != NULL)) { // The first byte of buffer 'should' be 0x1a
@@ -3264,6 +3261,7 @@ void netFreeClients() {
             if (c->fd == -1) {
                 // Recently closed, prune from list
                 *prev = c->next;
+                free(c->sendq);
                 free(c);
             } else {
                 prev = &c->next;
