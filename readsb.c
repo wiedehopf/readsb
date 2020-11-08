@@ -213,7 +213,7 @@ static void modesInitConfig(void) {
     Modes.biastee = 0;
     Modes.filter_persistence = 8;
     Modes.net_sndbuf_size = 2; // Default to 256 kB network write buffers
-    Modes.net_output_flush_size = 1200; // Default to 1200 Bytes
+    Modes.net_output_flush_size = 1280; // Default to 1280 Bytes
     Modes.net_output_flush_interval = 50; // Default to 50 ms
     Modes.netReceiverId = 0;
     Modes.netIngest = 0;
@@ -565,10 +565,14 @@ static void *decodeThreadEntryPoint(void *arg) {
 
             incTimedwait(&ts, Modes.net_output_flush_interval);
 
+            //startWatch(&watch);
             int res = 0;
             while (!Modes.exit && res == 0) {
                 res = pthread_cond_timedwait(&Modes.decodeThreadCond, &Modes.decodeThreadMutex, &ts);
             }
+            //elapsed = stopWatch(&watch);
+            //fprintf(stderr, "slept for %"PRId64" ms\n", elapsed);
+
             if (Modes.exit)
                 break;
         }

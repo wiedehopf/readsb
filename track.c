@@ -410,7 +410,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
                 fflag,
                 lat, lon);
 
-        if (Modes.debug_receiver && receiver && a->seen_pos
+        if (Modes.debug_receiver && Modes.debug_speed_check && receiver && a->seen_pos
                 && *lat < 89
                 && *lat > -89
                 && (fabs(a->lat - *lat) > 35 || fabs(a->lon - *lon) > 35 || fabs(reflat - *lat) > 35 || fabs(reflon - *lon) > 35)
