@@ -60,7 +60,7 @@ void receiverTimeout(int part, int nParts) {
             if (
                     (Modes.receiverCount > RECEIVER_TABLE_SIZE && (*r)->lastSeen < now - 20 * MINUTES)
                     || (now > (*r)->lastSeen + 24 * HOURS)
-                    || ((*r)->badExtent && now > (*r)->badExtent + 8 * HOURS)
+                    || ((*r)->badExtent && now > (*r)->badExtent + 30 * MINUTES)
                ) {
 
                 del = *r;
