@@ -467,6 +467,29 @@ trackDataValid (const data_validity *v)
   return (v->source != SOURCE_INVALID);
 }
 
+static inline int posReliable(struct aircraft *a) {
+    if (!trackDataValid(&a->position_valid))
+        return 0;
+    int reliable = Modes.json_reliable;
+    if (a->addr & MODES_NON_ICAO_ADDRESS)
+        reliable += 1; // require additional reliability for non-icao hex addresses
+    if (a->position_valid.source <= SOURCE_JAERO)
+        return 1;
+    if (a->pos_reliable_odd >= reliable && a->pos_reliable_even >= reliable)
+        return 1;
+
+    return 0;
+}
+static inline int altReliable(struct aircraft *a) {
+    if (!trackDataValid(&a->altitude_baro_valid))
+        return 0;
+    if (a->position_valid.source <= SOURCE_JAERO)
+        return 1;
+    if (a->alt_reliable >= Modes.json_reliable + 1)
+        return 1;
+
+    return 0;
+}
 
 static inline int
 trackVState (uint64_t now, const data_validity *v, const data_validity *pos_valid)

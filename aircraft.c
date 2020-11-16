@@ -252,9 +252,7 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
 
     new->messages = a->messages;
 
-    new->position_valid = trackDataValid(&a->position_valid)
-        && ( (a->pos_reliable_odd >= Modes.json_reliable && a->pos_reliable_even >= Modes.json_reliable)
-                || a->position_valid.source <= SOURCE_JAERO );
+    new->position_valid = posReliable(a);
 
     new->seen_pos = (now - a->seen_pos) / 100.0 * new->position_valid;
 
@@ -264,8 +262,7 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
     new->lat = (int32_t) nearbyint(a->lat * 1E6) * new->position_valid;
     new->lon = (int32_t) nearbyint(a->lon * 1E6) * new->position_valid;
 
-    new->altitude_baro_valid = trackDataValid(&a->altitude_baro_valid)
-        && (a->alt_reliable >= Modes.json_reliable + 1 || a->position_valid.source <= SOURCE_JAERO);
+    new->altitude_baro_valid = altReliable(a);
 
     new->altitude_baro = (int16_t) nearbyint(a->altitude_baro / 25.0) * new->altitude_baro_valid;
 
