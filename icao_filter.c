@@ -36,36 +36,38 @@ static uint32_t icao_filter_a[AIRCRAFT_BUCKETS];
 static uint32_t icao_filter_b[AIRCRAFT_BUCKETS];
 static uint32_t *icao_filter_active;
 
+#define EMPTY 0xFFFFFFFF
+
 void icaoFilterInit() {
-    memset(icao_filter_a, 0, sizeof (icao_filter_a));
-    memset(icao_filter_b, 0, sizeof (icao_filter_b));
+    memset(icao_filter_a, 0xFF, sizeof(icao_filter_a));
+    memset(icao_filter_b, 0xFF, sizeof(icao_filter_b));
     icao_filter_active = icao_filter_a;
 }
 
 void icaoFilterAdd(uint32_t addr) {
     uint32_t h, h0;
     h0 = h = aircraftHash(addr);
-    while (icao_filter_active[h] && icao_filter_active[h] != addr) {
+    while (icao_filter_active[h] != EMPTY && icao_filter_active[h] != addr) {
         h = (h + 1) & (AIRCRAFT_BUCKETS - 1);
         if (h == h0) {
             fprintf(stderr, "ICAO hash table full, increase AIRCRAFT_HASH_BITS\n");
             return;
         }
     }
-    if (!icao_filter_active[h])
+    if (icao_filter_active[h] == EMPTY)
         icao_filter_active[h] = addr;
 
     /* disable as it's not being used
     // also add with a zeroed top byte, for handling DF20/21 with Data Parity
     h0 = h = aircraftHash(addr & 0x00ffff);
-    while (icao_filter_active[h] && (icao_filter_active[h] & 0x00ffff) != (addr & 0x00ffff)) {
+    while (icao_filter_active[h] != EMPTY && (icao_filter_active[h] & 0x00ffff) != (addr & 0x00ffff)) {
         h = (h + 1) & (AIRCRAFT_BUCKETS - 1);
         if (h == h0) {
             fprintf(stderr, "ICAO hash table full, increase AIRCRAFT_BUCKETS\n");
             return;
         }
     }
-    if (!icao_filter_active[h])
+    if (icao_filter_active[h] == EMPTY)
         icao_filter_active[h] = addr;
     */
 }
@@ -74,7 +76,7 @@ int icaoFilterTest(uint32_t addr) {
     uint32_t h, h0;
 
     h0 = h = aircraftHash(addr);
-    while (icao_filter_a[h] && icao_filter_a[h] != addr) {
+    while (icao_filter_a[h] != EMPTY && icao_filter_a[h] != addr) {
         h = (h + 1) & (AIRCRAFT_BUCKETS - 1);
         if (h == h0)
             break;
@@ -83,7 +85,7 @@ int icaoFilterTest(uint32_t addr) {
         return 1;
 
     h = h0;
-    while (icao_filter_b[h] && icao_filter_b[h] != addr) {
+    while (icao_filter_b[h] != EMPTY && icao_filter_b[h] != addr) {
         h = (h + 1) & (AIRCRAFT_BUCKETS - 1);
         if (h == h0)
             break;
@@ -99,21 +101,21 @@ uint32_t icaoFilterTestFuzzy(uint32_t partial) {
 
     partial &= 0x00ffff;
     h0 = h = aircraftHash(partial);
-    while (icao_filter_a[h] && (icao_filter_a[h] & 0x00ffff) != partial) {
+    while (icao_filter_a[h] != EMPTY && (icao_filter_a[h] & 0x00ffff) != partial) {
         h = (h + 1) & (AIRCRAFT_BUCKETS - 1);
         if (h == h0)
             break;
     }
-    if ((icao_filter_a[h] & 0x00ffff) == partial)
+    if (icao_filter_a[h] != EMPTY && (icao_filter_a[h] & 0x00ffff) == partial)
         return icao_filter_a[h];
 
     h = h0;
-    while (icao_filter_b[h] && (icao_filter_b[h] & 0x00ffff) != partial) {
+    while (icao_filter_b[h] != EMPTY && (icao_filter_b[h] & 0x00ffff) != partial) {
         h = (h + 1) & (AIRCRAFT_BUCKETS - 1);
         if (h == h0)
             break;
     }
-    if ((icao_filter_b[h] & 0x00ffff) == partial)
+    if (icao_filter_b[h] != EMPTY && (icao_filter_b[h] & 0x00ffff) == partial)
         return icao_filter_b[h];
 
     return 0;
@@ -126,10 +128,10 @@ void icaoFilterExpire() {
 
     if (now >= next_flip) {
         if (icao_filter_active == icao_filter_a) {
-            memset(icao_filter_b, 0, sizeof (icao_filter_b));
+            memset(icao_filter_b, 0xFF, sizeof(icao_filter_b));
             icao_filter_active = icao_filter_b;
         } else {
-            memset(icao_filter_a, 0, sizeof (icao_filter_a));
+            memset(icao_filter_a, 0xFF, sizeof(icao_filter_a));
             icao_filter_active = icao_filter_a;
         }
         next_flip = now + MODES_ICAO_FILTER_TTL;
