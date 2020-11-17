@@ -1093,11 +1093,6 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         return NULL;
     }
 
-    if (mm->addr == 0) {
-        // junk address, don't track it
-        return NULL;
-    }
-
     uint64_t now = mm->sysTimestampMsg;
 
     // Lookup our aircraft or create a new one

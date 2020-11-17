@@ -1791,8 +1791,9 @@ void displayModesMessage(struct modesMessage *mm) {
     // Show the raw message.
     if (Modes.mlat && mm->timestampMsg) {
         printf("@%012" PRIX64, mm->timestampMsg);
-    } else
+    } else {
         printf("*");
+    }
 
     for (j = 0; j < mm->msgbits / 8; j++) printf("%02x", mm->msg[j]);
     printf(";\n");
@@ -2159,7 +2160,7 @@ void useModesMessage(struct modesMessage *mm) {
     a = trackUpdateFromMessage(mm);
 
     // In non-interactive non-quiet mode, display messages on standard output
-    if (!Modes.interactive && !Modes.quiet && (!Modes.show_only || mm->addr == Modes.show_only) && !mm->sbs_in) {
+    if (!Modes.interactive && !Modes.quiet && (mm->addr == Modes.show_only)) {
         displayModesMessage(mm);
     }
 

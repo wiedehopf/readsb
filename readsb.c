@@ -227,6 +227,8 @@ static void modesInitConfig(void) {
     //Modes.cpr_focus = 0x43BF95;
     //
     //Modes.receiver_focus = 0x1aa14156975948af;
+    //
+    Modes.show_only = 0xc0ffeeba; // default to out of normal range value
 
     sdrInitConfig();
 
@@ -362,8 +364,7 @@ static void modesInit(void) {
     icaoFilterInit();
     modeACInit();
 
-    if (Modes.show_only)
-        icaoFilterAdd(Modes.show_only);
+    icaoFilterAdd(Modes.show_only);
 
     Modes.json_globe_special_tiles = calloc(GLOBE_SPECIAL_INDEX, sizeof(struct tile));
     init_globe_index(Modes.json_globe_special_tiles);
