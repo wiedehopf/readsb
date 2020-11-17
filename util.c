@@ -142,7 +142,7 @@ void incTimedwait(struct timespec *target, uint64_t increment) {
     normalize_timespec(target);
     struct timespec now;
     clock_gettime(CLOCK_REALTIME, &now);
-    if (target->tv_sec < now.tv_sec) {
+    if (target->tv_sec < now.tv_sec || (target->tv_sec == now.tv_sec && target->tv_nsec < now.tv_nsec)) {
         target->tv_sec = now.tv_sec;
         target->tv_nsec = now.tv_nsec;
     }
