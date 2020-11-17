@@ -412,10 +412,10 @@ static void *jsonThreadEntryPoint(void *arg) {
 
         incTimedwait(&ts, sleep_ms);
 
-        int res = 0;
-        while (!Modes.exit && res == 0) {
-            res = pthread_cond_timedwait(&Modes.jsonThreadCond, &Modes.jsonThreadMutex, &ts);
-        }
+        int err = pthread_cond_timedwait(&Modes.jsonThreadCond, &Modes.jsonThreadMutex, &ts);
+        if (err && err != ETIMEDOUT)
+            fprintf(stderr, "json thread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
+
         if (Modes.exit)
             break;
 
@@ -476,10 +476,10 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
 
         incTimedwait(&ts, sleep_ms);
 
-        int res = 0;
-        while (!Modes.exit && res == 0) {
-            res = pthread_cond_timedwait(&Modes.jsonGlobeThreadCond, &Modes.jsonGlobeThreadMutex, &ts);
-        }
+        int err = pthread_cond_timedwait(&Modes.jsonGlobeThreadCond, &Modes.jsonGlobeThreadMutex, &ts);
+        if (err && err != ETIMEDOUT)
+            fprintf(stderr, "jsonGlobeThread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
+
         if (Modes.exit)
             break;
 
@@ -561,20 +561,20 @@ static void *decodeThreadEntryPoint(void *arg) {
                     antiSpam = 300;
                 }
             }
-            //fprintf(stderr, "net work took %"PRId64" ms\n", elapsed);
-
-            incTimedwait(&ts, Modes.net_output_flush_interval);
-
+            //fprintf(stderr, "net %"PRId64" ms, ", elapsed);
             //startWatch(&watch);
-            int res = 0;
-            while (!Modes.exit && res == 0) {
-                res = pthread_cond_timedwait(&Modes.decodeThreadCond, &Modes.decodeThreadMutex, &ts);
-            }
-            //elapsed = stopWatch(&watch);
-            //fprintf(stderr, "slept for %"PRId64" ms\n", elapsed);
 
             if (Modes.exit)
                 break;
+
+            incTimedwait(&ts, Modes.net_output_flush_interval);
+
+            int err = pthread_cond_timedwait(&Modes.decodeThreadCond, &Modes.decodeThreadMutex, &ts);
+            if (err && err != ETIMEDOUT)
+                fprintf(stderr, "decode: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
+
+            //elapsed = stopWatch(&watch);
+            //fprintf(stderr, "slept %"PRId64" ms\n", elapsed);
         }
     } else {
         int watchdogCounter = 50; // about 5 seconds
@@ -599,7 +599,10 @@ static void *decodeThreadEntryPoint(void *arg) {
 
                 pthread_mutex_unlock(&Modes.decodeThreadMutex);
 
-                pthread_cond_timedwait(&Modes.data_cond, &Modes.data_mutex, &ts); // This unlocks Modes.data_mutex, and waits for Modes.data_cond
+                // This unlocks Modes.data_mutex, and waits for Modes.data_cond
+                int err = pthread_cond_timedwait(&Modes.data_cond, &Modes.data_mutex, &ts);
+                if (err && err != ETIMEDOUT)
+                    fprintf(stderr, "decode: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
 
                 pthread_mutex_lock(&Modes.decodeThreadMutex);
             }
@@ -658,14 +661,14 @@ static void *decodeThreadEntryPoint(void *arg) {
         pthread_mutex_unlock(&Modes.data_mutex);
 
         log_with_timestamp("Waiting for receive thread termination");
-        int res;
+        int err;
         int count = 100;
         // Wait on reader thread exit
-        while (count-- > 0 && (res = pthread_tryjoin_np(Modes.reader_thread, NULL))) {
+        while (count-- > 0 && (err = pthread_tryjoin_np(Modes.reader_thread, NULL))) {
             struct timespec slp = {0, 100 * 1000 * 1000};
             nanosleep(&slp, NULL);
         }
-        if (res) {
+        if (err) {
             log_with_timestamp("Receive thread termination failed, will raise SIGKILL on exit!");
             Modes.exit = SIGKILL;
         } else {
@@ -1399,10 +1402,9 @@ int main(int argc, char **argv) {
         int64_t sleep_ms = 1000;
         incTimedwait(&ts, sleep_ms);
 
-        int res = 0;
-        while (!Modes.exit && res == 0) {
-            res = pthread_cond_timedwait(&Modes.mainThreadCond, &Modes.mainThreadMutex, &ts);
-        }
+        int err = pthread_cond_timedwait(&Modes.mainThreadCond, &Modes.mainThreadMutex, &ts);
+        if (err && err != ETIMEDOUT)
+            fprintf(stderr, "main thread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
     }
 
     pthread_mutex_unlock(&Modes.mainThreadMutex);

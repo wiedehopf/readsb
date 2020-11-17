@@ -517,10 +517,10 @@ void *jsonTraceThreadEntryPoint(void *arg) {
 
         incTimedwait(&ts, sleep_ms);
 
-        int res = 0;
-        while (!Modes.exit && res == 0) {
-            res = pthread_cond_timedwait(&Modes.jsonTraceThreadCond[thread], &Modes.jsonTraceThreadMutex[thread], &ts);
-        }
+        int err = pthread_cond_timedwait(&Modes.jsonTraceThreadCond[thread], &Modes.jsonTraceThreadMutex[thread], &ts);
+        if (err && err != ETIMEDOUT)
+            fprintf(stderr, "jsonTraceThread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
+
         if (Modes.exit)
             break;
 
