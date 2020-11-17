@@ -101,43 +101,19 @@ int modesMessageLenByType(int type) {
 static int decodeID13Field(int ID13Field) {
     int hexGillham = 0;
 
-    if (ID13Field & 0x1000) {
-        hexGillham |= 0x0010;
-    } // Bit 12 = C1
-    if (ID13Field & 0x0800) {
-        hexGillham |= 0x1000;
-    } // Bit 11 = A1
-    if (ID13Field & 0x0400) {
-        hexGillham |= 0x0020;
-    } // Bit 10 = C2
-    if (ID13Field & 0x0200) {
-        hexGillham |= 0x2000;
-    } // Bit  9 = A2
-    if (ID13Field & 0x0100) {
-        hexGillham |= 0x0040;
-    } // Bit  8 = C4
-    if (ID13Field & 0x0080) {
-        hexGillham |= 0x4000;
-    } // Bit  7 = A4
-    //if (ID13Field & 0x0040) {hexGillham |= 0x0800;} // Bit  6 = X  or M
-    if (ID13Field & 0x0020) {
-        hexGillham |= 0x0100;
-    } // Bit  5 = B1
-    if (ID13Field & 0x0010) {
-        hexGillham |= 0x0001;
-    } // Bit  4 = D1 or Q
-    if (ID13Field & 0x0008) {
-        hexGillham |= 0x0200;
-    } // Bit  3 = B2
-    if (ID13Field & 0x0004) {
-        hexGillham |= 0x0002;
-    } // Bit  2 = D2
-    if (ID13Field & 0x0002) {
-        hexGillham |= 0x0400;
-    } // Bit  1 = B4
-    if (ID13Field & 0x0001) {
-        hexGillham |= 0x0004;
-    } // Bit  0 = D4
+    if (ID13Field & 0x1000) {hexGillham |= 0x0010;} // Bit 12 = C1
+    if (ID13Field & 0x0800) {hexGillham |= 0x1000;} // Bit 11 = A1
+    if (ID13Field & 0x0400) {hexGillham |= 0x0020;} // Bit 10 = C2
+    if (ID13Field & 0x0200) {hexGillham |= 0x2000;} // Bit  9 = A2
+    if (ID13Field & 0x0100) {hexGillham |= 0x0040;} // Bit  8 = C4
+    if (ID13Field & 0x0080) {hexGillham |= 0x4000;} // Bit  7 = A4
+  //if (ID13Field & 0x0040) {hexGillham |= 0x0800;} // Bit  6 = X  or M
+    if (ID13Field & 0x0020) {hexGillham |= 0x0100;} // Bit  5 = B1
+    if (ID13Field & 0x0010) {hexGillham |= 0x0001;} // Bit  4 = D1 or Q
+    if (ID13Field & 0x0008) {hexGillham |= 0x0200;} // Bit  3 = B2
+    if (ID13Field & 0x0004) {hexGillham |= 0x0002;} // Bit  2 = D2
+    if (ID13Field & 0x0002) {hexGillham |= 0x0400;} // Bit  1 = B4
+    if (ID13Field & 0x0001) {hexGillham |= 0x0004;} // Bit  0 = D4
 
     return (hexGillham);
 }
@@ -299,12 +275,10 @@ static int correct_aa_field(uint32_t *addr, struct errorinfo *ei) {
 //  350: DF17/18 with 2-bit error and an address not matching a known aircraft
 
 // 1600: DF11 with IID==0, good CRC and an address matching a known aircraft
-//  800: DF11 with IID==0, 1-bit error and an address matching a known aircraft
-//  750: DF11 with IID==0, good CRC and an address not matching a known aircraft
-//  375: DF11 with IID==0, 1-bit error and an address not matching a known aircraft
-
 // 1000: DF11 with IID!=0, good CRC and an address matching a known aircraft
-//  500: DF11 with IID!=0, 1-bit error and an address matching a known aircraft
+//  800: DF11 with 1-bit error and an address matching a known aircraft
+//  750: DF11 with IID==0, good CRC and an address not matching a known aircraft
+
 
 // 1000: DF20/21 with a CRC-derived address matching a known aircraft
 //  500: DF20/21 with a CRC-derived address matching a known aircraft (bottom 16 bits only - overlay control in use)
@@ -350,31 +324,40 @@ int scoreModesMessage(unsigned char *msg, int validbits) {
 
         case 11: // All-call reply
             iid = crc & 0x7f;
-            crc = crc & 0xffff80;
             addr = getbits(msg, 9, 32);
 
-            ei = modesChecksumDiagnose(crc, msgbits);
-            if (!ei)
-                return -2; // can't correct errors
+            if (crc & 0xffff80) {
+                // Try to diagnose based on the _full_ CRC
+                // i.e. under the assumption that IID = 0
+                ei = modesChecksumDiagnose(crc, msgbits);
+                if (!ei)
+                    return -2; // can't correct errors
 
-            // see crc.c comments: we do not attempt to fix
-            // more than single-bit errors, as two-bit
-            // errors are ambiguous in DF11.
-            if (ei->errors > 1)
-                return -2; // can't correct errors
+                // see crc.c comments: we do not attempt to fix
+                // more than single-bit errors, as two-bit
+                // errors are ambiguous in DF11.
+                if (ei->errors > 1)
+                    return -2; // can't correct errors
 
-            // fix any errors in the address field
-            correct_aa_field(&addr, ei);
+                // fix any errors in the address field
+                correct_aa_field(&addr, ei);
 
-            // validate address
+                // here, IID = 0 implicitly
+                if (icaoFilterTest(addr))
+                    return 800;
+                else
+                    return -1;
+            }
+
+            // CRC was correct (ish)
             if (iid == 0) {
                 if (icaoFilterTest(addr))
-                    return 1600 / (ei->errors + 1);
+                    return 1600;
                 else
-                    return 750 / (ei->errors + 1);
-            } else {
+                    return 750;
+            } else { // iid != 0
                 if (icaoFilterTest(addr))
-                    return 1000 / (ei->errors + 1);
+                    return 1000;
                 else
                     return -1;
             }
@@ -483,8 +466,11 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
 
             mm->IID = mm->crc & 0x7f;
             if (mm->crc & 0xffff80) {
+                // Try to diagnose based on the _full_ CRC
+                // i.e. under the assumption that IID = 0
+
                 int addr;
-                struct errorinfo *ei = modesChecksumDiagnose(mm->crc & 0xffff80, mm->msgbits);
+                struct errorinfo *ei = modesChecksumDiagnose(mm->crc, mm->msgbits);
                 if (!ei) {
                     return -2; // couldn't fix it
                 }
@@ -496,6 +482,7 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
                     return -2; // can't correct errors
 
                 mm->correctedbits = ei->errors;
+                mm->IID = 0;
                 modesChecksumFix(msg, ei);
 
                 // check whether the corrected message looks sensible
