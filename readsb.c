@@ -257,8 +257,8 @@ static void modesInit(void) {
     }
     if (Modes.net_output_flush_interval < 5)
         Modes.net_output_flush_interval = 5;
-    if (Modes.net_output_flush_interval > 1000)
-        Modes.net_output_flush_interval = 1000;
+    if (Modes.net_output_flush_interval > 500)
+        Modes.net_output_flush_interval = 500;
 
     Modes.filter_persistence += Modes.json_reliable - 1;
 
@@ -541,12 +541,12 @@ static void *decodeThreadEntryPoint(void *arg) {
      */
 
     if (Modes.net_only) {
+        uint32_t maxSleep = Modes.net_output_flush_interval / 2; // in ms
         struct timespec ts;
         clock_gettime(CLOCK_REALTIME, &ts);
         while (!Modes.exit) {
             struct timespec start_time;
             struct timespec watch;
-            uint32_t maxSleep = Modes.net_output_flush_interval / 2; // in ms
 
             startWatch(&watch);
             start_cpu_timing(&start_time);
@@ -562,6 +562,7 @@ static void *decodeThreadEntryPoint(void *arg) {
                 antiSpam = mstime();
                 fprintf(stderr, "<3>High load: net work took %"PRId64" ms, suppressing for 30 seconds!\n", elapsed);
             }
+            fprintf(stderr, "net %"PRId64" ms\n", elapsed);
 
             //fprintf(stderr, "net %"PRId64" ms, ", elapsed);
             //startWatch(&watch);
@@ -581,10 +582,13 @@ static void *decodeThreadEntryPoint(void *arg) {
     } else {
         int watchdogCounter = 50; // about 5 seconds
 
+        uint32_t maxSleep = 100; // in ms
         // Create the thread that will read the data from the device.
         pthread_mutex_lock(&Modes.data_mutex);
         pthread_create(&Modes.reader_thread, NULL, readerThreadEntryPoint, NULL);
 
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
         while (!Modes.exit) {
             struct timespec start_time;
 
@@ -594,10 +598,7 @@ static void *decodeThreadEntryPoint(void *arg) {
                  * this is fairly aggressive as all our network I/O runs out of the background work!
                  */
 
-                struct timespec ts;
-                clock_gettime(CLOCK_REALTIME, &ts);
-                ts.tv_nsec += 100000000;
-                normalize_timespec(&ts);
+                incTimedwait(&ts, maxSleep);
 
                 pthread_mutex_unlock(&Modes.decodeThreadMutex);
 
