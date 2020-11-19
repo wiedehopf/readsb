@@ -558,7 +558,7 @@ static void *decodeThreadEntryPoint(void *arg) {
 
 
             static uint64_t antiSpam;
-            if (elapsed > maxSleep * 2 && mstime() > antiSpam + 30 * SECONDS) {
+            if (elapsed > 100 && mstime() > antiSpam + 30 * SECONDS) {
                 antiSpam = mstime();
                 fprintf(stderr, "<3>High load: net work took %"PRId64" ms, suppressing for 30 seconds!\n", elapsed);
             }
