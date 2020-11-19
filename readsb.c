@@ -562,7 +562,7 @@ static void *decodeThreadEntryPoint(void *arg) {
                 antiSpam = mstime();
                 fprintf(stderr, "<3>High load: net work took %"PRId64" ms, suppressing for 30 seconds!\n", elapsed);
             }
-            fprintf(stderr, "net %"PRId64" ms\n", elapsed);
+            //fprintf(stderr, "net %"PRId64" ms\n", elapsed);
 
             //fprintf(stderr, "net %"PRId64" ms, ", elapsed);
             //startWatch(&watch);
