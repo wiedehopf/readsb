@@ -1166,8 +1166,6 @@ static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now)
 
         chars[2 - j / 2] = (high << 4) | low;
     }
-    if (mm.addr == 0)
-        goto basestation_invalid;
 
     //fprintf(stderr, "%x type %s: ", mm.addr, t[2]);
     //fprintf(stderr, "%x: %d, %0.5f, %0.5f\n", mm.addr, mm.altitude_baro, mm.decoded_lat, mm.decoded_lon);
