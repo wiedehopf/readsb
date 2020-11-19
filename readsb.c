@@ -546,6 +546,7 @@ static void *decodeThreadEntryPoint(void *arg) {
         while (!Modes.exit) {
             struct timespec start_time;
             struct timespec watch;
+            uint32_t maxSleep = Modes.net_output_flush_interval / 2; // in ms
 
             startWatch(&watch);
             start_cpu_timing(&start_time);
@@ -555,20 +556,20 @@ static void *decodeThreadEntryPoint(void *arg) {
             end_cpu_timing(&start_time, &Modes.stats_current.background_cpu);
             int64_t elapsed = stopWatch(&watch);
 
-            if (elapsed > 80) {
-                static int antiSpam;
-                if (--antiSpam <= 0) {
-                    fprintf(stderr, "<3>High load: net work took %"PRId64" ms, suppressing for 300 loops!\n", elapsed);
-                    antiSpam = 300;
-                }
+
+            static uint64_t antiSpam;
+            if (elapsed > maxSleep * 2 && mstime() > antiSpam + 30 * SECONDS) {
+                antiSpam = mstime();
+                fprintf(stderr, "<3>High load: net work took %"PRId64" ms, suppressing for 30 seconds!\n", elapsed);
             }
+
             //fprintf(stderr, "net %"PRId64" ms, ", elapsed);
             //startWatch(&watch);
 
             if (Modes.exit)
                 break;
 
-            incTimedwait(&ts, Modes.net_output_flush_interval);
+            incTimedwait(&ts, maxSleep);
 
             int err = pthread_cond_timedwait(&Modes.decodeThreadCond, &Modes.decodeThreadMutex, &ts);
             if (err && err != ETIMEDOUT)

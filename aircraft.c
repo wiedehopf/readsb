@@ -579,7 +579,6 @@ int dbUpdate() {
     gzclose(gzfp);
     free(cb.buffer);
     Modes.dbModificationTime = modTime;
-    fprintf(stderr, "db update done!\n");
     writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
     return 1;
 DBU0:
@@ -609,6 +608,7 @@ void dbFinishUpdate() {
                 updateTypeReg(a);
             }
         }
+        fprintf(stderr, "db update done!\n");
     }
 }
 
