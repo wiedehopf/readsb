@@ -87,7 +87,7 @@ viewadsb: viewadsb.o anet.o interactive.o mode_ac.o mode_s.o comm_b.o net_io.o c
 clean:
 	rm -f *.o compat/clock_gettime/*.o compat/clock_nanosleep/*.o readsb viewadsb cprtests crctests convert_benchmark
 
-test: cprtests
+cprtest: cprtests
 	./cprtests
 
 cprtests: cpr.o cprtests.o
