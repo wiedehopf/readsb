@@ -1,6 +1,6 @@
 #include "readsb.h"
 
-#define LEG_FOCUS 0x0
+#define LEG_FOCUS (0xc0ffeeba)
 
 static void mark_legs(struct aircraft *a);
 static void load_blob(int blob);
