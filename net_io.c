@@ -3531,7 +3531,7 @@ retry:
                 if (a->position_valid.source != SOURCE_TISB)
                     p = safe_snprintf(p, end, ",\"Tisb\":false");
                 if (a->position_valid.source != SOURCE_JAERO)
-                    p = safe_snprintf(p, end, ",\"Sat\":true");
+                    p = safe_snprintf(p, end, ",\"Sat\":false");
             }
 
 
