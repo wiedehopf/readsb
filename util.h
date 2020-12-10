@@ -61,6 +61,9 @@ void start_cpu_timing (struct timespec *start_time);
 /* add difference between start_time and the current CPU time to add_to */
 void end_cpu_timing (const struct timespec *start_time, struct timespec *add_to);
 
+void start_monotonic_timing(struct timespec *start_time);
+void end_monotonic_timing (const struct timespec *start_time, struct timespec *add_to);
+
 // stopwatch, returns elapsed time in milliseconds
 void startWatch(struct timespec *start_time);
 int64_t stopWatch(const struct timespec *start_time);

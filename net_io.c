@@ -528,8 +528,6 @@ void modesInitNet(void) {
     struct net_service *sbs_in_prio;
     struct net_service *api_out;
 
-    uint64_t now = mstime();
-
     signal(SIGPIPE, SIG_IGN);
     Modes.services = NULL;
 
@@ -667,7 +665,6 @@ void modesInitNet(void) {
 
         pthread_mutex_lock(&con->mutex);
     }
-    serviceReconnectCallback(now);
 }
 
 
@@ -2279,7 +2276,7 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
 
     memWrite(p, elementSize);
 
-    uint32_t ac_count_pos = Modes.json_ac_count_pos;
+    uint32_t ac_count_pos = Modes.globalStatsCount.json_ac_count_pos;
     memWrite(p, ac_count_pos);
 
     uint32_t index = globe_index;
@@ -2359,7 +2356,7 @@ struct char_buffer generateGlobeJson(int globe_index){
 
     p = safe_snprintf(p, end,
             "  \"global_ac_count_withpos\" : %d,\n",
-            Modes.json_ac_count_pos
+            Modes.globalStatsCount.json_ac_count_pos
             );
 
     p = safe_snprintf(p, end, "  \"globeIndex\" : %d, ", globe_index);

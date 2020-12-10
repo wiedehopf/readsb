@@ -78,6 +78,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include <stdint.h>
 #include <errno.h>
 #include <unistd.h>
@@ -383,6 +384,7 @@ struct _Modes
     pthread_t jsonTraceThread[TRACE_THREADS]; // thread writing icao trace jsons
     pthread_mutex_t jsonTraceThreadMutex[TRACE_THREADS];
     pthread_cond_t jsonTraceThreadCond[TRACE_THREADS];
+    pthread_mutex_t jsonTraceThreadMutexFin[TRACE_THREADS];
 
     unsigned first_free_buffer; // Entry in mag_buffers that will next be filled with input.
     unsigned first_filled_buffer; // Entry in mag_buffers that has valid data and will be demodulated next. If equal to next_free_buffer, there is no unprocessed data.
@@ -516,8 +518,6 @@ struct _Modes
     uint32_t keep_traces; // how long traces are saved in internal memory
     int json_globe_index; // Enable extra globe indexed json files.
     uint32_t json_trace_interval; // max time ignoring new positions for trace
-    int json_ac_count_pos;
-    int json_ac_count_no_pos;
     struct tile *json_globe_special_tiles;
     int json_gzip; // Enable extra globe indexed json files.
     char *beast_serial; // Modes-S Beast device path
@@ -537,8 +537,12 @@ struct _Modes
 
     struct aircraft *scratch;
 
+    uint64_t startup_time;
     uint64_t next_stats_update;
     uint64_t next_stats_display;
+    sem_t removeStaleSem;
+    int8_t updateStats;
+    int8_t removeStale;
     int stats_bucket; // index that has just been writte to
     struct stats stats_10[STAT_BUCKETS];
     struct stats stats_current;
@@ -547,41 +551,9 @@ struct _Modes
     struct stats stats_1min;
     struct stats stats_5min;
     struct stats stats_15min;
-    uint32_t type_counts[NUM_TYPES];
 
-    uint32_t readsb_aircraft_adsb_version_0;
-    uint32_t readsb_aircraft_adsb_version_1;
-    uint32_t readsb_aircraft_adsb_version_2;
-    uint32_t readsb_aircraft_emergency;
-    uint32_t readsb_aircraft_message_type_adsb_icao;
-    uint32_t readsb_aircraft_message_type_adsb_nt;
-    uint32_t readsb_aircraft_message_type_adsb_other;
-    uint32_t readsb_aircraft_message_type_adsr_icao;
-    uint32_t readsb_aircraft_message_type_adsr_other;
-    uint32_t readsb_aircraft_message_type_tisb_icao;
-    uint32_t readsb_aircraft_message_type_tisb_other;
-    uint32_t readsb_aircraft_message_type_tisb_trackfile;
-    uint32_t readsb_aircraft_message_type_mode_s;
-    uint32_t readsb_aircraft_message_type_mode_ac;
-    uint32_t readsb_aircraft_message_type_mlat;
-    uint32_t readsb_aircraft_message_type_adsc;
-    uint32_t readsb_aircraft_message_type_unknown;
-    uint32_t readsb_aircraft_message_type_other;
-    uint64_t startup_time;
-    double readsb_aircraft_rssi_average;
-    float readsb_aircraft_rssi_max;
-    float readsb_aircraft_rssi_min;
-    float readsb_aircraft_rssi_quart1;
-    float readsb_aircraft_rssi_median;
-    float readsb_aircraft_rssi_quart3;
-    float *rssi_table;
-    int rssi_table_len;
-    int rssi_table_alloc;
-    uint32_t readsb_aircraft_tisb;
-    uint32_t readsb_aircraft_total;
-    uint32_t readsb_aircraft_with_flight_number;
-    uint32_t readsb_aircraft_without_flight_number;
-    uint32_t readsb_aircraft_with_position;
+    int8_t removeStaleThread[TRACE_THREADS];
+    struct statsCount globalStatsCount;
 
     // array for thread numbers
     int threadNumber[256];

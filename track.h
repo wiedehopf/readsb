@@ -523,7 +523,7 @@ struct aircraft *trackUpdateFromMessage (struct modesMessage *mm);
 /* Call periodically */
 void trackPeriodicUpdate ();
 
-void trackForceStats();
+void trackRemoveStaleThread(int start, int end, uint64_t now);
 
 void updateValidities(struct aircraft *a, uint64_t now);
 

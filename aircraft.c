@@ -93,11 +93,8 @@ void apiClear() {
     Modes.avLen = 0;
 }
 
-void apiAdd(struct aircraft *a, uint64_t now) {
-    // don't include stale aircraft in the API index
-    if (a->position_valid.source != SOURCE_JAERO && now > a->seen + 60 * 1000)
-        return;
-    if (a->messages < 2)
+void apiAdd(struct aircraft *a) {
+    if (!trackDataValid(&a->position_valid))
         return;
 
     if (Modes.avLen > API_INDEX_MAX) {

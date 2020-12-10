@@ -60,7 +60,6 @@ uint32_t modeAC_lastcount[4096];
 uint32_t modeAC_match[4096];
 uint32_t modeAC_age[4096];
 
-static void cleanupAircraft(struct aircraft *a);
 static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_lat, double new_lon, uint64_t now);
 static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint64_t now);
 static void position_bad(struct modesMessage *mm, struct aircraft *a);
@@ -1749,6 +1748,22 @@ static void updateAircraft() {
 }
 */
 
+static void trackRemoveStale() {
+    Modes.removeStale = 1;
+
+    for (int i = 0; i < TRACE_THREADS; i++) {
+        Modes.removeStaleThread[i] = 1;
+        pthread_cond_broadcast(&Modes.jsonTraceThreadCond[i]);
+        pthread_mutex_unlock(&Modes.jsonTraceThreadMutex[i]);
+    }
+    for (int i = 0; i < TRACE_THREADS; i++) {
+        pthread_mutex_lock(&Modes.jsonTraceThreadMutexFin[i]);
+        pthread_mutex_lock(&Modes.jsonTraceThreadMutex[i]);
+    }
+
+    Modes.removeStale = 0;
+    Modes.doFullTraceWrite = 0;
+}
 //
 //=========================================================================
 //
@@ -1756,27 +1771,9 @@ static void updateAircraft() {
 // we remove the aircraft from the list.
 //
 
-static void trackRemoveStaleAircraft(struct aircraft **freeList, uint64_t now) {
+void trackRemoveStaleThread(int start, int end, uint64_t now) {
 
-    if (now > Modes.next_stats_update)
-        statsReset();
-
-    if (Modes.api)
-        apiClear();
-
-    int fullWrite = 0;
-    if (Modes.doFullTraceWrite) {
-        Modes.doFullTraceWrite = 0;
-        fullWrite = 1;
-    }
-
-    /*
-    int stride = AIRCRAFT_BUCKETS / 32;
-    int start = stride * blob;
-    int end = start + stride;
-    */
-
-    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+    for (int j = start; j < end; j++) {
         struct aircraft *prev = NULL;
         struct aircraft *a = Modes.aircraft[j];
         while (a) {
@@ -1809,21 +1806,12 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList, uint64_t now) {
                 }
                 a = a->next;
 
-                Modes.aircraftCount--;
-
-                del->next = *freeList;
-                *freeList = del;
+                freeAircraft(del);
             } else {
-                if (now < a->seen + TRACK_EXPIRE_JAERO + 1 * MINUTES)
+                if (now < a->seen + TRACK_EXPIRE_JAERO + 1 * MINUTES) {
                     updateValidities(a, now);
-                if (now > Modes.next_stats_update
-                    && (now < a->seen + 30 * SECONDS && a->messages >= 2))
-                        statsCount(a, now);
-
-                a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = 0;
-
-                if (Modes.api)
-                    apiAdd(a, now);
+                    a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = 0;
+                }
 
                 if (Modes.keep_traces && a->trace_alloc) {
 
@@ -1833,7 +1821,7 @@ static void trackRemoveStaleAircraft(struct aircraft **freeList, uint64_t now) {
                             a->trace_write = 1;
                         }
 
-                        if (fullWrite) {
+                        if (Modes.doFullTraceWrite) {
                             if (now < a->seen_pos + 3 * HOURS) {
                                 a->trace_next_fw = now + random() % (2 * MINUTES); // spread over 2 mins
                                 a->trace_full_write = 0xc0ffee;
@@ -1891,10 +1879,28 @@ void trackPeriodicUpdate() {
     upcount++; // free running counter
     int writeStats = 0;
 
-    struct aircraft *freeList = NULL;
-
     checkNewDay();
 
+    uint64_t now = mstime();
+    if (now > Modes.next_stats_update) {
+        Modes.updateStats = 1;
+        statsReset();
+        //fprintf(stderr, "stats update\n");
+    }
+    if (Modes.api)
+        apiClear();
+    uint32_t aircraftCount = 0;
+    if (Modes.updateStats || Modes.api) {
+        for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+            for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
+                aircraftCount++;
+                if (Modes.updateStats && a->messages >= 2 && (now < a->seen + TRACK_EXPIRE || trackDataValid(&a->position_valid)))
+                    statsCountAircraft(a);
+                if (Modes.api)
+                    apiAdd(a);
+            }
+        }
+    }
     // stop all threads so we can remove aircraft from the list.
     // also serves as memory barrier so json threads get new aircraft in the list
     // adding aircraft does not need to be done with locking:
@@ -1902,14 +1908,17 @@ void trackPeriodicUpdate() {
     // in the cache used by the json threads.
     lockThreads();
 
-    uint64_t now = mstime();
-
     struct timespec watch;
     startWatch(&watch);
-    struct timespec start_time;
-    start_cpu_timing(&start_time);
 
-    trackRemoveStaleAircraft(&freeList, now);
+    if (Modes.updateStats)
+        Modes.aircraftCount = aircraftCount;
+    now = mstime();
+
+    struct timespec start_time;
+    start_monotonic_timing(&start_time);
+
+    trackRemoveStale();
 
     if (Modes.mode_ac)
         trackMatchAC(now);
@@ -1921,22 +1930,22 @@ void trackPeriodicUpdate() {
 
     netFreeClients();
 
-    end_cpu_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
-    int64_t elapsed = stopWatch(&watch);
-
     unlockThreads();
 
+    end_monotonic_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
+
+    int64_t elapsed = stopWatch(&watch);
+
+    //fprintf(stderr, "running for %ld ms\n", mstime() - Modes.startup_time);
     static uint64_t antiSpam;
-    if (elapsed > 80 && now > antiSpam + 30 * SECONDS) {
+    if (elapsed > 25 && now > antiSpam + 30 * SECONDS) {
         fprintf(stderr, "<3>High load: removeStale took %"PRIu64" ms! Suppressing for 30 seconds\n", elapsed);
-        antiSpam = 30;
+        antiSpam = now;
     }
 
     //fprintf(stderr, "removeStale took %"PRIu64" ms!\n", elapsed);
 
     start_cpu_timing(&start_time);
-
-    cleanupAircraft(freeList);
 
     if (Modes.api)
         apiSort();
@@ -1964,41 +1973,6 @@ void trackPeriodicUpdate() {
         dbUpdate();
 
     end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
-}
-
-void trackForceStats() {
-    // force stats to be emitted regardless of timing
-    Modes.next_stats_update = 0;
-    uint64_t now = mstime();
-
-    struct aircraft *freeList = NULL;
-    trackRemoveStaleAircraft(&freeList, now);
-    cleanupAircraft(freeList);
-    statsUpdate(now); // needs to happen under lock
-    statsWrite();
-}
-
-static void cleanupAircraft(struct aircraft *a) {
-
-    struct aircraft *iter = a;
-    while (iter) {
-        a = iter;
-        iter = iter->next;
-
-        char filename[1024];
-
-        unlink_trace(a);
-
-        if (Modes.state_dir) {
-            snprintf(filename, 1024, "%s/%02x/%06x", Modes.state_dir, a->addr % 256, a->addr);
-            if (unlink(filename)) {
-                //perror("unlink internal_state");
-                //fprintf(stderr, "unlink %06x: %s\n", a->addr, filename);
-            }
-        }
-
-        freeAircraft(a);
-    }
 }
 
 static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_lat, double new_lon, uint64_t now) {
@@ -2768,6 +2742,8 @@ static const char *source_string(datasource_t source) {
 }
 
 void freeAircraft(struct aircraft *a) {
+        unlink_trace(a);
+
         if (a->first_message)
             free(a->first_message);
         if (a->trace) {
@@ -2807,9 +2783,9 @@ void updateValidities(struct aircraft *a, uint64_t now) {
     updateValidity(&a->nav_altitude_src_valid, now, TRACK_EXPIRE);
     updateValidity(&a->nav_heading_valid, now, TRACK_EXPIRE);
     updateValidity(&a->nav_modes_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->cpr_odd_valid, now, TRACK_EXPIRE + 30 * SECONDS);
-    updateValidity(&a->cpr_even_valid, now, TRACK_EXPIRE + 30 * SECONDS);
-    updateValidity(&a->position_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->cpr_odd_valid, now, TRACK_EXPIRE_LONG);
+    updateValidity(&a->cpr_even_valid, now, TRACK_EXPIRE_LONG);
+    updateValidity(&a->position_valid, now, TRACK_EXPIRE_LONG);
     updateValidity(&a->nic_a_valid, now, TRACK_EXPIRE);
     updateValidity(&a->nic_c_valid, now, TRACK_EXPIRE);
     updateValidity(&a->nic_baro_valid, now, TRACK_EXPIRE);

@@ -133,6 +133,45 @@ struct stats
   double distance_min; // Shortest range decoded, in *metres*
 };
 
+
+struct statsCount {
+    uint32_t json_ac_count_pos;
+    uint32_t json_ac_count_no_pos;
+    uint32_t type_counts[NUM_TYPES];
+    uint32_t readsb_aircraft_adsb_version_0;
+    uint32_t readsb_aircraft_adsb_version_1;
+    uint32_t readsb_aircraft_adsb_version_2;
+    uint32_t readsb_aircraft_emergency;
+    uint32_t readsb_aircraft_message_type_adsb_icao;
+    uint32_t readsb_aircraft_message_type_adsb_nt;
+    uint32_t readsb_aircraft_message_type_adsb_other;
+    uint32_t readsb_aircraft_message_type_adsr_icao;
+    uint32_t readsb_aircraft_message_type_adsr_other;
+    uint32_t readsb_aircraft_message_type_tisb_icao;
+    uint32_t readsb_aircraft_message_type_tisb_other;
+    uint32_t readsb_aircraft_message_type_tisb_trackfile;
+    uint32_t readsb_aircraft_message_type_mode_s;
+    uint32_t readsb_aircraft_message_type_mode_ac;
+    uint32_t readsb_aircraft_message_type_mlat;
+    uint32_t readsb_aircraft_message_type_adsc;
+    uint32_t readsb_aircraft_message_type_unknown;
+    uint32_t readsb_aircraft_message_type_other;
+    double readsb_aircraft_rssi_average;
+    float readsb_aircraft_rssi_max;
+    float readsb_aircraft_rssi_min;
+    float readsb_aircraft_rssi_quart1;
+    float readsb_aircraft_rssi_median;
+    float readsb_aircraft_rssi_quart3;
+    float *rssi_table;
+    int rssi_table_len;
+    int rssi_table_alloc;
+    uint32_t readsb_aircraft_tisb;
+    uint32_t readsb_aircraft_total;
+    uint32_t readsb_aircraft_with_flight_number;
+    uint32_t readsb_aircraft_without_flight_number;
+    uint32_t readsb_aircraft_with_position;
+};
+
 void add_stats (const struct stats *st1, const struct stats *st2, struct stats *target);
 void display_stats (struct stats *st);
 void reset_stats (struct stats *st);
@@ -144,7 +183,7 @@ struct char_buffer generatePromFile();
 
 int statsUpdate(uint64_t now);
 void statsReset();
-void statsCount(struct aircraft *a, uint64_t now);
+void statsCountAircraft();
 void statsWrite();
 
 #endif

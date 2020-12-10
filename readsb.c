@@ -283,6 +283,8 @@ static void modesInit(void) {
     for (int i = 0; i < TRACE_THREADS; i++) {
         pthread_mutex_init(&Modes.jsonTraceThreadMutex[i], NULL);
         pthread_cond_init(&Modes.jsonTraceThreadCond[i], NULL);
+        pthread_mutex_init(&Modes.jsonTraceThreadMutexFin[i], NULL);
+        pthread_mutex_lock(&Modes.jsonTraceThreadMutexFin[i]);
     }
 
     geomag_init();
@@ -757,9 +759,6 @@ static void cleanup_and_exit(int code) {
     free(Modes.scratch);
     free(Modes.dev_name);
     free(Modes.filename);
-    /* Free only when pointing to string in heap (strdup allocated when given as run parameter)
-     * otherwise points to const string
-     */
     free(Modes.byLat);
     free(Modes.byLon);
     free(Modes.prom_file);
@@ -767,7 +766,7 @@ static void cleanup_and_exit(int code) {
     free(Modes.globe_history_dir);
     free(Modes.heatmap_dir);
     free(Modes.state_dir);
-    free(Modes.rssi_table);
+    free(Modes.globalStatsCount.rssi_table);
     free(Modes.net_bind_address);
     free(Modes.db_file);
     free(Modes.net_input_beast_ports);
@@ -1374,6 +1373,13 @@ int main(int argc, char **argv) {
         writeJsonToFile(Modes.json_dir, "aircraft.json", generateAircraftJson());
     }
 
+    Modes.removeStale = 1;
+    for (int i = 0; i < TRACE_THREADS; i++) {
+        pthread_create(&Modes.jsonTraceThread[i], NULL, jsonTraceThreadEntryPoint, &Modes.threadNumber[i]);
+    }
+
+    usleep(1000);
+
     // go over the aircraft list once and do other stuff before starting the threads.
     trackPeriodicUpdate();
 
@@ -1386,11 +1392,6 @@ int main(int argc, char **argv) {
         if (Modes.json_globe_index) {
             // globe_xxxx.json
             pthread_create(&Modes.jsonGlobeThread, NULL, jsonGlobeThreadEntryPoint, NULL);
-
-            // trace_xxxxxxxxx.json
-            for (int i = 0; i < TRACE_THREADS; i++) {
-                pthread_create(&Modes.jsonTraceThread[i], NULL, jsonTraceThreadEntryPoint, &Modes.threadNumber[i]);
-            }
         }
     }
 
@@ -1422,17 +1423,22 @@ int main(int argc, char **argv) {
 
         if (Modes.json_globe_index) {
             pthread_join(Modes.jsonGlobeThread, NULL); // Wait on json writer thread exit
-
-            for (int i = 0; i < TRACE_THREADS; i++) {
-                pthread_join(Modes.jsonTraceThread[i], NULL); // Wait on json writer thread exit
-            }
         }
     }
 
     pthread_join(Modes.decodeThread, NULL); // Wait on json writer thread exit
 
+    // force stats to be done
+    Modes.next_stats_update = 0;
+    // before network cleanup or bad
+    trackPeriodicUpdate();
+
     /* Cleanup network setup */
     cleanupNetwork();
+
+    for (int i = 0; i < TRACE_THREADS; i++) {
+        pthread_join(Modes.jsonTraceThread[i], NULL);
+    }
 
     if (Modes.state_dir) {
         fprintf(stderr, "saving state .....\n");
@@ -1449,7 +1455,6 @@ int main(int argc, char **argv) {
         fprintf(stderr, "............. done!\n");
     }
 
-
     pthread_mutex_destroy(&Modes.decodeThreadMutex);
     pthread_mutex_destroy(&Modes.jsonThreadMutex);
     pthread_mutex_destroy(&Modes.jsonGlobeThreadMutex);
@@ -1459,12 +1464,11 @@ int main(int argc, char **argv) {
     for (int i = 0; i < TRACE_THREADS; i++) {
         pthread_mutex_destroy(&Modes.jsonTraceThreadMutex[i]);
         pthread_cond_destroy(&Modes.jsonTraceThreadCond[i]);
+        pthread_mutex_destroy(&Modes.jsonTraceThreadMutexFin[i]);
     }
 
     pthread_mutex_destroy(&Modes.mainThreadMutex);
     pthread_cond_destroy(&Modes.mainThreadCond);
-
-    trackForceStats();
 
     // If --stats were given, print statistics
     if (Modes.stats) {

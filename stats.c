@@ -362,7 +362,6 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
 }
 
 int statsUpdate(uint64_t now) {
-
     // always update end time so it is current when requests arrive
     Modes.stats_current.end = now;
 
@@ -378,7 +377,8 @@ int statsUpdate(uint64_t now) {
         }
     }
 
-    if (now > Modes.next_stats_update) {
+    if (Modes.updateStats) {
+        Modes.updateStats = 0;
         int i;
 
         Modes.next_stats_update += 10 * SECONDS;
@@ -416,12 +416,13 @@ int statsUpdate(uint64_t now) {
 }
 
 static char * appendTypeCounts(char *p, char *end) {
-    p = safe_snprintf(p, end, "\"aircaft_with_pos\": %d,", Modes.json_ac_count_pos);
-    p = safe_snprintf(p, end, "\"aircraft_without_pos\": %d,", Modes.json_ac_count_no_pos);
+    struct statsCount *sC = &(Modes.globalStatsCount);
+    p = safe_snprintf(p, end, "\"aircaft_with_pos\": %d,", sC->json_ac_count_pos);
+    p = safe_snprintf(p, end, "\"aircraft_without_pos\": %d,", sC->json_ac_count_no_pos);
     p = safe_snprintf(p, end, "\"aircraft_count_by_type\": {");
     for (int i = 0; i < NUM_TYPES; i++) {
         const char *key = addrtype_enum_string(i);
-        p = safe_snprintf(p, end, "\"%s\": %d,", key, Modes.type_counts[i]);
+        p = safe_snprintf(p, end, "\"%s\": %d,", key, sC->type_counts[i]);
     }
     p--;
     p = safe_snprintf(p, end, "}");
@@ -618,26 +619,28 @@ struct char_buffer generatePromFile() {
         trace_json_cpu_millis_sum += (uint64_t) st->trace_json_cpu[i].tv_sec * 1000UL + st->trace_json_cpu[i].tv_nsec / 1000000UL;
     }
 
-    p = safe_snprintf(p, end, "readsb_aircraft_adsb_version_zero %u\n", Modes.readsb_aircraft_adsb_version_0);
-    p = safe_snprintf(p, end, "readsb_aircraft_adsb_version_one %u\n", Modes.readsb_aircraft_adsb_version_1);
-    p = safe_snprintf(p, end, "readsb_aircraft_adsb_version_two %u\n", Modes.readsb_aircraft_adsb_version_2);
-    p = safe_snprintf(p, end, "readsb_aircraft_emergency %u\n", Modes.readsb_aircraft_emergency);
-    p = safe_snprintf(p, end, "readsb_aircraft_rssi_average %.1f\n", Modes.readsb_aircraft_rssi_average);
-    p = safe_snprintf(p, end, "readsb_aircraft_rssi_min %.1f\n", Modes.readsb_aircraft_rssi_min);
-    p = safe_snprintf(p, end, "readsb_aircraft_rssi_quart1 %.1f\n", Modes.readsb_aircraft_rssi_quart1);
-    p = safe_snprintf(p, end, "readsb_aircraft_rssi_median %.1f\n", Modes.readsb_aircraft_rssi_median);
-    p = safe_snprintf(p, end, "readsb_aircraft_rssi_quart3 %.1f\n", Modes.readsb_aircraft_rssi_quart3);
-    p = safe_snprintf(p, end, "readsb_aircraft_rssi_max %.1f\n", Modes.readsb_aircraft_rssi_max);
+    struct statsCount *sC = &(Modes.globalStatsCount);
 
-    p = safe_snprintf(p, end, "readsb_aircraft_total %u\n", Modes.readsb_aircraft_total);
-    p = safe_snprintf(p, end, "readsb_aircraft_with_flight_number %u\n", Modes.readsb_aircraft_with_flight_number);
-    p = safe_snprintf(p, end, "readsb_aircraft_without_flight_number %u\n", Modes.readsb_aircraft_without_flight_number);
-    p = safe_snprintf(p, end, "readsb_aircraft_with_position %u\n", Modes.readsb_aircraft_with_position);
-    p = safe_snprintf(p, end, "readsb_aircraft_without_position %u\n", Modes.readsb_aircraft_total - Modes.readsb_aircraft_with_position);
+    p = safe_snprintf(p, end, "readsb_aircraft_adsb_version_zero %u\n", sC->readsb_aircraft_adsb_version_0);
+    p = safe_snprintf(p, end, "readsb_aircraft_adsb_version_one %u\n", sC->readsb_aircraft_adsb_version_1);
+    p = safe_snprintf(p, end, "readsb_aircraft_adsb_version_two %u\n", sC->readsb_aircraft_adsb_version_2);
+    p = safe_snprintf(p, end, "readsb_aircraft_emergency %u\n", sC->readsb_aircraft_emergency);
+    p = safe_snprintf(p, end, "readsb_aircraft_rssi_average %.1f\n", sC->readsb_aircraft_rssi_average);
+    p = safe_snprintf(p, end, "readsb_aircraft_rssi_min %.1f\n", sC->readsb_aircraft_rssi_min);
+    p = safe_snprintf(p, end, "readsb_aircraft_rssi_quart1 %.1f\n", sC->readsb_aircraft_rssi_quart1);
+    p = safe_snprintf(p, end, "readsb_aircraft_rssi_median %.1f\n", sC->readsb_aircraft_rssi_median);
+    p = safe_snprintf(p, end, "readsb_aircraft_rssi_quart3 %.1f\n", sC->readsb_aircraft_rssi_quart3);
+    p = safe_snprintf(p, end, "readsb_aircraft_rssi_max %.1f\n", sC->readsb_aircraft_rssi_max);
+
+    p = safe_snprintf(p, end, "readsb_aircraft_total %u\n", sC->readsb_aircraft_total);
+    p = safe_snprintf(p, end, "readsb_aircraft_with_flight_number %u\n", sC->readsb_aircraft_with_flight_number);
+    p = safe_snprintf(p, end, "readsb_aircraft_without_flight_number %u\n", sC->readsb_aircraft_without_flight_number);
+    p = safe_snprintf(p, end, "readsb_aircraft_with_position %u\n", sC->readsb_aircraft_with_position);
+    p = safe_snprintf(p, end, "readsb_aircraft_without_position %u\n", sC->readsb_aircraft_total - sC->readsb_aircraft_with_position);
 
     for (int i = 0; i < NUM_TYPES; i++) {
         const char *key = addrtype_enum_string(i);
-        p = safe_snprintf(p, end, "readsb_aircraft_%s %u\n", key, Modes.type_counts[i]);
+        p = safe_snprintf(p, end, "readsb_aircraft_%s %u\n", key, sC->type_counts[i]);
     }
 
     p = safe_snprintf(p, end, "readsb_cpr_airborne %u\n", st->cpr_airborne);
@@ -752,46 +755,47 @@ struct char_buffer generatePromFile() {
 }
 
 void statsReset() {
-    memset(&Modes.type_counts, 0, sizeof(Modes.type_counts));
+    struct statsCount *s = &(Modes.globalStatsCount);
+    memset(&s->type_counts, 0, sizeof(s->type_counts));
 
-    Modes.json_ac_count_pos = 0;
-    Modes.json_ac_count_no_pos = 0;
+    s->json_ac_count_pos = 0;
+    s->json_ac_count_no_pos = 0;
 
-    Modes.rssi_table_len = 0;
+    s->rssi_table_len = 0;
 
-    Modes.readsb_aircraft_adsb_version_0 = 0;
-    Modes.readsb_aircraft_adsb_version_1 = 0;
-    Modes.readsb_aircraft_adsb_version_2 = 0;
-    Modes.readsb_aircraft_emergency = 0;
-    Modes.readsb_aircraft_rssi_average = 0;
-    Modes.readsb_aircraft_rssi_max = -50;
-    Modes.readsb_aircraft_rssi_min = 42;
-    Modes.readsb_aircraft_tisb = 0;
-    Modes.readsb_aircraft_total = 0;
-    Modes.readsb_aircraft_with_flight_number = 0;
-    Modes.readsb_aircraft_without_flight_number = 0;
-    Modes.readsb_aircraft_with_position = 0;
+    s->readsb_aircraft_adsb_version_0 = 0;
+    s->readsb_aircraft_adsb_version_1 = 0;
+    s->readsb_aircraft_adsb_version_2 = 0;
+    s->readsb_aircraft_emergency = 0;
+    s->readsb_aircraft_rssi_average = 0;
+    s->readsb_aircraft_rssi_max = -50;
+    s->readsb_aircraft_rssi_min = 42;
+    s->readsb_aircraft_tisb = 0;
+    s->readsb_aircraft_total = 0;
+    s->readsb_aircraft_with_flight_number = 0;
+    s->readsb_aircraft_without_flight_number = 0;
+    s->readsb_aircraft_with_position = 0;
 }
 
-void statsCount(struct aircraft *a, uint64_t now) {
-    MODES_NOTUSED(now);
+void statsCountAircraft(struct aircraft *a) {
+    struct statsCount *s = &(Modes.globalStatsCount);
 
-    if (trackDataValid(&a->position_valid) || now < a->seen_pos + 2 * MINUTES)
-        Modes.json_ac_count_pos++;
+    if (trackDataValid(&a->position_valid))
+        s->json_ac_count_pos++;
     else
-        Modes.json_ac_count_no_pos++;
+        s->json_ac_count_no_pos++;
 
-    Modes.type_counts[a->addrtype]++;
+    s->type_counts[a->addrtype]++;
 
     if (a->adsb_version == 0)
-        Modes.readsb_aircraft_adsb_version_0++;
+        s->readsb_aircraft_adsb_version_0++;
     else if (a->adsb_version == 1)
-        Modes.readsb_aircraft_adsb_version_1++;
+        s->readsb_aircraft_adsb_version_1++;
     else if (a->adsb_version == 2)
-        Modes.readsb_aircraft_adsb_version_2++;
+        s->readsb_aircraft_adsb_version_2++;
 
     if (trackDataValid(&a->emergency_valid) && a->emergency)
-        Modes.readsb_aircraft_emergency++;
+        s->readsb_aircraft_emergency++;
 
     double signal = 10 * log10((a->signalLevel[0] + a->signalLevel[1] + a->signalLevel[2] + a->signalLevel[3] +
                 a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7] + 1e-5) / 8);
@@ -804,21 +808,22 @@ void statsCount(struct aircraft *a, uint64_t now) {
                 || a->addrtype == ADDR_MLAT
                 || a->addrtype == ADDR_MODE_S
         ) && signal > -49.4 && signal < 1) {
-        if (Modes.rssi_table_alloc < Modes.rssi_table_len + 1) {
-            Modes.rssi_table_alloc = 2 * Modes.rssi_table_len + 1024;
-            Modes.rssi_table = realloc(Modes.rssi_table, sizeof(float) * Modes.rssi_table_alloc);
+        if (s->rssi_table_alloc < s->rssi_table_len + 1) {
+            s->rssi_table_alloc = 2 * s->rssi_table_len + 1024;
+            s->rssi_table = realloc(s->rssi_table, sizeof(float) * s->rssi_table_alloc);
         }
-        Modes.rssi_table[Modes.rssi_table_len] = signal;
-        Modes.rssi_table_len++;
+        s->rssi_table[s->rssi_table_len] = signal;
+        s->rssi_table_len++;
     }
 
     if (a->position_valid.source == SOURCE_TISB)
-        Modes.readsb_aircraft_tisb++;
+        s->readsb_aircraft_tisb++;
     if (trackDataValid(&a->callsign_valid))
-        Modes.readsb_aircraft_with_flight_number++;
+        s->readsb_aircraft_with_flight_number++;
     else
-        Modes.readsb_aircraft_without_flight_number++;
+        s->readsb_aircraft_without_flight_number++;
 }
+
 
 static float percentile(float p, float *values, int len) {
 
@@ -843,37 +848,38 @@ static int compareFloat(const void *p1, const void *p2) {
 }
 
 static void statsCalc() {
-    Modes.readsb_aircraft_total = Modes.json_ac_count_pos + Modes.json_ac_count_no_pos;
-    Modes.readsb_aircraft_with_position = Modes.json_ac_count_pos;
+    struct statsCount *s = &(Modes.globalStatsCount);
+    s->readsb_aircraft_total = s->json_ac_count_pos + s->json_ac_count_no_pos;
+    s->readsb_aircraft_with_position = s->json_ac_count_pos;
 
-    if (Modes.rssi_table_len > 0) {
+    if (s->rssi_table_len > 0) {
 
-        qsort(Modes.rssi_table, Modes.rssi_table_len, sizeof(float), compareFloat);
+        qsort(s->rssi_table, s->rssi_table_len, sizeof(float), compareFloat);
 
         //printf("after sort\n");
-        //for (int i = 0; i < Modes.rssi_table_len; i++)
-        //    printf("%.2f\n", Modes.rssi_table[i]);
+        //for (int i = 0; i < s->rssi_table_len; i++)
+        //    printf("%.2f\n", s->rssi_table[i]);
 
-        Modes.readsb_aircraft_rssi_min = Modes.rssi_table[0];
-        Modes.readsb_aircraft_rssi_quart1 = percentile(0.25, Modes.rssi_table, Modes.rssi_table_len);
-        Modes.readsb_aircraft_rssi_median = percentile(0.5, Modes.rssi_table, Modes.rssi_table_len);
-        Modes.readsb_aircraft_rssi_quart3 = percentile(0.75, Modes.rssi_table, Modes.rssi_table_len);
-        Modes.readsb_aircraft_rssi_max = Modes.rssi_table[Modes.rssi_table_len - 1];
+        s->readsb_aircraft_rssi_min = s->rssi_table[0];
+        s->readsb_aircraft_rssi_quart1 = percentile(0.25, s->rssi_table, s->rssi_table_len);
+        s->readsb_aircraft_rssi_median = percentile(0.5, s->rssi_table, s->rssi_table_len);
+        s->readsb_aircraft_rssi_quart3 = percentile(0.75, s->rssi_table, s->rssi_table_len);
+        s->readsb_aircraft_rssi_max = s->rssi_table[s->rssi_table_len - 1];
 
-        for (int i = 0; i < Modes.rssi_table_len; i++) {
-            Modes.readsb_aircraft_rssi_average += Modes.rssi_table[i];
+        for (int i = 0; i < s->rssi_table_len; i++) {
+            s->readsb_aircraft_rssi_average += s->rssi_table[i];
         }
-        Modes.readsb_aircraft_rssi_average /= Modes.rssi_table_len;
+        s->readsb_aircraft_rssi_average /= s->rssi_table_len;
     } else {
-        Modes.readsb_aircraft_rssi_average = -50;
-        Modes.readsb_aircraft_rssi_max = -50;
-        Modes.readsb_aircraft_rssi_min = -50;
-        Modes.readsb_aircraft_rssi_quart1 = -50;
-        Modes.readsb_aircraft_rssi_median = -50;
-        Modes.readsb_aircraft_rssi_quart3 = -50;
+        s->readsb_aircraft_rssi_average = -50;
+        s->readsb_aircraft_rssi_max = -50;
+        s->readsb_aircraft_rssi_min = -50;
+        s->readsb_aircraft_rssi_quart1 = -50;
+        s->readsb_aircraft_rssi_median = -50;
+        s->readsb_aircraft_rssi_quart3 = -50;
     }
-    if (Modes.readsb_aircraft_rssi_min == 42)
-        Modes.readsb_aircraft_rssi_min = -50;
+    if (s->readsb_aircraft_rssi_min == 42)
+        s->readsb_aircraft_rssi_min = -50;
 }
 
 void statsWrite() {
