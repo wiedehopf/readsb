@@ -1774,9 +1774,9 @@ static void trackRemoveStale() {
 void trackRemoveStaleThread(int start, int end, uint64_t now) {
 
     for (int j = start; j < end; j++) {
-        struct aircraft *prev = NULL;
-        struct aircraft *a = Modes.aircraft[j];
-        while (a) {
+        struct aircraft **nextPointer = &(Modes.aircraft[j]);
+        while (*nextPointer) {
+            struct aircraft *a = *nextPointer;
             if (
                     (!a->seen_pos && (now > a->seen + TRACK_AIRCRAFT_NO_POS_TTL))
                     || ((a->addr & MODES_NON_ICAO_ADDRESS) && (now > a->seen + TRACK_AIRCRAFT_NON_ICAO_TTL))
@@ -1796,17 +1796,10 @@ void trackRemoveStaleThread(int start, int end, uint64_t now) {
                 // remove from the globeList
                 set_globe_index(a, -5);
 
-                // Remove the element from the linked list, with care
-                // if we are removing the first element
-                struct aircraft *del = a;
-                if (!prev) {
-                    Modes.aircraft[j] = a->next;
-                } else {
-                    prev->next = a->next;
-                }
-                a = a->next;
+                // Remove the element from the linked list
+                *nextPointer = a->next;
 
-                freeAircraft(del);
+                freeAircraft(a);
             } else {
                 if (now < a->seen + TRACK_EXPIRE_JAERO + 1 * MINUTES) {
                     updateValidities(a, now);
@@ -1843,8 +1836,7 @@ void trackRemoveStaleThread(int start, int end, uint64_t now) {
                     }
                 }
 
-                prev = a;
-                a = a->next;
+                nextPointer = &(a->next);
             }
         }
     }

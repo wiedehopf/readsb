@@ -404,7 +404,7 @@ struct _Modes
     char aneterr[ANET_ERR_LEN];
     int beast_fd; // Local Modes-S Beast handler
     struct net_service *services; // Active services
-    struct aircraft * volatile aircraft[AIRCRAFT_BUCKETS]; // pointers are volatile
+    struct aircraft * aircraft[AIRCRAFT_BUCKETS];
     struct craftArray globeLists[GLOBE_MAX_INDEX+1];
     struct receiver *receiverTable[RECEIVER_TABLE_SIZE];
     dbEntry *db;
