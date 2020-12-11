@@ -1751,14 +1751,18 @@ static void updateAircraft() {
 static void trackRemoveStale() {
     Modes.removeStale = 1;
 
-    for (int i = 0; i < TRACE_THREADS; i++) {
-        Modes.removeStaleThread[i] = 1;
-        pthread_cond_broadcast(&Modes.jsonTraceThreadCond[i]);
-        pthread_mutex_unlock(&Modes.jsonTraceThreadMutex[i]);
-    }
-    for (int i = 0; i < TRACE_THREADS; i++) {
-        pthread_mutex_lock(&Modes.jsonTraceThreadMutexFin[i]);
-        pthread_mutex_lock(&Modes.jsonTraceThreadMutex[i]);
+    if (Modes.viewAdsb) {
+        trackRemoveStaleThread(0, AIRCRAFT_BUCKETS, mstime());
+    } else {
+        for (int i = 0; i < TRACE_THREADS; i++) {
+            Modes.removeStaleThread[i] = 1;
+            pthread_cond_broadcast(&Modes.jsonTraceThreadCond[i]);
+            pthread_mutex_unlock(&Modes.jsonTraceThreadMutex[i]);
+        }
+        for (int i = 0; i < TRACE_THREADS; i++) {
+            pthread_mutex_lock(&Modes.jsonTraceThreadMutexFin[i]);
+            pthread_mutex_lock(&Modes.jsonTraceThreadMutex[i]);
+        }
     }
 
     Modes.removeStale = 0;
@@ -1851,6 +1855,7 @@ static void lockThreads() {
     pthread_mutex_lock(&Modes.jsonGlobeThreadMutex);
     pthread_mutex_lock(&Modes.decodeThreadMutex);
 }
+
 static void unlockThreads() {
     pthread_mutex_unlock(&Modes.decodeThreadMutex);
     pthread_mutex_unlock(&Modes.jsonThreadMutex);

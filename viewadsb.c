@@ -98,6 +98,9 @@ static void view1090InitConfig(void) {
     memset(&Modes, 0, sizeof (Modes));
     srandom(get_seed());
 
+    Modes.viewAdsb = 1;
+    Modes.show_only = 0xc0ffeeba; // default to out of normal range value
+
     // Now initialise things that should not be 0/NULL to their defaults
     Modes.check_crc = 1;
     Modes.interactive_display_ttl = MODES_INTERACTIVE_DISPLAY_TTL;
@@ -117,6 +120,21 @@ static void view1090Init(void) {
 
     pthread_mutex_init(&Modes.data_mutex, NULL);
     pthread_cond_init(&Modes.data_cond, NULL);
+
+    pthread_mutex_init(&Modes.decodeThreadMutex, NULL);
+    pthread_mutex_init(&Modes.jsonThreadMutex, NULL);
+    pthread_mutex_init(&Modes.jsonGlobeThreadMutex, NULL);
+
+    pthread_cond_init(&Modes.decodeThreadCond, NULL);
+    pthread_cond_init(&Modes.jsonThreadCond, NULL);
+    pthread_cond_init(&Modes.jsonGlobeThreadCond, NULL);
+
+    for (int i = 0; i < TRACE_THREADS; i++) {
+        pthread_mutex_init(&Modes.jsonTraceThreadMutex[i], NULL);
+        pthread_cond_init(&Modes.jsonTraceThreadCond[i], NULL);
+        pthread_mutex_init(&Modes.jsonTraceThreadMutexFin[i], NULL);
+        pthread_mutex_lock(&Modes.jsonTraceThreadMutexFin[i]);
+    }
 
 #ifdef _WIN32
     if ((!Modes.wsaData.wVersion)

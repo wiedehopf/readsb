@@ -2147,7 +2147,7 @@ void useModesMessage(struct modesMessage *mm) {
     a = trackUpdateFromMessage(mm);
 
     // In non-interactive non-quiet mode, display messages on standard output
-    if (!Modes.interactive && !Modes.quiet && (mm->addr == Modes.show_only)) {
+    if ((!Modes.interactive && !Modes.quiet) || (mm->addr == Modes.show_only)) {
         displayModesMessage(mm);
     }
 
