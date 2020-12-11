@@ -298,7 +298,7 @@ typedef enum {
 #define MODES_NOTUSED(V) ((void) V)
 
 #ifndef AIRCRAFT_HASH_BITS
-#define AIRCRAFT_HASH_BITS 18
+#define AIRCRAFT_HASH_BITS 19
 #endif
 #define AIRCRAFT_BUCKETS (1 << AIRCRAFT_HASH_BITS) // this is critical for hashing purposes
 
@@ -310,6 +310,7 @@ typedef enum {
 #define STATE_BLOBS 256
 #define IO_THREADS 8
 #define TRACE_THREADS 8
+#define PERIODIC_UPDATE 200 // lock json writers and do some stuff every PERIODIC_UPDATE ms
 
 #define STAT_BUCKETS 90 // 90 * 10 seconds = 15 min (max interval in stats.json)
 
@@ -540,6 +541,7 @@ struct _Modes
     uint64_t startup_time;
     uint64_t next_stats_update;
     uint64_t next_stats_display;
+    uint64_t next_api_update;
     sem_t removeStaleSem;
     int8_t updateStats;
     int8_t removeStale;

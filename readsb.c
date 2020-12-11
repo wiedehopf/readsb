@@ -1340,20 +1340,20 @@ int main(int argc, char **argv) {
         for (int i = 0; i < IO_THREADS; i++) {
             pthread_join(threads[i], NULL);
         }
-        uint32_t count_ac = 0;
+
+        uint32_t aircraftCount = 0; // includes quite old aircraft, just for checking hash table fill
         uint64_t now = mstime();
         for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
             for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
                 int new_index = a->globe_index;
                 a->globe_index = -5;
                 set_globe_index(a, new_index);
-                count_ac++;
+                aircraftCount++;
                 updateValidities(a, now);
             }
         }
-        fprintf(stderr, " .......... done, loaded %u aircraft!\n", count_ac);
-        Modes.aircraftCount = count_ac;
-        fprintf(stderr, "aircraft table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFT_BUCKETS );
+        fprintf(stderr, " .......... done, loaded %u aircraft!\n", aircraftCount);
+        fprintf(stderr, "aircraft table fill: %0.1f\n", aircraftCount / (double) AIRCRAFT_BUCKETS );
 
         char pathbuf[PATH_MAX];
         if (mkdir(Modes.globe_history_dir, 0755) && errno != EEXIST)
@@ -1403,8 +1403,9 @@ int main(int argc, char **argv) {
     while (!Modes.exit) {
         trackPeriodicUpdate();
 
-        int64_t sleep_ms = 1000;
-        incTimedwait(&ts, sleep_ms);
+        incTimedwait(&ts, PERIODIC_UPDATE);
+
+        //fprintf(stderr, "%.1f\n", ts.tv_nsec / 1e6);
 
         int err = pthread_cond_timedwait(&Modes.mainThreadCond, &Modes.mainThreadMutex, &ts);
         if (err && err != ETIMEDOUT)

@@ -182,7 +182,7 @@ struct char_buffer generateStatsJson();
 struct char_buffer generatePromFile();
 
 int statsUpdate(uint64_t now);
-void statsReset();
+void statsResetCount();
 void statsCountAircraft();
 void statsWrite();
 

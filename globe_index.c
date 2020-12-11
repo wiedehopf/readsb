@@ -1126,7 +1126,7 @@ static void load_blob(int blob) {
     free(cb.buffer);
 }
 
-void handleHeatmap() {
+int handleHeatmap() {
     time_t nowish = (mstime() - 30 * MINUTES)/1000;
     struct tm utc;
     gmtime_r(&nowish, &utc);
@@ -1135,11 +1135,11 @@ void handleHeatmap() {
     // don't write on startup when persistent state isn't enabled
     if (!Modes.state_dir && Modes.heatmap_current_interval == -1) {
         Modes.heatmap_current_interval = half_hour;
-        return;
+        return 0;
     }
     // only do this every 30 minutes.
     if (half_hour == Modes.heatmap_current_interval)
-        return;
+        return 0;
 
     utc.tm_hour = half_hour / 2;
     utc.tm_min = 30 * (half_hour % 2);
@@ -1304,6 +1304,8 @@ void handleHeatmap() {
     free(buffer);
     free(buffer2);
     free(slices);
+
+    return 1; // heatmap stuff written
 }
 
 

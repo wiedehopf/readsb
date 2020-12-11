@@ -378,7 +378,6 @@ int statsUpdate(uint64_t now) {
     }
 
     if (Modes.updateStats) {
-        Modes.updateStats = 0;
         int i;
 
         Modes.next_stats_update += 10 * SECONDS;
@@ -754,7 +753,7 @@ struct char_buffer generatePromFile() {
     return cb;
 }
 
-void statsReset() {
+void statsResetCount() {
     struct statsCount *s = &(Modes.globalStatsCount);
     memset(&s->type_counts, 0, sizeof(s->type_counts));
 

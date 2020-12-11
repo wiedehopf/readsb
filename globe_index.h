@@ -28,7 +28,7 @@ void *save_state(void *arg);
 void save_blob(int blob);
 void *jsonTraceThreadEntryPoint(void *arg);
 
-void handleHeatmap();
+int handleHeatmap();
 
 void unlink_trace(struct aircraft *a);
 

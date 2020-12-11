@@ -39,10 +39,7 @@ struct aircraft *aircraftGet(uint32_t addr) {
 
 struct aircraft *aircraftCreate(struct modesMessage *mm) {
     uint32_t addr = mm->addr;
-    if (Modes.aircraftCount > 8 * AIRCRAFT_BUCKETS) {
-        fprintf(stderr, "ERROR ERROR, aircraft hash table overfilled!");
-        return NULL;
-    }
+
     struct aircraft *a = aircraftGet(addr);
     if (a)
         return a;
@@ -83,9 +80,6 @@ struct aircraft *aircraftCreate(struct modesMessage *mm) {
     uint32_t hash = aircraftHash(addr);
     a->next = Modes.aircraft[hash];
     Modes.aircraft[hash] = a;
-    Modes.aircraftCount++;
-    //if (((Modes.aircraftCount * 4) & (AIRCRAFT_BUCKETS - 1)) == 0)
-    //    fprintf(stderr, "aircraft table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFT_BUCKETS );
 
     return a;
 }
@@ -588,7 +582,7 @@ DBU0:
     return 0;
 }
 
-void dbFinishUpdate() {
+int dbFinishUpdate() {
     // finish db update
     if (Modes.db2 && Modes.db2Index) {
         if (Modes.debug_dbJson)
@@ -606,7 +600,9 @@ void dbFinishUpdate() {
             }
         }
         fprintf(stderr, "db update done!\n");
+        return 1;
     }
+    return 0;
 }
 
 

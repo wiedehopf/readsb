@@ -41,12 +41,11 @@ struct receiver *receiverCreate(uint64_t id) {
         fprintf(stderr, "receiverCount: %"PRIu64"\n", Modes.receiverCount);
     return r;
 }
-void receiverTimeout(int part, int nParts) {
+void receiverTimeout(int part, int nParts, uint64_t now) {
     int stride = RECEIVER_TABLE_SIZE / nParts;
     int start = stride * part;
     int end = start + stride;
     //fprintf(stderr, "START: %8d END: %8d\n", start, end);
-    uint64_t now = mstime();
     for (int i = start; i < end; i++) {
         struct receiver **r = &Modes.receiverTable[i];
         struct receiver *del;
@@ -182,7 +181,7 @@ void receiverTest() {
             r = receiverCreate(i);
     }
     printf("%"PRIu64"\n", Modes.receiverCount);
-    receiverTimeout(0, 1);
+    receiverTimeout(0, 1, mstime());
     printf("%"PRIu64"\n", Modes.receiverCount);
 }
 

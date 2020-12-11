@@ -1830,7 +1830,7 @@ void trackRemoveStaleThread(int start, int end, uint64_t now) {
                                 a->trace_full_write = 0xc0ffee;
                             }
                         }
-                    } else {
+                    } else { // without globe_index keep traces in memory only for 2 hours (used for heatmap)
                         if (now > a->trace_next_fw) {
                             resize_trace(a, now);
                             a->trace_next_fw = now + 2 * HOURS + random() % (30 * MINUTES);
@@ -1877,30 +1877,7 @@ void trackPeriodicUpdate() {
     static uint32_t blob; // current blob
     static uint32_t upcount;
     upcount++; // free running counter
-    int writeStats = 0;
 
-    checkNewDay();
-
-    uint64_t now = mstime();
-    if (now > Modes.next_stats_update) {
-        Modes.updateStats = 1;
-        statsReset();
-        //fprintf(stderr, "stats update\n");
-    }
-    if (Modes.api)
-        apiClear();
-    uint32_t aircraftCount = 0;
-    if (Modes.updateStats || Modes.api) {
-        for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
-            for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
-                aircraftCount++;
-                if (Modes.updateStats && a->messages >= 2 && (now < a->seen + TRACK_EXPIRE || trackDataValid(&a->position_valid)))
-                    statsCountAircraft(a);
-                if (Modes.api)
-                    apiAdd(a);
-            }
-        }
-    }
     // stop all threads so we can remove aircraft from the list.
     // also serves as memory barrier so json threads get new aircraft in the list
     // adding aircraft does not need to be done with locking:
@@ -1908,27 +1885,32 @@ void trackPeriodicUpdate() {
     // in the cache used by the json threads.
     lockThreads();
 
+    uint64_t now = mstime();
+
+    if (now > Modes.next_stats_update)
+        Modes.updateStats = 1;
+
     struct timespec watch;
     startWatch(&watch);
 
-    if (Modes.updateStats)
-        Modes.aircraftCount = aircraftCount;
-    now = mstime();
 
     struct timespec start_time;
     start_monotonic_timing(&start_time);
 
-    trackRemoveStale();
+    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 0)
+        trackRemoveStale();
 
-    if (Modes.mode_ac)
+    if (Modes.mode_ac && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 1)
         trackMatchAC(now);
 
-    writeStats = statsUpdate(now); // needs to happen under lock
+    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 2)
+        statsUpdate(now); // needs to happen under lock
 
-    int nParts = 256;
-    receiverTimeout((upcount % nParts), nParts);
+    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 3)
+        netFreeClients();
 
-    netFreeClients();
+    int nParts = 5 * MINUTES / PERIODIC_UPDATE;
+    receiverTimeout((upcount % nParts), nParts, now);
 
     unlockThreads();
 
@@ -1936,43 +1918,99 @@ void trackPeriodicUpdate() {
 
     int64_t elapsed = stopWatch(&watch);
 
-    //fprintf(stderr, "running for %ld ms\n", mstime() - Modes.startup_time);
     static uint64_t antiSpam;
     if (elapsed > 25 && now > antiSpam + 30 * SECONDS) {
         fprintf(stderr, "<3>High load: removeStale took %"PRIu64" ms! Suppressing for 30 seconds\n", elapsed);
         antiSpam = now;
     }
 
+    //fprintf(stderr, "running for %ld ms\n", mstime() - Modes.startup_time);
     //fprintf(stderr, "removeStale took %"PRIu64" ms!\n", elapsed);
 
     start_cpu_timing(&start_time);
+    startWatch(&watch);
 
-    if (Modes.api)
-        apiSort();
+    checkNewDay();
 
-    if (upcount % (3000 / STATE_BLOBS) == 0) {
-        save_blob(blob++ % STATE_BLOBS);
+    // don't do everything at once ... this stuff isn't that time critical it'll get its turn
+    int enough = 0;
+
+    if (!enough && Modes.updateStats) {
+        enough = 1;
+        statsResetCount();
+        uint32_t aircraftCount = 0;
+        for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+            for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
+                aircraftCount++;
+                if (Modes.updateStats && a->messages >= 2 && (now < a->seen + TRACK_EXPIRE || trackDataValid(&a->position_valid)))
+                    statsCountAircraft(a);
+            }
+        }
+
+        statsWrite();
+        Modes.updateStats = 0;
+
+        Modes.aircraftCount = aircraftCount;
+        if (Modes.aircraftCount > 2 * AIRCRAFT_BUCKETS)
+            fprintf(stderr, "aircraft table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFT_BUCKETS );
     }
 
-    if (Modes.heatmap)
-        handleHeatmap(); // only does sth every 30 min
+    static uint64_t next_blob;
+    if (!enough && now > next_blob) {
+        enough = 1;
+        save_blob(blob++ % STATE_BLOBS);
+        next_blob = now + 60 * MINUTES / STATE_BLOBS;
+    }
 
-    if (writeStats)
-        statsWrite();
+    if (!enough && Modes.heatmap && handleHeatmap()) {
+        // handleHeatMap() only does sth every 30 min
+        enough = 1;
+    }
 
-    if (Modes.netIngest && Modes.json_dir && upcount % 5 == 2)
-        writeJsonToFile(Modes.json_dir, "clients.json", generateClientsJson());
+    if (!enough && Modes.api && now > Modes.next_api_update) {
+        // this will probably get its own thread at some point
+        enough = 1;
+        Modes.next_api_update = now + 1 * SECONDS;
+        apiClear();
+        for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+            for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
+                apiAdd(a);
+            }
+        }
+        apiSort();
+    }
 
-    if (Modes.netReceiverIdJson && Modes.json_dir && upcount % 5 == 2)
-        writeJsonToFile(Modes.json_dir, "receivers.json", generateReceiversJson());
+    static uint64_t next_clients_json;
+    if (!enough && Modes.json_dir && now > next_clients_json) {
+        enough = 1;
+        next_clients_json = now + 10 * SECONDS;
+        if (Modes.netIngest)
+            writeJsonToFile(Modes.json_dir, "clients.json", generateClientsJson());
+        if (Modes.netReceiverIdJson)
+            writeJsonToFile(Modes.json_dir, "receivers.json", generateReceiversJson());
+    }
 
-    // one iteration later, finish db update if db was updated
-    dbFinishUpdate();
-    // db update check every 5 min
-    if (upcount % 300 == 0)
+    if (!enough) {
+        // one iteration later, finish db update if db was updated
+        if (dbFinishUpdate())
+            enough = 1;
+    }
+    static uint64_t next_db_check;
+    if (!enough && now > next_db_check) {
+        enough = 1;
         dbUpdate();
+        // db update check every 5 min
+        next_db_check = now + 5 * MINUTES;
+    }
 
     end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
+
+    elapsed = stopWatch(&watch);
+    static uint64_t antiSpam2;
+    if (elapsed > 2 * PERIODIC_UPDATE && now > antiSpam2 + 30 * SECONDS) {
+        fprintf(stderr, "<3>High load: heatmap_and_stuff took %"PRIu64" ms! Suppressing for 30 seconds\n", elapsed);
+        antiSpam2 = now;
+    }
 }
 
 static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_lat, double new_lon, uint64_t now) {
