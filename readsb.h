@@ -305,8 +305,8 @@ typedef enum {
 #define DB_HASH_BITS 20
 #define DB_BUCKETS (1 << DB_HASH_BITS) // this is critical for hashing purposes
 
-#define GLOBE_TRACE_SIZE 32768
-#define GLOBE_STEP 32
+#define TRACE_SIZE 32768
+#define TRACE_MARGIN 8
 #define STATE_BLOBS 256
 #define IO_THREADS 8
 #define TRACE_THREADS 8

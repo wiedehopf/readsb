@@ -361,12 +361,12 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
         a->seen = now;
 
     // read trace
-    int size_state = a->trace_len * sizeof(struct state);
-    int size_all = (a->trace_len + 3) / 4 * sizeof(struct state_all);
+    int size_state = stateBytes(a->trace_len);
+    int size_all = stateAllBytes(a->trace_len);
     if (a->trace_len > 0
-            && a->trace_len <= 10 * GLOBE_TRACE_SIZE
-            && a->trace_alloc >= a->trace_len + 1
-            && a->trace_alloc <= 10 * GLOBE_TRACE_SIZE
+            && a->trace_len <= 10 * TRACE_SIZE
+            && a->trace_alloc >= a->trace_len
+            && a->trace_alloc <= 10 * TRACE_SIZE
        ) {
 
 
@@ -379,8 +379,7 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
             a->trace_len = 0;
         } else {
             // TRACE SUCCESS
-            a->trace = malloc(a->trace_alloc * sizeof(struct state));
-            a->trace_all = malloc((1 + a->trace_alloc / 4) * sizeof(struct state_all));
+            traceRealloc(a, a->trace_alloc);
 
             memcpy(a->trace, *p, size_state);
             *p += size_state;
@@ -940,6 +939,53 @@ void set_globe_index (struct aircraft *a, int new_index) {
     }
 }
 
+static void traceUnlink(struct aircraft *a) {
+    char filename[PATH_MAX];
+
+    if (!Modes.json_globe_index || !Modes.json_dir)
+        return;
+
+    snprintf(filename, 1024, "%s/traces/%02x/trace_recent_%s%06x.json", Modes.json_dir, a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
+    unlink(filename);
+
+    snprintf(filename, 1024, "%s/traces/%02x/trace_full_%s%06x.json", Modes.json_dir, a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
+    unlink(filename);
+
+    //fprintf(stderr, "unlink %06x: %s\n", a->addr, filename);
+}
+
+ssize_t stateBytes(int len) {
+    return len * sizeof(struct state);
+}
+ssize_t stateAllBytes(int len) {
+    return (len + 3) / 4 * sizeof(struct state_all);
+}
+
+void traceRealloc(struct aircraft *a, int len) {
+    if (len == 0) {
+        traceCleanup(a);
+        return;
+    }
+    a->trace_alloc = len;
+    if (a->trace_alloc > TRACE_SIZE)
+        a->trace_alloc = TRACE_SIZE;
+    a->trace = realloc(a->trace, stateBytes(a->trace_alloc));
+    a->trace_all = realloc(a->trace_all, stateAllBytes(a->trace_alloc));
+
+    if (a->trace_len >= TRACE_SIZE / 2)
+        fprintf(stderr, "Quite a long trace: %06x (%d).\n", a->addr, a->trace_len);
+}
+
+void traceCleanup(struct aircraft *a) {
+    free(a->trace);
+    free(a->trace_all);
+
+    a->trace_alloc = 0;
+    a->trace = NULL;
+    a->trace_all = NULL;
+
+    traceUnlink(a);
+}
 
 // blobs 00 to ff (0 to 255)
 void save_blob(int blob) {
@@ -1012,8 +1058,8 @@ void save_blob(int blob) {
             p += sizeof(magic);
 
 
-            int size_state = a->trace_len * sizeof(struct state);
-            int size_all = (a->trace_len + 3) / 4 * sizeof(struct state_all);
+            int size_state = stateBytes(a->trace_len);
+            int size_all = stateAllBytes(a->trace_len);
 
             if (p + size_state + size_all + sizeof(struct aircraft) < buf + alloc) {
 
@@ -1397,17 +1443,3 @@ void checkNewDay() {
     return;
 }
 
-void unlink_trace(struct aircraft *a) {
-    char filename[PATH_MAX];
-
-    if (!Modes.json_globe_index || !Modes.json_dir)
-        return;
-
-    snprintf(filename, 1024, "%s/traces/%02x/trace_recent_%s%06x.json", Modes.json_dir, a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
-    unlink(filename);
-
-    snprintf(filename, 1024, "%s/traces/%02x/trace_full_%s%06x.json", Modes.json_dir, a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
-    unlink(filename);
-
-    //fprintf(stderr, "unlink %06x: %s\n", a->addr, filename);
-}

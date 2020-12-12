@@ -27,11 +27,13 @@ void *load_blobs(void *arg);
 void *save_state(void *arg);
 void save_blob(int blob);
 void *jsonTraceThreadEntryPoint(void *arg);
+ssize_t stateBytes(int len);
+ssize_t stateAllBytes(int len);
+void traceRealloc(struct aircraft *a, int len);
+void traceCleanup(struct aircraft *a);
 
 int checkHeatmap(uint64_t now);
 void *handleHeatmap(void *arg);
-
-void unlink_trace(struct aircraft *a);
 
 struct craftArray {
     struct aircraft **list;

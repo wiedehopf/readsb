@@ -1837,9 +1837,10 @@ void trackRemoveStaleThread(int start, int end, uint64_t now) {
                     }
 
                     //fprintf(stderr, "%06x\n", a->addr);
-                    if (a->trace_len + GLOBE_STEP / 2 >= a->trace_alloc) {
-                        resize_trace(a, now);
-                        //fprintf(stderr, "%06x: new trace_alloc: %d).\n", a->addr, a->trace_alloc);
+
+                    // grow allocation
+                    if (a->trace_len && a->trace_len + TRACE_MARGIN >= a->trace_alloc) {
+                        traceRealloc(a, a->trace_alloc * 10 / 8 + TRACE_MARGIN);
                     }
                 }
 
@@ -2044,10 +2045,8 @@ static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_
     if (Modes.keep_traces) {
 
         if (!a->trace) {
-
-            a->trace_alloc = GLOBE_STEP;
-            a->trace = malloc(a->trace_alloc * sizeof(struct state));
-            a->trace_all = malloc((1 + a->trace_alloc / 4) * sizeof(struct state_all));
+            // allocate trace memory
+            traceRealloc(a, 3 * TRACE_MARGIN);
             a->trace->timestamp = now;
             a->trace_full_write = 9999; // rewrite full history file
 
@@ -2360,20 +2359,8 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
     if (a->trace_alloc == 0) {
         return;
     }
-
-    if (a->trace_len == 0) {
-
-        free(a->trace);
-        free(a->trace_all);
-
-        a->trace_alloc = 0;
-        a->trace = NULL;
-        a->trace_all = NULL;
-
-        unlink_trace(a);
-        // if the trace length is zero, the trace is deleted from run
-        // it is not written again until a new position is received
-
+    if (a->trace_len == 0) { // this shouldn't ever trigger
+        traceCleanup(a);
         return;
     }
     if (now < Modes.keep_traces)
@@ -2384,11 +2371,11 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
     if (a->addr & MODES_NON_ICAO_ADDRESS)
         keep_after = now - TRACK_AIRCRAFT_NON_ICAO_TTL;
 
-    if (a->trace_len == GLOBE_TRACE_SIZE || a->trace->timestamp < keep_after - 20 * MINUTES ) {
+    if (a->trace_len == TRACE_SIZE || a->trace->timestamp < keep_after - 20 * MINUTES ) {
         int new_start = a->trace_len;
 
-        if (a->trace_len + GLOBE_STEP / 2 >= GLOBE_TRACE_SIZE) {
-            new_start = GLOBE_TRACE_SIZE / 64;
+        if (a->trace_len + TRACE_MARGIN >= TRACE_SIZE) {
+            new_start = TRACE_SIZE / 64;
         } else {
             int found = 0;
             for (int i = 0; i < a->trace_len; i++) {
@@ -2421,24 +2408,16 @@ static void resize_trace(struct aircraft *a, uint64_t now) {
 
     }
 
-    if (a->trace_len && a->trace_len + GLOBE_STEP / 2 >= a->trace_alloc) {
-        a->trace_alloc = a->trace_alloc * 5 / 4;
-        if (a->trace_alloc > GLOBE_TRACE_SIZE)
-            a->trace_alloc = GLOBE_TRACE_SIZE;
-        a->trace = realloc(a->trace, a->trace_alloc * sizeof(struct state));
-        a->trace_all = realloc(a->trace_all, (1 + a->trace_alloc / 4) * sizeof(struct state_all));
-
-        if (a->trace_len >= GLOBE_TRACE_SIZE / 2)
-            fprintf(stderr, "Quite a long trace: %06x (%d).\n", a->addr, a->trace_len);
-
-        if (a->trace_alloc > GLOBE_TRACE_SIZE)
-            fprintf(stderr, "GLOBE_TRACE_SIZE EXCEEDED!: %06x (%d).\n", a->addr, a->trace_len);
+    if (a->trace_len == 0) {
+        traceCleanup(a);
+        // if the trace length was reduced to zero, the trace is deleted from run
+        // it is not written again until a new position is received
+        return;
     }
 
-    if (a->trace_len < (a->trace_alloc * 7 / 10) && a->trace_alloc >= 2 * GLOBE_STEP) {
-        a->trace_alloc = a->trace_alloc * 4 / 5;
-        a->trace = realloc(a->trace, a->trace_alloc * sizeof(struct state));
-        a->trace_all = realloc(a->trace_all, (1 + a->trace_alloc / 4) * sizeof(struct state_all));
+    // shrink allocation
+    if (a->trace_len && a->trace_len + TRACE_MARGIN < (a->trace_alloc * 7 / 10) && a->trace_alloc >= 3 * TRACE_MARGIN) {
+        traceRealloc(a, a->trace_alloc * 8 / 10 + TRACE_MARGIN);
     }
 }
 
@@ -2798,14 +2777,10 @@ static const char *source_string(datasource_t source) {
 }
 
 void freeAircraft(struct aircraft *a) {
-        unlink_trace(a);
+        traceCleanup(a);
 
         if (a->first_message)
             free(a->first_message);
-        if (a->trace) {
-            free(a->trace);
-            free(a->trace_all);
-        }
         free(a);
 }
 void updateValidities(struct aircraft *a, uint64_t now) {
