@@ -24,6 +24,8 @@
 #ifndef DUMP1090_UTIL_H
 #define DUMP1090_UTIL_H
 
+#define GZBUFFER_BIG (1 * 1024 * 1024)
+
 #include <stdint.h>
 
 struct char_buffer

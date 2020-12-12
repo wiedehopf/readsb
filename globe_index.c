@@ -1445,7 +1445,7 @@ static void load_blob(int blob) {
     while (end - p > 0) {
         uint64_t value = 0;
         if (end - p >= (long) sizeof(value)) {
-            memcpy(&value, p, sizeof(value));
+            value = *((uint64_t *) p);
             p += sizeof(value);
         }
 
