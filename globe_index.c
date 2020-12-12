@@ -1278,20 +1278,20 @@ void save_blob(int blob) {
     //static int count;
     //fprintf(stderr, "Save blob: %02x, count: %d\n", blob, ++count);
     if (blob < 0 || blob > STATE_BLOBS)
-        fprintf(stderr, "save_blob: invalid argument: %04d", blob);
+        fprintf(stderr, "save_blob: invalid argument: %02x", blob);
 
     int gzip = 1;
 
     char filename[PATH_MAX];
     char tmppath[PATH_MAX];
     if (gzip) {
-        snprintf(filename, 1024, "%s/blob_%04d", Modes.state_dir, blob);
+        snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
         unlink(filename);
-        snprintf(filename, 1024, "%s/blob_%04d.gz", Modes.state_dir, blob);
+        snprintf(filename, 1024, "%s/blob_%02x.gz", Modes.state_dir, blob);
     } else {
-        snprintf(filename, 1024, "%s/blob_%04d.gz", Modes.state_dir, blob);
+        snprintf(filename, 1024, "%s/blob_%02x.gz", Modes.state_dir, blob);
         unlink(filename);
-        snprintf(filename, 1024, "%s/blob_%04d", Modes.state_dir, blob);
+        snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
     }
     snprintf(tmppath, PATH_MAX, "%s/tmp.%lx_%lx", Modes.state_dir, random(), random());
 
@@ -1420,17 +1420,17 @@ static void load_blob(int blob) {
     char *p;
     char *end;
 
-    snprintf(filename, 1024, "%s/blob_%04d.gz", Modes.state_dir, blob);
+    snprintf(filename, 1024, "%s/blob_%02x.gz", Modes.state_dir, blob);
     gzFile gzfp = gzopen(filename, "r");
     if (gzfp) {
         cb = readWholeGz(gzfp, filename);
         gzclose(gzfp);
     } else {
-        snprintf(filename, 1024, "%s/blob_%04d", Modes.state_dir, blob);
+        snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
         fd = open(filename, O_RDONLY);
         if (fd == -1) {
             fprintf(stderr, "missing state blob:");
-            snprintf(filename, 1024, "%s/blob_%04d[.gz]", Modes.state_dir, blob);
+            snprintf(filename, 1024, "%s/blob_%02x[.gz]", Modes.state_dir, blob);
             perror(filename);
             return;
         }
