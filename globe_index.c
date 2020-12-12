@@ -188,7 +188,7 @@ int globe_index_index(int index) {
 }
 
 
-static void write_trace(struct aircraft *a, uint64_t now, int init) {
+static void traceWrite(struct aircraft *a, uint64_t now, int init) {
     struct char_buffer recent;
     struct char_buffer full;
     struct char_buffer hist;
@@ -319,7 +319,7 @@ static void write_trace(struct aircraft *a, uint64_t now, int init) {
     }
 }
 
-void *save_state(void *arg) {
+void *save_blobs(void *arg) {
     int thread_number = *((int *) arg);
     for (int j = 0; j < STATE_BLOBS; j++) {
         if (j % IO_THREADS != thread_number)
@@ -435,58 +435,10 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
         // the value below is again overwritten in track.c when a fullWrite is done on startup
         a->trace_next_mw = a->trace_next_fw = now + 1 * MINUTES + random() % (2 * MINUTES);
         // setting mw and fw ensures only the recent trace is written, full trace would take too long
-        write_trace(a, now, 1);
+        traceWrite(a, now, 1);
     }
 
     return 0;
-}
-
-void *load_state(void *arg) {
-    uint64_t now = mstime();
-    char pathbuf[PATH_MAX];
-    //struct stat fileinfo = {0};
-    //fstat(fd, &fileinfo);
-    //off_t len = fileinfo.st_size;
-    int thread_number = *((int *) arg);
-    srandom(get_seed());
-    for (int i = 0; i < 256; i++) {
-        if (i % IO_THREADS != thread_number)
-            continue;
-        snprintf(pathbuf, PATH_MAX, "%s/%02x", Modes.state_dir, i);
-
-        DIR *dp;
-        struct dirent *ep;
-
-        dp = opendir (pathbuf);
-        if (dp == NULL)
-            continue;
-
-        while ((ep = readdir (dp))) {
-            if (strlen(ep->d_name) < 6)
-                continue;
-            snprintf(pathbuf, PATH_MAX, "%s/%02x/%s", Modes.state_dir, i, ep->d_name);
-
-            int fd = open(pathbuf, O_RDONLY);
-            if (fd == -1)
-                continue;
-
-            struct char_buffer cb = readWholeFile(fd, pathbuf);
-            if (!cb.buffer)
-                continue;
-            char *p = cb.buffer;
-            char *end = p + cb.len;
-
-            load_aircraft(&p, end, now);
-
-            free(cb.buffer);
-            close(fd);
-            // old internal state format, no longer needed
-            unlink(pathbuf);
-        }
-
-        closedir (dp);
-    }
-    return NULL;
 }
 
 void *jsonTraceThreadEntryPoint(void *arg) {
@@ -550,7 +502,7 @@ void *jsonTraceThreadEntryPoint(void *arg) {
             for (int j = start; j < end; j++) {
                 for (a = Modes.aircraft[j]; a; a = a->next) {
                     if (a->trace_write)
-                        write_trace(a, now, 0);
+                        traceWrite(a, now, 0);
                 }
             }
 
@@ -987,27 +939,264 @@ void traceCleanup(struct aircraft *a) {
     traceUnlink(a);
 }
 
-// blobs 00 to ff (0 to 255)
+int traceAdd(struct aircraft *a, uint64_t now) {
+
+    if (!Modes.keep_traces)
+        return 0 ;
+
+    for (int i = max(0, a->trace_len - 6); i < a->trace_len; i++) {
+        if ( (int32_t) (a->lat * 1E6) == a->trace[i].lat
+                && (int32_t) (a->lon * 1E6) == a->trace[i].lon ) {
+            return 0 ;
+        }
+    }
+
+    int on_ground = 0;
+    float turn_density = 5;
+    float track = a->track;
+    int track_valid = trackVState(now, &a->track_valid, &a->position_valid);
+    struct state *last = NULL;
+    int stale = 0;
+
+    if (now > a->seenPosReliable + 15 * SECONDS) {
+        stale = 1;
+        // save a point if reception is spotty so we can mark track as spotty on display
+        goto save_state;
+        //if (a->addr == Modes.cpr_focus)
+        //    fprintf(stderr, "stale, elapsed: %0.1f\n", (now - a->seenPosReliable) / 1000.0);
+    }
+
+    if (trackDataValid(&a->airground_valid) && a->airground_valid.source >= SOURCE_MODE_S_CHECKED && a->airground == AG_GROUND) {
+        on_ground = 1;
+
+        if (trackVState(now, &a->true_heading_valid, &a->position_valid)) {
+            track = a->true_heading;
+            track_valid = 1;
+        } else {
+            track_valid = 0;
+        }
+    }
+
+    if (a->trace_len == 0 )
+        goto save_state;
+
+    last = &(a->trace[a->trace_len-1]);
+    float track_diff = fabs(track - last->track / 10.0);
+    uint64_t elapsed = now - last->timestamp;
+    if (now < last->timestamp)
+        elapsed = 0;
+
+    int32_t last_alt = last->altitude * 25;
+
+    if (on_ground != last->flags.on_ground) {
+        goto save_state;
+    }
+
+    double distance = greatcircle(a->trace_llat, a->trace_llon, a->lat, a->lon);
+
+    // record non moving targets every 10 minutes
+    if (elapsed > 20 * Modes.json_trace_interval)
+        goto save_state;
+    if (distance < 40)
+        goto no_save_state;
+
+    if (elapsed > Modes.json_trace_interval) // default 30000 ms
+        goto save_state;
+
+    if (elapsed < 2000)
+        goto no_save_state;
+
+
+    if (on_ground) {
+        if (distance * track_diff > 200)
+            goto save_state;
+
+        if (distance > 400)
+            goto save_state;
+    }
+
+    if (trackVState(now, &a->altitude_baro_valid, &a->position_valid)
+            && a->alt_reliable >= ALTITUDE_BARO_RELIABLE_MAX / 5) {
+        if (!last->flags.altitude_valid) {
+            goto save_state;
+        }
+        if (last->flags.altitude_valid) {
+
+            if (a->altitude_baro > 8000 && abs((a->altitude_baro + 250)/500 - (last_alt + 250)/500) >= 1) {
+                //fprintf(stderr, "1");
+                goto save_state;
+            }
+
+            {
+                int offset = 125;
+                int div = 250;
+                int alt_add = (a->altitude_baro >= 0) ? offset : (-1 * offset);
+                int last_alt_add = (last_alt >= 0) ? offset : (-1 * offset);
+                if (a->altitude_baro <= 8000 && a->altitude_baro > 4000
+                        && abs((a->altitude_baro + alt_add)/div - (last_alt + last_alt_add)/div) >= 1) {
+                    //fprintf(stderr, "2");
+                    goto save_state;
+                }
+            }
+
+            {
+                int offset = 62;
+                int div = 125;
+                int alt_add = (a->altitude_baro >= 0) ? offset : (-1 * offset);
+                int last_alt_add = (last_alt >= 0) ? offset : (-1 * offset);
+                if (a->altitude_baro <= 4000
+                        && abs((a->altitude_baro + alt_add)/div - (last_alt + last_alt_add)/div) >= 1) {
+                    //fprintf(stderr, "3");
+                    goto save_state;
+                }
+            }
+
+            if (abs(a->altitude_baro - last_alt) >= 100 && now > last->timestamp + ((1000 * 12000)  / abs(a->altitude_baro - last_alt))) {
+                //fprintf(stderr, "4");
+                //fprintf(stderr, "%06x %d %d\n", a->addr, abs(a->altitude_baro - last_alt), ((1000 * 12000)  / abs(a->altitude_baro - last_alt)));
+                goto save_state;
+            }
+        }
+    }
+
+    if (last->flags.track_valid && track_valid) {
+        if (track_diff > 0.5
+                && (elapsed > (uint64_t) (100.0 * 1000.0 / turn_density / track_diff))
+           ) {
+            //fprintf(stderr, "t");
+            goto save_state;
+        }
+    }
+
+    if (trackDataValid(&a->gs_valid) && last->flags.gs_valid && fabs(last->gs / 10.0 - a->gs) > 8) {
+        //fprintf(stderr, "s\n");
+        //fprintf(stderr, "%06x %0.1f %0.1f\n", a->addr, fabs(last->gs / 10.0 - a->gs), a->gs);
+        goto save_state;
+    }
+
+    goto no_save_state;
+save_state:
+
+    if (!a->trace) {
+        // allocate trace memory
+        traceRealloc(a, 3 * TRACE_MARGIN);
+        a->trace->timestamp = now;
+        a->trace_full_write = 9999; // rewrite full history file
+
+        //fprintf(stderr, "%06x: new trace\n", a->addr);
+    }
+    if (a->trace_len + 1 >= a->trace_alloc) {
+        static uint64_t antiSpam;
+        if (now > antiSpam + 30 * SECONDS) {
+            fprintf(stderr, "CHECK CPU LOAD (maybe loop?) %06x: trace_len + 1 >= a->trace_alloc (%d).\n", a->addr, a->trace_len);
+            antiSpam = now;
+        }
+        goto no_save_state;
+    }
+
+    struct state *new = &(a->trace[a->trace_len]);
+    memset(new, 0, sizeof(struct state));
+
+    new->lat = (int32_t) nearbyint(a->lat * 1E6);
+    new->lon = (int32_t) nearbyint(a->lon * 1E6);
+    new->timestamp = now;
+
+
+    /*
+       unsigned on_ground:1;
+       unsigned stale:1;
+       unsigned leg_marker:1;
+       unsigned altitude_valid:1;
+       unsigned gs_valid:1;
+       unsigned track_valid:1;
+       unsigned rate_valid:1;
+       unsigned rate_geom:1;
+       */
+
+
+    if (stale)
+        new->flags.stale = 1;
+
+    if (on_ground)
+        new->flags.on_ground = 1;
+
+    if (trackVState(now, &a->altitude_baro_valid, &a->position_valid)
+            && a->alt_reliable >= ALTITUDE_BARO_RELIABLE_MAX / 5) {
+        new->flags.altitude_valid = 1;
+        new->altitude = (int16_t) nearbyint(a->altitude_baro / 25.0);
+    } else if (trackVState(now, &a->altitude_geom_valid, &a->position_valid)) {
+        new->flags.altitude_valid = 1;
+        new->flags.altitude_geom = 1;
+        new->altitude = (int16_t) nearbyint(a->altitude_geom / 25.0);
+    }
+    if (trackVState(now, &a->gs_valid, &a->position_valid)) {
+        new->flags.gs_valid = 1;
+        new->gs = (int16_t) nearbyint(10 * a->gs);
+    }
+
+    if (trackVState(now, &a->geom_rate_valid, &a->position_valid)) {
+        new->flags.rate_valid = 1;
+        new->flags.rate_geom = 1;
+        new->rate = (int16_t) nearbyint(a->geom_rate / 32.0);
+    } else if (trackVState(now, &a->baro_rate_valid, &a->position_valid)) {
+        new->flags.rate_valid = 1;
+        new->flags.rate_geom = 0;
+        new->rate = (int16_t) nearbyint(a->baro_rate / 32.0);
+    } else {
+        new->rate = 0;
+        new->flags.rate_valid = 0;
+    }
+
+    if (track_valid) {
+        new->track = (int16_t) nearbyint(10 * track);
+        new->flags.track_valid = 1;
+    }
+    // trace_all stuff:
+
+    if (a->trace_len % 4 == 0) {
+        struct state_all *new_all = &(a->trace_all[a->trace_len/4]);
+        memset(new_all, 0, sizeof(struct state_all));
+
+        to_state_all(a, new_all, now);
+    }
+
+    // bookkeeping:
+    a->trace_llat = a->lat;
+    a->trace_llon = a->lon;
+
+    (a->trace_len)++;
+    a->trace_write = 1;
+    a->trace_full_write++;
+
+    //fprintf(stderr, "Added to trace for %06x (%d).\n", a->addr, a->trace_len);
+
+    return 1;
+
+no_save_state:
+    return 0;
+}
+
+
 void save_blob(int blob) {
     if (!Modes.state_dir)
         return;
     //static int count;
     //fprintf(stderr, "Save blob: %02x, count: %d\n", blob, ++count);
-    if (blob < 0 || blob > 255)
-        fprintf(stderr, "save_blob: invalid argument: %d", blob);
+    if (blob < 0 || blob > STATE_BLOBS)
+        fprintf(stderr, "save_blob: invalid argument: %04d", blob);
 
     int gzip = 1;
 
     char filename[PATH_MAX];
     char tmppath[PATH_MAX];
     if (gzip) {
-        snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
+        snprintf(filename, 1024, "%s/blob_%04d", Modes.state_dir, blob);
         unlink(filename);
-        snprintf(filename, 1024, "%s/blob_%02x.gz", Modes.state_dir, blob);
+        snprintf(filename, 1024, "%s/blob_%04d.gz", Modes.state_dir, blob);
     } else {
-        snprintf(filename, 1024, "%s/blob_%02x.gz", Modes.state_dir, blob);
+        snprintf(filename, 1024, "%s/blob_%04d.gz", Modes.state_dir, blob);
         unlink(filename);
-        snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
+        snprintf(filename, 1024, "%s/blob_%04d", Modes.state_dir, blob);
     }
     snprintf(tmppath, PATH_MAX, "%s/tmp.%lx_%lx", Modes.state_dir, random(), random());
 
@@ -1044,6 +1233,7 @@ void save_blob(int blob) {
     unsigned char *buf = malloc(alloc);
     unsigned char *p = buf;
 
+    //uint64_t now = mstime();
 
     for (int j = start; j < end; j++) {
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
@@ -1057,6 +1247,8 @@ void save_blob(int blob) {
             memcpy(p, &magic, sizeof(magic));
             p += sizeof(magic);
 
+            //if (Modes.exit && now < a->seenPosReliable + 8 * SECONDS && posReliable(a))
+            //    traceAdd(a, a->seen_pos);
 
             int size_state = stateBytes(a->trace_len);
             int size_all = stateAllBytes(a->trace_len);
@@ -1107,6 +1299,7 @@ void save_blob(int blob) {
     if (rename(tmppath, filename) == -1) {
         fprintf(stderr, "save_blob rename(): %s -> %s", tmppath, filename);
         perror("");
+        unlink(tmppath);
     }
 
     free(buf);
@@ -1122,7 +1315,6 @@ void *load_blobs(void *arg) {
     return NULL;
 }
 
-// blobs 00 to ff (0 to 255)
 static void load_blob(int blob) {
     //fprintf(stderr, "load blob %d\n", blob);
     if (blob < 0 || blob >= STATE_BLOBS)
@@ -1135,16 +1327,17 @@ static void load_blob(int blob) {
     char *p;
     char *end;
 
-    snprintf(filename, 1024, "%s/blob_%02x.gz", Modes.state_dir, blob);
+    snprintf(filename, 1024, "%s/blob_%04d.gz", Modes.state_dir, blob);
     gzFile gzfp = gzopen(filename, "r");
     if (gzfp) {
         cb = readWholeGz(gzfp, filename);
         gzclose(gzfp);
     } else {
-        snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
+        snprintf(filename, 1024, "%s/blob_%04d", Modes.state_dir, blob);
         fd = open(filename, O_RDONLY);
         if (fd == -1) {
             fprintf(stderr, "missing state blob:");
+            snprintf(filename, 1024, "%s/blob_%04d[.gz]", Modes.state_dir, blob);
             perror(filename);
             return;
         }
@@ -1441,5 +1634,53 @@ void checkNewDay() {
         }
     }
     return;
+}
+
+void *load_state(void *arg) {
+    uint64_t now = mstime();
+    char pathbuf[PATH_MAX];
+    //struct stat fileinfo = {0};
+    //fstat(fd, &fileinfo);
+    //off_t len = fileinfo.st_size;
+    int thread_number = *((int *) arg);
+    srandom(get_seed());
+    for (int i = 0; i < 256; i++) {
+        if (i % IO_THREADS != thread_number)
+            continue;
+        snprintf(pathbuf, PATH_MAX, "%s/%02x", Modes.state_dir, i);
+
+        DIR *dp;
+        struct dirent *ep;
+
+        dp = opendir (pathbuf);
+        if (dp == NULL)
+            continue;
+
+        while ((ep = readdir (dp))) {
+            if (strlen(ep->d_name) < 6)
+                continue;
+            snprintf(pathbuf, PATH_MAX, "%s/%02x/%s", Modes.state_dir, i, ep->d_name);
+
+            int fd = open(pathbuf, O_RDONLY);
+            if (fd == -1)
+                continue;
+
+            struct char_buffer cb = readWholeFile(fd, pathbuf);
+            if (!cb.buffer)
+                continue;
+            char *p = cb.buffer;
+            char *end = p + cb.len;
+
+            load_aircraft(&p, end, now);
+
+            free(cb.buffer);
+            close(fd);
+            // old internal state format, no longer needed
+            unlink(pathbuf);
+        }
+
+        closedir (dp);
+    }
+    return NULL;
 }
 

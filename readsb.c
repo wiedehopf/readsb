@@ -1329,13 +1329,6 @@ int main(int argc, char **argv) {
         int numbers[IO_THREADS];
         for (int i = 0; i < IO_THREADS; i++) {
             numbers[i] = i;
-            pthread_create(&threads[i], NULL, load_state, &numbers[i]);
-        }
-        for (int i = 0; i < IO_THREADS; i++) {
-            pthread_join(threads[i], NULL);
-        }
-        for (int i = 0; i < IO_THREADS; i++) {
-            numbers[i] = i;
             pthread_create(&threads[i], NULL, load_blobs, &numbers[i]);
         }
         for (int i = 0; i < IO_THREADS; i++) {
@@ -1449,7 +1442,7 @@ int main(int argc, char **argv) {
         int numbers[IO_THREADS];
         for (int i = 0; i < IO_THREADS; i++) {
             numbers[i] = i;
-            pthread_create(&threads[i], NULL, save_state, &numbers[i]);
+            pthread_create(&threads[i], NULL, save_blobs, &numbers[i]);
         }
         for (int i = 0; i < IO_THREADS; i++) {
             pthread_join(threads[i], NULL);

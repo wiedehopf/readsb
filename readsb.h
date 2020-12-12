@@ -307,7 +307,7 @@ typedef enum {
 
 #define TRACE_SIZE 32768
 #define TRACE_MARGIN 8
-#define STATE_BLOBS 256
+#define STATE_BLOBS 1024
 #define IO_THREADS 8
 #define TRACE_THREADS 8
 #define PERIODIC_UPDATE 200 // don't use values larger than 200 ... some hard-coded stuff

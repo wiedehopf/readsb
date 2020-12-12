@@ -60,7 +60,6 @@ uint32_t modeAC_lastcount[4096];
 uint32_t modeAC_match[4096];
 uint32_t modeAC_age[4096];
 
-static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_lat, double new_lon, uint64_t now);
 static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint64_t now);
 static void position_bad(struct modesMessage *mm, struct aircraft *a);
 static void resize_trace(struct aircraft *a, uint64_t now);
@@ -617,6 +616,12 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         return;
     }
 
+    if (trackDataAge(now, &a->track_valid) >= 10000 && a->seen_pos) {
+        double distance = greatcircle(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon);
+        if (distance > 100)
+            a->calc_track = bearing(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon);
+    }
+
     // Update aircraft state
     a->lat = mm->decoded_lat;
     a->lon = mm->decoded_lon;
@@ -625,10 +630,12 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
 
     a->lastPosReceiverId = mm->receiverId;
 
-    if (mm->source <= SOURCE_JAERO ||
-            (a->pos_reliable_odd >= Modes.json_reliable && a->pos_reliable_even >= Modes.json_reliable)) {
-        globe_stuff(a, mm, mm->decoded_lat, mm->decoded_lon, now);
-        a->seenPosReliable = now; // must be after globe_stuff for trace stale detection
+    if (posReliable(a)) {
+        set_globe_index(a, globe_index(a->lat, a->lon));
+
+        traceAdd(a, now) && (mm->jsonPos = 1);
+
+        a->seenPosReliable = now; // must be after traceAdd for trace stale detection
         a->latReliable = mm->decoded_lat;
         a->lonReliable = mm->decoded_lon;
     }
@@ -2030,260 +2037,6 @@ void trackPeriodicUpdate() {
         fprintf(stderr, "<3>High load: heatmap_and_stuff took %"PRIu64" ms! Suppressing for 30 seconds\n", elapsed);
         antiSpam2 = now;
     }
-}
-
-static void globe_stuff(struct aircraft *a, struct modesMessage *mm, double new_lat, double new_lon, uint64_t now) {
-
-    if (trackDataAge(now, &a->track_valid) >= 10000 && a->seen_pos) {
-        double distance = greatcircle(a->lat, a->lon, new_lat, new_lon);
-        if (distance > 100)
-            a->calc_track = bearing(a->lat, a->lon, new_lat, new_lon);
-    }
-
-    set_globe_index(a, globe_index(new_lat, new_lon));
-
-    if (Modes.keep_traces) {
-
-        if (!a->trace) {
-            // allocate trace memory
-            traceRealloc(a, 3 * TRACE_MARGIN);
-            a->trace->timestamp = now;
-            a->trace_full_write = 9999; // rewrite full history file
-
-            //fprintf(stderr, "%06x: new trace\n", a->addr);
-
-        } else if (a->trace_len > 5) {
-            for (int i = a->trace_len - 1; i >= a->trace_len - 5; i--) {
-                if ( (int32_t) (new_lat * 1E6) == a->trace[i].lat
-                        && (int32_t) (new_lon * 1E6) == a->trace[i].lon ) {
-                    return;
-                }
-            }
-        }
-        if (a->trace_len + 1 >= a->trace_alloc) {
-            static uint64_t antiSpam;
-            if (now > antiSpam + 30 * SECONDS) {
-                fprintf(stderr, "CHECK CPU LOAD (maybe loop?) %06x: trace_len + 1 >= a->trace_alloc (%d).\n", a->addr, a->trace_len);
-                antiSpam = now;
-            }
-            goto no_save_state;
-        }
-
-        struct state *trace = a->trace;
-
-        struct state *new = &(trace[a->trace_len]);
-        memset(new, 0, sizeof(struct state));
-
-        if (now > a->seenPosReliable + 15 * SECONDS) {
-            new->flags.stale = 1;
-            //if (a->addr == Modes.cpr_focus)
-            //    fprintf(stderr, "stale, elapsed: %0.1f\n", (now - a->seenPosReliable) / 1000.0);
-        }
-
-        int on_ground = 0;
-        int was_ground = 0;
-        float turn_density = 5;
-        float track = a->track;
-        int track_valid = trackVState(now, &a->track_valid, &a->position_valid);
-        struct state *last = NULL;
-
-        if (trackDataValid(&a->airground_valid) && a->airground_valid.source >= SOURCE_MODE_S_CHECKED && a->airground == AG_GROUND) {
-            on_ground = 1;
-
-            if (trackVState(now, &a->true_heading_valid, &a->position_valid)) {
-                track = a->true_heading;
-                track_valid = 1;
-            } else {
-                track_valid = 0;
-            }
-        }
-        if (a->trace_len == 0 )
-            goto save_state;
-
-
-
-        last = &(trace[a->trace_len-1]);
-        float track_diff = fabs(track - last->track / 10.0);
-        uint64_t elapsed = now - last->timestamp;
-        if (now < last->timestamp)
-            elapsed = 0;
-
-        int32_t last_alt = last->altitude * 25;
-
-        was_ground = last->flags.on_ground;
-
-        if (elapsed < 11 * SECONDS && mm->source <= SOURCE_JAERO
-                && (a->pos_reliable_odd < Modes.json_reliable || a->pos_reliable_even < Modes.json_reliable))
-            goto no_save_state;
-
-        if (on_ground != was_ground) {
-            goto save_state;
-        }
-
-        double distance = greatcircle(a->trace_llat, a->trace_llon, new_lat, new_lon);
-
-        // record non moving targets every 10 minutes
-        if (elapsed > 20 * Modes.json_trace_interval)
-            goto save_state;
-        if (distance < 40)
-            goto no_save_state;
-
-        if (elapsed > Modes.json_trace_interval) // default 30000 ms
-            goto save_state;
-
-        if (elapsed < 2000)
-            goto no_save_state;
-
-        // save a point if reception is spotty so we can mark track as spotty on display
-        if (now > a->seen_pos + 20 * 1000)
-            goto save_state;
-
-        if (on_ground) {
-            if (distance * track_diff > 200)
-                goto save_state;
-
-            if (distance > 400)
-                goto save_state;
-        }
-
-        if (trackVState(now, &a->altitude_baro_valid, &a->position_valid)
-                && a->alt_reliable >= ALTITUDE_BARO_RELIABLE_MAX / 5) {
-            if (!last->flags.altitude_valid) {
-                goto save_state;
-            }
-            if (last->flags.altitude_valid) {
-
-                if (a->altitude_baro > 8000 && abs((a->altitude_baro + 250)/500 - (last_alt + 250)/500) >= 1) {
-                    //fprintf(stderr, "1");
-                    goto save_state;
-                }
-
-                {
-                    int offset = 125;
-                    int div = 250;
-                    int alt_add = (a->altitude_baro >= 0) ? offset : (-1 * offset);
-                    int last_alt_add = (last_alt >= 0) ? offset : (-1 * offset);
-                    if (a->altitude_baro <= 8000 && a->altitude_baro > 4000
-                            && abs((a->altitude_baro + alt_add)/div - (last_alt + last_alt_add)/div) >= 1) {
-                        //fprintf(stderr, "2");
-                        goto save_state;
-                    }
-                }
-
-                {
-                    int offset = 62;
-                    int div = 125;
-                    int alt_add = (a->altitude_baro >= 0) ? offset : (-1 * offset);
-                    int last_alt_add = (last_alt >= 0) ? offset : (-1 * offset);
-                    if (a->altitude_baro <= 4000
-                            && abs((a->altitude_baro + alt_add)/div - (last_alt + last_alt_add)/div) >= 1) {
-                        //fprintf(stderr, "3");
-                        goto save_state;
-                    }
-                }
-
-                if (abs(a->altitude_baro - last_alt) >= 100 && now > last->timestamp + ((1000 * 12000)  / abs(a->altitude_baro - last_alt))) {
-                    //fprintf(stderr, "4");
-                    //fprintf(stderr, "%06x %d %d\n", a->addr, abs(a->altitude_baro - last_alt), ((1000 * 12000)  / abs(a->altitude_baro - last_alt)));
-                    goto save_state;
-                }
-            }
-        }
-
-        if (last->flags.track_valid && track_valid) {
-            if (track_diff > 0.5
-                    && (elapsed > (uint64_t) (100.0 * 1000.0 / turn_density / track_diff))
-               ) {
-                //fprintf(stderr, "t");
-                goto save_state;
-            }
-        }
-
-        if (trackDataValid(&a->gs_valid) && last->flags.gs_valid && fabs(last->gs / 10.0 - a->gs) > 8) {
-            //fprintf(stderr, "s\n");
-            //fprintf(stderr, "%06x %0.1f %0.1f\n", a->addr, fabs(last->gs / 10.0 - a->gs), a->gs);
-            goto save_state;
-        }
-
-        goto no_save_state;
-save_state:
-
-        mm->jsonPos = 1;
-
-        new->lat = (int32_t) nearbyint(new_lat * 1E6);
-        new->lon = (int32_t) nearbyint(new_lon * 1E6);
-        new->timestamp = now;
-
-
-        /*
-           unsigned on_ground:1;
-           unsigned stale:1;
-           unsigned leg_marker:1;
-           unsigned altitude_valid:1;
-           unsigned gs_valid:1;
-           unsigned track_valid:1;
-           unsigned rate_valid:1;
-           unsigned rate_geom:1;
-        */
-
-
-        if (on_ground)
-            new->flags.on_ground = 1;
-
-        if (trackVState(now, &a->altitude_baro_valid, &a->position_valid)
-                && a->alt_reliable >= ALTITUDE_BARO_RELIABLE_MAX / 5) {
-            new->flags.altitude_valid = 1;
-            new->altitude = (int16_t) nearbyint(a->altitude_baro / 25.0);
-        } else if (trackVState(now, &a->altitude_geom_valid, &a->position_valid)) {
-            new->flags.altitude_valid = 1;
-            new->flags.altitude_geom = 1;
-            new->altitude = (int16_t) nearbyint(a->altitude_geom / 25.0);
-        }
-        if (trackVState(now, &a->gs_valid, &a->position_valid)) {
-            new->flags.gs_valid = 1;
-            new->gs = (int16_t) nearbyint(10 * a->gs);
-        }
-
-        if (trackVState(now, &a->geom_rate_valid, &a->position_valid)) {
-            new->flags.rate_valid = 1;
-            new->flags.rate_geom = 1;
-            new->rate = (int16_t) nearbyint(a->geom_rate / 32.0);
-        } else if (trackVState(now, &a->baro_rate_valid, &a->position_valid)) {
-            new->flags.rate_valid = 1;
-            new->flags.rate_geom = 0;
-            new->rate = (int16_t) nearbyint(a->baro_rate / 32.0);
-        } else {
-            new->rate = 0;
-            new->flags.rate_valid = 0;
-        }
-
-        if (track_valid) {
-            new->track = (int16_t) nearbyint(10 * track);
-            new->flags.track_valid = 1;
-        }
-        // trace_all stuff:
-
-        if (a->trace_len % 4 == 0) {
-            struct state_all *new_all = &(a->trace_all[a->trace_len/4]);
-            memset(new_all, 0, sizeof(struct state_all));
-
-            to_state_all(a, new_all, now);
-        }
-
-        // bookkeeping:
-        a->trace_llat = new_lat;
-        a->trace_llon = new_lon;
-
-        (a->trace_len)++;
-        a->trace_write = 1;
-        a->trace_full_write++;
-
-        //fprintf(stderr, "Added to trace for %06x (%d).\n", a->addr, a->trace_len);
-
-no_save_state:
-        ;
-    }
-
 }
 
 /*

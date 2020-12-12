@@ -21,16 +21,16 @@ ssize_t check_write(int fd, const void *buf, size_t count, const char *error_con
 int globe_index(double lat_in, double lon_in);
 int globe_index_index(int index);
 void init_globe_index(struct tile *s_tiles);
-//void write_trace(struct aircraft *a, uint64_t now);
 void *load_state(void *arg);
 void *load_blobs(void *arg);
-void *save_state(void *arg);
+void *save_blobs(void *arg);
 void save_blob(int blob);
 void *jsonTraceThreadEntryPoint(void *arg);
 ssize_t stateBytes(int len);
 ssize_t stateAllBytes(int len);
 void traceRealloc(struct aircraft *a, int len);
 void traceCleanup(struct aircraft *a);
+int traceAdd(struct aircraft *a, uint64_t now);
 
 int checkHeatmap(uint64_t now);
 void *handleHeatmap(void *arg);
