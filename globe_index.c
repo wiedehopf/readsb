@@ -187,6 +187,27 @@ int globe_index_index(int index) {
     return globe_index(lat, lon);
 }
 
+static void createDateDir(char *base_dir, struct tm *utc, char *dateDir) {
+    if (!strcmp(TDATE_FORMAT, "%Y/%m/%d")) {
+        char yy[100];
+        char mm[100];
+        strftime (yy, 100, "%Y", utc);
+        strftime (mm, 100, "%m", utc);
+        char pathbuf[PATH_MAX];
+
+        snprintf(pathbuf, PATH_MAX, "%s/%s", base_dir, yy);
+        if (mkdir(pathbuf, 0755) && errno != EEXIST)
+            perror(pathbuf);
+        snprintf(pathbuf, PATH_MAX, "%s/%s/%s", base_dir, yy, mm);
+        if (mkdir(pathbuf, 0755) && errno != EEXIST)
+            perror(pathbuf);
+    }
+    char tstring[100];
+    strftime (tstring, 100, TDATE_FORMAT, utc);
+    snprintf(dateDir, PATH_MAX * 3/4, "%s/%s", base_dir, tstring);
+    if (mkdir(dateDir, 0755) && errno != EEXIST)
+        perror(dateDir);
+}
 
 static void traceWrite(struct aircraft *a, uint64_t now, int init) {
     struct char_buffer recent;
@@ -306,7 +327,7 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
         char tstring[100];
         struct tm utc;
         gmtime_r(&nineteen_ago, &utc);
-        strftime (tstring, 100, "%Y-%m-%d", &utc);
+        strftime (tstring, 100, TDATE_FORMAT, &utc);
 
         snprintf(filename, PATH_MAX, "%s/traces/%02x/trace_full_%s%06x.json", tstring, a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
         filename[PATH_MAX - 101] = 0;
@@ -1510,10 +1531,6 @@ void *handleHeatmap(void *arg) {
                 buffer2[len2++] = buffer[k];
         }
     }
-
-    char tstring[100];
-    strftime (tstring, 100, "%Y-%m-%d", &utc);
-
     char *base_dir = Modes.globe_history_dir;
     if (Modes.heatmap_dir) {
         base_dir = Modes.heatmap_dir;
@@ -1522,16 +1539,16 @@ void *handleHeatmap(void *arg) {
     if (mkdir(base_dir, 0755) && errno != EEXIST)
         perror(base_dir);
 
-    snprintf(pathbuf, PATH_MAX, "%s/%s", base_dir, tstring);
+    char dateDir[PATH_MAX * 3/4];
+
+    createDateDir(base_dir, &utc, dateDir);
+
+    snprintf(pathbuf, PATH_MAX, "%s/heatmap", dateDir);
     if (mkdir(pathbuf, 0755) && errno != EEXIST)
         perror(pathbuf);
 
-    snprintf(pathbuf, PATH_MAX, "%s/%s/heatmap", base_dir, tstring);
-    if (mkdir(pathbuf, 0755) && errno != EEXIST)
-        perror(pathbuf);
-
-    snprintf(pathbuf, PATH_MAX, "%s/%s/heatmap/%02d.bin.ttf", base_dir, tstring, half_hour);
-    snprintf(tmppath, PATH_MAX, "%s/%s/heatmap/temp_%lx_%lx", base_dir, tstring, random(), random());
+    snprintf(pathbuf, PATH_MAX, "%s/heatmap/%02d.bin.ttf", dateDir, half_hour);
+    snprintf(tmppath, PATH_MAX, "%s/heatmap/temp_%lx_%lx", dateDir, random(), random());
 
     //fprintf(stderr, "%s using %d positions\n", pathbuf, len);
 
@@ -1575,7 +1592,7 @@ void *handleHeatmap(void *arg) {
 
 void checkNewDay() {
     char filename[PATH_MAX];
-    char tstring[100];
+    char dateDir[PATH_MAX * 3/4];
     uint64_t now = mstime();
     struct tm utc;
 
@@ -1594,9 +1611,9 @@ void checkNewDay() {
         time_t yesterday = now / 1000 - 24 * 3600;
         gmtime_r(&yesterday, &utc);
 
-        strftime (tstring, 100, "%Y-%m-%d", &utc);
+        createDateDir(Modes.globe_history_dir, &utc, dateDir); // doesn't usually create a directory ... but use the function anyhow worst that can happen is an empty directory for yesterday
 
-        snprintf(filename, PATH_MAX, "%s/%s/traces", Modes.globe_history_dir, tstring);
+        snprintf(filename, PATH_MAX, "%s/traces", dateDir);
         chmod(filename, 0755);
     }
 
@@ -1611,24 +1628,14 @@ void checkNewDay() {
 
         Modes.doFullTraceWrite = 1;
 
-        strftime(tstring, 100, "%Y-%m-%d", &utc);
+        createDateDir(Modes.globe_history_dir, &utc, dateDir);
 
-        snprintf(filename, PATH_MAX, "%s/%s", Modes.globe_history_dir, tstring);
-        if (mkdir(filename, 0755)) {
-            if (errno != EEXIST) {
-                fprintf(stderr, "Unable to write history trace, couldn't create directory for today: %s\n", filename);
-                perror(filename);
-            }
-        } else {
-            //fprintf(stderr, "A new day has begun, created directory: %s\n", filename);
-        }
-
-        snprintf(filename, PATH_MAX, "%s/%s/traces", Modes.globe_history_dir, tstring);
+        snprintf(filename, PATH_MAX, "%s/traces", dateDir);
         if (mkdir(filename, 0700) && errno != EEXIST)
             perror(filename);
 
         for (int i = 0; i < 256; i++) {
-            snprintf(filename, PATH_MAX, "%s/%s/traces/%02x", Modes.globe_history_dir, tstring, i);
+            snprintf(filename, PATH_MAX, "%s/traces/%02x", dateDir, i);
             if (mkdir(filename, 0755) && errno != EEXIST)
                 perror(filename);
         }

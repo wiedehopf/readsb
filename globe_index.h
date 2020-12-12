@@ -9,6 +9,8 @@
 
 #define GZBUFFER_BIG (4 * 1024 * 1024)
 
+#define TDATE_FORMAT "%Y/%m/%d"
+
 struct tile {
     int south;
     int west;
