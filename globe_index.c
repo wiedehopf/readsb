@@ -1328,7 +1328,7 @@ void *handleHeatmap(void *arg) {
 
     end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
 
-    fprintf(stderr, "heatmapMutex unlock\n");
+    //fprintf(stderr, "heatmapMutex unlock\n");
     pthread_mutex_unlock(&Modes.heatmapMutex);
     return NULL;
 }
