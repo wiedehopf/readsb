@@ -1323,6 +1323,8 @@ int main(int argc, char **argv) {
         }
     }
 
+    checkNewDay();
+
     if (Modes.state_dir) {
         fprintf(stderr, "loading state .....\n");
         struct timespec watch;

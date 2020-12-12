@@ -458,7 +458,8 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
     if (a->trace_alloc && Modes.json_dir && Modes.json_globe_index && now < a->seen_pos + 2 * MINUTES) {
         // the value below is again overwritten in track.c when a fullWrite is done on startup
         a->trace_next_mw = a->trace_next_fw = now + 1 * MINUTES + random() % (2 * MINUTES);
-        // setting mw and fw ensures only the recent trace is written, full trace would take too long
+        a->trace_full_write = 0;
+        // setting mw, fw and full_write ensures only the recent trace is written, full trace would take too long
         traceWrite(a, now, 1);
     }
 
