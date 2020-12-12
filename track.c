@@ -1898,9 +1898,12 @@ void trackPeriodicUpdate() {
 
     if (Modes.heatmap) {
         uint64_t now = mstime();
-        if (Modes.heatmapRunning && now > Modes.heatmapRunning + 30 * SECONDS)
-            fprintf(stderr, "heatmap taking longer than 30 seconds, report this as a bug!\n");
-        if (Modes.heatmapRunning && !pthread_mutex_trylock(&Modes.heatmapMutex)) {
+        //if (Modes.heatmapRunning && now > Modes.heatmapRunning + 30 * SECONDS)
+        //    fprintf(stderr, "heatmap taking longer than 30 seconds, report this as a bug!\n");
+        //if (Modes.heatmapRunning && !pthread_mutex_trylock(&Modes.heatmapMutex)) {
+        // trylock doesn't work on CentOS 7 .... stupid.
+        //
+        if (Modes.heatmapRunning && now > Modes.heatmapRunning + 1 * SECONDS) {
             pthread_join(Modes.handleHeatmapThread, NULL);
             pthread_mutex_unlock(&Modes.heatmapMutex);
             Modes.heatmapRunning = 0;
