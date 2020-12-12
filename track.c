@@ -1907,7 +1907,7 @@ void trackPeriodicUpdate() {
             heatmapRunning = 0;
         }
 
-        if (!heatmapRunning && checkHeatmap(now)) {
+        if (!heatmapRunning && checkHeatmap(now) && !Modes.exit) {
             heatmapRunning = now;
             pthread_mutex_lock(&Modes.heatmapMutex); // unlocked once the thread is finished
             pthread_create(&Modes.handleHeatmapThread, NULL, handleHeatmap, NULL);
@@ -1923,7 +1923,7 @@ void trackPeriodicUpdate() {
 
     uint64_t now = mstime();
 
-    if (now > Modes.next_stats_update && !heatmapRunning)
+    if (now > Modes.next_stats_update)
         Modes.updateStats = 1;
 
     struct timespec watch;
@@ -1964,9 +1964,6 @@ void trackPeriodicUpdate() {
 
     //fprintf(stderr, "running for %ld ms\n", mstime() - Modes.startup_time);
     //fprintf(stderr, "removeStale took %"PRIu64" ms!\n", elapsed);
-
-    if (heatmapRunning) // really half assed locking for heatmap CPU counter
-        return;
 
     start_cpu_timing(&start_time);
     startWatch(&watch);

@@ -219,7 +219,7 @@ static void modesInitConfig(void) {
     Modes.netIngest = 0;
     Modes.uuidFile = strdup("/boot/adsbx-uuid");
     Modes.json_trace_interval = 30 * 1000;
-    Modes.heatmap_current_interval = -5 * SECONDS / PERIODIC_UPDATE;
+    Modes.heatmap_current_interval = -15 * SECONDS / PERIODIC_UPDATE;
     Modes.heatmap_interval = 60 * SECONDS;
     Modes.json_reliable = -13;
 
@@ -1325,6 +1325,8 @@ int main(int argc, char **argv) {
 
     if (Modes.state_dir) {
         fprintf(stderr, "loading state .....\n");
+        struct timespec watch;
+        startWatch(&watch);
         pthread_t threads[IO_THREADS];
         int numbers[IO_THREADS];
         for (int i = 0; i < IO_THREADS; i++) {
@@ -1335,7 +1337,7 @@ int main(int argc, char **argv) {
             pthread_join(threads[i], NULL);
         }
 
-        uint32_t aircraftCount = 0; // includes quite old aircraft, just for checking hash table fill
+        uint64_t aircraftCount = 0; // includes quite old aircraft, just for checking hash table fill
         uint64_t now = mstime();
         for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
             for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
@@ -1346,7 +1348,10 @@ int main(int argc, char **argv) {
                 updateValidities(a, now);
             }
         }
-        fprintf(stderr, " .......... done, loaded %u aircraft!\n", aircraftCount);
+        Modes.aircraftCount = aircraftCount;
+
+        double elapsed = stopWatch(&watch) / 1000.0;
+        fprintf(stderr, " .......... done, loaded %llu aircraft in %.2f seconds!\n", (unsigned long long) aircraftCount, elapsed);
         fprintf(stderr, "aircraft table fill: %0.1f\n", aircraftCount / (double) AIRCRAFT_BUCKETS );
 
         char pathbuf[PATH_MAX];
@@ -1367,17 +1372,13 @@ int main(int argc, char **argv) {
         writeJsonToFile(Modes.json_dir, "aircraft.json", generateAircraftJson());
     }
 
-    Modes.removeStale = 1;
+    pthread_create(&Modes.decodeThread, NULL, decodeThreadEntryPoint, NULL);
+
     for (int i = 0; i < TRACE_THREADS; i++) {
         pthread_create(&Modes.jsonTraceThread[i], NULL, jsonTraceThreadEntryPoint, &Modes.threadNumber[i]);
     }
 
     usleep(1000);
-
-    // go over the aircraft list once and do other stuff before starting the threads.
-    trackPeriodicUpdate();
-
-    pthread_create(&Modes.decodeThread, NULL, decodeThreadEntryPoint, NULL);
 
     if (Modes.json_dir) {
 
@@ -1423,10 +1424,13 @@ int main(int argc, char **argv) {
 
     pthread_join(Modes.decodeThread, NULL); // Wait on json writer thread exit
 
-    // force stats to be done
+    // force stats to be done, this must happen before network cleanup as it checks network stuff
     Modes.next_stats_update = 0;
-    // before network cleanup or bad
     trackPeriodicUpdate();
+    // ------------
+
+    // try and join the heatmap thread, silent error if not running
+    pthread_join(Modes.handleHeatmapThread, NULL);
 
     /* Cleanup network setup */
     cleanupNetwork();
@@ -1437,6 +1441,8 @@ int main(int argc, char **argv) {
 
     if (Modes.state_dir) {
         fprintf(stderr, "saving state .....\n");
+        struct timespec watch;
+        startWatch(&watch);
 
         pthread_t threads[IO_THREADS];
         int numbers[IO_THREADS];
@@ -1447,7 +1453,9 @@ int main(int argc, char **argv) {
         for (int i = 0; i < IO_THREADS; i++) {
             pthread_join(threads[i], NULL);
         }
-        fprintf(stderr, "............. done!\n");
+
+        double elapsed = stopWatch(&watch) / 1000.0;
+        fprintf(stderr, " .......... done, saved %llu aircraft in %.2f seconds!\n", (unsigned long long) Modes.aircraftCount, elapsed);
     }
 
     pthread_mutex_destroy(&Modes.decodeThreadMutex);
@@ -1461,6 +1469,8 @@ int main(int argc, char **argv) {
         pthread_cond_destroy(&Modes.jsonTraceThreadCond[i]);
         pthread_mutex_destroy(&Modes.jsonTraceThreadMutexFin[i]);
     }
+
+    pthread_mutex_destroy(&Modes.heatmapMutex);
 
     pthread_mutex_destroy(&Modes.mainThreadMutex);
     pthread_cond_destroy(&Modes.mainThreadCond);

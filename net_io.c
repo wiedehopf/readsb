@@ -3772,7 +3772,6 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
 }
 
 void cleanupNetwork(void) {
-
     for (struct net_service *s = Modes.services; s; s = s->next) {
         struct client *c = s->clients, *nc;
         while (c) {
