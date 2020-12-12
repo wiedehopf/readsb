@@ -388,9 +388,9 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
     int size_state = stateBytes(a->trace_len);
     int size_all = stateAllBytes(a->trace_len);
     if (a->trace_len > 0
-            && a->trace_len <= 10 * TRACE_SIZE
+            && a->trace_len <= TRACE_SIZE
             && a->trace_alloc >= a->trace_len
-            && a->trace_alloc <= 10 * TRACE_SIZE
+            && a->trace_alloc <= TRACE_SIZE
        ) {
 
 
