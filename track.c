@@ -62,7 +62,6 @@ uint32_t modeAC_age[4096];
 
 static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint64_t now);
 static void position_bad(struct modesMessage *mm, struct aircraft *a);
-static void resize_trace(struct aircraft *a, uint64_t now);
 static void calc_wind(struct aircraft *a, uint64_t now);
 static void calc_temp(struct aircraft *a, uint64_t now);
 static inline int declination (struct aircraft *a, double *dec);
@@ -633,7 +632,19 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
     if (posReliable(a)) {
         set_globe_index(a, globe_index(a->lat, a->lon));
 
-        traceAdd(a, now) && (mm->jsonPos = 1);
+        if (traceAdd(a, now)) {
+            (mm->jsonPos = 1);
+            // bookkeeping:
+            a->trace_llat = a->lat;
+            a->trace_llon = a->lon;
+
+            (a->trace_len)++;
+            a->trace_write = 1;
+            a->trace_full_write++;
+
+            //fprintf(stderr, "Added to trace for %06x (%d).\n", a->addr, a->trace_len);
+        }
+
 
         a->seenPosReliable = now; // must be after traceAdd for trace stale detection
         a->latReliable = mm->decoded_lat;
@@ -1823,7 +1834,7 @@ void trackRemoveStaleThread(int start, int end, uint64_t now) {
 
                     if (Modes.json_globe_index) {
                         if (now > a->trace_next_fw) {
-                            resize_trace(a, now);
+                            traceResize(a, now);
                             a->trace_write = 1;
                         }
 
@@ -1838,7 +1849,7 @@ void trackRemoveStaleThread(int start, int end, uint64_t now) {
                         }
                     } else { // without globe_index keep traces in memory only for 2 hours (used for heatmap)
                         if (now > a->trace_next_fw) {
-                            resize_trace(a, now);
+                            traceResize(a, now);
                             a->trace_next_fw = now + 2 * HOURS + random() % (30 * MINUTES);
                         }
                     }
@@ -2104,73 +2115,6 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
         a->pos_reliable_even = 0;
         a->cpr_odd_valid.source = SOURCE_INVALID;
         a->cpr_even_valid.source = SOURCE_INVALID;
-    }
-}
-
-static void resize_trace(struct aircraft *a, uint64_t now) {
-
-    if (a->trace_alloc == 0) {
-        return;
-    }
-    if (a->trace_len == 0) { // this shouldn't ever trigger
-        traceCleanup(a);
-        return;
-    }
-    if (now < Modes.keep_traces)
-        fprintf(stderr, "now < Modes.keep_traces: %"PRIu64" %"PRIu32"\n", now, Modes.keep_traces);
-
-    uint64_t keep_after = now - Modes.keep_traces;
-
-    if (a->addr & MODES_NON_ICAO_ADDRESS)
-        keep_after = now - TRACK_AIRCRAFT_NON_ICAO_TTL;
-
-    if (a->trace_len == TRACE_SIZE || a->trace->timestamp < keep_after - 20 * MINUTES ) {
-        int new_start = a->trace_len;
-
-        if (a->trace_len + TRACE_MARGIN >= TRACE_SIZE) {
-            new_start = TRACE_SIZE / 64;
-        } else {
-            int found = 0;
-            for (int i = 0; i < a->trace_len; i++) {
-                struct state *state = &a->trace[i];
-                if (state->timestamp > keep_after) {
-                    new_start = i;
-                    found = 1;
-                    break;
-                }
-            }
-            if (!found)
-                new_start = a->trace_len;
-        }
-
-        if (new_start != a->trace_len) {
-            new_start -= (new_start % 4);
-
-            if (new_start % 4 != 0)
-                fprintf(stderr, "not divisible by 4: %d %d\n", new_start, a->trace_len);
-        }
-
-
-        a->trace_len -= new_start;
-
-        memmove(a->trace, a->trace + new_start, a->trace_len * sizeof(struct state));
-        memmove(a->trace_all, a->trace_all + new_start / 4, a->trace_len / 4 * sizeof(struct state_all));
-
-        //a->trace_write = 1;
-        //a->trace_full_write = 9999; // rewrite full history file
-
-    }
-
-    if (a->trace_len == 0) {
-        traceCleanup(a);
-        // if the trace length was reduced to zero, the trace is deleted from run
-        // it is not written again until a new position is received
-        return;
-    }
-
-    // shrink allocation
-    if (a->trace_len && a->trace_len + TRACE_MARGIN < (a->trace_alloc * 7 / 10) && a->trace_alloc >= 3 * TRACE_MARGIN) {
-        traceRealloc(a, a->trace_alloc * 8 / 10 + TRACE_MARGIN);
     }
 }
 
@@ -2582,6 +2526,9 @@ void updateValidities(struct aircraft *a, uint64_t now) {
     if (trackDataAge(now, &a->position_valid) > 2 * MINUTES || now > a->seenPosGlobal + 10 * MINUTES) {
         a->pos_reliable_odd = 0;
         a->pos_reliable_even = 0;
+    }
+    if (now > a->seenPosReliable + 20 * SECONDS) {
+        traceUsePosBuffered(a);
     }
 
     if (a->altitude_baro_valid.source == SOURCE_INVALID)

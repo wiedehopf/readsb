@@ -376,12 +376,14 @@ struct aircraft
   unsigned sil : 2; // SIL from TSS or opstatus
   unsigned gva : 2; // GVA from opstatus
   unsigned sda : 2; // SDA from opstatus
+  // 16 bit
   unsigned alert : 1; // FS Flight status alert bit
   unsigned spi : 1; // FS Flight status SPI (Special Position Identification) bit
   unsigned pos_surface : 1; // (a->airground == AG_GROUND) associated with current position
   unsigned last_cpr_type : 2; // mm->cpr_type associated with current position
-  // 20 bit ??
-  unsigned padding_b : 11;
+  unsigned tracePosBuffered : 1; // denotes if a->trace[a->trace_len] has a valid state buffered in it
+  // 22 bit ??
+  unsigned padding_b : 10;
   // 32 bit !!
 
   // ----

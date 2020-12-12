@@ -200,7 +200,7 @@ struct char_buffer readWholeGz(gzFile gzfp, char *errorContext) {
         fprintf(stderr, "reading %s: gzbuffer fail!\n", errorContext);
         return cb;
     }
-    int alloc = 24 * 1024 * 1024;
+    int alloc = 1 * 1024 * 1024;
     cb.buffer = malloc(alloc);
     if (!cb.buffer) {
         fprintf(stderr, "reading %s: readWholeGz alloc fail!\n", errorContext);

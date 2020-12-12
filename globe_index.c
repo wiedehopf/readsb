@@ -377,9 +377,12 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
 
     // just in case we have bogus values saved, make sure they time out
     if (a->seen_pos > now + 26 * HOURS)
-        a->seen_pos = 0;
+        a->seen_pos = now - 26 * HOURS;
     if (a->seen > now + 26 * HOURS)
-        a->seen = now;
+        a->seen = now - 26 * HOURS;
+
+    // make sure we don't think an extra position is still buffered in the trace memory
+    a->tracePosBuffered = 0;
 
     // read trace
     int size_state = stateBytes(a->trace_len);
@@ -949,10 +952,85 @@ void traceRealloc(struct aircraft *a, int len) {
         fprintf(stderr, "Quite a long trace: %06x (%d).\n", a->addr, a->trace_len);
 }
 
+void traceResize(struct aircraft *a, uint64_t now) {
+
+    if (a->trace_alloc == 0) {
+        return;
+    }
+    if (a->trace_len == 0) { // this shouldn't ever trigger
+        traceCleanup(a);
+        return;
+    }
+    if (now < Modes.keep_traces)
+        fprintf(stderr, "now < Modes.keep_traces: %"PRIu64" %"PRIu32"\n", now, Modes.keep_traces);
+
+    uint64_t keep_after = now - Modes.keep_traces;
+
+    if (a->addr & MODES_NON_ICAO_ADDRESS)
+        keep_after = now - TRACK_AIRCRAFT_NON_ICAO_TTL;
+
+    if (a->trace_len == TRACE_SIZE || a->trace->timestamp < keep_after - 20 * MINUTES)  {
+        int new_start = a->trace_len;
+
+        if (a->trace_len + TRACE_MARGIN >= TRACE_SIZE) {
+            new_start = TRACE_SIZE / 64;
+        } else {
+            int found = 0;
+            for (int i = 0; i < a->trace_len; i++) {
+                struct state *state = &a->trace[i];
+                if (state->timestamp > keep_after) {
+                    new_start = i;
+                    found = 1;
+                    break;
+                }
+            }
+            if (!found)
+                new_start = a->trace_len;
+        }
+
+        a->trace_len -= new_start;
+
+        // carry over buffered position
+        if (a->tracePosBuffered)
+            a->trace_len++;
+
+        memmove(a->trace, a->trace + new_start, stateBytes(a->trace_len));
+        memmove(a->trace_all, a->trace_all + stateAllBytes(new_start) / sizeof(struct state_all), stateAllBytes(a->trace_len));
+
+        // remove buffered position from part of trace that's final
+        if (a->tracePosBuffered)
+            a->trace_len--;
+
+        //a->trace_write = 1;
+        //a->trace_full_write = 9999; // rewrite full history file
+
+    }
+
+    if (a->trace_len == 0) {
+        traceCleanup(a);
+        // if the trace length was reduced to zero, the trace is deleted from run
+        // it is not written again until a new position is received
+        return;
+    }
+
+    // shrink allocation
+    if (a->trace_len && a->trace_len + TRACE_MARGIN < (a->trace_alloc * 7 / 10) && a->trace_alloc >= 3 * TRACE_MARGIN) {
+        traceRealloc(a, a->trace_alloc * 8 / 10 + TRACE_MARGIN);
+    }
+}
+
+void traceUsePosBuffered(struct aircraft *a) {
+    if (a->tracePosBuffered) {
+        a->tracePosBuffered = 0;
+        a->trace_len++;
+    }
+}
+
 void traceCleanup(struct aircraft *a) {
     free(a->trace);
     free(a->trace_all);
 
+    a->tracePosBuffered = 0;
     a->trace_alloc = 0;
     a->trace = NULL;
     a->trace_all = NULL;
@@ -961,14 +1039,15 @@ void traceCleanup(struct aircraft *a) {
 }
 
 int traceAdd(struct aircraft *a, uint64_t now) {
+    int posUsed = 0;
 
     if (!Modes.keep_traces)
-        return 0 ;
+        return 0;
 
     for (int i = max(0, a->trace_len - 6); i < a->trace_len; i++) {
         if ( (int32_t) (a->lat * 1E6) == a->trace[i].lat
                 && (int32_t) (a->lon * 1E6) == a->trace[i].lon ) {
-            return 0 ;
+            return 0;
         }
     }
 
@@ -1096,7 +1175,10 @@ int traceAdd(struct aircraft *a, uint64_t now) {
     }
 
     goto no_save_state;
+
 save_state:
+    posUsed = 1;
+no_save_state:
 
     if (!a->trace) {
         // allocate trace memory
@@ -1112,7 +1194,7 @@ save_state:
             fprintf(stderr, "CHECK CPU LOAD (maybe loop?) %06x: trace_len + 1 >= a->trace_alloc (%d).\n", a->addr, a->trace_len);
             antiSpam = now;
         }
-        goto no_save_state;
+        return 0;
     }
 
     struct state *new = &(a->trace[a->trace_len]);
@@ -1181,20 +1263,12 @@ save_state:
         to_state_all(a, new_all, now);
     }
 
-    // bookkeeping:
-    a->trace_llat = a->lat;
-    a->trace_llon = a->lon;
+    if (posUsed)
+        a->tracePosBuffered = 0;
+    else
+        a->tracePosBuffered = 1;
 
-    (a->trace_len)++;
-    a->trace_write = 1;
-    a->trace_full_write++;
-
-    //fprintf(stderr, "Added to trace for %06x (%d).\n", a->addr, a->trace_len);
-
-    return 1;
-
-no_save_state:
-    return 0;
+    return posUsed;
 }
 
 
@@ -1254,8 +1328,6 @@ void save_blob(int blob) {
     unsigned char *buf = malloc(alloc);
     unsigned char *p = buf;
 
-    //uint64_t now = mstime();
-
     for (int j = start; j < end; j++) {
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
             if (!a->seen_pos && a->trace_len == 0)
@@ -1268,8 +1340,8 @@ void save_blob(int blob) {
             memcpy(p, &magic, sizeof(magic));
             p += sizeof(magic);
 
-            //if (Modes.exit && now < a->seenPosReliable + 8 * SECONDS && posReliable(a))
-            //    traceAdd(a, a->seen_pos);
+            if (Modes.exit)
+                traceUsePosBuffered(a);
 
             int size_state = stateBytes(a->trace_len);
             int size_all = stateAllBytes(a->trace_len);
