@@ -1875,11 +1875,13 @@ static void unlockThreads() {
 void trackPeriodicUpdate() {
     // Only do updates once per second
     static uint32_t upcount;
-    static char heatmapRunning;
+    static uint64_t heatmapRunning;
     upcount++; // free running counter, first iteration is with 1
 
     if (Modes.heatmap) {
         uint64_t now = mstime();
+        if (heatmapRunning && now > heatmapRunning + 30 * SECONDS)
+            fprintf(stderr, "heatmap taking longer than 30 seconds, report this as a bug!\n");
         if (heatmapRunning && !pthread_mutex_trylock(&Modes.heatmapMutex)) {
             pthread_join(Modes.handleHeatmapThread, NULL);
             pthread_mutex_unlock(&Modes.heatmapMutex);
@@ -1887,12 +1889,11 @@ void trackPeriodicUpdate() {
         }
 
         if (!heatmapRunning && checkHeatmap(now)) {
-            heatmapRunning = 1;
+            heatmapRunning = now;
             pthread_mutex_lock(&Modes.heatmapMutex); // unlocked once the thread is finished
             pthread_create(&Modes.handleHeatmapThread, NULL, handleHeatmap, NULL);
         }
     }
-    //fprintf(stderr, "%d\n", heatmapRunning);
 
     // stop all threads so we can remove aircraft from the list.
     // also serves as memory barrier so json threads get new aircraft in the list
