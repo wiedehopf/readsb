@@ -1250,7 +1250,7 @@ void save_blob(int blob) {
 
     uint64_t magic = 0x7ba09e63757913eeULL;
 
-    int alloc = 32 * 1024 * 1024;
+    int alloc = 16 * 1024 * 1024;
     unsigned char *buf = malloc(alloc);
     unsigned char *p = buf;
 
@@ -1288,7 +1288,7 @@ void save_blob(int blob) {
                 fprintf(stderr, "%06x: too big for save_blob!\n", a->addr);
             }
 
-            if (p - buf > alloc - 4 * 1024 * 1024) {
+            if ((p - buf) + 4 * 1024 * 1024 > alloc) {
                 fprintf(stderr, "buffer almost full: loop_write %d KB\n", (int) ((p - buf) / 1024));
                 if (gzip) {
                     writeGz(gzfp, buf, p - buf, tmppath);
