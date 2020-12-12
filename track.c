@@ -1894,21 +1894,20 @@ static void unlockThreads() {
 void trackPeriodicUpdate() {
     // Only do updates once per second
     static uint32_t upcount;
-    static uint64_t heatmapRunning;
     upcount++; // free running counter, first iteration is with 1
 
     if (Modes.heatmap) {
         uint64_t now = mstime();
-        if (heatmapRunning && now > heatmapRunning + 30 * SECONDS)
+        if (Modes.heatmapRunning && now > Modes.heatmapRunning + 30 * SECONDS)
             fprintf(stderr, "heatmap taking longer than 30 seconds, report this as a bug!\n");
-        if (heatmapRunning && !pthread_mutex_trylock(&Modes.heatmapMutex)) {
+        if (Modes.heatmapRunning && !pthread_mutex_trylock(&Modes.heatmapMutex)) {
             pthread_join(Modes.handleHeatmapThread, NULL);
             pthread_mutex_unlock(&Modes.heatmapMutex);
-            heatmapRunning = 0;
+            Modes.heatmapRunning = 0;
         }
 
-        if (!heatmapRunning && checkHeatmap(now) && !Modes.exit) {
-            heatmapRunning = now;
+        if (!Modes.heatmapRunning && checkHeatmap(now) && !Modes.exit) {
+            Modes.heatmapRunning = now;
             pthread_mutex_lock(&Modes.heatmapMutex); // unlocked once the thread is finished
             pthread_create(&Modes.handleHeatmapThread, NULL, handleHeatmap, NULL);
         }
@@ -1932,7 +1931,7 @@ void trackPeriodicUpdate() {
 
     struct timespec start_time;
     start_monotonic_timing(&start_time);
-    if (!heatmapRunning && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 1)
+    if (!Modes.heatmapRunning && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 1)
         trackRemoveStale();
 
     if (Modes.mode_ac && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 2)

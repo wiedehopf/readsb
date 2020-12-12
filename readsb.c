@@ -1431,8 +1431,8 @@ int main(int argc, char **argv) {
     trackPeriodicUpdate();
     // ------------
 
-    // try and join the heatmap thread, silent error if not running
-    pthread_join(Modes.handleHeatmapThread, NULL);
+    if (Modes.heatmapRunning)
+        pthread_join(Modes.handleHeatmapThread, NULL);
 
     /* Cleanup network setup */
     cleanupNetwork();

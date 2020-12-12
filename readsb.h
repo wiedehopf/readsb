@@ -389,6 +389,7 @@ struct _Modes
 
     pthread_t handleHeatmapThread;
     pthread_mutex_t heatmapMutex;
+    uint64_t heatmapRunning;
 
     unsigned first_free_buffer; // Entry in mag_buffers that will next be filled with input.
     unsigned first_filled_buffer; // Entry in mag_buffers that has valid data and will be demodulated next. If equal to next_free_buffer, there is no unprocessed data.
