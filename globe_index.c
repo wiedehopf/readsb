@@ -361,19 +361,18 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
         a->seen = now;
 
     // read trace
+    int size_state = a->trace_len * sizeof(struct state);
+    int size_all = (a->trace_len + 3) / 4 * sizeof(struct state_all);
     if (a->trace_len > 0
-            && a->trace_len < 1024 * 1024
-            && a->trace_alloc > a->trace_len + 4
-            && a->trace_alloc < 2 * 1024 * 1024
+            && a->trace_len <= 10 * GLOBE_TRACE_SIZE
+            && a->trace_alloc >= a->trace_len + 1
+            && a->trace_alloc <= 10 * GLOBE_TRACE_SIZE
        ) {
-
-        int size_state = a->trace_len * sizeof(struct state);
-        int size_all = (a->trace_len + 3) / 4 * sizeof(struct state_all);
 
 
         if (end - *p < (long) (size_state + size_all)) {
             // TRACE FAIL
-            fprintf(stderr, "read trace fail\n");
+            fprintf(stderr, "read trace fail 1\n");
             a->trace = NULL;
             a->trace_all = NULL;
             a->trace_alloc = 0;
@@ -395,8 +394,10 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
         }
     } else {
         // no or bad trace
-        if (a->trace_len > 0)
-            fprintf(stderr, "read trace fail\n");
+        if (a->trace_len > 0) {
+            fprintf(stderr, "read trace fail 2\n");
+            *p += a->trace_len * (size_state + size_all); // increment pointer not to invalidate state file
+        }
         a->trace = NULL;
         a->trace_all = NULL;
         a->trace_len = 0;
@@ -1126,20 +1127,41 @@ static void load_blob(int blob) {
     free(cb.buffer);
 }
 
-int handleHeatmap() {
-    time_t nowish = (mstime() - 30 * MINUTES)/1000;
+int checkHeatmap(uint64_t now) {
+    time_t nowish = (now - 30 * MINUTES)/1000;
     struct tm utc;
     gmtime_r(&nowish, &utc);
     int half_hour = utc.tm_hour * 2 + utc.tm_min / 30;
 
+    if (Modes.heatmap_current_interval < -1) {
+        Modes.heatmap_current_interval++;
+        return 0;
+        // startup delay before first time heatmap is written
+    }
+
     // don't write on startup when persistent state isn't enabled
-    if (!Modes.state_dir && Modes.heatmap_current_interval == -1) {
+    if (!Modes.state_dir && Modes.heatmap_current_interval < 0) {
         Modes.heatmap_current_interval = half_hour;
         return 0;
     }
     // only do this every 30 minutes.
     if (half_hour == Modes.heatmap_current_interval)
         return 0;
+
+    Modes.heatmap_current_interval = half_hour;
+    return 1;
+}
+
+void *handleHeatmap(void *arg) {
+    MODES_NOTUSED(arg);
+
+    struct timespec start_time;
+    start_cpu_timing(&start_time);
+
+    time_t nowish = (mstime() - 30 * MINUTES)/1000;
+    struct tm utc;
+    gmtime_r(&nowish, &utc);
+    int half_hour = utc.tm_hour * 2 + utc.tm_min / 30;
 
     utc.tm_hour = half_hour / 2;
     utc.tm_min = 30 * (half_hour % 2);
@@ -1148,7 +1170,6 @@ int handleHeatmap() {
     uint64_t end = start + 30 * MINUTES;
     int num_slices = (30 * MINUTES) / Modes.heatmap_interval;
 
-    Modes.heatmap_current_interval = half_hour;
 
     char pathbuf[PATH_MAX];
     char tmppath[PATH_MAX];
@@ -1305,7 +1326,11 @@ int handleHeatmap() {
     free(buffer2);
     free(slices);
 
-    return 1; // heatmap stuff written
+    end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
+
+    fprintf(stderr, "heatmapMutex unlock\n");
+    pthread_mutex_unlock(&Modes.heatmapMutex);
+    return NULL;
 }
 
 

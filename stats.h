@@ -181,7 +181,8 @@ void add_timespecs (const struct timespec *x, const struct timespec *y, struct t
 struct char_buffer generateStatsJson();
 struct char_buffer generatePromFile();
 
-int statsUpdate(uint64_t now);
+void statsUpdate(uint64_t now);
+void checkDisplayStats(uint64_t now);
 void statsResetCount();
 void statsCountAircraft();
 void statsWrite();

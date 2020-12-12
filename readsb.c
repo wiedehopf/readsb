@@ -219,7 +219,7 @@ static void modesInitConfig(void) {
     Modes.netIngest = 0;
     Modes.uuidFile = strdup("/boot/adsbx-uuid");
     Modes.json_trace_interval = 30 * 1000;
-    Modes.heatmap_current_interval = -1;
+    Modes.heatmap_current_interval = -5 * SECONDS / PERIODIC_UPDATE;
     Modes.heatmap_interval = 60 * SECONDS;
     Modes.json_reliable = -13;
 
@@ -286,6 +286,7 @@ static void modesInit(void) {
         pthread_mutex_init(&Modes.jsonTraceThreadMutexFin[i], NULL);
         pthread_mutex_lock(&Modes.jsonTraceThreadMutexFin[i]);
     }
+    pthread_mutex_init(&Modes.heatmapMutex, NULL);
 
     geomag_init();
 

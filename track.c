@@ -1750,6 +1750,7 @@ static void updateAircraft() {
 
 static void trackRemoveStale() {
     Modes.removeStale = 1;
+    //fprintf(stderr, "removeStale()\n");
 
     if (Modes.viewAdsb) {
         trackRemoveStaleThread(0, AIRCRAFT_BUCKETS, mstime());
@@ -1776,6 +1777,7 @@ static void trackRemoveStale() {
 //
 
 void trackRemoveStaleThread(int start, int end, uint64_t now) {
+    //fprintf(stderr, "%d %d\n", start, end);
 
     for (int j = start; j < end; j++) {
         struct aircraft **nextPointer = &(Modes.aircraft[j]);
@@ -1834,6 +1836,7 @@ void trackRemoveStaleThread(int start, int end, uint64_t now) {
                         }
                     }
 
+                    //fprintf(stderr, "%06x\n", a->addr);
                     if (a->trace_len + GLOBE_STEP / 2 >= a->trace_alloc) {
                         resize_trace(a, now);
                         //fprintf(stderr, "%06x: new trace_alloc: %d).\n", a->addr, a->trace_alloc);
@@ -1871,9 +1874,25 @@ static void unlockThreads() {
 
 void trackPeriodicUpdate() {
     // Only do updates once per second
-    static uint32_t blob; // current blob
     static uint32_t upcount;
-    upcount++; // free running counter
+    static char heatmapRunning;
+    upcount++; // free running counter, first iteration is with 1
+
+    if (Modes.heatmap) {
+        uint64_t now = mstime();
+        if (heatmapRunning && !pthread_mutex_trylock(&Modes.heatmapMutex)) {
+            pthread_join(Modes.handleHeatmapThread, NULL);
+            pthread_mutex_unlock(&Modes.heatmapMutex);
+            heatmapRunning = 0;
+        }
+
+        if (!heatmapRunning && checkHeatmap(now)) {
+            heatmapRunning = 1;
+            pthread_mutex_lock(&Modes.heatmapMutex); // unlocked once the thread is finished
+            pthread_create(&Modes.handleHeatmapThread, NULL, handleHeatmap, NULL);
+        }
+    }
+    //fprintf(stderr, "%d\n", heatmapRunning);
 
     // stop all threads so we can remove aircraft from the list.
     // also serves as memory barrier so json threads get new aircraft in the list
@@ -1884,7 +1903,7 @@ void trackPeriodicUpdate() {
 
     uint64_t now = mstime();
 
-    if (now > Modes.next_stats_update)
+    if (now > Modes.next_stats_update && !heatmapRunning)
         Modes.updateStats = 1;
 
     struct timespec watch;
@@ -1893,17 +1912,19 @@ void trackPeriodicUpdate() {
 
     struct timespec start_time;
     start_monotonic_timing(&start_time);
-
-    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 0)
+    if (!heatmapRunning && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 1)
         trackRemoveStale();
 
-    if (Modes.mode_ac && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 1)
+    if (Modes.mode_ac && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 2)
         trackMatchAC(now);
 
-    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 2)
+    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 3)
+        checkDisplayStats(now);
+
+    if (Modes.updateStats)
         statsUpdate(now); // needs to happen under lock
 
-    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 3)
+    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 4)
         netFreeClients();
 
     int nParts = 5 * MINUTES / PERIODIC_UPDATE;
@@ -1916,13 +1937,16 @@ void trackPeriodicUpdate() {
     int64_t elapsed = stopWatch(&watch);
 
     static uint64_t antiSpam;
-    if (elapsed > 25 && now > antiSpam + 30 * SECONDS) {
+    if (elapsed > 35 && now > antiSpam + 30 * SECONDS) {
         fprintf(stderr, "<3>High load: removeStale took %"PRIu64" ms! Suppressing for 30 seconds\n", elapsed);
         antiSpam = now;
     }
 
     //fprintf(stderr, "running for %ld ms\n", mstime() - Modes.startup_time);
     //fprintf(stderr, "removeStale took %"PRIu64" ms!\n", elapsed);
+
+    if (heatmapRunning) // really half assed locking for heatmap CPU counter
+        return;
 
     start_cpu_timing(&start_time);
     startWatch(&watch);
@@ -1932,7 +1956,7 @@ void trackPeriodicUpdate() {
     // don't do everything at once ... this stuff isn't that time critical it'll get its turn
     int enough = 0;
 
-    if (!enough && Modes.updateStats) {
+    if (Modes.updateStats) {
         enough = 1;
         statsResetCount();
         uint32_t aircraftCount = 0;
@@ -1952,16 +1976,12 @@ void trackPeriodicUpdate() {
             fprintf(stderr, "aircraft table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFT_BUCKETS );
     }
 
+    static uint32_t blob; // current blob
     static uint64_t next_blob;
     if (!enough && now > next_blob) {
         enough = 1;
         save_blob(blob++ % STATE_BLOBS);
         next_blob = now + 60 * MINUTES / STATE_BLOBS;
-    }
-
-    if (!enough && Modes.heatmap && handleHeatmap()) {
-        // handleHeatMap() only does sth every 30 min
-        enough = 1;
     }
 
     if (!enough && Modes.api && now > Modes.next_api_update) {

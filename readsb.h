@@ -310,7 +310,7 @@ typedef enum {
 #define STATE_BLOBS 256
 #define IO_THREADS 8
 #define TRACE_THREADS 8
-#define PERIODIC_UPDATE 200 // lock json writers and do some stuff every PERIODIC_UPDATE ms
+#define PERIODIC_UPDATE 200 // don't use values larger than 200 ... some hard-coded stuff
 
 #define STAT_BUCKETS 90 // 90 * 10 seconds = 15 min (max interval in stats.json)
 
@@ -386,6 +386,9 @@ struct _Modes
     pthread_mutex_t jsonTraceThreadMutex[TRACE_THREADS];
     pthread_cond_t jsonTraceThreadCond[TRACE_THREADS];
     pthread_mutex_t jsonTraceThreadMutexFin[TRACE_THREADS];
+
+    pthread_t handleHeatmapThread;
+    pthread_mutex_t heatmapMutex;
 
     unsigned first_free_buffer; // Entry in mag_buffers that will next be filled with input.
     unsigned first_filled_buffer; // Entry in mag_buffers that has valid data and will be demodulated next. If equal to next_free_buffer, there is no unprocessed data.
@@ -513,8 +516,8 @@ struct _Modes
     char *globe_history_dir;
     char *state_dir;
     char *prom_file;
+    int64_t heatmap_current_interval;
     uint32_t heatmap_interval;
-    int heatmap_current_interval;
     int heatmap;
     char *heatmap_dir;
     uint32_t keep_traces; // how long traces are saved in internal memory

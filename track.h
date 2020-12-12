@@ -54,9 +54,9 @@
 #ifndef DUMP1090_TRACK_H
 #define DUMP1090_TRACK_H
 
-#define HOURS (60*60*1000ULL)
-#define MINUTES (60*1000ULL)
-#define SECONDS (1000ULL)
+#define HOURS (60*60*1000LL)
+#define MINUTES (60*1000LL)
+#define SECONDS (1000LL)
 
 
 /* Maximum age of tracked aircraft in milliseconds */

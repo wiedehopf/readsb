@@ -361,8 +361,7 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
         target->distance_min = st2->distance_min;
 }
 
-int statsUpdate(uint64_t now) {
-    // always update end time so it is current when requests arrive
+void checkDisplayStats(uint64_t now) {
     Modes.stats_current.end = now;
 
     if (Modes.stats && now >= Modes.next_stats_display) {
@@ -376,42 +375,40 @@ int statsUpdate(uint64_t now) {
             Modes.next_stats_display = now + Modes.stats;
         }
     }
+}
 
-    if (Modes.updateStats) {
-        int i;
+void statsUpdate(uint64_t now) {
+    Modes.stats_current.end = now;
+    int i;
 
-        Modes.next_stats_update += 10 * SECONDS;
-        Modes.stats_10[Modes.stats_bucket] = Modes.stats_current;
+    Modes.next_stats_update += 10 * SECONDS;
+    Modes.stats_10[Modes.stats_bucket] = Modes.stats_current;
 
-        add_stats(&Modes.stats_current, &Modes.stats_alltime, &Modes.stats_alltime);
-        add_stats(&Modes.stats_current, &Modes.stats_periodic, &Modes.stats_periodic);
+    add_stats(&Modes.stats_current, &Modes.stats_alltime, &Modes.stats_alltime);
+    add_stats(&Modes.stats_current, &Modes.stats_periodic, &Modes.stats_periodic);
 
-        reset_stats(&Modes.stats_1min);
-        for (i = 0; i < 6; ++i) {
-            int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
-            add_stats(&Modes.stats_10[index], &Modes.stats_1min, &Modes.stats_1min);
-        }
-
-        reset_stats(&Modes.stats_5min);
-        for (i = 0; i < 30; ++i) {
-            int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
-            add_stats(&Modes.stats_10[index], &Modes.stats_5min, &Modes.stats_5min);
-        }
-
-        reset_stats(&Modes.stats_15min);
-        for (i = 0; i < 90; ++i) {
-            int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
-            add_stats(&Modes.stats_10[index], &Modes.stats_15min, &Modes.stats_15min);
-        }
-
-        reset_stats(&Modes.stats_current);
-        Modes.stats_current.start = Modes.stats_current.end = now;
-
-        Modes.stats_bucket = (Modes.stats_bucket + 1) % STAT_BUCKETS;
-
-        return 1;
+    reset_stats(&Modes.stats_1min);
+    for (i = 0; i < 6; ++i) {
+        int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
+        add_stats(&Modes.stats_10[index], &Modes.stats_1min, &Modes.stats_1min);
     }
-    return 0;
+
+    reset_stats(&Modes.stats_5min);
+    for (i = 0; i < 30; ++i) {
+        int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
+        add_stats(&Modes.stats_10[index], &Modes.stats_5min, &Modes.stats_5min);
+    }
+
+    reset_stats(&Modes.stats_15min);
+    for (i = 0; i < 90; ++i) {
+        int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
+        add_stats(&Modes.stats_10[index], &Modes.stats_15min, &Modes.stats_15min);
+    }
+
+    reset_stats(&Modes.stats_current);
+    Modes.stats_current.start = Modes.stats_current.end = now;
+
+    Modes.stats_bucket = (Modes.stats_bucket + 1) % STAT_BUCKETS;
 }
 
 static char * appendTypeCounts(char *p, char *end) {
