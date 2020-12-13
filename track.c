@@ -1892,29 +1892,8 @@ static void unlockThreads() {
 //
 
 void trackPeriodicUpdate() {
-    // Only do updates once per second
     static uint32_t upcount;
     upcount++; // free running counter, first iteration is with 1
-
-    if (Modes.heatmap) {
-        uint64_t now = mstime();
-        //if (Modes.heatmapRunning && now > Modes.heatmapRunning + 30 * SECONDS)
-        //    fprintf(stderr, "heatmap taking longer than 30 seconds, report this as a bug!\n");
-        //if (Modes.heatmapRunning && !pthread_mutex_trylock(&Modes.heatmapMutex)) {
-        // trylock doesn't work on CentOS 7 .... stupid.
-        //
-        if (Modes.heatmapRunning && now > Modes.heatmapRunning + 1 * SECONDS) {
-            pthread_join(Modes.handleHeatmapThread, NULL);
-            pthread_mutex_unlock(&Modes.heatmapMutex);
-            Modes.heatmapRunning = 0;
-        }
-
-        if (!Modes.heatmapRunning && checkHeatmap(now) && !Modes.exit) {
-            Modes.heatmapRunning = now;
-            pthread_mutex_lock(&Modes.heatmapMutex); // unlocked once the thread is finished
-            pthread_create(&Modes.handleHeatmapThread, NULL, handleHeatmap, NULL);
-        }
-    }
 
     // stop all threads so we can remove aircraft from the list.
     // also serves as memory barrier so json threads get new aircraft in the list
@@ -1930,12 +1909,18 @@ void trackPeriodicUpdate() {
 
     struct timespec watch;
     startWatch(&watch);
-
-
     struct timespec start_time;
     start_monotonic_timing(&start_time);
-    if (!Modes.heatmapRunning && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 1)
+
+    pthread_mutex_lock(&Modes.miscThreadRunningMutex);
+
+    static uint64_t nextRemoveStale;
+    if (!Modes.miscThreadRunning && now > nextRemoveStale) {
         trackRemoveStale();
+        nextRemoveStale = now + 1 * SECONDS;
+    }
+
+    pthread_mutex_unlock(&Modes.miscThreadRunningMutex);
 
     if (Modes.mode_ac && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 2)
         trackMatchAC(now);
@@ -1943,20 +1928,19 @@ void trackPeriodicUpdate() {
     if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 3)
         checkDisplayStats(now);
 
-    if (Modes.updateStats)
-        statsUpdate(now); // needs to happen under lock
-
     if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 4)
         netFreeClients();
+
+    if (Modes.updateStats)
+        statsUpdate(now); // needs to happen under lock
 
     int nParts = 5 * MINUTES / PERIODIC_UPDATE;
     receiverTimeout((upcount % nParts), nParts, now);
 
-    unlockThreads();
-
     end_monotonic_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
-
     int64_t elapsed = stopWatch(&watch);
+
+    unlockThreads();
 
     static uint64_t antiSpam;
     if (elapsed > 35 && now > antiSpam + 30 * SECONDS) {
@@ -1967,16 +1951,7 @@ void trackPeriodicUpdate() {
     //fprintf(stderr, "running for %ld ms\n", mstime() - Modes.startup_time);
     //fprintf(stderr, "removeStale took %"PRIu64" ms!\n", elapsed);
 
-    start_cpu_timing(&start_time);
-    startWatch(&watch);
-
-    checkNewDay();
-
-    // don't do everything at once ... this stuff isn't that time critical it'll get its turn
-    int enough = 0;
-
     if (Modes.updateStats) {
-        enough = 1;
         statsResetCount();
         uint32_t aircraftCount = 0;
         for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
@@ -1993,6 +1968,29 @@ void trackPeriodicUpdate() {
         Modes.aircraftCount = aircraftCount;
         if (Modes.aircraftCount > 2 * AIRCRAFT_BUCKETS)
             fprintf(stderr, "aircraft table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFT_BUCKETS );
+    }
+}
+
+void miscStuff() {
+    // Only do updates once per second
+    static uint32_t upcount;
+    upcount++; // free running counter, first iteration is with 1
+
+    uint64_t now = mstime();
+
+    struct timespec watch;
+    startWatch(&watch);
+
+    struct timespec start_time;
+    start_cpu_timing(&start_time);
+
+    checkNewDay(now);
+
+    // don't do everything at once ... this stuff isn't that time critical it'll get its turn
+    int enough = 0;
+
+    if (handleHeatmap(now)) {
+        enough = 1;
     }
 
     static uint32_t blob; // current blob
@@ -2041,12 +2039,48 @@ void trackPeriodicUpdate() {
 
     end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
 
-    elapsed = stopWatch(&watch);
+    uint64_t elapsed = stopWatch(&watch);
     static uint64_t antiSpam2;
-    if (elapsed > 2 * PERIODIC_UPDATE && now > antiSpam2 + 30 * SECONDS) {
+    if (elapsed > 2 * SECONDS && now > antiSpam2 + 30 * SECONDS) {
         fprintf(stderr, "<3>High load: heatmap_and_stuff took %"PRIu64" ms! Suppressing for 30 seconds\n", elapsed);
         antiSpam2 = now;
     }
+}
+
+
+void *miscThreadEntryPoint(void *arg) {
+    MODES_NOTUSED(arg);
+    srandom(get_seed());
+
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+
+    pthread_mutex_lock(&Modes.miscThreadMutex);
+    while (!Modes.exit) {
+        pthread_mutex_lock(&Modes.miscThreadRunningMutex);
+        Modes.miscThreadRunning = 1;
+        pthread_mutex_unlock(&Modes.miscThreadRunningMutex);
+
+        miscStuff();
+
+        pthread_mutex_lock(&Modes.miscThreadRunningMutex);
+        Modes.miscThreadRunning = 0;
+        pthread_mutex_unlock(&Modes.miscThreadRunningMutex);
+
+        incTimedwait(&ts, 400); // do something roughly every half second
+
+        int err = pthread_cond_timedwait(&Modes.miscThreadCond, &Modes.miscThreadMutex, &ts);
+        if (err && err != ETIMEDOUT)
+            fprintf(stderr, "main thread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
+    }
+
+    pthread_mutex_unlock(&Modes.miscThreadMutex);
+
+#ifndef _WIN32
+    pthread_exit(NULL);
+#else
+    return NULL;
+#endif
 }
 
 /*

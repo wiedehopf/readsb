@@ -387,9 +387,11 @@ struct _Modes
     pthread_cond_t jsonTraceThreadCond[TRACE_THREADS];
     pthread_mutex_t jsonTraceThreadMutexFin[TRACE_THREADS];
 
-    pthread_t handleHeatmapThread;
-    pthread_mutex_t heatmapMutex;
-    uint64_t heatmapRunning;
+    pthread_t miscThread;
+    pthread_mutex_t miscThreadMutex;
+    pthread_cond_t miscThreadCond;
+    pthread_mutex_t miscThreadRunningMutex;
+    int8_t miscThreadRunning;
 
     unsigned first_free_buffer; // Entry in mag_buffers that will next be filled with input.
     unsigned first_filled_buffer; // Entry in mag_buffers that has valid data and will be demodulated next. If equal to next_free_buffer, there is no unprocessed data.

@@ -16,7 +16,7 @@ struct tile {
     int east;
 };
 
-void checkNewDay();
+void checkNewDay(uint64_t now);
 ssize_t check_write(int fd, const void *buf, size_t count, const char *error_context);
 int globe_index(double lat_in, double lon_in);
 int globe_index_index(int index);
@@ -34,8 +34,7 @@ int traceAdd(struct aircraft *a, uint64_t now);
 void traceResize(struct aircraft *a, uint64_t now);
 void traceUsePosBuffered();
 
-int checkHeatmap(uint64_t now);
-void *handleHeatmap(void *arg);
+int handleHeatmap(uint64_t now);
 
 struct craftArray {
     struct aircraft **list;

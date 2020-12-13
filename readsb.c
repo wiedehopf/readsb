@@ -129,6 +129,9 @@ static void log_with_timestamp(const char *format, ...) {
 
 static void cond_broadcast_all() {
 
+    if (Modes.miscThread) {
+        pthread_cond_broadcast(&Modes.miscThreadCond);
+    }
     if (Modes.jsonThread)
         pthread_cond_broadcast(&Modes.jsonThreadCond);
 
@@ -219,7 +222,7 @@ static void modesInitConfig(void) {
     Modes.netIngest = 0;
     Modes.uuidFile = strdup("/boot/adsbx-uuid");
     Modes.json_trace_interval = 30 * 1000;
-    Modes.heatmap_current_interval = -15 * SECONDS / PERIODIC_UPDATE;
+    Modes.heatmap_current_interval = -15;
     Modes.heatmap_interval = 60 * SECONDS;
     Modes.json_reliable = -13;
 
@@ -272,10 +275,13 @@ static void modesInit(void) {
     pthread_mutex_init(&Modes.data_mutex, NULL);
     pthread_cond_init(&Modes.data_cond, NULL);
 
+    pthread_mutex_init(&Modes.miscThreadMutex, NULL);
+    pthread_mutex_init(&Modes.miscThreadRunningMutex, NULL);
     pthread_mutex_init(&Modes.decodeThreadMutex, NULL);
     pthread_mutex_init(&Modes.jsonThreadMutex, NULL);
     pthread_mutex_init(&Modes.jsonGlobeThreadMutex, NULL);
 
+    pthread_cond_init(&Modes.miscThreadCond, NULL);
     pthread_cond_init(&Modes.decodeThreadCond, NULL);
     pthread_cond_init(&Modes.jsonThreadCond, NULL);
     pthread_cond_init(&Modes.jsonGlobeThreadCond, NULL);
@@ -286,7 +292,6 @@ static void modesInit(void) {
         pthread_mutex_init(&Modes.jsonTraceThreadMutexFin[i], NULL);
         pthread_mutex_lock(&Modes.jsonTraceThreadMutexFin[i]);
     }
-    pthread_mutex_init(&Modes.heatmapMutex, NULL);
 
     geomag_init();
 
@@ -1323,7 +1328,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    checkNewDay();
+    checkNewDay(mstime());
 
     if (Modes.state_dir) {
         fprintf(stderr, "loading state .....\n");
@@ -1375,12 +1380,11 @@ int main(int argc, char **argv) {
     }
 
     pthread_create(&Modes.decodeThread, NULL, decodeThreadEntryPoint, NULL);
+    pthread_create(&Modes.miscThread, NULL, miscThreadEntryPoint, NULL);
 
     for (int i = 0; i < TRACE_THREADS; i++) {
         pthread_create(&Modes.jsonTraceThread[i], NULL, jsonTraceThreadEntryPoint, &Modes.threadNumber[i]);
     }
-
-    usleep(1000);
 
     if (Modes.json_dir) {
 
@@ -1424,6 +1428,8 @@ int main(int argc, char **argv) {
         }
     }
 
+    pthread_join(Modes.miscThread, NULL);
+
     pthread_join(Modes.decodeThread, NULL); // Wait on json writer thread exit
 
     // force stats to be done, this must happen before network cleanup as it checks network stuff
@@ -1431,8 +1437,6 @@ int main(int argc, char **argv) {
     trackPeriodicUpdate();
     // ------------
 
-    if (Modes.heatmapRunning)
-        pthread_join(Modes.handleHeatmapThread, NULL);
 
     /* Cleanup network setup */
     cleanupNetwork();
@@ -1472,7 +1476,8 @@ int main(int argc, char **argv) {
         pthread_mutex_destroy(&Modes.jsonTraceThreadMutexFin[i]);
     }
 
-    pthread_mutex_destroy(&Modes.heatmapMutex);
+    pthread_mutex_destroy(&Modes.miscThreadMutex);
+    pthread_mutex_destroy(&Modes.miscThreadRunningMutex);
 
     pthread_mutex_destroy(&Modes.mainThreadMutex);
     pthread_cond_destroy(&Modes.mainThreadCond);

@@ -1460,7 +1460,11 @@ static void load_blob(int blob) {
     free(cb.buffer);
 }
 
-int checkHeatmap(uint64_t now) {
+
+int handleHeatmap(uint64_t now) {
+    if (!Modes.heatmap)
+        return 0;
+
     time_t nowish = (now - 30 * MINUTES)/1000;
     struct tm utc;
     gmtime_r(&nowish, &utc);
@@ -1482,19 +1486,6 @@ int checkHeatmap(uint64_t now) {
         return 0;
 
     Modes.heatmap_current_interval = half_hour;
-    return 1;
-}
-
-void *handleHeatmap(void *arg) {
-    MODES_NOTUSED(arg);
-
-    struct timespec start_time;
-    start_cpu_timing(&start_time);
-
-    time_t nowish = (mstime() - 30 * MINUTES)/1000;
-    struct tm utc;
-    gmtime_r(&nowish, &utc);
-    int half_hour = utc.tm_hour * 2 + utc.tm_min / 30;
 
     utc.tm_hour = half_hour / 2;
     utc.tm_min = 30 * (half_hour % 2);
@@ -1655,18 +1646,13 @@ void *handleHeatmap(void *arg) {
     free(buffer2);
     free(slices);
 
-    end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
-
-    //fprintf(stderr, "heatmapMutex unlock\n");
-    pthread_mutex_unlock(&Modes.heatmapMutex);
-    return NULL;
+    return 1;
 }
 
 
-void checkNewDay() {
+void checkNewDay(uint64_t now) {
     char filename[PATH_MAX];
     char dateDir[PATH_MAX * 3/4];
-    uint64_t now = mstime();
     struct tm utc;
 
     if (!Modes.globe_history_dir || !Modes.json_globe_index)
