@@ -1767,25 +1767,19 @@ static void updateAircraft() {
 */
 
 static void trackRemoveStale() {
-    Modes.removeStale = 1;
     //fprintf(stderr, "removeStale()\n");
+    //fprintf(stderr, "removeStale start: running for %ld ms\n", mstime() - Modes.startup_time);
 
-    if (Modes.viewAdsb) {
-        trackRemoveStaleThread(0, AIRCRAFT_BUCKETS, mstime());
-    } else {
-        for (int i = 0; i < TRACE_THREADS; i++) {
-            Modes.removeStaleThread[i] = 1;
-            pthread_cond_broadcast(&Modes.jsonTraceThreadCond[i]);
-            pthread_mutex_unlock(&Modes.jsonTraceThreadMutex[i]);
-        }
-        for (int i = 0; i < TRACE_THREADS; i++) {
-            pthread_mutex_lock(&Modes.jsonTraceThreadMutexFin[i]);
-            pthread_mutex_lock(&Modes.jsonTraceThreadMutex[i]);
-        }
+    for (int i = 0; i < STALE_THREADS; i++) {
+        pthread_cond_signal(&Modes.staleThreadCond[i]);
+        pthread_mutex_unlock(&Modes.staleThreadMutex[i]);
     }
-
-    Modes.removeStale = 0;
+    for (int i = 0; i < STALE_THREADS; i++) {
+        pthread_mutex_lock(&Modes.staleThreadMutex[i]);
+    }
     Modes.doFullTraceWrite = 0;
+
+    //fprintf(stderr, "removeStale done: running for %ld ms\n", mstime() - Modes.startup_time);
 }
 //
 //=========================================================================
@@ -1866,6 +1860,39 @@ void trackRemoveStaleThread(int start, int end, uint64_t now) {
             }
         }
     }
+}
+
+void *staleThreadEntryPoint(void *arg) {
+
+    int thread = * (int *) arg;
+    srandom(get_seed());
+
+    int thread_section_len = (AIRCRAFT_BUCKETS / STALE_THREADS);
+    int thread_start = thread * thread_section_len;
+    int thread_end = thread_start + thread_section_len;
+
+    while (!Modes.exit) {
+        int err;
+
+
+        err = pthread_cond_wait(&Modes.staleThreadCond[thread], &Modes.staleThreadMutex[thread]);
+        if (err)
+            fprintf(stderr, "jsonTraceThread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
+
+        if (Modes.exit)
+            break;
+
+        uint64_t now = mstime();
+        trackRemoveStaleThread(thread_start, thread_end, now);
+        //fprintf(stderr, "%d %d %d\n", thread, thread_start, thread_end);
+    }
+    pthread_mutex_unlock(&Modes.staleThreadMutex[thread]);
+
+#ifndef _WIN32
+    pthread_exit(NULL);
+#else
+    return NULL;
+#endif
 }
 
 
@@ -2055,7 +2082,6 @@ void *miscThreadEntryPoint(void *arg) {
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
 
-    pthread_mutex_lock(&Modes.miscThreadMutex);
     while (!Modes.exit) {
         pthread_mutex_lock(&Modes.miscThreadRunningMutex);
         Modes.miscThreadRunning = 1;

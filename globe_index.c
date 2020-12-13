@@ -477,7 +477,7 @@ void *jsonTraceThreadEntryPoint(void *arg) {
 
     int thread_section_len = (AIRCRAFT_BUCKETS / TRACE_THREADS);
     int thread_start = thread * thread_section_len;
-    int thread_end = thread_start + thread_section_len;
+    //int thread_end = thread_start + thread_section_len;
     //fprintf(stderr, "%d %d\n", thread_start, thread_end);
     int section_len = thread_section_len / n_parts;
 
@@ -493,13 +493,8 @@ void *jsonTraceThreadEntryPoint(void *arg) {
         struct aircraft *a;
         int err;
 
-
-        if (Modes.json_dir && Modes.json_globe_index) {
-            incTimedwait(&ts, sleep_ms);
-            err = pthread_cond_timedwait(&Modes.jsonTraceThreadCond[thread], &Modes.jsonTraceThreadMutex[thread], &ts);
-        } else {
-            err = pthread_cond_wait(&Modes.jsonTraceThreadCond[thread], &Modes.jsonTraceThreadMutex[thread]);
-        }
+        incTimedwait(&ts, sleep_ms);
+        err = pthread_cond_timedwait(&Modes.jsonTraceThreadCond[thread], &Modes.jsonTraceThreadMutex[thread], &ts);
         if (err && err != ETIMEDOUT)
             fprintf(stderr, "jsonTraceThread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
 
@@ -509,36 +504,25 @@ void *jsonTraceThreadEntryPoint(void *arg) {
 
         uint64_t now = mstime();
 
-        if (Modes.removeStale) {
-            if (Modes.removeStaleThread[thread]) {
-                trackRemoveStaleThread(thread_start, thread_end, now);
-                Modes.removeStaleThread[thread] = 0;
-                pthread_mutex_unlock(&Modes.jsonTraceThreadMutexFin[thread]);
-                //fprintf(stderr, "%d %d %d\n", thread, thread_start, thread_end);
+        int start = thread_start + part * section_len;
+        int end = start + section_len;
+
+        struct timespec start_time;
+        start_cpu_timing(&start_time);
+
+        for (int j = start; j < end; j++) {
+            for (a = Modes.aircraft[j]; a; a = a->next) {
+                if (a->trace_write)
+                    traceWrite(a, now, 0);
             }
         }
-        if (!Modes.removeStale && Modes.json_dir && Modes.json_globe_index) {
-            int start = thread_start + part * section_len;
-            int end = start + section_len;
 
-            struct timespec start_time;
-            start_cpu_timing(&start_time);
+        part++;
+        part %= n_parts;
 
-            for (int j = start; j < end; j++) {
-                for (a = Modes.aircraft[j]; a; a = a->next) {
-                    if (a->trace_write)
-                        traceWrite(a, now, 0);
-                }
-            }
-
-            part++;
-            part %= n_parts;
-
-            end_cpu_timing(&start_time, &Modes.stats_current.trace_json_cpu[thread]);
-        }
+        end_cpu_timing(&start_time, &Modes.stats_current.trace_json_cpu[thread]);
     }
 
-    pthread_mutex_unlock(&Modes.jsonTraceThreadMutexFin[thread]);
     pthread_mutex_unlock(&Modes.jsonTraceThreadMutex[thread]);
 
 #ifndef _WIN32

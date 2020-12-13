@@ -310,6 +310,7 @@ typedef enum {
 #define STATE_BLOBS 256 // change naming scheme if increasing this
 #define IO_THREADS 8
 #define TRACE_THREADS 8
+#define STALE_THREADS 4
 #define PERIODIC_UPDATE 200 // don't use values larger than 200 ... some hard-coded stuff
 
 #define STAT_BUCKETS 90 // 90 * 10 seconds = 15 min (max interval in stats.json)
@@ -382,10 +383,15 @@ struct _Modes
     pthread_cond_t jsonThreadCond;
     pthread_cond_t jsonGlobeThreadCond;
 
-    pthread_t jsonTraceThread[TRACE_THREADS]; // thread writing icao trace jsons
+    // writing icao trace jsons
+    pthread_t jsonTraceThread[TRACE_THREADS];
     pthread_mutex_t jsonTraceThreadMutex[TRACE_THREADS];
     pthread_cond_t jsonTraceThreadCond[TRACE_THREADS];
-    pthread_mutex_t jsonTraceThreadMutexFin[TRACE_THREADS];
+
+    // stale removal
+    pthread_t staleThread[STALE_THREADS];
+    pthread_mutex_t staleThreadMutex[STALE_THREADS];
+    pthread_cond_t staleThreadCond[STALE_THREADS];
 
     pthread_t miscThread;
     pthread_mutex_t miscThreadMutex;
@@ -561,7 +567,6 @@ struct _Modes
     struct stats stats_5min;
     struct stats stats_15min;
 
-    int8_t removeStaleThread[TRACE_THREADS];
     struct statsCount globalStatsCount;
 
     // array for thread numbers

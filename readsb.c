@@ -130,25 +130,29 @@ static void log_with_timestamp(const char *format, ...) {
 static void cond_broadcast_all() {
 
     if (Modes.miscThread) {
-        pthread_cond_broadcast(&Modes.miscThreadCond);
+        pthread_cond_signal(&Modes.miscThreadCond);
     }
     if (Modes.jsonThread)
-        pthread_cond_broadcast(&Modes.jsonThreadCond);
+        pthread_cond_signal(&Modes.jsonThreadCond);
 
     if (Modes.jsonGlobeThread)
-        pthread_cond_broadcast(&Modes.jsonGlobeThreadCond);
+        pthread_cond_signal(&Modes.jsonGlobeThreadCond);
 
     for (int i = 0; i < TRACE_THREADS; i++) {
         if (Modes.jsonTraceThread[i])
-            pthread_cond_broadcast(&Modes.jsonTraceThreadCond[i]);
+            pthread_cond_signal(&Modes.jsonTraceThreadCond[i]);
     }
 
     if (Modes.decodeThread) {
-        pthread_cond_broadcast(&Modes.decodeThreadCond);
-        pthread_cond_broadcast(&Modes.data_cond);
+        pthread_cond_signal(&Modes.decodeThreadCond);
+        pthread_cond_signal(&Modes.data_cond);
     }
 
-    pthread_cond_broadcast(&Modes.mainThreadCond);
+    for (int i = 0; i < STALE_THREADS; i++) {
+        pthread_cond_signal(&Modes.staleThreadCond[i]);
+    }
+
+    pthread_cond_signal(&Modes.mainThreadCond);
 }
 
 static void sigintHandler(int dummy) {
@@ -246,7 +250,6 @@ static void modesInitConfig(void) {
 //=========================================================================
 //
 static void modesInit(void) {
-    int i;
 
     Modes.startup_time = mstime();
 
@@ -289,8 +292,10 @@ static void modesInit(void) {
     for (int i = 0; i < TRACE_THREADS; i++) {
         pthread_mutex_init(&Modes.jsonTraceThreadMutex[i], NULL);
         pthread_cond_init(&Modes.jsonTraceThreadCond[i], NULL);
-        pthread_mutex_init(&Modes.jsonTraceThreadMutexFin[i], NULL);
-        pthread_mutex_lock(&Modes.jsonTraceThreadMutexFin[i]);
+    }
+    for (int i = 0; i < STALE_THREADS; i++) {
+        pthread_mutex_init(&Modes.staleThreadMutex[i], NULL);
+        pthread_cond_init(&Modes.staleThreadCond[i], NULL);
     }
 
     geomag_init();
@@ -314,7 +319,7 @@ static void modesInit(void) {
     }
 
     if (!Modes.net_only) {
-        for (i = 0; i < MODES_MAG_BUFFERS; ++i) {
+        for (int i = 0; i < MODES_MAG_BUFFERS; ++i) {
             if ((Modes.mag_buffers[i].data = calloc(MODES_MAG_BUF_SAMPLES + Modes.trailing_samples, sizeof (uint16_t))) == NULL) {
                 fprintf(stderr, "Out of memory allocating magnitude buffer.\n");
                 exit(1);
@@ -1379,11 +1384,20 @@ int main(int argc, char **argv) {
         writeJsonToFile(Modes.json_dir, "aircraft.json", generateAircraftJson());
     }
 
+    for (int i = 0; i < STALE_THREADS; i++) {
+        pthread_mutex_lock(&Modes.staleThreadMutex[i]);
+        pthread_create(&Modes.staleThread[i], NULL, staleThreadEntryPoint, &Modes.threadNumber[i]);
+    }
+
     pthread_create(&Modes.decodeThread, NULL, decodeThreadEntryPoint, NULL);
+
+    pthread_mutex_lock(&Modes.miscThreadMutex);
     pthread_create(&Modes.miscThread, NULL, miscThreadEntryPoint, NULL);
 
-    for (int i = 0; i < TRACE_THREADS; i++) {
-        pthread_create(&Modes.jsonTraceThread[i], NULL, jsonTraceThreadEntryPoint, &Modes.threadNumber[i]);
+    if (Modes.json_dir && Modes.json_globe_index) {
+        for (int i = 0; i < TRACE_THREADS; i++) {
+            pthread_create(&Modes.jsonTraceThread[i], NULL, jsonTraceThreadEntryPoint, &Modes.threadNumber[i]);
+        }
     }
 
     if (Modes.json_dir) {
@@ -1441,8 +1455,15 @@ int main(int argc, char **argv) {
     /* Cleanup network setup */
     cleanupNetwork();
 
-    for (int i = 0; i < TRACE_THREADS; i++) {
-        pthread_join(Modes.jsonTraceThread[i], NULL);
+    if (Modes.json_dir && Modes.json_globe_index) {
+        for (int i = 0; i < TRACE_THREADS; i++) {
+            pthread_join(Modes.jsonTraceThread[i], NULL);
+        }
+    }
+    for (int i = 0; i < STALE_THREADS; i++) {
+        pthread_cond_signal(&Modes.staleThreadCond[i]);
+        pthread_mutex_unlock(&Modes.staleThreadMutex[i]);
+        pthread_join(Modes.staleThread[i], NULL);
     }
 
     if (Modes.state_dir) {
@@ -1473,7 +1494,6 @@ int main(int argc, char **argv) {
     for (int i = 0; i < TRACE_THREADS; i++) {
         pthread_mutex_destroy(&Modes.jsonTraceThreadMutex[i]);
         pthread_cond_destroy(&Modes.jsonTraceThreadCond[i]);
-        pthread_mutex_destroy(&Modes.jsonTraceThreadMutexFin[i]);
     }
 
     pthread_mutex_destroy(&Modes.miscThreadMutex);

@@ -132,8 +132,14 @@ static void view1090Init(void) {
     for (int i = 0; i < TRACE_THREADS; i++) {
         pthread_mutex_init(&Modes.jsonTraceThreadMutex[i], NULL);
         pthread_cond_init(&Modes.jsonTraceThreadCond[i], NULL);
-        pthread_mutex_init(&Modes.jsonTraceThreadMutexFin[i], NULL);
-        pthread_mutex_lock(&Modes.jsonTraceThreadMutexFin[i]);
+    }
+    for (int i = 0; i < STALE_THREADS; i++) {
+        pthread_mutex_init(&Modes.staleThreadMutex[i], NULL);
+        pthread_cond_init(&Modes.staleThreadCond[i], NULL);
+    }
+
+    for (int i = 0; i < STALE_THREADS; i++) {
+        pthread_create(&Modes.staleThread[i], NULL, staleThreadEntryPoint, &Modes.threadNumber[i]);
     }
 
 #ifdef _WIN32
@@ -297,7 +303,7 @@ int main(int argc, char **argv) {
 
     // Initialization
     view1090Init();
-    
+
     // Keep going till the user does something that stops us
     while (!Modes.exit) {
         struct timespec r = { 0, 100 * 1000 * 1000};
@@ -316,6 +322,12 @@ int main(int argc, char **argv) {
         }
 
         nanosleep(&r, NULL);
+    }
+
+    for (int i = 0; i < STALE_THREADS; i++) {
+        pthread_cond_signal(&Modes.jsonTraceThreadCond[i]);
+        pthread_mutex_unlock(&Modes.staleThreadMutex[i]);
+        pthread_join(Modes.staleThread[i], NULL);
     }
 
     /* Go through tracked aircraft chain and free up any used memory */

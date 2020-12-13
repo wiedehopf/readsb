@@ -526,6 +526,7 @@ struct aircraft *trackUpdateFromMessage (struct modesMessage *mm);
 void trackPeriodicUpdate ();
 void miscStuff();
 void *miscThreadEntryPoint(void *arg);
+void *staleThreadEntryPoint(void *arg);
 
 void trackRemoveStaleThread(int start, int end, uint64_t now);
 
