@@ -958,7 +958,7 @@ void traceResize(struct aircraft *a, uint64_t now) {
         int new_start = a->trace_len;
 
         if (a->trace_len + TRACE_MARGIN >= TRACE_SIZE) {
-            new_start = TRACE_SIZE / 64;
+            new_start = TRACE_SIZE / 64 + TRACE_MARGIN;
         } else {
             int found = 0;
             for (int i = 0; i < a->trace_len; i++) {
@@ -1165,9 +1165,9 @@ save_state:
     posUsed = 1;
 no_save_state:
 
-    if (!a->trace) {
+    if (!a->trace || !a->trace_len) {
         // allocate trace memory
-        traceRealloc(a, 3 * TRACE_MARGIN);
+        traceRealloc(a, 2 * TRACE_MARGIN);
         a->trace->timestamp = now;
         a->trace_full_write = 9999; // rewrite full history file
 
@@ -1176,7 +1176,7 @@ no_save_state:
     if (a->trace_len + 1 >= a->trace_alloc) {
         static uint64_t antiSpam;
         if (now > antiSpam + 30 * SECONDS) {
-            fprintf(stderr, "CHECK CPU LOAD (maybe loop?) %06x: trace_len + 1 >= a->trace_alloc (%d).\n", a->addr, a->trace_len);
+            fprintf(stderr, "%06x: trace point couldn't be saved: trace_len + 1 >= a->trace_alloc (%d).\n", a->addr, a->trace_len);
             antiSpam = now;
         }
         return 0;

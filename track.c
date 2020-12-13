@@ -1851,8 +1851,10 @@ void trackRemoveStaleThread(int start, int end, uint64_t now) {
                     //fprintf(stderr, "%06x\n", a->addr);
 
                     // grow allocation
-                    if (a->trace_len && a->trace_len + TRACE_MARGIN >= a->trace_alloc) {
+                    if (a->trace_alloc && a->trace_len + TRACE_MARGIN >= a->trace_alloc) {
+                        int oldAlloc = a->trace_alloc;
                         traceRealloc(a, a->trace_alloc * 10 / 8 + TRACE_MARGIN);
+                        fprintf(stderr, "%06x: trace_len: %d traceRealloc: %d -> %d\n", a->addr, a->trace_len, oldAlloc, a->trace_alloc);
                     }
                 }
 
