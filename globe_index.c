@@ -1043,7 +1043,7 @@ int traceAdd(struct aircraft *a, uint64_t now) {
     struct state *last = NULL;
     int stale = 0;
 
-    if (now > a->seenPosReliable + 15 * SECONDS) {
+    if (now > a->seenPosReliable + TRACE_STALE + 2 * SECONDS) {
         stale = 1;
         // save a point if reception is spotty so we can mark track as spotty on display
         goto save_state;

@@ -2586,7 +2586,7 @@ void updateValidities(struct aircraft *a, uint64_t now) {
         a->pos_reliable_odd = 0;
         a->pos_reliable_even = 0;
     }
-    if (now > a->seenPosReliable + 20 * SECONDS) {
+    if (now > a->seenPosReliable + TRACE_STALE) {
         traceUsePosBuffered(a);
     }
 

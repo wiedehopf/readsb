@@ -9,6 +9,8 @@
 
 #define TDATE_FORMAT "%Y/%m/%d"
 
+#define TRACE_STALE (15 * SECONDS)
+
 struct tile {
     int south;
     int west;
