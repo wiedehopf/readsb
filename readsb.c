@@ -473,10 +473,12 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
     srandom(get_seed());
 
-    static int part;
+    int part = 0;
+    int writeJson = 0;
     int n_parts = 4; // power of 2
 
-    uint64_t sleep_ms = Modes.json_interval / n_parts;
+    uint64_t sleep_ms = Modes.json_interval / n_parts / 2;
+    // write globe binCraft at double speed, globe json at normal speed
 
     pthread_mutex_lock(&Modes.jsonGlobeThreadMutex);
 
@@ -485,6 +487,9 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
 
     while (!Modes.exit) {
         char filename[32];
+
+        if (part == 0)
+            writeJson = !writeJson;
 
         incTimedwait(&ts, sleep_ms);
 
@@ -518,7 +523,7 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
             writeJsonToGzip(Modes.json_dir, filename, cb3, 5);
             free(cb3.buffer);
 
-            if (!Modes.jsonBinCraft) {
+            if (!Modes.jsonBinCraft && writeJson) {
                 snprintf(filename, 31, "globe_%04d.json", i);
                 struct char_buffer cb = generateGlobeJson(i);
                 writeJsonToGzip(Modes.json_dir, filename, cb, 3);
