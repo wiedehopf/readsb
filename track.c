@@ -1818,45 +1818,13 @@ void trackRemoveStaleThread(int start, int end, uint64_t now) {
                 *nextPointer = a->next;
 
                 freeAircraft(a);
+
             } else {
                 if (now < a->seen + TRACK_EXPIRE_JAERO + 1 * MINUTES) {
                     updateValidities(a, now);
-                    a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = 0;
                 }
 
-                if (Modes.keep_traces && a->trace_alloc) {
-
-                    if (Modes.json_globe_index) {
-                        if (now > a->trace_next_fw) {
-                            traceResize(a, now);
-                            a->trace_write = 1;
-                        }
-
-                        if (Modes.doFullTraceWrite) {
-                            if (now < a->seen_pos + 3 * HOURS) {
-                                a->trace_next_fw = now + random() % (2 * MINUTES); // spread over 2 mins
-                                a->trace_full_write = 0xc0ffee;
-                            } else {
-                                a->trace_next_fw = now + 3 * MINUTES + random() % (2 * MINUTES); // spread over 2 mins
-                                a->trace_full_write = 0xc0ffee;
-                            }
-                        }
-                    } else { // without globe_index keep traces in memory only for 2 hours (used for heatmap)
-                        if (now > a->trace_next_fw) {
-                            traceResize(a, now);
-                            a->trace_next_fw = now + 2 * HOURS + random() % (30 * MINUTES);
-                        }
-                    }
-
-                    //fprintf(stderr, "%06x\n", a->addr);
-
-                    // grow allocation
-                    if (a->trace_alloc && a->trace_len + TRACE_MARGIN >= a->trace_alloc) {
-                        int oldAlloc = a->trace_alloc;
-                        traceRealloc(a, a->trace_alloc * 10 / 8 + TRACE_MARGIN);
-                        fprintf(stderr, "%06x: trace_len: %d traceRealloc: %d -> %d\n", a->addr, a->trace_len, oldAlloc, a->trace_alloc);
-                    }
-                }
+                traceMaintenance(a, now);
 
                 nextPointer = &(a->next);
             }
@@ -2542,6 +2510,8 @@ void freeAircraft(struct aircraft *a) {
         free(a);
 }
 void updateValidities(struct aircraft *a, uint64_t now) {
+    a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = 0;
+
     if (a->globe_index >= 0 && now > a->seen_pos + TRACK_EXPIRE_JAERO + 1 * MINUTES) {
         set_globe_index(a, -5);
     }

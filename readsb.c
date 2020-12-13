@@ -1451,7 +1451,6 @@ int main(int argc, char **argv) {
     trackPeriodicUpdate();
     // ------------
 
-
     /* Cleanup network setup */
     cleanupNetwork();
 

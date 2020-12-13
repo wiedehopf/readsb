@@ -455,6 +455,7 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
         Modes.aircraft[hash] = a;
     }
 
+    traceMaintenance(a, now); // check the allocation has sufficient margin
     if (a->trace_alloc && Modes.json_dir && Modes.json_globe_index && now < a->seen_pos + 2 * MINUTES) {
         // the value below is again overwritten in track.c when a fullWrite is done on startup
         a->trace_next_mw = a->trace_next_fw = now + 1 * MINUTES + random() % (2 * MINUTES);
@@ -1022,6 +1023,44 @@ void traceCleanup(struct aircraft *a) {
 
     traceUnlink(a);
 }
+
+
+void traceMaintenance(struct aircraft *a, uint64_t now) {
+    if (!(Modes.keep_traces && a->trace_alloc))
+        return;
+
+    //fprintf(stderr, "%06x\n", a->addr);
+    // grow allocation if necessary
+    if (a->trace_alloc && a->trace_len + TRACE_MARGIN >= a->trace_alloc) {
+        int oldAlloc = a->trace_alloc;
+        traceRealloc(a, a->trace_alloc * 10 / 8 + TRACE_MARGIN);
+        fprintf(stderr, "%06x: trace_len: %d traceRealloc: %d -> %d\n", a->addr, a->trace_len, oldAlloc, a->trace_alloc);
+    }
+
+    if (Modes.json_globe_index) {
+        if (now > a->trace_next_fw) {
+            traceResize(a, now);
+            a->trace_write = 1;
+        }
+
+        if (Modes.doFullTraceWrite) {
+            if (now < a->seen_pos + 3 * HOURS) {
+                a->trace_next_fw = now + random() % (2 * MINUTES); // spread over 2 mins
+                a->trace_full_write = 0xc0ffee;
+            } else {
+                a->trace_next_fw = now + 3 * MINUTES + random() % (2 * MINUTES); // spread over 2 mins
+                a->trace_full_write = 0xc0ffee;
+            }
+        }
+    } else {
+        // without globe_index keep traces in memory only for 2 hours (used for heatmap)
+        if (now > a->trace_next_fw) {
+            traceResize(a, now);
+            a->trace_next_fw = now + 2 * HOURS + random() % (30 * MINUTES);
+        }
+    }
+}
+
 
 int traceAdd(struct aircraft *a, uint64_t now) {
     int posUsed = 0;

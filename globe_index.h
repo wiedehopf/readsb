@@ -35,6 +35,7 @@ void traceCleanup(struct aircraft *a);
 int traceAdd(struct aircraft *a, uint64_t now);
 void traceResize(struct aircraft *a, uint64_t now);
 void traceUsePosBuffered();
+void traceMaintenance(struct aircraft *a, uint64_t now);
 
 int handleHeatmap(uint64_t now);
 
