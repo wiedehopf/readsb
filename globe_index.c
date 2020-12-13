@@ -1032,10 +1032,11 @@ void traceMaintenance(struct aircraft *a, uint64_t now) {
     //fprintf(stderr, "%06x\n", a->addr);
     // grow allocation if necessary
     if (a->trace_alloc && a->trace_len + TRACE_MARGIN >= a->trace_alloc) {
-        int oldAlloc = a->trace_alloc;
         traceRealloc(a, a->trace_alloc * 10 / 8 + TRACE_MARGIN);
-        fprintf(stderr, "%06x: trace_len: %d traceRealloc: %d -> %d\n", a->addr, a->trace_len, oldAlloc, a->trace_alloc);
     }
+
+    //fprintf(stderr, "%06x: trace_len: %d traceRealloc: %d -> %d\n", a->addr, a->trace_len, oldAlloc, a->trace_alloc);
+    //int oldAlloc = a->trace_alloc;
 
     if (Modes.json_globe_index) {
         if (now > a->trace_next_fw) {

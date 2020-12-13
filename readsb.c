@@ -251,8 +251,6 @@ static void modesInitConfig(void) {
 //
 static void modesInit(void) {
 
-    Modes.startup_time = mstime();
-
     if (Modes.json_reliable == -13) {
         if (Modes.json_globe_index || Modes.globe_history_dir)
             Modes.json_reliable = 2;
@@ -552,6 +550,8 @@ static void *decodeThreadEntryPoint(void *arg) {
      * clients without reading data from the RTL device.
      * This rules also in case a local Mode-S Beast is connected via USB.
      */
+
+    fprintf(stderr, "startup complete after %.3f seconds.\n", (mstime() - Modes.startup_time) / 1000.0);
 
     if (Modes.net_only) {
         uint32_t maxSleep = Modes.net_output_flush_interval / 2; // in ms
@@ -1236,12 +1236,14 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 //
 
 int main(int argc, char **argv) {
-    srandom(get_seed());
-
     int j;
 
     // Set sane defaults
     modesInitConfig();
+
+    Modes.startup_time = mstime();
+
+    srandom(get_seed());
 
     // signal handlers:
     signal(SIGINT, sigintHandler);
@@ -1363,7 +1365,7 @@ int main(int argc, char **argv) {
         Modes.aircraftCount = aircraftCount;
 
         double elapsed = stopWatch(&watch) / 1000.0;
-        fprintf(stderr, " .......... done, loaded %llu aircraft in %.2f seconds!\n", (unsigned long long) aircraftCount, elapsed);
+        fprintf(stderr, " .......... done, loaded %llu aircraft in %.3f seconds!\n", (unsigned long long) aircraftCount, elapsed);
         fprintf(stderr, "aircraft table fill: %0.1f\n", aircraftCount / (double) AIRCRAFT_BUCKETS );
 
         char pathbuf[PATH_MAX];
@@ -1481,7 +1483,7 @@ int main(int argc, char **argv) {
         }
 
         double elapsed = stopWatch(&watch) / 1000.0;
-        fprintf(stderr, " .......... done, saved %llu aircraft in %.2f seconds!\n", (unsigned long long) Modes.aircraftCount, elapsed);
+        fprintf(stderr, " .......... done, saved %llu aircraft in %.3f seconds!\n", (unsigned long long) Modes.aircraftCount, elapsed);
     }
 
     pthread_mutex_destroy(&Modes.decodeThreadMutex);

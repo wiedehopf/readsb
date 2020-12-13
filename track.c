@@ -1766,9 +1766,16 @@ static void updateAircraft() {
 }
 */
 
-static void trackRemoveStale() {
+static void trackRemoveStale(uint64_t now) {
     //fprintf(stderr, "removeStale()\n");
     //fprintf(stderr, "removeStale start: running for %ld ms\n", mstime() - Modes.startup_time);
+    static uint64_t lastRemoveStale;
+
+    if (now > lastRemoveStale + 5 * SECONDS && lastRemoveStale) {
+        fprintf(stderr, "removeStale interval too long: %.0f seconds\n", (double) (now - lastRemoveStale));
+    }
+
+    lastRemoveStale = now;
 
     for (int i = 0; i < STALE_THREADS; i++) {
         pthread_cond_signal(&Modes.staleThreadCond[i]);
@@ -1913,7 +1920,7 @@ void trackPeriodicUpdate() {
 
     static uint64_t nextRemoveStale;
     if (!Modes.miscThreadRunning && now > nextRemoveStale) {
-        trackRemoveStale();
+        trackRemoveStale(now);
         nextRemoveStale = now + 1 * SECONDS;
     }
 
