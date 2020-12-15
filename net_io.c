@@ -2462,8 +2462,13 @@ struct char_buffer generateAircraftJson(){
             //fprintf(stderr, "a: %05x\n", a->addr);
 
             // don't include stale aircraft in the JSON
-            if (a->position_valid.source != SOURCE_JAERO && now > a->seen + 15 * SECONDS && now > a->seen_pos + 60 * SECONDS)
+            if (a->position_valid.source != SOURCE_JAERO
+                    && now > a->seen + TRACK_EXPIRE / 3
+                    && now > a->seen_pos + TRACK_EXPIRE
+                    && trackDataAge(now, &a->altitude_baro_valid) > TRACK_EXPIRE * 2 / 3
+               ) {
                 continue;
+            }
             if (a->messages < 2)
                 continue;
 
@@ -3709,14 +3714,14 @@ static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64
         p = append_nav_modes(p, end, a->nav_modes, "\"", ",");
         p = safe_snprintf(p, end, "]");
     }
-    if (printMode != 1 && posReliable(a)) {
-        p = safe_snprintf(p, end, ",\"lat\":%f,\"lon\":%f,\"nic\":%u,\"rc\":%u,\"seen_pos\":%.1f",
-                a->lat, a->lon, a->pos_nic, a->pos_rc,
-                (now < a->position_valid.updated) ? 0 : ((now - a->position_valid.updated) / 1000.0));
-    }
-
-    if (now > a->seen_pos + 60 * MINUTES && now < a->rr_seen + 2 * MINUTES) {
-        p = safe_snprintf(p, end, ",\"rr_lat\":%.1f,\"rr_lon\":%.1f", a->rr_lat, a->rr_lon);
+    if (printMode != 1) {
+        if (posReliable(a)) {
+            p = safe_snprintf(p, end, ",\"lat\":%f,\"lon\":%f,\"nic\":%u,\"rc\":%u,\"seen_pos\":%.1f",
+                    a->lat, a->lon, a->pos_nic, a->pos_rc,
+                    (now < a->position_valid.updated) ? 0 : ((now - a->position_valid.updated) / 1000.0));
+        } else if (now < a->rr_seen + 2 * MINUTES) {
+            p = safe_snprintf(p, end, ",\"rr_lat\":%.1f,\"rr_lon\":%.1f", a->rr_lat, a->rr_lon);
+        }
     }
 
     if (printMode == 1 && trackDataValid(&a->position_valid)) {

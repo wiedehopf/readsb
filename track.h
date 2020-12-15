@@ -87,8 +87,8 @@
 #define ALTITUDE_BARO_RELIABLE_MAX 20
 
 #define TRACK_STALE (15*SECONDS)
-#define TRACK_EXPIRE (45*SECONDS)
-#define TRACK_EXPIRE_LONG (120*SECONDS)
+#define TRACK_EXPIRE (60*SECONDS)
+#define TRACK_EXPIRE_LONG (180*SECONDS)
 #define TRACK_EXPIRE_JAERO (33*MINUTES)
 
 // 2.5 seconds maximum between messages used for calculating wind / temperature
@@ -498,7 +498,7 @@ trackVState (uint64_t now, const data_validity *v, const data_validity *pos_vali
 {
     // source is valid, allow normal expiration time for shitty position sources
     if (pos_valid->source > SOURCE_JAERO)
-        return (v->source != SOURCE_INVALID && now < v->updated + TRACK_EXPIRE_LONG);
+        return (v->source != SOURCE_INVALID && now < v->updated + TRACK_EXPIRE);
 
     return (v->source != SOURCE_INVALID);
 }
