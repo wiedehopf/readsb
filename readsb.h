@@ -555,7 +555,7 @@ struct _Modes
     uint64_t next_stats_update;
     uint64_t next_stats_display;
     uint64_t next_api_update;
-    sem_t removeStaleSem;
+    uint64_t next_remove_stale;
     int8_t updateStats;
     int8_t removeStale;
     int stats_bucket; // index that has just been writte to

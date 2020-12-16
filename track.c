@@ -1771,8 +1771,8 @@ static void trackRemoveStale(uint64_t now) {
     //fprintf(stderr, "removeStale start: running for %ld ms\n", mstime() - Modes.startup_time);
     static uint64_t lastRemoveStale;
 
-    if (now > lastRemoveStale + 5 * SECONDS && lastRemoveStale) {
-        fprintf(stderr, "removeStale interval too long: %.0f seconds\n", (double) (now - lastRemoveStale));
+    if (now > lastRemoveStale + 3 * SECONDS && lastRemoveStale) {
+        fprintf(stderr, "removeStale interval too long: %.0f seconds\n", (now - lastRemoveStale) / 1000.0);
     }
 
     lastRemoveStale = now;
@@ -1918,10 +1918,9 @@ void trackPeriodicUpdate() {
 
     pthread_mutex_lock(&Modes.miscThreadRunningMutex);
 
-    static uint64_t nextRemoveStale;
-    if (!Modes.miscThreadRunning && now > nextRemoveStale) {
+    if (!Modes.miscThreadRunning && now > Modes.next_remove_stale) {
         trackRemoveStale(now);
-        nextRemoveStale = now + 1 * SECONDS;
+        Modes.next_remove_stale = now + 1 * SECONDS;
     }
 
     pthread_mutex_unlock(&Modes.miscThreadRunningMutex);
@@ -2062,15 +2061,18 @@ void *miscThreadEntryPoint(void *arg) {
     while (!Modes.exit) {
         pthread_mutex_lock(&Modes.miscThreadRunningMutex);
         Modes.miscThreadRunning = 1;
+        if (mstime() > Modes.next_remove_stale)
+            goto miscStuffSkip;
         pthread_mutex_unlock(&Modes.miscThreadRunningMutex);
 
         miscStuff();
 
         pthread_mutex_lock(&Modes.miscThreadRunningMutex);
+miscStuffSkip:
         Modes.miscThreadRunning = 0;
         pthread_mutex_unlock(&Modes.miscThreadRunningMutex);
 
-        incTimedwait(&ts, 400); // do something roughly every half second
+        incTimedwait(&ts, 250); // do something roughly every quarter second
 
         int err = pthread_cond_timedwait(&Modes.miscThreadCond, &Modes.miscThreadMutex, &ts);
         if (err && err != ETIMEDOUT)
