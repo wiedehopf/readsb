@@ -1179,6 +1179,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         break;
                     case 'G': Modes.debug_garbage = 1;
                         break;
+                    case 't': Modes.debug_traceAlloc = 1;
+                        break;
                     case 'T': Modes.debug_traceCount = 1;
                         break;
                     case 'K': Modes.debug_sampleCounter = 1;

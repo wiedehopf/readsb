@@ -999,9 +999,15 @@ void traceResize(struct aircraft *a, uint64_t now) {
         return;
     }
 
+    int oldAlloc = a->trace_alloc;
+
     // shrink allocation
-    if (a->trace_len && a->trace_len + TRACE_MARGIN < (a->trace_alloc * 7 / 10) && a->trace_alloc >= 3 * TRACE_MARGIN) {
-        traceRealloc(a, a->trace_alloc * 8 / 10 + TRACE_MARGIN);
+    if (a->trace_len && a->trace_len + 4 * TRACE_MARGIN < (a->trace_alloc * 3 / 4) && a->trace_alloc >= 3 * TRACE_MARGIN) {
+        traceRealloc(a, a->trace_alloc * 3 / 4 - TRACE_MARGIN);
+    }
+
+    if (Modes.debug_traceAlloc && a->trace_alloc != oldAlloc) {
+        fprintf(stderr, "%06x: shrink: trace_len: %d traceRealloc: %d -> %d\n", a->addr, a->trace_len, oldAlloc, a->trace_alloc);
     }
 }
 
@@ -1030,13 +1036,16 @@ void traceMaintenance(struct aircraft *a, uint64_t now) {
         return;
 
     //fprintf(stderr, "%06x\n", a->addr);
+    int oldAlloc = a->trace_alloc;
+
     // grow allocation if necessary
     if (a->trace_alloc && a->trace_len + TRACE_MARGIN >= a->trace_alloc) {
-        traceRealloc(a, a->trace_alloc * 10 / 8 + TRACE_MARGIN);
+        traceRealloc(a, a->trace_alloc * 4 / 3 + TRACE_MARGIN);
     }
 
-    //fprintf(stderr, "%06x: trace_len: %d traceRealloc: %d -> %d\n", a->addr, a->trace_len, oldAlloc, a->trace_alloc);
-    //int oldAlloc = a->trace_alloc;
+    if (Modes.debug_traceAlloc && a->trace_alloc != oldAlloc) {
+        fprintf(stderr, "%06x: grow: trace_len: %d traceRealloc: %d -> %d\n", a->addr, a->trace_len, oldAlloc, a->trace_alloc);
+    }
 
     if (Modes.json_globe_index) {
         if (now > a->trace_next_fw) {
