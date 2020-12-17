@@ -391,7 +391,9 @@ struct _Modes
     // stale removal
     pthread_t staleThread[STALE_THREADS];
     pthread_mutex_t staleThreadMutex[STALE_THREADS];
+    pthread_mutex_t staleThreadMutexDone[STALE_THREADS];
     pthread_cond_t staleThreadCond[STALE_THREADS];
+    uint64_t lastRemoveStale[STALE_THREADS];
 
     pthread_t miscThread;
     pthread_mutex_t miscThreadMutex;

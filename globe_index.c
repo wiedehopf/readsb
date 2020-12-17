@@ -1224,8 +1224,8 @@ no_save_state:
     }
     if (a->trace_len + 1 >= a->trace_alloc) {
         static uint64_t antiSpam;
-        if (now > antiSpam + 30 * SECONDS) {
-            fprintf(stderr, "%06x: trace point couldn't be saved: trace_len + 1 >= a->trace_alloc (%d).\n", a->addr, a->trace_len);
+        if (Modes.debug_traceAlloc || now > antiSpam + 30 * SECONDS) {
+            fprintf(stderr, "%06x: trace_alloc insufficient: trace_len %d trace_alloc %d now - lastTraceMaintenace %.1f s\n", a->addr, a->trace_len, a->trace_alloc, (now - a->lastTraceMaintenance) / 1000.0);
             antiSpam = now;
         }
         return 0;

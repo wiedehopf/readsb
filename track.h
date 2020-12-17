@@ -287,7 +287,7 @@ struct aircraft
   uint16_t paddingabc;
 
 
-  uint64_t padding23;
+  uint64_t lastTraceMaintenance;
   uint64_t addrtype_updated;
   float tat;
   uint16_t no_signal_count; // consecutive messages without signal strength specified
@@ -528,7 +528,7 @@ void miscStuff();
 void *miscThreadEntryPoint(void *arg);
 void *staleThreadEntryPoint(void *arg);
 
-void trackRemoveStaleThread(int start, int end, uint64_t now);
+void trackRemoveStaleThread(int thread, int start, int end, uint64_t now);
 
 void updateValidities(struct aircraft *a, uint64_t now);
 

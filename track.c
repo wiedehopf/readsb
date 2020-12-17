@@ -1767,21 +1767,16 @@ static void updateAircraft() {
 */
 
 static void trackRemoveStale(uint64_t now) {
+    MODES_NOTUSED(now);
     //fprintf(stderr, "removeStale()\n");
     //fprintf(stderr, "removeStale start: running for %ld ms\n", mstime() - Modes.startup_time);
-    static uint64_t lastRemoveStale;
-
-    if (now > lastRemoveStale + 3 * SECONDS && lastRemoveStale) {
-        fprintf(stderr, "removeStale interval too long: %.0f seconds\n", (now - lastRemoveStale) / 1000.0);
-    }
-
-    lastRemoveStale = now;
-
+    //
     for (int i = 0; i < STALE_THREADS; i++) {
         pthread_cond_signal(&Modes.staleThreadCond[i]);
         pthread_mutex_unlock(&Modes.staleThreadMutex[i]);
     }
     for (int i = 0; i < STALE_THREADS; i++) {
+        pthread_mutex_lock(&Modes.staleThreadMutexDone[i]);
         pthread_mutex_lock(&Modes.staleThreadMutex[i]);
     }
     Modes.doFullTraceWrite = 0;
@@ -1795,8 +1790,9 @@ static void trackRemoveStale(uint64_t now) {
 // we remove the aircraft from the list.
 //
 
-void trackRemoveStaleThread(int start, int end, uint64_t now) {
-    //fprintf(stderr, "%d %d\n", start, end);
+void trackRemoveStaleThread(int thread, int start, int end, uint64_t now) {
+    //fprintf(stderr, "%d %d %d %d\n", thread, start, end, AIRCRAFT_BUCKETS);
+    MODES_NOTUSED(thread);
 
     for (int j = start; j < end; j++) {
         struct aircraft **nextPointer = &(Modes.aircraft[j]);
@@ -1860,7 +1856,16 @@ void *staleThreadEntryPoint(void *arg) {
             break;
 
         uint64_t now = mstime();
-        trackRemoveStaleThread(thread_start, thread_end, now);
+        trackRemoveStaleThread(thread, thread_start, thread_end, now);
+
+        if (now > Modes.lastRemoveStale[thread] + 3 * SECONDS && Modes.lastRemoveStale[thread]) {
+            fprintf(stderr, "thread %d: removeStale interval too long: %.1f seconds\n", thread, (now - Modes.lastRemoveStale[thread]) / 1000.0);
+        }
+
+        Modes.lastRemoveStale[thread] = now;
+
+        pthread_mutex_unlock(&Modes.staleThreadMutexDone[thread]);
+
         //fprintf(stderr, "%d %d %d\n", thread, thread_start, thread_end);
     }
     pthread_mutex_unlock(&Modes.staleThreadMutex[thread]);

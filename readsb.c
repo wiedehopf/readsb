@@ -293,6 +293,7 @@ static void modesInit(void) {
     }
     for (int i = 0; i < STALE_THREADS; i++) {
         pthread_mutex_init(&Modes.staleThreadMutex[i], NULL);
+        pthread_mutex_init(&Modes.staleThreadMutexDone[i], NULL);
         pthread_cond_init(&Modes.staleThreadCond[i], NULL);
     }
 
@@ -1395,6 +1396,7 @@ int main(int argc, char **argv) {
 
     for (int i = 0; i < STALE_THREADS; i++) {
         pthread_mutex_lock(&Modes.staleThreadMutex[i]);
+        pthread_mutex_lock(&Modes.staleThreadMutexDone[i]);
         pthread_create(&Modes.staleThread[i], NULL, staleThreadEntryPoint, &Modes.threadNumber[i]);
     }
 
@@ -1471,6 +1473,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < STALE_THREADS; i++) {
         pthread_cond_signal(&Modes.staleThreadCond[i]);
         pthread_mutex_unlock(&Modes.staleThreadMutex[i]);
+        pthread_mutex_unlock(&Modes.staleThreadMutexDone[i]);
         pthread_join(Modes.staleThread[i], NULL);
     }
 
@@ -1502,6 +1505,11 @@ int main(int argc, char **argv) {
     for (int i = 0; i < TRACE_THREADS; i++) {
         pthread_mutex_destroy(&Modes.jsonTraceThreadMutex[i]);
         pthread_cond_destroy(&Modes.jsonTraceThreadCond[i]);
+    }
+    for (int i = 0; i < STALE_THREADS; i++) {
+        pthread_mutex_destroy(&Modes.staleThreadMutex[i]);
+        pthread_mutex_destroy(&Modes.staleThreadMutexDone[i]);
+        pthread_cond_destroy(&Modes.staleThreadCond[i]);
     }
 
     pthread_mutex_destroy(&Modes.miscThreadMutex);
