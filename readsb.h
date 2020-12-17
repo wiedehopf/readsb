@@ -398,7 +398,6 @@ struct _Modes
     pthread_t miscThread;
     pthread_mutex_t miscThreadMutex;
     pthread_cond_t miscThreadCond;
-    pthread_mutex_t miscThreadRunningMutex;
     int8_t miscThreadRunning;
 
     unsigned first_free_buffer; // Entry in mag_buffers that will next be filled with input.

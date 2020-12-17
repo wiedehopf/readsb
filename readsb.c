@@ -277,7 +277,6 @@ static void modesInit(void) {
     pthread_cond_init(&Modes.data_cond, NULL);
 
     pthread_mutex_init(&Modes.miscThreadMutex, NULL);
-    pthread_mutex_init(&Modes.miscThreadRunningMutex, NULL);
     pthread_mutex_init(&Modes.decodeThreadMutex, NULL);
     pthread_mutex_init(&Modes.jsonThreadMutex, NULL);
     pthread_mutex_init(&Modes.jsonGlobeThreadMutex, NULL);
@@ -1402,7 +1401,6 @@ int main(int argc, char **argv) {
 
     pthread_create(&Modes.decodeThread, NULL, decodeThreadEntryPoint, NULL);
 
-    pthread_mutex_lock(&Modes.miscThreadMutex);
     pthread_create(&Modes.miscThread, NULL, miscThreadEntryPoint, NULL);
 
     if (Modes.json_dir && Modes.json_globe_index) {
@@ -1452,6 +1450,11 @@ int main(int argc, char **argv) {
             pthread_join(Modes.jsonGlobeThread, NULL); // Wait on json writer thread exit
         }
     }
+    if (Modes.json_dir && Modes.json_globe_index) {
+        for (int i = 0; i < TRACE_THREADS; i++) {
+            pthread_join(Modes.jsonTraceThread[i], NULL);
+        }
+    }
 
     pthread_join(Modes.miscThread, NULL);
 
@@ -1465,16 +1468,11 @@ int main(int argc, char **argv) {
     /* Cleanup network setup */
     cleanupNetwork();
 
-    if (Modes.json_dir && Modes.json_globe_index) {
-        for (int i = 0; i < TRACE_THREADS; i++) {
-            pthread_join(Modes.jsonTraceThread[i], NULL);
-        }
-    }
     for (int i = 0; i < STALE_THREADS; i++) {
         pthread_cond_signal(&Modes.staleThreadCond[i]);
         pthread_mutex_unlock(&Modes.staleThreadMutex[i]);
-        pthread_mutex_unlock(&Modes.staleThreadMutexDone[i]);
         pthread_join(Modes.staleThread[i], NULL);
+        pthread_mutex_unlock(&Modes.staleThreadMutexDone[i]);
     }
 
     if (Modes.state_dir) {
@@ -1513,7 +1511,6 @@ int main(int argc, char **argv) {
     }
 
     pthread_mutex_destroy(&Modes.miscThreadMutex);
-    pthread_mutex_destroy(&Modes.miscThreadRunningMutex);
 
     pthread_mutex_destroy(&Modes.mainThreadMutex);
     pthread_cond_destroy(&Modes.mainThreadCond);

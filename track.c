@@ -1771,14 +1771,20 @@ static void trackRemoveStale(uint64_t now) {
     //fprintf(stderr, "removeStale()\n");
     //fprintf(stderr, "removeStale start: running for %ld ms\n", mstime() - Modes.startup_time);
     //
-    for (int i = 0; i < STALE_THREADS; i++) {
-        pthread_cond_signal(&Modes.staleThreadCond[i]);
-        pthread_mutex_unlock(&Modes.staleThreadMutex[i]);
+    int noThreads = 1;
+    if (noThreads) {
+        trackRemoveStaleThread(0, 0, AIRCRAFT_BUCKETS, now);
+    } else {
+        for (int i = 0; i < STALE_THREADS; i++) {
+            pthread_cond_signal(&Modes.staleThreadCond[i]);
+            pthread_mutex_unlock(&Modes.staleThreadMutex[i]);
+        }
+        for (int i = 0; i < STALE_THREADS; i++) {
+            pthread_mutex_lock(&Modes.staleThreadMutexDone[i]);
+            pthread_mutex_lock(&Modes.staleThreadMutex[i]);
+        }
     }
-    for (int i = 0; i < STALE_THREADS; i++) {
-        pthread_mutex_lock(&Modes.staleThreadMutexDone[i]);
-        pthread_mutex_lock(&Modes.staleThreadMutex[i]);
-    }
+
     Modes.doFullTraceWrite = 0;
 
     //fprintf(stderr, "removeStale done: running for %ld ms\n", mstime() - Modes.startup_time);
@@ -1852,13 +1858,10 @@ void *staleThreadEntryPoint(void *arg) {
         if (err)
             fprintf(stderr, "jsonTraceThread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
 
-        if (Modes.exit)
-            break;
-
         uint64_t now = mstime();
         trackRemoveStaleThread(thread, thread_start, thread_end, now);
 
-        if (now > Modes.lastRemoveStale[thread] + 3 * SECONDS && Modes.lastRemoveStale[thread]) {
+        if (now > Modes.lastRemoveStale[thread] + 5 * SECONDS && Modes.lastRemoveStale[thread]) {
             fprintf(stderr, "thread %d: removeStale interval too long: %.1f seconds\n", thread, (now - Modes.lastRemoveStale[thread]) / 1000.0);
         }
 
@@ -1868,7 +1871,6 @@ void *staleThreadEntryPoint(void *arg) {
 
         //fprintf(stderr, "%d %d %d\n", thread, thread_start, thread_end);
     }
-    pthread_mutex_unlock(&Modes.staleThreadMutex[thread]);
 
 #ifndef _WIN32
     pthread_exit(NULL);
@@ -1921,14 +1923,14 @@ void trackPeriodicUpdate() {
     struct timespec start_time;
     start_monotonic_timing(&start_time);
 
-    pthread_mutex_lock(&Modes.miscThreadRunningMutex);
+    pthread_mutex_lock(&Modes.miscThreadMutex);
 
     if (!Modes.miscThreadRunning && now > Modes.next_remove_stale) {
         trackRemoveStale(now);
         Modes.next_remove_stale = now + 1 * SECONDS;
     }
 
-    pthread_mutex_unlock(&Modes.miscThreadRunningMutex);
+    pthread_mutex_unlock(&Modes.miscThreadMutex);
 
     if (Modes.mode_ac && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 2)
         trackMatchAC(now);
@@ -2063,19 +2065,21 @@ void *miscThreadEntryPoint(void *arg) {
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
 
+    pthread_mutex_lock(&Modes.miscThreadMutex);
+
     while (!Modes.exit) {
-        pthread_mutex_lock(&Modes.miscThreadRunningMutex);
-        Modes.miscThreadRunning = 1;
-        if (mstime() > Modes.next_remove_stale)
-            goto miscStuffSkip;
-        pthread_mutex_unlock(&Modes.miscThreadRunningMutex);
+        if (mstime() < Modes.next_remove_stale) {
 
-        miscStuff();
+            Modes.miscThreadRunning = 1;
+            pthread_mutex_unlock(&Modes.miscThreadMutex);
 
-        pthread_mutex_lock(&Modes.miscThreadRunningMutex);
-miscStuffSkip:
-        Modes.miscThreadRunning = 0;
-        pthread_mutex_unlock(&Modes.miscThreadRunningMutex);
+            miscStuff();
+
+            pthread_mutex_lock(&Modes.miscThreadMutex);
+            Modes.miscThreadRunning = 0;
+
+        }
+
 
         incTimedwait(&ts, 250); // do something roughly every quarter second
 

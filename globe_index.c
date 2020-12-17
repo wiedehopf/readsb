@@ -961,18 +961,28 @@ void traceResize(struct aircraft *a, uint64_t now) {
         if (a->trace_len + TRACE_MARGIN >= TRACE_SIZE) {
             new_start = TRACE_SIZE / 64 + TRACE_MARGIN;
         } else {
-            int found = 0;
             for (int i = 0; i < a->trace_len; i++) {
                 struct state *state = &a->trace[i];
                 if (state->timestamp > keep_after) {
                     new_start = i;
-                    found = 1;
                     break;
                 }
             }
-            if (!found)
-                new_start = a->trace_len;
         }
+
+        if (new_start == a->trace_len) {
+            traceCleanup(a);
+            // if the trace length was reduced to zero, the trace is deleted from run
+            // it is not written again until a new position is received
+            return;
+        }
+
+        // make sure we keep state and state_all together
+        new_start -= (new_start % 4);
+
+        if (new_start % 4 != 0)
+            fprintf(stderr, "not divisible by 4: %d %d\n", new_start, a->trace_len);
+
 
         a->trace_len -= new_start;
 
@@ -990,13 +1000,6 @@ void traceResize(struct aircraft *a, uint64_t now) {
         //a->trace_write = 1;
         //a->trace_full_write = 9999; // rewrite full history file
 
-    }
-
-    if (a->trace_len == 0) {
-        traceCleanup(a);
-        // if the trace length was reduced to zero, the trace is deleted from run
-        // it is not written again until a new position is received
-        return;
     }
 
     int oldAlloc = a->trace_alloc;
@@ -1026,6 +1029,7 @@ void traceCleanup(struct aircraft *a) {
     a->trace_alloc = 0;
     a->trace = NULL;
     a->trace_all = NULL;
+    a->trace_len = 0;
 
     traceUnlink(a);
 }
@@ -1037,6 +1041,11 @@ void traceMaintenance(struct aircraft *a, uint64_t now) {
 
     //fprintf(stderr, "%06x\n", a->addr);
     int oldAlloc = a->trace_alloc;
+
+    // throw out oldest values if approachign max trace size
+    if (a->trace_len + TRACE_MARGIN >= TRACE_SIZE) {
+        traceResize(a, now);
+    }
 
     // grow allocation if necessary
     if (a->trace_alloc && a->trace_len + TRACE_MARGIN >= a->trace_alloc) {
