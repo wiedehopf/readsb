@@ -1806,10 +1806,10 @@ void trackRemoveStaleThread(int thread, int start, int end, uint64_t now) {
             struct aircraft *a = *nextPointer;
             if (
                     (!a->seen_pos && (now > a->seen + TRACK_AIRCRAFT_NO_POS_TTL))
-                    || ((a->addr & MODES_NON_ICAO_ADDRESS) && (now > a->seen + TRACK_AIRCRAFT_NON_ICAO_TTL))
                     || (a->seen_pos && (
-                            (Modes.state_dir && now > a->seen_pos + TRACK_AIRCRAFT_TTL) ||
-                            (!Modes.state_dir && now > a->seen_pos + TRACK_AIRCRAFT_NO_STATE_TTL)
+                            (Modes.state_dir && now > a->seen_pos + TRACK_AIRCRAFT_TTL)
+                            || (!Modes.state_dir && now > a->seen_pos + TRACK_AIRCRAFT_NO_STATE_TTL)
+                            || ((a->addr & MODES_NON_ICAO_ADDRESS) && (now > a->seen_pos + TRACK_AIRCRAFT_NON_ICAO_TTL))
                             ))
                ) {
                 // Count aircraft where we saw only one message before reaping them.

@@ -60,17 +60,16 @@
 
 
 /* Maximum age of tracked aircraft in milliseconds */
-#define TRACK_AIRCRAFT_TTL (10 * 24 * HOURS)
-// 10 days should cover almost all turn-arounds.
-// due to new receiver relative stuff reduce this to 10 days
+#define TRACK_AIRCRAFT_TTL (14 * 24 * HOURS)
+// 14 days should cover almost all turn-arounds.
 //
-// reduce this to 5h if we don't save state to disk
-#define TRACK_AIRCRAFT_NO_STATE_TTL (5 * HOURS)
+// reduce this to 26h if we don't save state to disk
+#define TRACK_AIRCRAFT_NO_STATE_TTL (26 * HOURS)
 //
 #define TRACK_AIRCRAFT_NO_POS_TTL (5 * MINUTES)
 // only 5 minutes for aircraft without position
 
-#define TRACK_AIRCRAFT_NON_ICAO_TTL (5 * HOURS)
+#define TRACK_AIRCRAFT_NON_ICAO_TTL (26 * HOURS)
 // 5 hours for NON_ICAO aircraft
 
 /* Maximum age of a tracked aircraft with only 1 message received, in milliseconds */
