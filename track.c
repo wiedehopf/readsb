@@ -1862,7 +1862,7 @@ void *staleThreadEntryPoint(void *arg) {
 
             trackRemoveStaleThread(thread, thread_start, thread_end, now);
 
-            if (now > Modes.lastRemoveStale[thread] + 5 * SECONDS && Modes.lastRemoveStale[thread] && !Modes.exit) {
+            if (now > Modes.lastRemoveStale[thread] + 5 * SECONDS && Modes.lastRemoveStale[thread] && !Modes.staleStop) {
                 fprintf(stderr, "thread %d: removeStale interval too long: %.1f seconds\n", thread, (now - Modes.lastRemoveStale[thread]) / 1000.0);
             }
             Modes.lastRemoveStale[thread] = now;

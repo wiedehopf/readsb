@@ -1020,8 +1020,9 @@ void traceResize(struct aircraft *a, uint64_t now) {
     int oldAlloc = a->trace_alloc;
 
     // shrink allocation
-    if (a->trace_len && a->trace_len + 4 * TRACE_MARGIN < (a->trace_alloc * 3 / 4) && a->trace_alloc >= 3 * TRACE_MARGIN) {
-        traceRealloc(a, a->trace_alloc * 3 / 4 - TRACE_MARGIN);
+    int shrinkTo = (a->trace_alloc - TRACE_MARGIN) * 3 / 4;
+    if (a->trace_len && a->trace_len < shrinkTo - 2 * TRACE_MARGIN && shrinkTo >= 2 * TRACE_MARGIN) {
+        traceRealloc(a, shrinkTo);
     }
 
     if (Modes.debug_traceAlloc && a->trace_alloc != oldAlloc) {
