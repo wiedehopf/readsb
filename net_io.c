@@ -315,8 +315,10 @@ struct client *checkServiceConnected(struct net_connector *con) {
     con->lastConnect = mstime();
     c->con = con;
 
-    fprintf(stderr, "%s: Connection established: %s%s port %s\n",
-            con->service->descr, con->address, con->resolved_addr, con->port);
+    if (!Modes.interactive) {
+        fprintf(stderr, "%s: Connection established: %s%s port %s\n",
+                con->service->descr, con->address, con->resolved_addr, con->port);
+    }
 
     // sending UUID if hostname matches adsbexchange
     if (c->sendq && strstr(con->address, "feed.adsbexchange.com")) {
@@ -366,6 +368,9 @@ struct client *serviceConnect(struct net_connector *con) {
                 con->addr_info = NULL;
             }
 
+            con->gai_request_in_progress = 1;
+            con->gai_request_done = 0;
+
             if (pthread_create(&con->thread, NULL, pthreadGetaddrinfo, con)) {
                 con->next_reconnect = mstime() + 15000;
                 fprintf(stderr, "%s: pthread_create ERROR for %s port %s: %s\n", con->service->descr, con->address, con->port, strerror(errno));
@@ -377,19 +382,21 @@ struct client *serviceConnect(struct net_connector *con) {
             return NULL;
         } else {
 
-            if (pthread_mutex_trylock(&con->mutex)) {
-                // couldn't acquire lock, request not finished
+            pthread_mutex_lock(&con->mutex);
+            if (!con->gai_request_done) {
                 con->next_reconnect = mstime() + 50;
+                pthread_mutex_unlock(&con->mutex);
                 return NULL;
             }
+            pthread_mutex_unlock(&con->mutex);
+
+            con->gai_request_in_progress = 0;
 
             if (pthread_join(con->thread, NULL)) {
                 fprintf(stderr, "%s: pthread_join ERROR for %s port %s: %s\n", con->service->descr, con->address, con->port, strerror(errno));
                 con->next_reconnect = mstime() + 15000;
                 return NULL;
             }
-
-            con->gai_request_in_progress = 0;
 
             if (con->gai_error) {
                 fprintf(stderr, "%s: Name resolution for %s failed: %s\n", con->service->descr, con->address, gai_strerror(con->gai_error));
@@ -508,6 +515,8 @@ struct net_service *makeBeastInputService(void) {
 }
 
 void modesInitNet(void) {
+    if (!Modes.net)
+        return;
     struct net_service *s;
     struct net_service *beast_out;
     struct net_service *beast_reduce_out;
@@ -663,7 +672,6 @@ void modesInitNet(void) {
         else if (strcmp(con->protocol, "sbs_out_replay") == 0)
             con->service = sbs_out_replay;
 
-        pthread_mutex_lock(&con->mutex);
     }
 }
 
@@ -3610,6 +3618,8 @@ static void *pthreadGetaddrinfo(void *param) {
     }
     con->gai_error = getaddrinfo(con->address, con->port, &gai_hints, &con->addr_info);
 
+    pthread_mutex_lock(&con->mutex);
+    con->gai_request_done = 1;
     pthread_mutex_unlock(&con->mutex);
     return NULL;
 }
@@ -3808,12 +3818,14 @@ void cleanupNetwork(void) {
 
     for (int i = 0; i < Modes.net_connectors_count; i++) {
         struct net_connector *con = Modes.net_connectors[i];
+        if (con->gai_request_in_progress) {
+            pthread_join(con->thread, NULL);
+        }
         free(con->address0);
         if (con->addr_info) {
             freeaddrinfo(con->addr_info);
             con->addr_info = NULL;
         }
-        pthread_mutex_unlock(&con->mutex);
         pthread_mutex_destroy(&con->mutex);
         free(con);
     }

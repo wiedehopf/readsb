@@ -56,6 +56,11 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
+void msleep(uint64_t ms) {
+    struct timespec slp = {ms / 1000, (ms % 1000) * 1000 * 1000};
+    nanosleep(&slp, NULL);
+}
+
 uint64_t mstime(void) {
     struct timeval tv;
     uint64_t mst;

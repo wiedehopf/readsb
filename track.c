@@ -1770,18 +1770,18 @@ static void trackRemoveStale(uint64_t now) {
     MODES_NOTUSED(now);
     //fprintf(stderr, "removeStale()\n");
     //fprintf(stderr, "removeStale start: running for %ld ms\n", mstime() - Modes.startup_time);
-    //
-    int noThreads = 1;
-    if (noThreads) {
-        trackRemoveStaleThread(0, 0, AIRCRAFT_BUCKETS, now);
-    } else {
-        for (int i = 0; i < STALE_THREADS; i++) {
-            pthread_cond_signal(&Modes.staleThreadCond[i]);
-            pthread_mutex_unlock(&Modes.staleThreadMutex[i]);
-        }
-        for (int i = 0; i < STALE_THREADS; i++) {
-            pthread_mutex_lock(&Modes.staleThreadMutexDone[i]);
-            pthread_mutex_lock(&Modes.staleThreadMutex[i]);
+
+    for (int thread = 0; thread < STALE_THREADS; thread++) {
+        pthread_mutex_lock(&Modes.staleMutex[thread]);
+        Modes.staleRun[thread] = 1;
+        pthread_cond_signal(&Modes.staleCond[thread]);
+        pthread_mutex_unlock(&Modes.staleMutex[thread]);
+    }
+    for (int thread = 0; thread < STALE_THREADS; thread++) {
+        while (Modes.staleRun[thread]) {
+            int err = pthread_cond_wait(&Modes.staleDoneCond[thread], &Modes.staleDoneMutex[thread]);
+            if (err)
+                fprintf(stderr, "trackRemoveStale: pthread_cond unexpected error: %s\n", strerror(err));
         }
     }
 
@@ -1842,35 +1842,39 @@ void trackRemoveStaleThread(int thread, int start, int end, uint64_t now) {
 }
 
 void *staleThreadEntryPoint(void *arg) {
-
     int thread = * (int *) arg;
+    pthread_mutex_lock(&Modes.staleMutex[thread]);
+    Modes.staleRun[thread] = 0;
+    pthread_cond_signal(&Modes.staleDoneCond[thread]); // tell the main thread we've take the staleMutex lock
+
     srandom(get_seed());
 
-    int thread_section_len = (AIRCRAFT_BUCKETS / STALE_THREADS);
-    int thread_start = thread * thread_section_len;
-    int thread_end = thread_start + thread_section_len;
+    int thread_start = thread * STALE_BUCKETS;
+    int thread_end = thread_start + STALE_BUCKETS;
 
-    while (!Modes.exit) {
-        int err;
-
-
-        err = pthread_cond_wait(&Modes.staleThreadCond[thread], &Modes.staleThreadMutex[thread]);
+    while (!Modes.staleStop) {
+        int err = pthread_cond_wait(&Modes.staleCond[thread], &Modes.staleMutex[thread]);
         if (err)
-            fprintf(stderr, "jsonTraceThread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
+            fprintf(stderr, "staleThread: pthread_cond_wait unexpected error: %s\n", strerror(err));
 
-        uint64_t now = mstime();
-        trackRemoveStaleThread(thread, thread_start, thread_end, now);
+        if (Modes.staleRun[thread]) {
+            uint64_t now = mstime();
 
-        if (now > Modes.lastRemoveStale[thread] + 5 * SECONDS && Modes.lastRemoveStale[thread]) {
-            fprintf(stderr, "thread %d: removeStale interval too long: %.1f seconds\n", thread, (now - Modes.lastRemoveStale[thread]) / 1000.0);
+            trackRemoveStaleThread(thread, thread_start, thread_end, now);
+
+            if (now > Modes.lastRemoveStale[thread] + 5 * SECONDS && Modes.lastRemoveStale[thread] && !Modes.exit) {
+                fprintf(stderr, "thread %d: removeStale interval too long: %.1f seconds\n", thread, (now - Modes.lastRemoveStale[thread]) / 1000.0);
+            }
+            Modes.lastRemoveStale[thread] = now;
+
+            pthread_mutex_lock(&Modes.staleDoneMutex[thread]);
+            Modes.staleRun[thread] = 0;
+            pthread_cond_signal(&Modes.staleDoneCond[thread]);
+            pthread_mutex_unlock(&Modes.staleDoneMutex[thread]);
         }
-
-        Modes.lastRemoveStale[thread] = now;
-
-        pthread_mutex_unlock(&Modes.staleThreadMutexDone[thread]);
-
         //fprintf(stderr, "%d %d %d\n", thread, thread_start, thread_end);
     }
+    pthread_mutex_unlock(&Modes.staleMutex[thread]);
 
 #ifndef _WIN32
     pthread_exit(NULL);
@@ -1882,19 +1886,21 @@ void *staleThreadEntryPoint(void *arg) {
 
 static void lockThreads() {
     for (int i = 0; i < TRACE_THREADS; i++) {
-        pthread_mutex_lock(&Modes.jsonTraceThreadMutex[i]);
+        pthread_mutex_lock(&Modes.jsonTraceMutex[i]);
     }
-    pthread_mutex_lock(&Modes.jsonThreadMutex);
-    pthread_mutex_lock(&Modes.jsonGlobeThreadMutex);
-    pthread_mutex_lock(&Modes.decodeThreadMutex);
+    pthread_mutex_lock(&Modes.jsonMutex);
+    pthread_mutex_lock(&Modes.jsonGlobeMutex);
+    pthread_mutex_lock(&Modes.miscMutex);
+    pthread_mutex_lock(&Modes.decodeMutex);
 }
 
 static void unlockThreads() {
-    pthread_mutex_unlock(&Modes.decodeThreadMutex);
-    pthread_mutex_unlock(&Modes.jsonThreadMutex);
-    pthread_mutex_unlock(&Modes.jsonGlobeThreadMutex);
+    pthread_mutex_unlock(&Modes.decodeMutex);
+    pthread_mutex_unlock(&Modes.miscMutex);
+    pthread_mutex_unlock(&Modes.jsonMutex);
+    pthread_mutex_unlock(&Modes.jsonGlobeMutex);
     for (int i = 0; i < TRACE_THREADS; i++) {
-        pthread_mutex_unlock(&Modes.jsonTraceThreadMutex[i]);
+        pthread_mutex_unlock(&Modes.jsonTraceMutex[i]);
     }
 }
 
@@ -1923,14 +1929,10 @@ void trackPeriodicUpdate() {
     struct timespec start_time;
     start_monotonic_timing(&start_time);
 
-    pthread_mutex_lock(&Modes.miscThreadMutex);
-
     if (!Modes.miscThreadRunning && now > Modes.next_remove_stale) {
         trackRemoveStale(now);
         Modes.next_remove_stale = now + 1 * SECONDS;
     }
-
-    pthread_mutex_unlock(&Modes.miscThreadMutex);
 
     if (Modes.mode_ac && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 2)
         trackMatchAC(now);
@@ -1959,7 +1961,7 @@ void trackPeriodicUpdate() {
     }
 
     //fprintf(stderr, "running for %ld ms\n", mstime() - Modes.startup_time);
-    //fprintf(stderr, "removeStale took %"PRIu64" ms!\n", elapsed);
+    //fprintf(stderr, "removeStale took %"PRIu64" ms, running for %ld ms\n", elapsed, now - Modes.startup_time);
 
     if (Modes.updateStats) {
         statsResetCount();
@@ -2060,22 +2062,22 @@ void miscStuff() {
 
 void *miscThreadEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
-    srandom(get_seed());
 
+    pthread_mutex_lock(&Modes.miscMutex);
+
+    srandom(get_seed());
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
-
-    pthread_mutex_lock(&Modes.miscThreadMutex);
 
     while (!Modes.exit) {
         if (mstime() < Modes.next_remove_stale) {
 
             Modes.miscThreadRunning = 1;
-            pthread_mutex_unlock(&Modes.miscThreadMutex);
 
+            pthread_mutex_unlock(&Modes.miscMutex);
             miscStuff();
+            pthread_mutex_lock(&Modes.miscMutex);
 
-            pthread_mutex_lock(&Modes.miscThreadMutex);
             Modes.miscThreadRunning = 0;
 
         }
@@ -2083,12 +2085,12 @@ void *miscThreadEntryPoint(void *arg) {
 
         incTimedwait(&ts, 250); // do something roughly every quarter second
 
-        int err = pthread_cond_timedwait(&Modes.miscThreadCond, &Modes.miscThreadMutex, &ts);
+        int err = pthread_cond_timedwait(&Modes.miscCond, &Modes.miscMutex, &ts);
         if (err && err != ETIMEDOUT)
             fprintf(stderr, "main thread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
     }
 
-    pthread_mutex_unlock(&Modes.miscThreadMutex);
+    pthread_mutex_unlock(&Modes.miscMutex);
 
 #ifndef _WIN32
     pthread_exit(NULL);
@@ -2518,14 +2520,6 @@ static const char *source_string(datasource_t source) {
         default:
             return "UNKN";
     }
-}
-
-void freeAircraft(struct aircraft *a) {
-        traceCleanup(a);
-
-        if (a->first_message)
-            free(a->first_message);
-        free(a);
 }
 void updateValidities(struct aircraft *a, uint64_t now) {
     a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = 0;

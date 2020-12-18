@@ -83,8 +83,8 @@ struct net_connector
     char *port1;
     char *protocol;
     struct net_service *service;
-    int connected;
-    int connecting;
+    int8_t connected;
+    int8_t connecting;
     int fd;
     uint64_t next_reconnect;
     uint64_t connect_timeout;
@@ -93,7 +93,8 @@ struct net_connector
     struct addrinfo *addr_info;
     struct addrinfo *try_addr; // pointer walking addr_info list
     int gai_error;
-    int gai_request_in_progress;
+    int8_t gai_request_in_progress;
+    int8_t gai_request_done;
     pthread_t thread;
     pthread_mutex_t mutex;
 };

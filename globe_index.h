@@ -43,6 +43,7 @@ struct craftArray {
     struct aircraft **list;
     int len; // index of highest entry + 1
     int alloc; // memory allocated for aircraft pointers
+    pthread_mutex_t mutex;
 };
 
 

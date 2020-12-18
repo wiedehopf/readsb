@@ -37,6 +37,14 @@ struct aircraft *aircraftGet(uint32_t addr) {
     return a;
 }
 
+void freeAircraft(struct aircraft *a) {
+        traceCleanup(a);
+
+        if (a->first_message)
+            free(a->first_message);
+        free(a);
+}
+
 struct aircraft *aircraftCreate(struct modesMessage *mm) {
     uint32_t addr = mm->addr;
 

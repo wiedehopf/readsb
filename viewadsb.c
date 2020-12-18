@@ -121,21 +121,21 @@ static void view1090Init(void) {
     pthread_mutex_init(&Modes.data_mutex, NULL);
     pthread_cond_init(&Modes.data_cond, NULL);
 
-    pthread_mutex_init(&Modes.decodeThreadMutex, NULL);
-    pthread_mutex_init(&Modes.jsonThreadMutex, NULL);
-    pthread_mutex_init(&Modes.jsonGlobeThreadMutex, NULL);
+    pthread_mutex_init(&Modes.decodeMutex, NULL);
+    pthread_mutex_init(&Modes.jsonMutex, NULL);
+    pthread_mutex_init(&Modes.jsonGlobeMutex, NULL);
 
-    pthread_cond_init(&Modes.decodeThreadCond, NULL);
-    pthread_cond_init(&Modes.jsonThreadCond, NULL);
-    pthread_cond_init(&Modes.jsonGlobeThreadCond, NULL);
+    pthread_cond_init(&Modes.decodeCond, NULL);
+    pthread_cond_init(&Modes.jsonCond, NULL);
+    pthread_cond_init(&Modes.jsonGlobeCond, NULL);
 
     for (int i = 0; i < TRACE_THREADS; i++) {
-        pthread_mutex_init(&Modes.jsonTraceThreadMutex[i], NULL);
-        pthread_cond_init(&Modes.jsonTraceThreadCond[i], NULL);
+        pthread_mutex_init(&Modes.jsonTraceMutex[i], NULL);
+        pthread_cond_init(&Modes.jsonTraceCond[i], NULL);
     }
     for (int i = 0; i < STALE_THREADS; i++) {
-        pthread_mutex_init(&Modes.staleThreadMutex[i], NULL);
-        pthread_cond_init(&Modes.staleThreadCond[i], NULL);
+        pthread_mutex_init(&Modes.staleMutex[i], NULL);
+        pthread_cond_init(&Modes.staleCond[i], NULL);
     }
 
     for (int i = 0; i < STALE_THREADS; i++) {
@@ -325,8 +325,8 @@ int main(int argc, char **argv) {
     }
 
     for (int i = 0; i < STALE_THREADS; i++) {
-        pthread_cond_signal(&Modes.jsonTraceThreadCond[i]);
-        pthread_mutex_unlock(&Modes.staleThreadMutex[i]);
+        pthread_cond_signal(&Modes.jsonTraceCond[i]);
+        pthread_mutex_unlock(&Modes.staleMutex[i]);
         pthread_join(Modes.staleThread[i], NULL);
     }
 

@@ -37,6 +37,8 @@ struct char_buffer readWholeFile(int fd, char *errorContext);
 struct char_buffer readWholeGz(gzFile gzfp, char *errorContext);
 int writeGz(gzFile gzfp, void *source, int toWrite, char *errorContext);
 
+void msleep(uint64_t ms);
+
 /* Returns system time in milliseconds */
 uint64_t mstime (void);
 

@@ -455,7 +455,7 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
         Modes.aircraft[hash] = a;
     }
 
-    traceMaintenance(a, now); // check the allocation has sufficient margin
+    //traceMaintenance(a, now); // shouldn't be necessary
     if (a->trace_alloc && Modes.json_dir && Modes.json_globe_index && now < a->seen_pos + 2 * MINUTES) {
         // the value below is again overwritten in track.c when a fullWrite is done on startup
         a->trace_next_mw = a->trace_next_fw = now + 1 * MINUTES + random() % (2 * MINUTES);
@@ -463,6 +463,11 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
         // setting mw, fw and full_write ensures only the recent trace is written, full trace would take too long
         traceWrite(a, now, 1);
     }
+
+    int new_index = a->globe_index;
+    a->globe_index = -5;
+    set_globe_index(a, new_index);
+    updateValidities(a, now);
 
     return 0;
 }
@@ -474,7 +479,7 @@ void *jsonTraceThreadEntryPoint(void *arg) {
     srandom(get_seed());
 
     int part = 0;
-    int n_parts = 64; // power of 2
+    int n_parts = 256; // power of 2
 
     int thread_section_len = (AIRCRAFT_BUCKETS / TRACE_THREADS);
     int thread_start = thread * thread_section_len;
@@ -485,24 +490,13 @@ void *jsonTraceThreadEntryPoint(void *arg) {
     // write each part every 10 seconds
     uint64_t sleep_ms = 10 * SECONDS / n_parts;
 
-    pthread_mutex_lock(&Modes.jsonTraceThreadMutex[thread]);
+    pthread_mutex_lock(&Modes.jsonTraceMutex[thread]);
 
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
 
     while (!Modes.exit) {
-        struct aircraft *a;
-        int err;
-
-        incTimedwait(&ts, sleep_ms);
-        err = pthread_cond_timedwait(&Modes.jsonTraceThreadCond[thread], &Modes.jsonTraceThreadMutex[thread], &ts);
-        if (err && err != ETIMEDOUT)
-            fprintf(stderr, "jsonTraceThread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
-
         //fprintf(stderr, "%d %d %d\n", part, start, end);
-        if (Modes.exit)
-            break;
-
         uint64_t now = mstime();
 
         int start = thread_start + part * section_len;
@@ -511,6 +505,7 @@ void *jsonTraceThreadEntryPoint(void *arg) {
         struct timespec start_time;
         start_cpu_timing(&start_time);
 
+        struct aircraft *a;
         for (int j = start; j < end; j++) {
             for (a = Modes.aircraft[j]; a; a = a->next) {
                 if (a->trace_write)
@@ -522,9 +517,14 @@ void *jsonTraceThreadEntryPoint(void *arg) {
         part %= n_parts;
 
         end_cpu_timing(&start_time, &Modes.stats_current.trace_json_cpu[thread]);
+
+        incTimedwait(&ts, sleep_ms);
+        int err = pthread_cond_timedwait(&Modes.jsonTraceCond[thread], &Modes.jsonTraceMutex[thread], &ts);
+        if (err && err != ETIMEDOUT)
+            fprintf(stderr, "jsonTraceThread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
     }
 
-    pthread_mutex_unlock(&Modes.jsonTraceThreadMutex[thread]);
+    pthread_mutex_unlock(&Modes.jsonTraceMutex[thread]);
 
 #ifndef _WIN32
     pthread_exit(NULL);
@@ -827,16 +827,19 @@ static void mark_legs(struct aircraft *a) {
 }
 
 void ca_init (struct craftArray *ca) {
-    *ca = (struct craftArray) {0};
+    //*ca = (struct craftArray) {0};
+    pthread_mutex_init(&ca->mutex , NULL);
 }
 
 void ca_destroy (struct craftArray *ca) {
     if (ca->list)
         free(ca->list);
+    pthread_mutex_destroy(&ca->mutex);
     *ca = (struct craftArray) {0};
 }
 
 void ca_add (struct craftArray *ca, struct aircraft *a) {
+    pthread_mutex_lock(&ca->mutex);
     if (ca->alloc == 0) {
         ca->alloc = 64;
         ca->list = realloc(ca->list, ca->alloc * sizeof(struct aircraft *));
@@ -845,6 +848,7 @@ void ca_add (struct craftArray *ca, struct aircraft *a) {
         ca->alloc *= 2;
         ca->list = realloc(ca->list, ca->alloc * sizeof(struct aircraft *));
     }
+    pthread_mutex_unlock(&ca->mutex);
     if (!ca->list) {
         fprintf(stderr, "ca_add(): out of memory!\n");
         exit(1);
@@ -855,14 +859,22 @@ void ca_add (struct craftArray *ca, struct aircraft *a) {
             return;
         }
     }
+    int found = -1;
     for (int i = 0; i < ca->len; i++) {
         if (ca->list[i] == NULL) {
-            ca->list[i] = a;
-            return; // added, len stays the same
+            found = i;
         }
     }
-    ca->list[ca->len] = a;  // added, len is incremented
-    ca->len++;
+
+    pthread_mutex_lock(&ca->mutex);
+    if (found >= 0 && ca->list[found] == NULL) { // re-check under mutex, if not null just append at end
+        ca->list[found] = a; // added, len unchanged
+    } else {
+        ca->list[ca->len] = a;  // added, len is incremented
+        ca->len++;
+    }
+    pthread_mutex_unlock(&ca->mutex);
+
     return;
 }
 
@@ -871,10 +883,13 @@ void ca_remove (struct craftArray *ca, struct aircraft *a) {
         return;
     for (int i = 0; i < ca->len; i++) {
         if (ca->list[i] == a) {
+
+            pthread_mutex_lock(&ca->mutex);
             ca->list[i] = NULL;
 
             if (i == ca->len - 1)
                 ca->len--;
+            pthread_mutex_unlock(&ca->mutex);
 
             return;
         }

@@ -310,8 +310,10 @@ typedef enum {
 #define STATE_BLOBS 256 // change naming scheme if increasing this
 #define IO_THREADS 8
 #define TRACE_THREADS 8
-#define STALE_THREADS 4
 #define PERIODIC_UPDATE 200 // don't use values larger than 200 ... some hard-coded stuff
+
+#define STALE_THREADS 4
+#define STALE_BUCKETS (AIRCRAFT_BUCKETS / STALE_THREADS)
 
 #define STAT_BUCKETS 90 // 90 * 10 seconds = 15 min (max interval in stats.json)
 
@@ -367,8 +369,8 @@ struct mag_buf
 
 struct _Modes
 { // Internal state
-    pthread_mutex_t mainThreadMutex;
-    pthread_cond_t mainThreadCond;
+    pthread_mutex_t mainMutex;
+    pthread_cond_t mainCond;
 
     pthread_cond_t data_cond; // Conditional variable associated
     pthread_t reader_thread;
@@ -376,28 +378,30 @@ struct _Modes
     pthread_t decodeThread; // thread writing json
     pthread_t jsonThread; // thread writing json
     pthread_t jsonGlobeThread; // thread writing json
-    pthread_mutex_t decodeThreadMutex;
-    pthread_mutex_t jsonThreadMutex;
-    pthread_mutex_t jsonGlobeThreadMutex;
-    pthread_cond_t decodeThreadCond;
-    pthread_cond_t jsonThreadCond;
-    pthread_cond_t jsonGlobeThreadCond;
+    pthread_mutex_t decodeMutex;
+    pthread_mutex_t jsonMutex;
+    pthread_mutex_t jsonGlobeMutex;
+    pthread_cond_t decodeCond;
+    pthread_cond_t jsonCond;
+    pthread_cond_t jsonGlobeCond;
 
     // writing icao trace jsons
     pthread_t jsonTraceThread[TRACE_THREADS];
-    pthread_mutex_t jsonTraceThreadMutex[TRACE_THREADS];
-    pthread_cond_t jsonTraceThreadCond[TRACE_THREADS];
+    pthread_mutex_t jsonTraceMutex[TRACE_THREADS];
+    pthread_cond_t jsonTraceCond[TRACE_THREADS];
 
     // stale removal
     pthread_t staleThread[STALE_THREADS];
-    pthread_mutex_t staleThreadMutex[STALE_THREADS];
-    pthread_mutex_t staleThreadMutexDone[STALE_THREADS];
-    pthread_cond_t staleThreadCond[STALE_THREADS];
+    pthread_mutex_t staleMutex[STALE_THREADS];
+    pthread_cond_t staleCond[STALE_THREADS];
+    pthread_mutex_t staleDoneMutex[STALE_THREADS];
+    pthread_cond_t staleDoneCond[STALE_THREADS];
+    int8_t staleRun[STALE_THREADS];
     uint64_t lastRemoveStale[STALE_THREADS];
 
     pthread_t miscThread;
-    pthread_mutex_t miscThreadMutex;
-    pthread_cond_t miscThreadCond;
+    pthread_mutex_t miscMutex;
+    pthread_cond_t miscCond;
     int8_t miscThreadRunning;
 
     unsigned first_free_buffer; // Entry in mag_buffers that will next be filled with input.
@@ -559,7 +563,7 @@ struct _Modes
     uint64_t next_api_update;
     uint64_t next_remove_stale;
     int8_t updateStats;
-    int8_t removeStale;
+    int8_t staleStop;
     int stats_bucket; // index that has just been writte to
     struct stats stats_10[STAT_BUCKETS];
     struct stats stats_current;
