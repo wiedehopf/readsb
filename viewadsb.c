@@ -100,6 +100,9 @@ static void view1090InitConfig(void) {
 
     Modes.viewAdsb = 1;
     Modes.show_only = 0xc0ffeeba; // default to out of normal range value
+    Modes.cpr_focus = 0xc0ffeeba;
+    Modes.json_reliable = 1;
+    Modes.filter_persistence = 8;
 
     // Now initialise things that should not be 0/NULL to their defaults
     Modes.check_crc = 1;
@@ -129,18 +132,37 @@ static void view1090Init(void) {
     pthread_cond_init(&Modes.jsonCond, NULL);
     pthread_cond_init(&Modes.jsonGlobeCond, NULL);
 
+    pthread_mutex_init(&Modes.miscMutex, NULL);
+    pthread_cond_init(&Modes.miscCond, NULL);
+
+    pthread_create(&Modes.miscThread, NULL, miscThreadEntryPoint, NULL);
+
     for (int i = 0; i < TRACE_THREADS; i++) {
         pthread_mutex_init(&Modes.jsonTraceMutex[i], NULL);
         pthread_cond_init(&Modes.jsonTraceCond[i], NULL);
     }
+
     for (int i = 0; i < STALE_THREADS; i++) {
         pthread_mutex_init(&Modes.staleMutex[i], NULL);
         pthread_cond_init(&Modes.staleCond[i], NULL);
+
+        pthread_mutex_init(&Modes.staleDoneMutex[i], NULL);
+        pthread_cond_init(&Modes.staleDoneCond[i], NULL);
+    }
+    for (int i = 0; i < 256; i++) {
+        Modes.threadNumber[i] = i;
     }
 
-    for (int i = 0; i < STALE_THREADS; i++) {
-        pthread_create(&Modes.staleThread[i], NULL, staleThreadEntryPoint, &Modes.threadNumber[i]);
+    for (int thread = 0; thread < STALE_THREADS; thread++) {
+        Modes.staleRun[thread] = 1;
+        pthread_mutex_lock(&Modes.staleDoneMutex[thread]);
+        pthread_create(&Modes.staleThread[thread], NULL, staleThreadEntryPoint, &Modes.threadNumber[thread]);
+        while (Modes.staleRun[thread]) {
+            pthread_cond_wait(&Modes.staleDoneCond[thread], &Modes.staleDoneMutex[thread]);
+        }
+        //fprintf(stderr, "%d\n", thread);
     }
+
 
 #ifdef _WIN32
     if ((!Modes.wsaData.wVersion)
@@ -192,7 +214,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptShowOnly:
             Modes.show_only = (uint32_t) strtoul(arg, NULL, 16);
+            Modes.cpr_focus = Modes.show_only;
             Modes.interactive = 0;
+            Modes.quiet = 1;
             break;
         case OptMetric:
             Modes.metric = 1;
@@ -272,7 +296,6 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Unable to initialize connector mutex!\n");
         exit(1);
     }
-    pthread_mutex_lock(&con->mutex);
 
     serviceConnect(con);
     uint64_t timeout = mstime() + 10 * 1000;
@@ -324,11 +347,28 @@ int main(int argc, char **argv) {
         nanosleep(&r, NULL);
     }
 
+    // stop stale threads and be careful about it
+    Modes.staleStop = 1;
     for (int i = 0; i < STALE_THREADS; i++) {
-        pthread_cond_signal(&Modes.jsonTraceCond[i]);
+        pthread_mutex_lock(&Modes.staleMutex[i]);
+        pthread_cond_signal(&Modes.staleCond[i]);
+        pthread_mutex_unlock(&Modes.staleDoneMutex[i]);
         pthread_mutex_unlock(&Modes.staleMutex[i]);
+
         pthread_join(Modes.staleThread[i], NULL);
+
+        pthread_mutex_destroy(&Modes.staleMutex[i]);
+        pthread_mutex_destroy(&Modes.staleDoneMutex[i]);
+        pthread_cond_destroy(&Modes.staleCond[i]);
+        pthread_cond_destroy(&Modes.staleDoneCond[i]);
+        //fprintf(stderr, "%d\n", i);
     }
+
+    pthread_mutex_lock(&Modes.miscMutex);
+    pthread_cond_signal(&Modes.miscCond);
+    pthread_mutex_unlock(&Modes.miscMutex);
+    pthread_join(Modes.miscThread, NULL);
+    pthread_mutex_destroy(&Modes.miscMutex);
 
     /* Go through tracked aircraft chain and free up any used memory */
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
@@ -342,7 +382,6 @@ int main(int argc, char **argv) {
     // Free local service and client
     if (s) free(s);
     freeaddrinfo(con->addr_info);
-    pthread_mutex_unlock(&con->mutex);
     pthread_mutex_destroy(&con->mutex);
     free(con);
 

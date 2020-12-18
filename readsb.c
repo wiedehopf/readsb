@@ -248,15 +248,17 @@ static void modesInit(void) {
     pthread_mutex_init(&Modes.data_mutex, NULL);
     pthread_cond_init(&Modes.data_cond, NULL);
 
-    pthread_mutex_init(&Modes.miscMutex, NULL);
     pthread_mutex_init(&Modes.decodeMutex, NULL);
-    pthread_mutex_init(&Modes.jsonMutex, NULL);
-    pthread_mutex_init(&Modes.jsonGlobeMutex, NULL);
-
-    pthread_cond_init(&Modes.miscCond, NULL);
     pthread_cond_init(&Modes.decodeCond, NULL);
-    pthread_cond_init(&Modes.jsonCond, NULL);
+
+    pthread_mutex_init(&Modes.jsonGlobeMutex, NULL);
     pthread_cond_init(&Modes.jsonGlobeCond, NULL);
+
+    pthread_mutex_init(&Modes.jsonMutex, NULL);
+    pthread_cond_init(&Modes.jsonCond, NULL);
+
+    pthread_mutex_init(&Modes.miscMutex, NULL);
+    pthread_cond_init(&Modes.miscCond, NULL);
 
     for (int i = 0; i < TRACE_THREADS; i++) {
         pthread_mutex_init(&Modes.jsonTraceMutex[i], NULL);
@@ -1422,7 +1424,7 @@ int main(int argc, char **argv) {
     pthread_cond_signal(&Modes.miscCond);
     pthread_mutex_unlock(&Modes.miscMutex);
     pthread_join(Modes.miscThread, NULL);
-
+    pthread_mutex_destroy(&Modes.miscMutex);
 
     pthread_mutex_lock(&Modes.decodeMutex);
     pthread_cond_signal(&Modes.decodeCond);
@@ -1490,7 +1492,6 @@ int main(int argc, char **argv) {
         pthread_cond_destroy(&Modes.jsonTraceCond[i]);
     }
 
-    pthread_mutex_destroy(&Modes.miscMutex);
 
     pthread_mutex_destroy(&Modes.mainMutex);
     pthread_cond_destroy(&Modes.mainCond);
