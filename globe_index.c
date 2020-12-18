@@ -1388,13 +1388,6 @@ void save_blob(int blob) {
 
     for (int j = start; j < end; j++) {
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
-            if (!a->seen_pos && a->trace_len == 0)
-                continue;
-            if (a->addr & MODES_NON_ICAO_ADDRESS)
-                continue;
-            if (a->messages < 2)
-                continue;
-
             memcpy(p, &magic, sizeof(magic));
             p += sizeof(magic);
 
