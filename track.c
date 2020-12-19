@@ -1091,6 +1091,15 @@ static int altitude_to_feet(int raw, altitude_unit_t unit) {
     }
 }
 
+// check if we trust that this message is actually from the aircraft with this address
+// similar reasoning to icaoFilterAdd in mode_s.c
+static int addressReliable(struct modesMessage *mm) {
+    if (mm->msgtype == 17 || mm->msgtype == 18 || (mm->msgtype == 11 && mm->IID == 0) || mm->sbs_in) {
+        return 1;
+    }
+    return 0;
+}
+
 //
 //=========================================================================
 //
@@ -1112,7 +1121,12 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     // Lookup our aircraft or create a new one
     a = aircraftGet(mm->addr);
     if (!a) { // If it's a currently unknown aircraft....
-        a = aircraftCreate(mm); // ., create a new record for it,
+        if (addressReliable(mm)) {
+            a = aircraftCreate(mm); // ., create a new record for it,
+        } else {
+            //fprintf(stderr, "%06x: !a && !addressReliable(mm)\n", mm->addr);
+            return NULL;
+        }
     }
 
     bool haveScratch = false;
@@ -1121,6 +1135,16 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         haveScratch = true;
         // messages from receivers classified garbage with position get processed to see if they still send garbage
     } else if (mm->garbage) {
+        return NULL;
+    }
+
+    // only count the aircraft as "seen" for reliable messages with CRC
+    if (addressReliable(mm)) {
+        a->seen = mm->sysTimestampMsg;
+    }
+
+    // don't use messages with unreliable CRC too long after receiving a reliable address from an aircraft
+    if (now > a->seen + 45 * SECONDS) {
         return NULL;
     }
 
@@ -1144,7 +1168,6 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             }
         }
     }
-    a->seen = mm->sysTimestampMsg;
 
     // reset to 100000 on overflow ... avoid any low message count checks
     if (a->messages == UINT32_MAX)

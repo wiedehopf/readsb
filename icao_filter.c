@@ -122,9 +122,8 @@ uint32_t icaoFilterTestFuzzy(uint32_t partial) {
 }
 
 // call this periodically:
-void icaoFilterExpire() {
+void icaoFilterExpire(uint64_t now) {
     static uint64_t next_flip = 0;
-    uint64_t now = mstime();
 
     if (now >= next_flip) {
         if (icao_filter_active == icao_filter_a) {

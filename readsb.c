@@ -674,13 +674,14 @@ static void display_total_stats(void) {
 static void backgroundTasks(void) {
     static uint64_t next_second;
 
-    icaoFilterExpire();
-
     if (Modes.net) {
         modesNetPeriodicWork();
     }
 
     uint64_t now = mstime();
+
+    icaoFilterExpire(now);
+
     if (now > next_second) {
         next_second = now + 1000;
 

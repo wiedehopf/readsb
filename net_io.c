@@ -1691,13 +1691,11 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
     int msgLen = 0;
     int j;
     unsigned char ch;
-    unsigned char msg[MODES_LONG_MSG_BYTES + 7];
     struct modesMessage mm;
+    unsigned char *msg = mm.msg;
     MODES_NOTUSED(c);
 
-    //mm = calloc(1, sizeof(struct modesMessage));
     memset(&mm, 0, sizeof(mm));
-    memset(&msg, 0, sizeof(msg));
 
     ch = *p++; /// Get the message type
 
@@ -1816,7 +1814,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
         } else {
             Modes.stats_current.demod_preambles++;
         }
-        result = decodeModesMessage(&mm, msg);
+        result = decodeModesMessage(&mm, NULL);
         if (result < 0) {
             if (result == -1) {
                 if (remote) {
@@ -1875,14 +1873,13 @@ static int hexDigitVal(int c) {
 //
 static int decodeHexMessage(struct client *c, char *hex, int remote, uint64_t now) {
     int l = strlen(hex), j;
-    unsigned char msg[MODES_LONG_MSG_BYTES];
     struct modesMessage mm;
+    unsigned char *msg = mm.msg;
 
     MODES_NOTUSED(remote);
     MODES_NOTUSED(c);
 
     memset(&mm, 0, sizeof(mm));
-    memset(&msg, 0, sizeof(msg));
 
     // Mark messages received over the internet as remote so that we don't try to
     // pass them off as being received by this instance when forwarding them
@@ -1968,7 +1965,7 @@ static int decodeHexMessage(struct client *c, char *hex, int remote, uint64_t no
         int result;
 
         Modes.stats_current.remote_received_modes++;
-        result = decodeModesMessage(&mm, msg);
+        result = decodeModesMessage(&mm, NULL);
         if (result < 0) {
             if (result == -1)
                 Modes.stats_current.remote_rejected_unknown_icao++;
@@ -2316,7 +2313,7 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
 
             if (a->position_valid.source == SOURCE_JAERO)
                 use = 1;
-            if (now < a->seen_pos + 5 * MINUTES)
+            if (now < a->seenPosReliable + 2 * MINUTES)
                 use = 1;
 
             if (!use)
@@ -2416,7 +2413,7 @@ struct char_buffer generateGlobeJson(int globe_index){
 
             if (a->position_valid.source == SOURCE_JAERO)
                 use = 1;
-            if (now < a->seen_pos + 5 * MINUTES)
+            if (now < a->seenPosReliable + 2 * MINUTES)
                 use = 1;
 
             if (!use)
@@ -2470,9 +2467,8 @@ struct char_buffer generateAircraftJson(){
 
             // don't include stale aircraft in the JSON
             if (a->position_valid.source != SOURCE_JAERO
-                    && now > a->seen + TRACK_EXPIRE / 3
-                    && now > a->seen_pos + TRACK_EXPIRE
-                    && trackDataAge(now, &a->altitude_baro_valid) > TRACK_EXPIRE * 2 / 3
+                    && now > a->seen + TRACK_EXPIRE / 2
+                    && now > a->seenPosReliable + TRACK_EXPIRE
                ) {
                 continue;
             }
