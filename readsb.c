@@ -445,18 +445,18 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
 
             snprintf(filename, 31, "globe_%04d.binCraft", i);
             struct char_buffer cb2 = generateGlobeBin(i, 0);
-            writeJsonToGzip(Modes.json_dir, filename, cb2, 5);
+            writeJsonToGzip(Modes.json_dir, filename, cb2, 6);
             free(cb2.buffer);
 
             snprintf(filename, 31, "globeMil_%04d.binCraft", i);
             struct char_buffer cb3 = generateGlobeBin(i, 1);
-            writeJsonToGzip(Modes.json_dir, filename, cb3, 5);
+            writeJsonToGzip(Modes.json_dir, filename, cb3, 3);
             free(cb3.buffer);
 
             if (!Modes.jsonBinCraft && writeJson) {
                 snprintf(filename, 31, "globe_%04d.json", i);
                 struct char_buffer cb = generateGlobeJson(i);
-                writeJsonToGzip(Modes.json_dir, filename, cb, 3);
+                writeJsonToGzip(Modes.json_dir, filename, cb, 2);
                 free(cb.buffer);
             }
         }
