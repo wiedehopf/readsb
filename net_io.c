@@ -2286,6 +2286,28 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
     uint32_t index = globe_index;
     memWrite(p, index);
 
+    int16_t south, west, north, east;
+
+    if (globe_index >= GLOBE_MIN_INDEX) {
+        int grid = GLOBE_INDEX_GRID;
+        south = ((globe_index - GLOBE_MIN_INDEX) / GLOBE_LAT_MULT) * grid - 90;
+        west = ((globe_index - GLOBE_MIN_INDEX) % GLOBE_LAT_MULT) * grid - 180;
+        north = south + grid;
+        east = west + grid;
+    } else {
+        struct tile *tiles = Modes.json_globe_special_tiles;
+        struct tile tile = tiles[globe_index];
+        south = tile.south;
+        west = tile.west;
+        north = tile.north;
+        east = tile.east;
+    }
+
+    memWrite(p, south);
+    memWrite(p, west);
+    memWrite(p, north);
+    memWrite(p, east);
+
     if (p - buf > (int) elementSize)
         fprintf(stderr, "buffer overrun globeBin\n");
 

@@ -19,37 +19,79 @@ void init_globe_index(struct tile *s_tiles) {
 
     // Arctic
     s_tiles[count++] = (struct tile) {
-        60, -130,
+        60, -126,
         90, 150
     };
 
     // North Pacific
     s_tiles[count++] = (struct tile) {
-        10, 150,
-        90, -130
+        9, 150,
+        51, -126
+    };
+    s_tiles[count++] = (struct tile) {
+        51, 150,
+        90, -126
     };
 
     // Northern Canada
     s_tiles[count++] = (struct tile) {
-        50, -130,
-        60, -70
+        51, -126,
+        60, -69
     };
 
     // Northwest USA
     s_tiles[count++] = (struct tile) {
-        40, -130,
-        50, -100
+        45, -120,
+        51, -114
+    };
+    s_tiles[count++] = (struct tile) {
+        45, -114,
+        51, -99
+    };
+    // Eastern Canada
+    s_tiles[count++] = (struct tile) {
+        45, -99,
+        51, -87
+    };
+    s_tiles[count++] = (struct tile) {
+        45, -87,
+        51, -75
+    };
+
+    s_tiles[count++] = (struct tile) {
+        45, -75,
+        51, -69
+    };
+
+    // Sweden
+    s_tiles[count++] = (struct tile) {
+        54, 12,
+        60, 21
+    };
+    // Denmark
+    s_tiles[count++] = (struct tile) {
+        54, 3,
+        60, 12
+    };
+    // Northern UK
+    s_tiles[count++] = (struct tile) {
+        54, -9,
+        60, 3
     };
 
     // West Russia
     s_tiles[count++] = (struct tile) {
-        40, 20,
-        60, 50
+        42, 21,
+        51, 51
+    };
+    s_tiles[count++] = (struct tile) {
+        51, 21,
+        60, 51
     };
 
     // Central Russia
     s_tiles[count++] = (struct tile) {
-        30, 50,
+        30, 51,
         60, 90
     };
 
@@ -66,91 +108,131 @@ void init_globe_index(struct tile *s_tiles) {
 
     // Persian Gulf / Arabian Sea
     s_tiles[count++] = (struct tile) {
-        10, 50,
-        30, 70
+        9, 51,
+        30, 69
     };
 
     // India
     s_tiles[count++] = (struct tile) {
-        10, 70,
+        9, 69,
         30, 90
     };
 
     // South China and ICAO special use
     s_tiles[count++] = (struct tile) {
-        10, 90,
-        30, 110
+        9, 90,
+        30, 111
     };
     s_tiles[count++] = (struct tile) {
-        10, 110,
+        9, 111,
         30, 150
     };
 
 
     // South Atlantic and Indian Ocean
     s_tiles[count++] = (struct tile) {
-        -90, -40,
-        10, 110
+        -90, -42,
+        9, 111
     };
 
     // Australia
     s_tiles[count++] = (struct tile) {
-        -90, 110,
-        10, 160
+        -90, 111,
+        -18, 160
+    };
+    s_tiles[count++] = (struct tile) {
+        -18, 111,
+        9, 160
     };
 
     // South Pacific and NZ
     s_tiles[count++] = (struct tile) {
         -90, 160,
-        10, -90
+        -42, -90
+    };
+    s_tiles[count++] = (struct tile) {
+        -42, 160,
+        9, -90
     };
 
     // North South America
     s_tiles[count++] = (struct tile) {
-        -10, -90,
-        10, -40
+        -9, -90,
+        9, -42
     };
 
     // South South America
     s_tiles[count++] = (struct tile) {
         -90, -90,
-        -10, -40
+        -9, -42
     };
 
     // Guatemala / Mexico
     s_tiles[count++] = (struct tile) {
-        10, -130,
-        30, -90
+        9, -126,
+        33, -117
+    };
+    s_tiles[count++] = (struct tile) {
+        9, -117,
+        30, -102
+    };
+    // western gulf + east mexico
+    s_tiles[count++] = (struct tile) {
+        9, -102,
+        27, -90
+    };
+    // Gulf of Mexico
+    s_tiles[count++] = (struct tile) {
+        24, -90,
+        30, -84
     };
 
     // Cuba / Haiti / Honduras
     s_tiles[count++] = (struct tile) {
-        10, -90,
-        20, -70
+        9, -90,
+        24, -69
     };
-
 
 
     // North Africa
     s_tiles[count++] = (struct tile) {
-        10, -10,
-        40, 30
+        9, -9,
+        39, 30
     };
 
     // Middle East
     s_tiles[count++] = (struct tile) {
-        10, 30,
-        40, 50
+        9, 30,
+        42, 51
     };
 
+    // west of Bermuda
+    s_tiles[count++] = (struct tile) {
+        24, -75,
+        39, -69
+    };
     // North Atlantic
     s_tiles[count++] = (struct tile) {
-        10, -70,
-        60, -10
+        9, -69,
+        30, -33
+    };
+    s_tiles[count++] = (struct tile) {
+        30, -69,
+        60, -33
+    };
+    s_tiles[count++] = (struct tile) {
+        9, -33,
+        30, -9
+    };
+    s_tiles[count++] = (struct tile) {
+        30, -33,
+        60, -9
     };
 
-    if (count + 1 > GLOBE_SPECIAL_INDEX)
-        fprintf(stderr, "increase GLOBE_SPECIAL_INDEX please!\n");
+    Modes.specialTileCount = count;
+
+    if (count + 1 >= GLOBE_SPECIAL_INDEX)
+        fprintf(stderr, "increase GLOBE_MIN_INDEX please!\n");
 }
 
 int globe_index(double lat_in, double lon_in) {

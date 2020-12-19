@@ -434,7 +434,7 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
             writeJson = !writeJson;
 
         for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
-            if (i == GLOBE_SPECIAL_INDEX)
+            if (i == Modes.specialTileCount)
                 i = GLOBE_MIN_INDEX;
 
             if (i % n_parts != part)
