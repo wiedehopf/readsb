@@ -15,10 +15,6 @@ DIALECT = -std=c11
 CFLAGS := $(DIALECT) -g -W -D_DEFAULT_SOURCE -Wall -Werror -fno-common -O2 $(OPTIMIZE) $(CFLAGS)
 LIBS = -pthread -lpthread -lm -lz -lrt
 
-ifeq ($(AGGRESSIVE), yes)
-  CPPFLAGS += -DALLOW_AGGRESSIVE
-endif
-
 ifeq ($(HISTORY), yes)
   CPPFLAGS += -DALL_JSON=1
 endif
@@ -81,8 +77,8 @@ readsb.o: readsb.c *.h .version
 readsb: readsb.o anet.o interactive.o mode_ac.o mode_s.o comm_b.o net_io.o crc.o demod_2400.o stats.o cpr.o icao_filter.o track.o util.o fasthash.o convert.o sdr_ifile.o sdr_beast.o sdr.o ais_charset.o globe_index.o geomag.o receiver.o aircraft.o $(SDR_OBJ) $(COMPAT)
 	$(CC) -g -o $@ $^ $(LDFLAGS) $(LIBS) $(LIBS_SDR) -lncurses
 
-viewadsb: viewadsb.o anet.o interactive.o mode_ac.o mode_s.o comm_b.o net_io.o crc.o stats.o cpr.o icao_filter.o track.o util.o fasthash.o ais_charset.o globe_index.o geomag.o receiver.o aircraft.o $(COMPAT)
-	$(CC) -g -o $@ $^ $(LDFLAGS) $(LIBS) -lncurses
+viewadsb: readsb
+	cp -f readsb viewadsb
 
 clean:
 	rm -f *.o compat/clock_gettime/*.o compat/clock_nanosleep/*.o readsb viewadsb cprtests crctests convert_benchmark

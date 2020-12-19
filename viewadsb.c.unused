@@ -98,7 +98,7 @@ static void view1090InitConfig(void) {
     memset(&Modes, 0, sizeof (Modes));
     srandom(get_seed());
 
-    Modes.viewAdsb = 1;
+    Modes.viewadsb = 0;
     Modes.show_only = 0xc0ffeeba; // default to out of normal range value
     Modes.cpr_focus = 0xc0ffeeba;
     Modes.json_reliable = 1;

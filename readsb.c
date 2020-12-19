@@ -51,7 +51,6 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#define READSB
 #include "readsb.h"
 #include "help.h"
 #include "geomag.h"
@@ -61,45 +60,7 @@
 struct _Modes Modes;
 
 static void backgroundTasks(void);
-//
-// ============================= Program options help ==========================
-//
-// This is a little silly, but that's how the preprocessor works..
-#define _stringize(x) #x
-
 static error_t parse_opt(int key, char *arg, struct argp_state *state);
-const char *argp_program_version = VERSION_STRING;
-const char doc[] = "readsb Mode-S/ADSB/TIS Receiver   "
-        VERSION_STRING
-        "\nBuild options: "
-#ifdef ENABLE_RTLSDR
-        "ENABLE_RTLSDR "
-#endif
-#ifdef ENABLE_BLADERF
-        "ENABLE_BLADERF "
-#endif
-#ifdef ENABLE_PLUTOSDR
-        "ENABLE_PLUTOSDR "
-#endif
-#ifdef SC16Q11_TABLE_BITS
-#define stringize(x) _stringize(x)
-        "SC16Q11_TABLE_BITS=" stringize(SC16Q11_TABLE_BITS)
-#undef stringize
-#endif
-"\v"
-"Debug mode flags: d = Log frames decoded with errors\n"
-"                  D = Log frames decoded with zero errors\n"
-"                  c = Log frames with bad CRC\n"
-"                  C = Log frames with good CRC\n"
-"                  p = Log frames with bad preamble\n"
-"                  n = Log network debugging info\n"
-"                  j = Log frames to frames.js, loadable by debug.html\n";
-
-#undef _stringize
-#undef verstring
-
-const char args_doc[] = "";
-static struct argp argp = {options, parse_opt, args_doc, doc, NULL, NULL, NULL};
 
 //
 // ============================= Utility functions ==========================
@@ -807,6 +768,70 @@ static void cleanup_and_exit(int code) {
     return (code);
 #endif
 }
+static int make_net_connector(char *arg) {
+    if (!Modes.net_connectors || Modes.net_connectors_count + 1 > Modes.net_connectors_size) {
+        Modes.net_connectors_size = Modes.net_connectors_count * 2 + 8;
+        Modes.net_connectors = realloc(Modes.net_connectors,
+                sizeof(struct net_connector *) * Modes.net_connectors_size);
+        if (!Modes.net_connectors) {
+            fprintf(stderr, "realloc error net_connectors\n");
+            exit(1);
+        }
+    }
+    struct net_connector *con = calloc(1, sizeof(struct net_connector));
+    Modes.net_connectors[Modes.net_connectors_count++] = con;
+    char *connect_string = strdup(arg);
+    con->address = con->address0 = strtok(connect_string, ",");
+    con->port = con->port0 = strtok(NULL, ",");
+    con->protocol = strtok(NULL, ",");
+    con->address1 = strtok(NULL, ",");
+    con->port1 = strtok(NULL, ",");
+
+    if (pthread_mutex_init(&con->mutex, NULL)) {
+        fprintf(stderr, "Unable to initialize connector mutex!\n");
+        exit(1);
+    }
+    //fprintf(stderr, "%d %s\n", Modes.net_connectors_count, con->protocol);
+    if (!con->address || !con->port || !con->protocol) {
+        fprintf(stderr, "--net-connector: Wrong format: %s\n", arg);
+        fprintf(stderr, "Correct syntax: --net-connector=ip,port,protocol\n");
+        return 1;
+    }
+    if (strcmp(con->protocol, "beast_out") != 0
+            && strcmp(con->protocol, "beast_reduce_out") != 0
+            && strcmp(con->protocol, "beast_in") != 0
+            && strcmp(con->protocol, "raw_out") != 0
+            && strcmp(con->protocol, "raw_in") != 0
+            && strcmp(con->protocol, "vrs_out") != 0
+            && strcmp(con->protocol, "sbs_in") != 0
+            && strcmp(con->protocol, "sbs_in_mlat") != 0
+            && strcmp(con->protocol, "sbs_in_jaero") != 0
+            && strcmp(con->protocol, "sbs_in_prio") != 0
+            && strcmp(con->protocol, "sbs_out") != 0
+            && strcmp(con->protocol, "sbs_out_replay") != 0
+            && strcmp(con->protocol, "sbs_out_mlat") != 0
+            && strcmp(con->protocol, "sbs_out_jaero") != 0
+            && strcmp(con->protocol, "sbs_out_prio") != 0
+            && strcmp(con->protocol, "json_out") != 0
+       ) {
+        fprintf(stderr, "--net-connector: Unknown protocol: %s\n", con->protocol);
+        fprintf(stderr, "Supported protocols: beast_out, beast_in, beast_reduce_out, raw_out, raw_in, \n"
+                "sbs_out, sbs_out_replay, sbs_out_mlat, sbs_out_jaero, \n"
+                "sbs_in, sbs_in_mlat, sbs_in_jaero, \n"
+                "vrs_out, json_out\n");
+        return 1;
+    }
+    if (strcmp(con->address, "") == 0 || strcmp(con->address, "") == 0) {
+        fprintf(stderr, "--net-connector: ip and port can't be empty!\n");
+        fprintf(stderr, "Correct syntax: --net-connector=ip,port,protocol\n");
+        return 1;
+    }
+    if (atol(con->port) > (1<<16) || atol(con->port) < 1) {
+        fprintf(stderr, "--net-connector: port must be in range 1 to 65536\n");
+        return 1;
+    }
+    return 0;
+}
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     switch (key) {
@@ -852,8 +877,16 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptQuiet:
             Modes.quiet = 1;
             break;
+        case OptNoInteractive:
+            Modes.interactive = 0;
+            if (Modes.viewadsb)
+                Modes.quiet = 0;
+            break;
         case OptShowOnly:
             Modes.show_only = (uint32_t) strtoul(arg, NULL, 16);
+            Modes.interactive = 0;
+            Modes.quiet = 1;
+            Modes.cpr_focus = Modes.show_only;
             break;
         case OptMlat:
             Modes.mlat = 1;
@@ -1052,65 +1085,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.uuidFile = strdup(arg);
             break;
         case OptNetConnector:
-            if (!Modes.net_connectors || Modes.net_connectors_count + 1 > Modes.net_connectors_size) {
-                Modes.net_connectors_size = Modes.net_connectors_count * 2 + 8;
-                Modes.net_connectors = realloc(Modes.net_connectors,
-                        sizeof(struct net_connector *) * Modes.net_connectors_size);
-                if (!Modes.net_connectors)
-                    return 1;
-            }
-            struct net_connector *con = calloc(1, sizeof(struct net_connector));
-            Modes.net_connectors[Modes.net_connectors_count++] = con;
-            char *connect_string = strdup(arg);
-            con->address = con->address0 = strtok(connect_string, ",");
-            con->port = con->port0 = strtok(NULL, ",");
-            con->protocol = strtok(NULL, ",");
-            con->address1 = strtok(NULL, ",");
-            con->port1 = strtok(NULL, ",");
-
-            if (pthread_mutex_init(&con->mutex, NULL)) {
-                fprintf(stderr, "Unable to initialize connector mutex!\n");
-                exit(1);
-            }
-            //fprintf(stderr, "%d %s\n", Modes.net_connectors_count, con->protocol);
-            if (!con->address || !con->port || !con->protocol) {
-                fprintf(stderr, "--net-connector: Wrong format: %s\n", arg);
-                fprintf(stderr, "Correct syntax: --net-connector=ip,port,protocol\n");
+            if (make_net_connector(arg))
                 return 1;
-            }
-            if (strcmp(con->protocol, "beast_out") != 0
-                    && strcmp(con->protocol, "beast_reduce_out") != 0
-                    && strcmp(con->protocol, "beast_in") != 0
-                    && strcmp(con->protocol, "raw_out") != 0
-                    && strcmp(con->protocol, "raw_in") != 0
-                    && strcmp(con->protocol, "vrs_out") != 0
-                    && strcmp(con->protocol, "sbs_in") != 0
-                    && strcmp(con->protocol, "sbs_in_mlat") != 0
-                    && strcmp(con->protocol, "sbs_in_jaero") != 0
-                    && strcmp(con->protocol, "sbs_in_prio") != 0
-                    && strcmp(con->protocol, "sbs_out") != 0
-                    && strcmp(con->protocol, "sbs_out_replay") != 0
-                    && strcmp(con->protocol, "sbs_out_mlat") != 0
-                    && strcmp(con->protocol, "sbs_out_jaero") != 0
-                    && strcmp(con->protocol, "sbs_out_prio") != 0
-                    && strcmp(con->protocol, "json_out") != 0
-               ) {
-                fprintf(stderr, "--net-connector: Unknown protocol: %s\n", con->protocol);
-                fprintf(stderr, "Supported protocols: beast_out, beast_in, beast_reduce_out, raw_out, raw_in, \n"
-                        "sbs_out, sbs_out_replay, sbs_out_mlat, sbs_out_jaero, \n"
-                        "sbs_in, sbs_in_mlat, sbs_in_jaero, \n"
-                        "vrs_out, json_out\n");
-                return 1;
-            }
-            if (strcmp(con->address, "") == 0 || strcmp(con->address, "") == 0) {
-                fprintf(stderr, "--net-connector: ip and port can't be empty!\n");
-                fprintf(stderr, "Correct syntax: --net-connector=ip,port,protocol\n");
-                return 1;
-            }
-            if (atol(con->port) > (1<<16) || atol(con->port) < 1) {
-                fprintf(stderr, "--net-connector: port must be in range 1 to 65536\n");
-                return 1;
-            }
             break;
         case OptNetConnectorDelay:
             Modes.net_connector_delay = (uint64_t) 1000 * atof(arg);
@@ -1128,17 +1104,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptDebug:
             while (*arg) {
                 switch (*arg) {
-                    case 'D': Modes.debug |= MODES_DEBUG_DEMOD;
-                        break;
-                    case 'd': Modes.debug |= MODES_DEBUG_DEMODERR;
-                        break;
-                    case 'C': Modes.debug |= MODES_DEBUG_GOODCRC;
-                        break;
-                    case 'c': Modes.debug |= MODES_DEBUG_BADCRC;
-                        break;
-                    case 'p': Modes.debug |= MODES_DEBUG_NOPREAMBLE;
-                        break;
-                    case 'n': Modes.debug |= MODES_DEBUG_NET;
+                    case 'n': Modes.debug_net = 1;
                         break;
                     case 'P': Modes.debug_cpr = 1;
                         break;
@@ -1154,15 +1120,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         break;
                     case 'K': Modes.debug_sampleCounter = 1;
                         break;
-                    case 'j': Modes.debug |= MODES_DEBUG_JS;
-                        break;
                     case 'O': Modes.debug_rough_receiver_location = 1;
                         break;
                     case 'U': Modes.debug_dbJson = 1;
                         break;
                     default:
                         fprintf(stderr, "Unknown debugging flag: %c\n", *arg);
-                        return 1;
                         break;
                 }
                 arg++;
@@ -1207,26 +1170,57 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     return 0;
 }
 
-//
-//=========================================================================
-//
+int parseCommandLine(int argc, char **argv) {
+    // check if we are running as viewadsb and set according behaviour
+    int argv0Len = strlen(argv[0]);
+    if (argv0Len >= 8 && !strcmp(argv[0] + (argv0Len - 8), "viewadsb")) {
+        Modes.viewadsb = 1;
+        Modes.net = 1;
+        Modes.sdr_type = SDR_NONE;
+        Modes.net_only = 1;
+        Modes.interactive = 1;
+        Modes.quiet = 1;
+        Modes.net_connector_delay = 5 * 1000;
+        // let this get overwritten in case the command line specifies a net-connector
+        make_net_connector("127.0.0.1,30005,beast_in");
+        Modes.net_connectors_count--;
+        // we count it back up if it's still zero after the arg parse so it's used
+    }
 
-int main(int argc, char **argv) {
-    int j;
+    // This is a little silly, but that's how the preprocessor works..
+#define _stringize(x) #x
 
-    // Set sane defaults
-    modesInitConfig();
+    const char *doc = "readsb Mode-S/ADSB/TIS Receiver   "
+        "\nBuild options: "
+#ifdef ENABLE_RTLSDR
+        "ENABLE_RTLSDR "
+#endif
+#ifdef ENABLE_BLADERF
+        "ENABLE_BLADERF "
+#endif
+#ifdef ENABLE_PLUTOSDR
+        "ENABLE_PLUTOSDR "
+#endif
+#ifdef SC16Q11_TABLE_BITS
+#define stringize(x) _stringize(x)
+        "SC16Q11_TABLE_BITS=" stringize(SC16Q11_TABLE_BITS)
+#undef stringize
+#endif
+        "";
+#undef _stringize
+#undef verstring
 
-    Modes.startup_time = mstime();
+    if (Modes.viewadsb) {
+        doc = "vieadsb Mode-S/ADSB/TIS commandline viewer   ";
+    }
 
-    srandom(get_seed());
 
-    // signal handlers:
-    signal(SIGINT, sigintHandler);
-    signal(SIGTERM, sigtermHandler);
-    signal(SIGUSR1, SIG_IGN);
+    struct argp_option *options = Modes.viewadsb ? optionsViewadsb : optionsReadsb;
 
-    // Parse the command line options
+    const char args_doc[] = "";
+    struct argp argp = {options, parse_opt, args_doc, doc, NULL, NULL, NULL};
+
+
     if (argp_parse(&argp, argc, argv, ARGP_NO_EXIT, 0, 0)) {
         fprintf(stderr, "Command line used:\n");
         for (int i = 0; i < argc; i++) {
@@ -1246,6 +1240,30 @@ int main(int argc, char **argv) {
         exit(0);
     }
 
+    if (Modes.viewadsb && Modes.net_connectors_count == 0) {
+        Modes.net_connectors_count++; // activate the default net-connector for viewadsb
+    }
+    return 0;
+}
+
+//
+//=========================================================================
+//
+
+int main(int argc, char **argv) {
+    // Set sane defaults
+    modesInitConfig();
+
+    Modes.startup_time = mstime();
+    srandom(get_seed());
+
+    // signal handlers:
+    signal(SIGINT, sigintHandler);
+    signal(SIGTERM, sigtermHandler);
+    signal(SIGUSR1, SIG_IGN);
+
+    // Parse the command line options
+    parseCommandLine(argc, argv);
 
 #ifdef _WIN32
     // Try to comply with the Copyright license conditions for binary distribution
@@ -1279,7 +1297,7 @@ int main(int argc, char **argv) {
             Modes.stats_5min.start = Modes.stats_5min.end =
             Modes.stats_15min.start = Modes.stats_15min.end = mstime();
 
-    for (j = 0; j < STAT_BUCKETS; ++j)
+    for (int j = 0; j < STAT_BUCKETS; ++j)
         Modes.stats_10[j].start = Modes.stats_10[j].end = Modes.stats_current.start;
 
     if (Modes.heatmap) {

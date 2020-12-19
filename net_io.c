@@ -428,7 +428,7 @@ struct client *serviceConnect(struct net_connector *con) {
         con->next_reconnect = mstime() + 100;
     }
 
-    if (Modes.debug & MODES_DEBUG_NET) {
+    if (Modes.debug_net) {
         fprintf(stderr, "%s: Attempting connection to %s port %s ...\n", con->service->descr, con->address, con->port);
     }
 
@@ -703,7 +703,7 @@ static uint64_t modesAcceptClients(uint64_t now) {
                             c->port, sizeof(c->port),
                             NI_NUMERICHOST | NI_NUMERICSERV);
 
-                    if (!Modes.netIngest && (Modes.debug & MODES_DEBUG_NET)) {
+                    if (!Modes.netIngest && Modes.debug_net) {
                         fprintf(stderr, "%s: new c from %s port %s (fd %d)\n", 
                                 c->service->descr, c->host, c->port, fd);
                     }
@@ -2914,7 +2914,7 @@ static void modesReadFromClient(struct client *c) {
             if (c->con) {
                 fprintf(stderr, "%s: Remote server disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
                         c->service->descr, c->con->address, c->con->port, c->fd, c->sendq_len, c->buflen);
-            } else if (Modes.debug & MODES_DEBUG_NET) {
+            } else if (Modes.debug_net) {
 
                 if (c->proxy_string[0] != '\0') {
                     double elapsed = (now - c->connectedSince) / 1000.0;
@@ -3172,7 +3172,7 @@ static void modesReadFromClient(struct client *c) {
                 while (som < eod && (p = strstr(som, c->service->read_sep)) != NULL) { // end of first message if found
                     *p = '\0'; // The handler expects null terminated strings
                     if (c->service->read_handler(c, som, remote, now)) { // Pass message to handler.
-                        if (Modes.debug & MODES_DEBUG_NET) {
+                        if (Modes.debug_net) {
                             fprintf(stderr, "%s: Closing connection from %s port %s\n", c->service->descr, c->host, c->port);
                         }
                         modesCloseClient(c); // Handler returns 1 on error to signal we .
@@ -3186,7 +3186,7 @@ static void modesReadFromClient(struct client *c) {
 
         if (!c->receiverIdLocked && (c->bytesReceived > 512 || now > c->connectedSince + 10000)) {
             c->receiverIdLocked = 1;
-            if (Modes.netIngest && (Modes.debug & MODES_DEBUG_NET)) {
+            if (Modes.netIngest && (Modes.debug_net)) {
                 if (c->proxy_string[0] != '\0')
                     fprintf(stderr, "new c %56s rId %016"PRIx64"%016"PRIx64"\n", 
                             c->proxy_string, c->receiverId, c->receiverId2);
