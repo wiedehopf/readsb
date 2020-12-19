@@ -430,10 +430,8 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
     if (a->globe_index > GLOBE_MAX_INDEX)
         a->globe_index = -5;
 
-    a->first_message = NULL;
     if (a->seen > now)
         a->seen = 0;
-
 
     struct aircraft *old = aircraftGet(a->addr);
     uint32_t hash = aircraftHash(a->addr);

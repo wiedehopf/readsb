@@ -434,7 +434,7 @@ struct aircraft
   uint8_t dbFlags;
   uint16_t receiverIds[RECEIVERIDBUFFER]; // RECEIVERIDBUFFER = 12
 
-  struct modesMessage *first_message; // A copy of the first message we received for this aircraft.
+  void *padding124;
 };
 
 /* Mode A/C tracking is done separately, not via the aircraft list,

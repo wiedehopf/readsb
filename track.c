@@ -653,9 +653,6 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
 
     a->pos_surface = trackDataValid(&a->airground_valid) && a->airground == AG_GROUND;
 
-    if (mm->cpr_valid)
-        a->last_cpr_type = mm->cpr_type;
-
     if (mm->jsonPos)
         jsonPositionOutput(mm, a);
 
@@ -1660,16 +1657,14 @@ end_alt:
         mm->reduce_forward = 1;
     }
 
+    if (mm->cpr_valid)
+        a->last_cpr_type = mm->cpr_type;
+
     if (haveScratch && (mm->garbage || mm->pos_bad || mm->duplicate)) {
         memcpy(a, Modes.scratch, sizeof(struct aircraft));
         if (mm->pos_bad) {
             position_bad(mm, a);
         }
-    }
-
-    if(a->messages == 3 && a->first_message) {
-        free(a->first_message);
-        a->first_message = NULL;
     }
 
     return (a);

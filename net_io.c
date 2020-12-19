@@ -1844,8 +1844,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
         mm.garbage = 1;
     }
 
-    if (result >= 0)
-        useModesMessage(&mm);
+    useModesMessage(&mm);
     return 0;
 }
 //

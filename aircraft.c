@@ -40,8 +40,6 @@ struct aircraft *aircraftGet(uint32_t addr) {
 void freeAircraft(struct aircraft *a) {
         traceCleanup(a);
 
-        if (a->first_message)
-            free(a->first_message);
         free(a);
 }
 
@@ -70,10 +68,6 @@ struct aircraft *aircraftCreate(struct modesMessage *mm) {
     a->adsb_version = -1;
     a->adsb_hrd = HEADING_MAGNETIC;
     a->adsb_tah = HEADING_GROUND_TRACK;
-
-    // Copy the first message so we can emit it later when a second message arrives.
-    a->first_message = malloc(sizeof(struct modesMessage));
-    memcpy(a->first_message, mm, sizeof(struct modesMessage));
 
     if (Modes.json_globe_index) {
         a->globe_index = -5;

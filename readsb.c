@@ -737,8 +737,6 @@ static void cleanup_and_exit(int code) {
             na = a->next;
             if (a) {
 
-                if (a->first_message)
-                    free(a->first_message);
                 if (a->trace) {
                     free(a->trace);
                     free(a->trace_all);
