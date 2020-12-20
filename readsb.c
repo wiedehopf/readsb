@@ -440,8 +440,16 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
             if (i % n_parts != part)
                 continue;
 
-            if (i >= GLOBE_MIN_INDEX && globe_index_index(i) < GLOBE_MIN_INDEX)
-                continue;
+            if (i >= GLOBE_MIN_INDEX) {
+                int index_index = globe_index_index(i);
+                if (index_index!= i) {
+
+                    if (index_index >= GLOBE_MIN_INDEX) {
+                        fprintf(stderr, "weird globe index: %d\n", i);
+                    }
+                    continue;
+                }
+            }
 
             snprintf(filename, 31, "globe_%04d.binCraft", i);
             struct char_buffer cb2 = generateGlobeBin(i, 0);
