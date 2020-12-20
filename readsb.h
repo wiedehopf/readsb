@@ -507,6 +507,8 @@ struct _Modes
     char *net_input_raw_ports; // List of raw input TCP ports
     char *net_output_sbs_ports; // List of SBS output TCP ports
     char *net_input_sbs_ports; // List of SBS input TCP ports
+    char *net_output_jaero_ports; // jaero SBS output ports
+    char *net_input_jaero_ports; // jaero SBS input ports
     char *net_input_beast_ports; // List of Beast input TCP ports
     char *net_output_beast_ports; // List of Beast output TCP ports
     char *net_output_beast_reduce_ports; // List of Beast output TCP ports
@@ -859,6 +861,8 @@ enum {
     OptNetRoPorts,
     OptNetSbsPorts,
     OptNetSbsInPorts,
+    OptNetJaeroPorts,
+    OptNetJaeroInPorts,
     OptNetBiPorts,
     OptNetBoPorts,
     OptNetBeastReducePorts,

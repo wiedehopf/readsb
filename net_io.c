@@ -493,6 +493,7 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
                     buf, service->descr, Modes.aneterr);
             exit(1);
         }
+        fprintf(stderr, "%s: Listening on port %s\n", service->descr, buf);
 
         fds = realloc(fds, (n + nfds) * sizeof (int));
         if (!fds) {
@@ -563,13 +564,16 @@ void modesInitNet(void) {
     json_out = serviceInit("Position json output", &Modes.json_out, NULL, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(json_out, Modes.net_bind_address, Modes.net_output_json_ports);
 
-    sbs_out = serviceInit("Basestation TCP output", &Modes.sbs_out, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    sbs_out = serviceInit("SBS TCP output", &Modes.sbs_out, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(sbs_out, Modes.net_bind_address, Modes.net_output_sbs_ports);
 
-    sbs_out_replay = serviceInit("Basestation TCP output replay SBS IN", &Modes.sbs_out_replay, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
-    sbs_out_prio = serviceInit("Basestation TCP output PRIO", &Modes.sbs_out_prio, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
-    sbs_out_mlat = serviceInit("Basestation TCP output MLAT", &Modes.sbs_out_mlat, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
-    sbs_out_jaero = serviceInit("Basestation TCP output JAERO", &Modes.sbs_out_jaero, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    sbs_out_replay = serviceInit("SBS TCP output replay SBS IN", &Modes.sbs_out_replay, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    sbs_out_prio = serviceInit("SBS TCP output PRIO", &Modes.sbs_out_prio, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    sbs_out_mlat = serviceInit("SBS TCP output MLAT", &Modes.sbs_out_mlat, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    sbs_out_jaero = serviceInit("SBS TCP output JAERO", &Modes.sbs_out_jaero, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+
+    serviceListen(sbs_out_jaero, Modes.net_bind_address, Modes.net_output_jaero_ports);
+
     if (strlen(Modes.net_output_sbs_ports) == 5 && Modes.net_output_sbs_ports[4] == '5') {
 
         char *replay = strdup(Modes.net_output_sbs_ports);
@@ -586,7 +590,8 @@ void modesInitNet(void) {
 
         char *jaero = strdup(Modes.net_output_sbs_ports);
         jaero[4] = '9';
-        serviceListen(sbs_out_jaero, Modes.net_bind_address, jaero);
+        if (sbs_out_jaero->listener_count == 0)
+            serviceListen(sbs_out_jaero, Modes.net_bind_address, jaero);
 
         free(replay);
         free(mlat);
@@ -594,14 +599,17 @@ void modesInitNet(void) {
         free(jaero);
     }
 
-    sbs_in = serviceInit("Basestation TCP input", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLine);
+    sbs_in = serviceInit("SBS TCP input", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLine);
     serviceListen(sbs_in, Modes.net_bind_address, Modes.net_input_sbs_ports);
 
-    sbs_in_mlat = serviceInit("Basestation TCP input MLAT", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLineMlat);
-    sbs_in_prio = serviceInit("Basestation TCP input PRIO", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLinePrio);
-    sbs_in_jaero = serviceInit("Basestation TCP input JAERO", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLineJaero);
+    sbs_in_mlat = serviceInit("SBS TCP input MLAT", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLineMlat);
+    sbs_in_prio = serviceInit("SBS TCP input PRIO", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLinePrio);
+    sbs_in_jaero = serviceInit("SBS TCP input JAERO", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLineJaero);
 
-    if (strlen(Modes.net_input_sbs_ports) == 5) {
+
+    serviceListen(sbs_in_jaero, Modes.net_bind_address, Modes.net_input_jaero_ports);
+
+    if (strlen(Modes.net_input_sbs_ports) == 5 && Modes.net_input_sbs_ports[4] == '6') {
         char *mlat = strdup(Modes.net_input_sbs_ports);
         mlat[4] = '7';
         serviceListen(sbs_in_mlat, Modes.net_bind_address, mlat);
@@ -612,7 +620,8 @@ void modesInitNet(void) {
 
         char *jaero = strdup(Modes.net_input_sbs_ports);
         jaero[4] = '9';
-        serviceListen(sbs_in_jaero, Modes.net_bind_address, jaero);
+        if (sbs_in_jaero->listener_count == 0)
+            serviceListen(sbs_in_jaero, Modes.net_bind_address, jaero);
 
         free(mlat);
         free(prio);

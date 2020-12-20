@@ -143,6 +143,8 @@ static void modesInitConfig(void) {
     Modes.net_output_vrs_interval = 5 * SECONDS;
     Modes.net_output_json_ports = strdup("0");
     Modes.net_output_api_ports = strdup("0");
+    Modes.net_input_jaero_ports = strdup("0");
+    Modes.net_output_jaero_ports = strdup("0");
     Modes.net_connector_delay = 30 * 1000;
     Modes.interactive_display_ttl = MODES_INTERACTIVE_DISPLAY_TTL;
     Modes.json_interval = 1000;
@@ -732,6 +734,8 @@ static void cleanup_and_exit(int code) {
     free(Modes.net_output_raw_ports);
     free(Modes.net_output_sbs_ports);
     free(Modes.net_input_sbs_ports);
+    free(Modes.net_input_jaero_ports);
+    free(Modes.net_output_jaero_ports);
     free(Modes.net_output_json_ports);
     free(Modes.net_output_api_ports);
     free(Modes.beast_serial);
@@ -1063,6 +1067,14 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptNetSbsInPorts:
             free(Modes.net_input_sbs_ports);
             Modes.net_input_sbs_ports = strdup(arg);
+            break;
+        case OptNetJaeroPorts:
+            free(Modes.net_output_jaero_ports);
+            Modes.net_output_jaero_ports = strdup(arg);
+            break;
+        case OptNetJaeroInPorts:
+            free(Modes.net_input_jaero_ports);
+            Modes.net_input_jaero_ports = strdup(arg);
             break;
         case OptNetVRSPorts:
             free(Modes.net_output_vrs_ports);
