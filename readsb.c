@@ -372,7 +372,7 @@ static void *jsonThreadEntryPoint(void *arg) {
 
         struct char_buffer cb = generateAircraftJson();
         if (Modes.json_gzip)
-            writeJsonToGzip(Modes.json_dir, "aircraft.json.gz", cb, 3);
+            writeJsonToGzip(Modes.json_dir, "aircraft.json.gz", cb, 5);
         writeJsonToFile(Modes.json_dir, "aircraft.json", cb);
 
         if ((ALL_JSON) && now >= next_history) {
@@ -445,12 +445,12 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
 
             snprintf(filename, 31, "globe_%04d.binCraft", i);
             struct char_buffer cb2 = generateGlobeBin(i, 0);
-            writeJsonToGzip(Modes.json_dir, filename, cb2, 6);
+            writeJsonToGzip(Modes.json_dir, filename, cb2, 5);
             free(cb2.buffer);
 
             snprintf(filename, 31, "globeMil_%04d.binCraft", i);
             struct char_buffer cb3 = generateGlobeBin(i, 1);
-            writeJsonToGzip(Modes.json_dir, filename, cb3, 3);
+            writeJsonToGzip(Modes.json_dir, filename, cb3, 2);
             free(cb3.buffer);
 
             if (!Modes.jsonBinCraft && writeJson) {

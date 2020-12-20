@@ -41,20 +41,20 @@ void init_globe_index(struct tile *s_tiles) {
 
     // Northwest USA
     s_tiles[count++] = (struct tile) {
-        45, -120,
+        42, -120,
         51, -114
     };
     s_tiles[count++] = (struct tile) {
-        45, -114,
-        51, -99
+        42, -114,
+        51, -102
     };
     // Eastern Canada
     s_tiles[count++] = (struct tile) {
-        45, -99,
-        51, -87
+        42, -102,
+        51, -90
     };
     s_tiles[count++] = (struct tile) {
-        45, -87,
+        45, -90,
         51, -75
     };
 
@@ -62,11 +62,29 @@ void init_globe_index(struct tile *s_tiles) {
         45, -75,
         51, -69
     };
+    // Balkan
+    s_tiles[count++] = (struct tile) {
+        42, 12,
+        48, 18
+    };
+    s_tiles[count++] = (struct tile) {
+        42, 18,
+        48, 24
+    };
+    // Poland
+    s_tiles[count++] = (struct tile) {
+        48, 18,
+        54, 24
+    };
+    s_tiles[count++] = (struct tile) {
+        48, 18,
+        54, 24
+    };
 
     // Sweden
     s_tiles[count++] = (struct tile) {
         54, 12,
-        60, 21
+        60, 24
     };
     // Denmark
     s_tiles[count++] = (struct tile) {
@@ -79,13 +97,19 @@ void init_globe_index(struct tile *s_tiles) {
         60, 3
     };
 
+    // Golfo de Vizcaya / Bay of Biscay
+    s_tiles[count++] = (struct tile) {
+        42, -9,
+        48, 0
+    };
+
     // West Russia
     s_tiles[count++] = (struct tile) {
-        42, 21,
+        42, 24,
         51, 51
     };
     s_tiles[count++] = (struct tile) {
-        51, 21,
+        51, 24,
         60, 51
     };
 
@@ -103,8 +127,56 @@ void init_globe_index(struct tile *s_tiles) {
     // Koreas and Japan and some Russia
     s_tiles[count++] = (struct tile) {
         30, 120,
+        39, 129
+    };
+    s_tiles[count++] = (struct tile) {
+        30, 129,
+        39, 138
+    };
+    s_tiles[count++] = (struct tile) {
+        30, 138,
+        39, 150
+    };
+    s_tiles[count++] = (struct tile) {
+        30, 129,
+        39, 150
+    };
+    s_tiles[count++] = (struct tile) {
+        39, 120,
         60, 150
     };
+    // Vietnam
+    s_tiles[count++] = (struct tile) {
+        9, 90,
+        21, 111
+    };
+
+    // South China
+    s_tiles[count++] = (struct tile) {
+        21, 90,
+        30, 111
+    };
+
+    // South China and ICAO special use
+    s_tiles[count++] = (struct tile) {
+        9, 111,
+        24, 129
+    };
+    s_tiles[count++] = (struct tile) {
+        24, 111,
+        30, 120
+    };
+    s_tiles[count++] = (struct tile) {
+        24, 120,
+        30, 129
+    };
+
+    // mostly pacific south of Japan
+    s_tiles[count++] = (struct tile) {
+        9, 129,
+        30, 150
+    };
+
 
     // Persian Gulf / Arabian Sea
     s_tiles[count++] = (struct tile) {
@@ -117,17 +189,6 @@ void init_globe_index(struct tile *s_tiles) {
         9, 69,
         30, 90
     };
-
-    // South China and ICAO special use
-    s_tiles[count++] = (struct tile) {
-        9, 90,
-        30, 111
-    };
-    s_tiles[count++] = (struct tile) {
-        9, 111,
-        30, 150
-    };
-
 
     // South Atlantic and Indian Ocean
     s_tiles[count++] = (struct tile) {
@@ -176,12 +237,22 @@ void init_globe_index(struct tile *s_tiles) {
         9, -117,
         30, -102
     };
+    // New Mexico / South Texas
+    s_tiles[count++] = (struct tile) {
+        30, -108,
+        36, -99
+    };
+    // South Texas
+    s_tiles[count++] = (struct tile) {
+        24, -102,
+        30, -90
+    };
     // western gulf + east mexico
     s_tiles[count++] = (struct tile) {
         9, -102,
-        27, -90
+        24, -90
     };
-    // Gulf of Mexico
+    // Eastern Gulf of Mexico
     s_tiles[count++] = (struct tile) {
         24, -90,
         30, -84
@@ -193,11 +264,24 @@ void init_globe_index(struct tile *s_tiles) {
         24, -69
     };
 
+    // Mediterranean
+    s_tiles[count++] = (struct tile) {
+        36, 6,
+        42, 18
+    };
+    s_tiles[count++] = (struct tile) {
+        36, 18,
+        42, 30
+    };
 
     // North Africa
     s_tiles[count++] = (struct tile) {
         9, -9,
-        39, 30
+        39, 6
+    };
+    s_tiles[count++] = (struct tile) {
+        9, 6,
+        36, 30
     };
 
     // Middle East
@@ -258,7 +342,12 @@ int globe_index(double lat_in, double lon_in) {
     int i = (lat + 90) / grid;
     int j = (lon + 180) / grid;
 
-    return (i * GLOBE_LAT_MULT + j + GLOBE_MIN_INDEX);
+    int res = (i * GLOBE_LAT_MULT + j + GLOBE_MIN_INDEX);
+    if (res > GLOBE_MAX_INDEX) {
+        fprintf(stderr, "globe_index out of bounds: %d %d %d\n", res, lat, lon);
+        return 0;
+    }
+    return res;
     // highest number returned: globe_index(90, 180)
     // first 1000 are reserved for special use
 }
