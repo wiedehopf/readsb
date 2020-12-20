@@ -76,11 +76,6 @@ void init_globe_index(struct tile *s_tiles) {
         48, 18,
         54, 24
     };
-    s_tiles[count++] = (struct tile) {
-        48, 18,
-        54, 24
-    };
-
     // Sweden
     s_tiles[count++] = (struct tile) {
         54, 12,
@@ -135,10 +130,6 @@ void init_globe_index(struct tile *s_tiles) {
     };
     s_tiles[count++] = (struct tile) {
         30, 138,
-        39, 150
-    };
-    s_tiles[count++] = (struct tile) {
-        30, 129,
         39, 150
     };
     s_tiles[count++] = (struct tile) {
