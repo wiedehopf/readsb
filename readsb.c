@@ -895,6 +895,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.quiet = 1;
             Modes.cpr_focus = Modes.show_only;
             break;
+        case OptFilterDF:
+            Modes.filterDF = (uint8_t) strtoul(arg, NULL, 10);
+            break;
         case OptMlat:
             Modes.mlat = 1;
             break;

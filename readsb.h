@@ -484,6 +484,8 @@ struct _Modes
     int8_t dbExchange;
     int8_t viewadsb;
 
+    uint8_t filterDF; // Only show messages with this DF type
+
     uint32_t cpr_focus;
     uint32_t show_only; // Only show messages from this ICAO
     uint64_t receiver_focus;
@@ -833,6 +835,7 @@ enum {
     OptCprFocus,
     OptQuiet,
     OptShowOnly,
+    OptFilterDF,
     OptJsonDir,
     OptJsonGzip,
     OptJsonBinCraft,

@@ -2002,10 +2002,6 @@ void trackPeriodicUpdate() {
 }
 
 void miscStuff() {
-    // Only do updates once per second
-    static uint32_t upcount;
-    upcount++; // free running counter, first iteration is with 1
-
     uint64_t now = mstime();
 
     struct timespec watch;

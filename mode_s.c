@@ -1771,6 +1771,27 @@ static const char *esTypeName(unsigned metype, unsigned mesub) {
 void displayModesMessage(struct modesMessage *mm) {
     int j;
 
+
+    if (Modes.filterDF && Modes.filterDF != mm->msgtype) {
+        return;
+    }
+
+    if (0 && mm->cpr_valid && mm->cpr_decoded) {
+        printf("systemTime: %.3fs\n", (mm->sysTimestampMsg % (5*MINUTES)) / 1000.0);
+        printf("  CPR odd flag:  %s\n",
+                mm->cpr_odd ? "odd" : "even");
+
+        printf("  CPR latitude:  %.5f (%u)\n"
+                "  CPR longitude: %.5f (%u)\n"
+                "  CPR decoding:  %s\n",
+                mm->decoded_lat,
+                mm->cpr_lat,
+                mm->decoded_lon,
+                mm->cpr_lon,
+                mm->cpr_relative ? "local" : "global");
+    }
+
+
     // Handle only addresses mode first.
     if (Modes.onlyaddr) {
         printf("%06x\n", mm->addr);
@@ -1810,7 +1831,9 @@ void displayModesMessage(struct modesMessage *mm) {
     if (mm->timestampMsg == MAGIC_MLAT_TIMESTAMP)
         printf("This is a synthetic MLAT message.\n");
     else
-        printf("Time: %.2fus\n", mm->timestampMsg / 12.0);
+        printf("receiverTime: %.2fus\n", mm->timestampMsg / 12.0);
+
+    printf("systemTime: %.3fs\n", mm->sysTimestampMsg / 1000.0);
 
     switch (mm->msgtype) {
         case 0:
