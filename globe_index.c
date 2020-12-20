@@ -616,7 +616,7 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
     }
 
     //traceMaintenance(a, now); // shouldn't be necessary
-    if (a->trace_alloc && Modes.json_dir && Modes.json_globe_index && now < a->seen_pos + 2 * MINUTES) {
+    if (a->trace_alloc && Modes.json_dir && Modes.json_globe_index && a->position_valid.source != SOURCE_INVALID) {
         // the value below is again overwritten in track.c when a fullWrite is done on startup
         a->trace_next_mw = a->trace_next_fw = now + 1 * MINUTES + random() % (2 * MINUTES);
         a->trace_full_write = 0;

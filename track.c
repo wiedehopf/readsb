@@ -615,10 +615,18 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         return;
     }
 
-    if (trackDataAge(now, &a->track_valid) >= 10000 && a->seen_pos) {
+    if (trackDataAge(now, &a->track_valid) >= 10 * SECONDS && a->seen_pos) {
         double distance = greatcircle(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon);
         if (distance > 100)
             a->calc_track = bearing(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon);
+        if (mm->source == SOURCE_JAERO
+                && (a->position_valid.last_source == SOURCE_JAERO || trackDataAge(now, &a->position_valid) >= 30 * MINUTES)
+                && trackDataAge(now, &a->track_valid) > TRACK_EXPIRE
+                && distance > 10e3 // more than 10 km
+           ) {
+            accept_data(&a->track_valid, SOURCE_JAERO, mm, 1);
+            a->track = a->calc_track;
+        }
     }
 
     // Update aircraft state
