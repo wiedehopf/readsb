@@ -2004,8 +2004,12 @@ void trackPeriodicUpdate() {
         Modes.updateStats = 0;
 
         Modes.aircraftCount = aircraftCount;
-        if (Modes.aircraftCount > 2 * AIRCRAFT_BUCKETS)
-            fprintf(stderr, "aircraft table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFT_BUCKETS );
+
+        static uint64_t antiSpam2;
+        if (Modes.aircraftCount > 2 * AIRCRAFT_BUCKETS && now > antiSpam2 + 12 * HOURS) {
+            fprintf(stderr, "<3>increase AIRCRAFT_HASH_BITS, aircraft hash table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFT_BUCKETS);
+            antiSpam2 = now;
+        }
     }
 }
 
