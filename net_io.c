@@ -511,10 +511,6 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
     service->listener_fds = fds;
 }
 
-struct net_service *makeBeastInputService(void) {
-    return serviceInit("Beast TCP input", NULL, NULL, READ_MODE_BEAST, NULL, decodeBinMessage);
-}
-
 void modesInitNet(void) {
     if (!Modes.net)
         return;
@@ -632,7 +628,7 @@ void modesInitNet(void) {
     serviceListen(raw_in, Modes.net_bind_address, Modes.net_input_raw_ports);
 
     /* Beast input via network */
-    beast_in = makeBeastInputService();
+    beast_in = serviceInit("Beast TCP input", NULL, NULL, READ_MODE_BEAST, NULL, decodeBinMessage);
     serviceListen(beast_in, Modes.net_bind_address, Modes.net_input_beast_ports);
 
     /* Beast input from local Modes-S Beast via USB */

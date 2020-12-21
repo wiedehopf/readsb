@@ -150,10 +150,6 @@ void serviceListen (struct net_service *service, char *bind_addr, char *bind_por
 struct client *createSocketClient (struct net_service *service, int fd);
 struct client *createGenericClient (struct net_service *service, int fd);
 
-// viewadsb want to create these itselves
-struct net_service *makeBeastInputService (void);
-struct net_service *makeFatsvOutputService (void);
-
 void sendBeastSettings (int fd, const char *settings);
 
 void modesInitNet (void);
