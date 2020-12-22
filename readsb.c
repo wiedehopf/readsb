@@ -603,7 +603,7 @@ static void *decodeThreadEntryPoint(void *arg) {
 
             uint64_t now = mstime();
 
-            if (Modes.first_free_buffer == Modes.first_filled_buffer || now > Modes.next_remove_stale + 2 * SECONDS) {
+            if (Modes.first_free_buffer == Modes.first_filled_buffer || now > Modes.next_remove_stale + 1 * SECONDS) {
                 /* wait for more data.
                  * we should be getting data every 50-60ms. wait for max 80 before we give up and do some background work.
                  * this is fairly aggressive as all our network I/O runs out of the background work!
@@ -613,7 +613,7 @@ static void *decodeThreadEntryPoint(void *arg) {
                 // in trackPeriodicUpdate that require the decodeMutex
                 // (the latest if when we are 2 seconds late, use a short wait
                 // that should be sufficient to make the other thread get the lock)
-                if (now > Modes.next_remove_stale + 2 * SECONDS) {
+                if (now > Modes.next_remove_stale + 1 * SECONDS) {
                     incTimedwait(&ts, 3);
                 } else {
                     incTimedwait(&ts, maxSleep);

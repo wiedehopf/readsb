@@ -20,17 +20,22 @@ void init_globe_index(struct tile *s_tiles) {
     // Arctic
     s_tiles[count++] = (struct tile) {
         60, -126,
+        90, 0
+    };
+    s_tiles[count++] = (struct tile) {
+        60, 0,
         90, 150
     };
 
+    // Alaska and Chukotka
+    s_tiles[count++] = (struct tile) {
+        51, 150,
+        90, -126
+    };
     // North Pacific
     s_tiles[count++] = (struct tile) {
         9, 150,
         51, -126
-    };
-    s_tiles[count++] = (struct tile) {
-        51, 150,
-        90, -126
     };
 
     // Northern Canada
@@ -181,9 +186,14 @@ void init_globe_index(struct tile *s_tiles) {
         30, 90
     };
 
-    // South Atlantic and Indian Ocean
+    // South Atlantic / South Africa
     s_tiles[count++] = (struct tile) {
-        -90, -42,
+        -90, -30,
+        9, 51
+    };
+    //Indian Ocean
+    s_tiles[count++] = (struct tile) {
+        -90, 51,
         9, 111
     };
 
@@ -214,13 +224,24 @@ void init_globe_index(struct tile *s_tiles) {
     };
 
     // South South America
+    // west
     s_tiles[count++] = (struct tile) {
         -90, -90,
-        -9, -75
+        -9, -63
+    };
+    // east
+    s_tiles[count++] = (struct tile) {
+        -21, -63,
+        -9, -42
     };
     s_tiles[count++] = (struct tile) {
-        -90, -75,
-        -9, -42
+        -90, -63,
+        -21, -42
+    };
+
+    s_tiles[count++] = (struct tile) {
+        -90, -42,
+        9, -30
     };
 
     // Guatemala / Mexico
@@ -243,9 +264,15 @@ void init_globe_index(struct tile *s_tiles) {
         30, -84
     };
 
-    // Cuba / Haiti / Honduras
+    // south of jamaica
     s_tiles[count++] = (struct tile) {
         9, -90,
+        18, -69
+    };
+
+    // Cuba / Haiti
+    s_tiles[count++] = (struct tile) {
+        18, -90,
         24, -69
     };
 
@@ -301,7 +328,7 @@ void init_globe_index(struct tile *s_tiles) {
     Modes.specialTileCount = count;
 
     if (count + 1 >= GLOBE_SPECIAL_INDEX)
-        fprintf(stderr, "increase GLOBE_MIN_INDEX please!\n");
+        fprintf(stderr, "increase GLOBE_SPECIAL_INDEX please!\n");
 }
 
 int globe_index(double lat_in, double lon_in) {
