@@ -1002,7 +1002,7 @@ void ca_add (struct craftArray *ca, struct aircraft *a) {
     // + 32 ... some arbitrary buffer for concurrent stuff with limited locking
     if (ca->len + 32 >= ca->alloc) {
         pthread_mutex_lock(&ca->mutex);
-        ca->alloc *= 3 / 2;
+        ca->alloc = ca->alloc * 3 / 2;
         ca->list = realloc(ca->list, ca->alloc * sizeof(struct aircraft *));
         pthread_mutex_unlock(&ca->mutex);
     }
