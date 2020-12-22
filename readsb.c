@@ -540,7 +540,7 @@ static void *decodeThreadEntryPoint(void *arg) {
     } else {
         int watchdogCounter = 50; // about 5 seconds
 
-        uint32_t maxSleep = 100; // in ms
+        uint32_t maxSleep = 80; // in ms
         // Create the thread that will read the data from the device.
         pthread_mutex_lock(&Modes.data_mutex);
         pthread_create(&Modes.reader_thread, NULL, readerThreadEntryPoint, NULL);
@@ -601,13 +601,23 @@ static void *decodeThreadEntryPoint(void *arg) {
 
             pthread_mutex_lock(&Modes.data_mutex);
 
-            if (Modes.first_free_buffer == Modes.first_filled_buffer) {
+            uint64_t now = mstime();
+
+            if (Modes.first_free_buffer == Modes.first_filled_buffer || now > Modes.next_remove_stale + 2 * SECONDS) {
                 /* wait for more data.
-                 * we should be getting data every 50-60ms. wait for max 100ms before we give up and do some background work.
+                 * we should be getting data every 50-60ms. wait for max 80 before we give up and do some background work.
                  * this is fairly aggressive as all our network I/O runs out of the background work!
                  */
 
-                incTimedwait(&ts, maxSleep);
+                // make sure we go to removeStale and the other functions
+                // in trackPeriodicUpdate that require the decodeMutex
+                // (the latest if when we are 2 seconds late, use a short wait
+                // that should be sufficient to make the other thread get the lock)
+                if (now > Modes.next_remove_stale + 2 * SECONDS) {
+                    incTimedwait(&ts, 3);
+                } else {
+                    incTimedwait(&ts, maxSleep);
+                }
 
                 pthread_mutex_unlock(&Modes.decodeMutex);
 
