@@ -1847,7 +1847,6 @@ void trackRemoveStaleThread(int thread, int start, int end, uint64_t now) {
 
     uint64_t doValiditiesCutoff = now - TRACK_EXPIRE_MAX;
 
-
     for (int j = start; j < end; j++) {
         struct aircraft **nextPointer = &(Modes.aircraft[j]);
         while (*nextPointer) {
@@ -2059,7 +2058,7 @@ void miscStuff() {
 
     static uint32_t blob; // current blob
     static uint64_t next_blob;
-    if (!enough && now > next_blob) {
+    if (Modes.state_dir && !enough && now > next_blob) {
         enough = 1;
         save_blob(blob++ % STATE_BLOBS);
         next_blob = now + 60 * MINUTES / STATE_BLOBS;
@@ -2122,6 +2121,7 @@ void *miscThreadEntryPoint(void *arg) {
     clock_gettime(CLOCK_REALTIME, &ts);
 
     while (!Modes.exit) {
+
         if (mstime() < Modes.next_remove_stale) {
 
             Modes.miscThreadRunning = 1;
@@ -2131,11 +2131,10 @@ void *miscThreadEntryPoint(void *arg) {
             pthread_mutex_lock(&Modes.miscMutex);
 
             Modes.miscThreadRunning = 0;
-
         }
 
 
-        incTimedwait(&ts, 250); // do something roughly every quarter second
+        incTimedwait(&ts, 250); // check every quarter second if there is something to do
 
         int err = pthread_cond_timedwait(&Modes.miscCond, &Modes.miscMutex, &ts);
         if (err && err != ETIMEDOUT)

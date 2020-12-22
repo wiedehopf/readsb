@@ -1156,8 +1156,6 @@ void traceResize(struct aircraft *a, uint64_t now) {
         traceCleanup(a);
         return;
     }
-    if (now < Modes.keep_traces)
-        fprintf(stderr, "now < Modes.keep_traces: %"PRIu64" %"PRIu32"\n", now, Modes.keep_traces);
 
     uint64_t keep_after = now - Modes.keep_traces;
 
