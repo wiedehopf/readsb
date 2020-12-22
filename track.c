@@ -1826,17 +1826,36 @@ void trackRemoveStaleThread(int thread, int start, int end, uint64_t now) {
     //fprintf(stderr, "%d %d %d %d\n", thread, start, end, AIRCRAFT_BUCKETS);
     MODES_NOTUSED(thread);
 
+    // non-icao timeout
+    uint64_t nonicaoTimeout = now - 1 * HOURS;
+
+    // timeout for aircraft with position
+    uint64_t posTimeout = now - 3 * HOURS;
+    if (Modes.json_globe_index) {
+        posTimeout = now - 26 * HOURS;
+        nonicaoTimeout = now - 26 * HOURS;
+    }
+    if (Modes.state_dir) {
+        posTimeout = now - 14 * 24 * HOURS;
+    }
+
+    // timeout for aircraft with position
+    uint64_t noposTimeout = now - 5 * MINUTES;
+
+
+    uint64_t doValiditiesCutoff = now - TRACK_EXPIRE_JAERO + 1 * MINUTES;
+
+
     for (int j = start; j < end; j++) {
         struct aircraft **nextPointer = &(Modes.aircraft[j]);
         while (*nextPointer) {
             struct aircraft *a = *nextPointer;
             if (
-                    (!a->seen_pos && (now > a->seen + TRACK_AIRCRAFT_NO_POS_TTL))
-                    || (a->seen_pos && (
-                            (Modes.state_dir && now > a->seen_pos + TRACK_AIRCRAFT_TTL)
-                            || (!Modes.state_dir && now > a->seen_pos + TRACK_AIRCRAFT_NO_STATE_TTL)
-                            || ((a->addr & MODES_NON_ICAO_ADDRESS) && (now > a->seen_pos + TRACK_AIRCRAFT_NON_ICAO_TTL))
-                            ))
+                    (!a->seen_pos && a->seen < noposTimeout)
+                    || (a->seen_pos
+                        && ((a->seen_pos < posTimeout)
+                            || ((a->addr & MODES_NON_ICAO_ADDRESS) && (a->seen_pos < nonicaoTimeout))
+                           ))
                ) {
                 // Count aircraft where we saw only one message before reaping them.
                 // These are likely to be due to messages with bad addresses.
@@ -1855,11 +1874,13 @@ void trackRemoveStaleThread(int thread, int start, int end, uint64_t now) {
                 freeAircraft(a);
 
             } else {
-                if (now < a->seen + TRACK_EXPIRE_JAERO + 1 * MINUTES) {
+                if (doValiditiesCutoff < a->seen) {
                     updateValidities(a, now);
                 }
 
-                traceMaintenance(a, now);
+                if (Modes.keep_traces && a->trace_alloc) {
+                    traceMaintenance(a, now);
+                }
 
                 nextPointer = &(a->next);
             }

@@ -1127,9 +1127,6 @@ void traceResize(struct aircraft *a, uint64_t now) {
 
     uint64_t keep_after = now - Modes.keep_traces;
 
-    if (a->addr & MODES_NON_ICAO_ADDRESS)
-        keep_after = now - TRACK_AIRCRAFT_NON_ICAO_TTL;
-
     if (a->trace_len == TRACE_SIZE || a->trace->timestamp < keep_after - 20 * MINUTES)  {
         int new_start = a->trace_len;
 
