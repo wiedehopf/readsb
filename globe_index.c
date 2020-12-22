@@ -41,18 +41,18 @@ void init_globe_index(struct tile *s_tiles) {
 
     // Northwest USA
     s_tiles[count++] = (struct tile) {
-        42, -120,
+        45, -120,
         51, -114
     };
     s_tiles[count++] = (struct tile) {
-        42, -114,
+        45, -114,
         51, -102
     };
-    // Eastern Canada
     s_tiles[count++] = (struct tile) {
-        42, -102,
+        45, -102,
         51, -90
     };
+    // Eastern Canada
     s_tiles[count++] = (struct tile) {
         45, -90,
         51, -75
@@ -216,6 +216,10 @@ void init_globe_index(struct tile *s_tiles) {
     // South South America
     s_tiles[count++] = (struct tile) {
         -90, -90,
+        -9, -75
+    };
+    s_tiles[count++] = (struct tile) {
+        -90, -75,
         -9, -42
     };
 
@@ -228,20 +232,10 @@ void init_globe_index(struct tile *s_tiles) {
         9, -117,
         30, -102
     };
-    // New Mexico / South Texas
-    s_tiles[count++] = (struct tile) {
-        30, -108,
-        36, -99
-    };
-    // South Texas
-    s_tiles[count++] = (struct tile) {
-        24, -102,
-        30, -90
-    };
     // western gulf + east mexico
     s_tiles[count++] = (struct tile) {
         9, -102,
-        24, -90
+        27, -90
     };
     // Eastern Gulf of Mexico
     s_tiles[count++] = (struct tile) {
