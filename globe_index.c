@@ -999,24 +999,33 @@ void ca_destroy (struct craftArray *ca) {
 }
 
 void ca_add (struct craftArray *ca, struct aircraft *a) {
-    pthread_mutex_lock(&ca->mutex);
     if (ca->alloc == 0) {
+        pthread_mutex_lock(&ca->mutex);
         ca->alloc = 64;
         ca->list = realloc(ca->list, ca->alloc * sizeof(struct aircraft *));
+        pthread_mutex_unlock(&ca->mutex);
     }
-    if (ca->len == ca->alloc) {
-        ca->alloc *= 2;
+    // + 32 ... some arbitrary buffer for concurrent stuff with limited locking
+    if (ca->len + 32 >= ca->alloc) {
+        pthread_mutex_lock(&ca->mutex);
+        ca->alloc *= 3 / 2;
         ca->list = realloc(ca->list, ca->alloc * sizeof(struct aircraft *));
+        pthread_mutex_unlock(&ca->mutex);
     }
-    pthread_mutex_unlock(&ca->mutex);
     if (!ca->list) {
         fprintf(stderr, "ca_add(): out of memory!\n");
         exit(1);
     }
     for (int i = 0; i < ca->len; i++) {
         if (a == ca->list[i]) {
-            fprintf(stderr, "ca_add(): double add!\n");
-            return;
+            pthread_mutex_lock(&ca->mutex);
+            // re-check under mutex
+            if (a == ca->list[i]) {
+                fprintf(stderr, "ca_add(): double add!\n");
+                pthread_mutex_unlock(&ca->mutex);
+                return;
+            }
+            pthread_mutex_unlock(&ca->mutex);
         }
     }
     int found = -1;
@@ -1045,10 +1054,13 @@ void ca_remove (struct craftArray *ca, struct aircraft *a) {
         if (ca->list[i] == a) {
 
             pthread_mutex_lock(&ca->mutex);
-            ca->list[i] = NULL;
+            // re-check under mutex
+            if (ca->list[i] == a) {
+                ca->list[i] = NULL;
 
-            if (i == ca->len - 1)
-                ca->len--;
+                if (i == ca->len - 1)
+                    ca->len--;
+            }
             pthread_mutex_unlock(&ca->mutex);
 
             return;
@@ -1069,8 +1081,9 @@ void set_globe_index (struct aircraft *a, int new_index) {
         fprintf(stderr, "hex: %06x, old_index: %d, new_index: %d, GLOBE_MAX_INDEX: %d\n", a->addr, Modes.globeLists[new_index].len, new_index, GLOBE_MAX_INDEX );
         return;
     }
-    if (old_index >= 0)
+    if (old_index >= 0) {
         ca_remove(&Modes.globeLists[old_index], a);
+    }
     if (new_index >= 0) {
         ca_add(&Modes.globeLists[new_index], a);
     }

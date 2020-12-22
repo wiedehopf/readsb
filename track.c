@@ -1148,7 +1148,9 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
     // only count the aircraft as "seen" for reliable messages with CRC
     if (addressReliable(mm)) {
-        a->seen = mm->sysTimestampMsg;
+        //if (now > a->seen + TRACK_EXPIRE_MAX)
+            //ca_add(&Modes.activeAircraft, a);
+        a->seen = now;
     }
 
     // don't use messages with unreliable CRC too long after receiving a reliable address from an aircraft
@@ -1830,7 +1832,7 @@ void trackRemoveStaleThread(int thread, int start, int end, uint64_t now) {
     uint64_t nonicaoTimeout = now - 1 * HOURS;
 
     // timeout for aircraft with position
-    uint64_t posTimeout = now - 3 * HOURS;
+    uint64_t posTimeout = now - 1 * HOURS;
     if (Modes.json_globe_index) {
         posTimeout = now - 26 * HOURS;
         nonicaoTimeout = now - 26 * HOURS;
@@ -1843,7 +1845,7 @@ void trackRemoveStaleThread(int thread, int start, int end, uint64_t now) {
     uint64_t noposTimeout = now - 5 * MINUTES;
 
 
-    uint64_t doValiditiesCutoff = now - TRACK_EXPIRE_JAERO + 1 * MINUTES;
+    uint64_t doValiditiesCutoff = now - TRACK_EXPIRE_MAX;
 
 
     for (int j = start; j < end; j++) {
@@ -1863,7 +1865,7 @@ void trackRemoveStaleThread(int thread, int start, int end, uint64_t now) {
                     Modes.stats_current.single_message_aircraft++;
 
                 if (a->addr == Modes.cpr_focus)
-                    fprintf(stderr, "del: %06x seen: %"PRIu64" seen_pos %"PRIu64"\n", a->addr, now - a->seen, now - a->seen_pos);
+                    fprintf(stderr, "del: %06x seen: %.1f seen_pos: %.1f\n", a->addr, (now - a->seen) / 1000.0, (now - a->seen_pos) / 1000.0);
 
                 // remove from the globeList
                 set_globe_index(a, -5);

@@ -415,6 +415,7 @@ struct _Modes
     struct net_service *services; // Active services
     struct aircraft * aircraft[AIRCRAFT_BUCKETS];
     struct craftArray globeLists[GLOBE_MAX_INDEX+1];
+    //struct craftArray activeAircraft;
     struct receiver *receiverTable[RECEIVER_TABLE_SIZE];
     dbEntry *db;
     dbEntry **dbIndex;
