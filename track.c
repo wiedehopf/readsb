@@ -1888,7 +1888,7 @@ void *staleThreadEntryPoint(void *arg) {
 
             trackRemoveStaleThread(thread, thread_start, thread_end, now);
 
-            if (now > Modes.lastRemoveStale[thread] + 5 * SECONDS && Modes.lastRemoveStale[thread] && !Modes.staleStop) {
+            if (now > Modes.lastRemoveStale[thread] + 60 * SECONDS && Modes.lastRemoveStale[thread] && !Modes.staleStop) {
                 fprintf(stderr, "thread %d: removeStale interval too long: %.1f seconds\n", thread, (now - Modes.lastRemoveStale[thread]) / 1000.0);
             }
             Modes.lastRemoveStale[thread] = now;
@@ -1957,6 +1957,9 @@ void trackPeriodicUpdate() {
 
     if (!Modes.miscThreadRunning && now > Modes.next_remove_stale) {
         trackRemoveStale(now);
+        if (now > Modes.next_remove_stale + 10 * SECONDS && Modes.next_remove_stale) {
+            fprintf(stderr, "removeStale delayed by %.1f seconds\n", (now - Modes.next_remove_stale) / 1000.0);
+        }
         Modes.next_remove_stale = now + 1 * SECONDS;
     }
 

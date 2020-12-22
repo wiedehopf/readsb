@@ -313,7 +313,7 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
         pthread_mutex_unlock(&Modes.data_mutex);
 
         if (--antiSpam <= 0) {
-            fprintf(stderr, "FIFO dropped, suppressing this message for 30 seconds.");
+            fprintf(stderr, "FIFO dropped, suppressing this message for 30 seconds.\n");
             antiSpam = 300;
         }
         return;
