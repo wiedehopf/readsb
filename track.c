@@ -615,6 +615,10 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         return;
     }
 
+    if (mm->client) {
+        mm->client->positionCounter++;
+    }
+
     if (trackDataAge(now, &a->track_valid) >= 10 * SECONDS && a->seen_pos) {
         double distance = greatcircle(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon);
         if (distance > 100)
@@ -1148,7 +1152,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
     // only count the aircraft as "seen" for reliable messages with CRC
     if (addressReliable(mm)) {
-        //if (now > a->seen + TRACK_EXPIRE_MAX)
+        //if (now > a->seen + Modes.trackExpireMax)
             //ca_add(&Modes.activeAircraft, a);
         a->seen = now;
     }
@@ -1184,6 +1188,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         a->messages = 100000;
 
     a->messages++;
+
+    if (mm->client && !mm->garbage) {
+        mm->client->messageCounter++;
+    }
 
     // update addrtype
     if (a->addrtype_updated > now)
@@ -1845,7 +1853,7 @@ void trackRemoveStaleThread(int thread, int start, int end, uint64_t now) {
     uint64_t noposTimeout = now - 5 * MINUTES;
 
 
-    uint64_t doValiditiesCutoff = now - TRACK_EXPIRE_MAX;
+    uint64_t doValiditiesCutoff = now - Modes.trackExpireMax;
 
     for (int j = start; j < end; j++) {
         struct aircraft **nextPointer = &(Modes.aircraft[j]);
@@ -2575,7 +2583,7 @@ static const char *source_string(datasource_t source) {
 void updateValidities(struct aircraft *a, uint64_t now) {
     a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = 0;
 
-    if (a->globe_index >= 0 && now > a->seen_pos + TRACK_EXPIRE_JAERO + 1 * MINUTES) {
+    if (a->globe_index >= 0 && now > a->seen_pos + Modes.trackExpireJaero + 1 * MINUTES) {
         set_globe_index(a, -5);
     }
 

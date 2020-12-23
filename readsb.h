@@ -487,6 +487,9 @@ struct _Modes
 
     uint8_t filterDF; // Only show messages with this DF type
 
+    uint32_t trackExpireJaero;
+    uint32_t trackExpireMax;
+
     uint32_t cpr_focus;
     uint32_t show_only; // Only show messages from this ICAO
     uint64_t receiver_focus;
@@ -607,6 +610,7 @@ struct modesMessage
     bool jsonPos; // output a json position
     datasource_t source; // Characterizes the overall message source
     double signalLevel; // RSSI, in the range [0..1], as a fraction of full-scale power
+    struct client *client; // network client this message came from, NULL otherwise
     // Raw data, just extracted directly from the message
     // The names reflect the field names in Annex 4
     unsigned IID; // extracted from CRC of DF11s
@@ -843,6 +847,7 @@ enum {
     OptJsonGzip,
     OptJsonBinCraft,
     OptJsonReliable,
+    OptJaeroTimeout,
     OptDbFile,
     OptPromFile,
     OptGlobeHistoryDir,

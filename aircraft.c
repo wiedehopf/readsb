@@ -266,7 +266,7 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
     new->tas = a->tas;
 
     new->squawk = a->squawk;
-    new->category = a->category * (now < a->category_updated + TRACK_EXPIRE_JAERO);
+    new->category = a->category * (now < a->category_updated + Modes.trackExpireJaero);
     // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
     new->nav_altitude_mcp = (uint16_t) nearbyint(a->nav_altitude_mcp / 4.0);
     new->nav_altitude_fms = (uint16_t) nearbyint(a->nav_altitude_fms / 4.0);

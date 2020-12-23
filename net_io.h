@@ -114,6 +114,8 @@ struct client
     uint64_t last_send;
     uint64_t last_read;  // This is used on write-only clients to help check for dead connections
     uint64_t connectedSince;
+    uint64_t messageCounter; // counter for incoming data
+    uint64_t positionCounter; // counter for incoming data
     char modeac_requested; // 1 if this Beast output connection has asked for A/C
     char receiverIdLocked; // receiverId has been transmitted by other side.
     void *sendq;  // Write buffer - allocated later
@@ -122,7 +124,7 @@ struct client
     uint32_t garbage; // amount of garbage we have received from this client
     struct net_connector *con;
     char buf[MODES_CLIENT_BUF_SIZE + 4]; // Read buffer+padding
-    char proxy_string[108]; // store string received from PROXY protocol v1 (v2 not supported currently)
+    char proxy_string[256]; // store string received from PROXY protocol v1 (v2 not supported currently)
     char host[NI_MAXHOST]; // For logging
     char port[NI_MAXSERV];
 };

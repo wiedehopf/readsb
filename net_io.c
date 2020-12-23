@@ -158,6 +158,19 @@ struct net_service *serviceInit(const char *descr, struct net_writer *writer, he
     return service;
 }
 
+
+static void setProxyString(struct client *c) {
+    if (strlen(c->host) + strlen(c->port) + 2 > sizeof(c->proxy_string))
+        return;
+    if (!c->host[0] || !c->port[0])
+        return;
+    strcpy(c->proxy_string, c->host);
+    uint32_t len = strlen(c->proxy_string);
+    c->proxy_string[len] = ':';
+    strcpy(c->proxy_string + len + 1, c->port);
+    c->receiverId = fasthash64(c->proxy_string, strlen(c->proxy_string), 0x2127599bf4325c37ULL);
+}
+
 // Create a client attached to the given service using the provided socket FD
 struct client *createSocketClient(struct net_service *service, int fd) {
     anetSetSendBuffer(Modes.aneterr, fd, (MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size));
@@ -194,6 +207,8 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     c->con = NULL;
     c->last_read = now;
     c->proxy_string[0] = '\0';
+    c->host[0] = '\0';
+    c->port[0] = '\0';
 
     c->receiverId = random();
     c->receiverId <<= 22;
@@ -309,6 +324,7 @@ struct client *checkServiceConnected(struct net_connector *con) {
 
     strncpy(c->host, con->address, sizeof(c->host) - 1);
     strncpy(c->port, con->port, sizeof(c->port) - 1);
+    setProxyString(c);
 
     con->connecting = 0;
     con->connected = 1;
@@ -708,6 +724,7 @@ static uint64_t modesAcceptClients(uint64_t now) {
                             c->port, sizeof(c->port),
                             NI_NUMERICHOST | NI_NUMERICSERV);
 
+                    setProxyString(c);
                     if (!Modes.netIngest && Modes.debug_net) {
                         fprintf(stderr, "%s: new c from %s port %s (fd %d)\n", 
                                 c->service->descr, c->host, c->port, fd);
@@ -1076,6 +1093,7 @@ static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now)
         goto basestation_invalid;
 
     memset(&mm, 0, sizeof(mm));
+    mm.client = c;
 
     char *p = line;
     char *t[23]; // leave 0 indexed entry empty, place 22 tokens into array
@@ -1701,6 +1719,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
     MODES_NOTUSED(c);
 
     memset(&mm, 0, sizeof(mm));
+    mm.client = c;
 
     ch = *p++; /// Get the message type
 
@@ -1885,6 +1904,7 @@ static int decodeHexMessage(struct client *c, char *hex, int remote, uint64_t no
     MODES_NOTUSED(c);
 
     memset(&mm, 0, sizeof(mm));
+    mm.client = c;
 
     // Mark messages received over the internet as remote so that we don't try to
     // pass them off as being received by this instance when forwarding them
@@ -2676,6 +2696,9 @@ struct char_buffer generateReceiverJson() {
     if (Modes.db || Modes.db2)
         p = safe_snprintf(p, end, ", \"dbServer\": true");
 
+
+    p = safe_snprintf(p, end, ", \"jaeroTimeout\": %.1f", ((double) Modes.trackExpireJaero) / (60 * SECONDS));
+
     if (Modes.json_globe_index) {
         p = safe_snprintf(p, end, ", \"binCraft\": true");
         p = safe_snprintf(p, end, ", \"globeIndexGrid\": %d", GLOBE_INDEX_GRID);
@@ -2899,11 +2922,12 @@ static void modesReadFromClient(struct client *c) {
 
         // check for idle connection, this server version requires data
         // or a heartbeat, otherwise it will force a reconnect
-        if (c->con && c->last_read + 65000 <= now
+        if (Modes.net_heartbeat_interval && c->con && c->last_read + Modes.net_heartbeat_interval + 5 * SECONDS <= now
                 && c->service->read_mode != READ_MODE_IGNORE
                 && c->service->read_mode != READ_MODE_BEAST_COMMAND
            ) {
-            fprintf(stderr, "%s: No data received for 65 seconds, reconnecting: %s port %s\n", c->service->descr, c->host, c->port);
+            fprintf(stderr, "%s: No data received for %.0f seconds, reconnecting: %s port %s\n",
+                    c->service->descr, (double)(Modes.net_heartbeat_interval + 5 * SECONDS),c->host, c->port);
             modesCloseClient(c);
             return;
         }
@@ -2981,9 +3005,11 @@ static void modesReadFromClient(struct client *c) {
             if (proxy && proxy == som) {
                 if (!eop) // incomplete proxy string (shouldn't happen but let's check anyhow)
                     break;
-                strncpy(c->proxy_string, proxy, eop - proxy);
-                c->proxy_string[107] = '\0'; // make sure it's null terminated
+                *eop = '\0';
+                strncpy(c->proxy_string, proxy, sizeof(c->proxy_string));
+                c->proxy_string[sizeof(c->proxy_string) - 1] = '\0'; // make sure it's null terminated
                 //fprintf(stderr, "%s\n", c->proxy_string);
+                *eop = '\r';
 
                 // expected string example: "PROXY TCP4 172.12.2.132 172.191.123.45 40223 30005"
 
@@ -3921,6 +3947,8 @@ struct char_buffer generateClientsJson() {
     char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
 
     p = safe_snprintf(p, end, "{ \"now\" : %.1f,\n", now / 1000.0);
+    p = safe_snprintf(p, end, "  \"format\" : "
+            "[ \"receiverId\", \"host:port\", \"avg. kbit/s\", \"conn time(s)\", \"messageCounter\", \"positionCounter\" ],\n");
 
     p = safe_snprintf(p, end, "  \"clients\" : [\n");
 
@@ -3941,12 +3969,15 @@ struct char_buffer generateClientsJson() {
             }
 
             double elapsed = (now - c->connectedSince) / 1000.0;
-            p = safe_snprintf(p, end, "[ \"%016"PRIx64"%016"PRIx64"\", \"%s\", %6.2f, %6.1f ],\n",
+            p = safe_snprintf(p, end, "[ \"%016"PRIx64"%016"PRIx64"\", \"%s\", %6.2f, %6.1f, %9.0f, %9.0f ],\n",
                     c->receiverId,
                     c->receiverId2,
                     c->proxy_string,
                     c->bytesReceived / 128.0 / elapsed,
-                    elapsed);
+                    elapsed,
+                    (double) c->messageCounter,
+                    (double) c->positionCounter);
+
 
             if (p >= end)
                 fprintf(stderr, "buffer overrun client json\n");

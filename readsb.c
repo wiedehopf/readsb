@@ -171,6 +171,7 @@ static void modesInitConfig(void) {
     //Modes.receiver_focus = 0x1aa14156975948af;
     //
     Modes.show_only = 0xc0ffeeba; // default to out of normal range value
+    Modes.trackExpireJaero = TRACK_EXPIRE_JAERO;
 
     sdrInitConfig();
 
@@ -994,6 +995,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptJsonLocAcc:
             Modes.json_location_accuracy = atoi(arg);
             break;
+
+        case OptJaeroTimeout:
+            Modes.trackExpireJaero = (uint32_t) (atof(arg) * MINUTES);
+            break;
         case OptJsonReliable:
             Modes.json_reliable = atoi(arg);
             if (Modes.json_reliable < -1)
@@ -1272,10 +1277,28 @@ int parseCommandLine(int argc, char **argv) {
         exit(0);
     }
 
+    return 0;
+}
+
+static void configAfterParse() {
+    Modes.trackExpireMax = Modes.trackExpireJaero + TRACK_EXPIRE_LONG + 1 * MINUTES;
+
     if (Modes.viewadsb && Modes.net_connectors_count == 0) {
         Modes.net_connectors_count++; // activate the default net-connector for viewadsb
     }
-    return 0;
+
+    if (Modes.heatmap) {
+        if (!Modes.globe_history_dir && !Modes.heatmap_dir) {
+            fprintf(stderr, "Heatmap requires globe history dir or heatmap dir to be set, disabling heatmap!\n");
+            Modes.heatmap = 0;
+        }
+    }
+
+    if (Modes.json_globe_index) {
+        Modes.keep_traces = 24 * HOURS + 40 * MINUTES; // include 40 minutes overlap, tar1090 needs at least 30 minutes currently
+    } else if (Modes.heatmap) {
+        Modes.keep_traces = 35 * MINUTES; // heatmap is written every 30 minutes
+    }
 }
 
 //
@@ -1296,6 +1319,8 @@ int main(int argc, char **argv) {
 
     // Parse the command line options
     parseCommandLine(argc, argv);
+
+    configAfterParse();
 
 #ifdef _WIN32
     // Try to comply with the Copyright license conditions for binary distribution
@@ -1331,19 +1356,6 @@ int main(int argc, char **argv) {
 
     for (int j = 0; j < STAT_BUCKETS; ++j)
         Modes.stats_10[j].start = Modes.stats_10[j].end = Modes.stats_current.start;
-
-    if (Modes.heatmap) {
-        if (!Modes.globe_history_dir && !Modes.heatmap_dir) {
-            fprintf(stderr, "Heatmap requires globe history dir or heatmap dir to be set, disabling heatmap!\n");
-            Modes.heatmap = 0;
-        }
-    }
-
-    if (Modes.json_globe_index) {
-        Modes.keep_traces = 24 * HOURS + 40 * MINUTES; // include 40 minutes overlap, tar1090 needs at least 30 minutes currently
-    } else if (Modes.heatmap) {
-        Modes.keep_traces = 35 * MINUTES; // heatmap is written every 30 minutes
-    }
 
     if (Modes.json_dir && Modes.json_globe_index) {
         char pathbuf[PATH_MAX];
@@ -1384,11 +1396,14 @@ int main(int argc, char **argv) {
         fprintf(stderr, "aircraft table fill: %0.1f\n", aircraftCount / (double) AIRCRAFT_BUCKETS );
 
         char pathbuf[PATH_MAX];
-        if (mkdir(Modes.globe_history_dir, 0755) && errno != EEXIST)
-            perror(Modes.globe_history_dir);
 
-        if (mkdir(Modes.state_dir, 0755) && errno != EEXIST)
+        if (Modes.globe_history_dir && mkdir(Modes.globe_history_dir, 0755) && errno != EEXIST) {
+            perror(Modes.globe_history_dir);
+        }
+
+        if (mkdir(Modes.state_dir, 0755) && errno != EEXIST) {
             perror(pathbuf);
+        }
     }
     // db update on startup
     if (!Modes.exit)

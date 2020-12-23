@@ -92,6 +92,7 @@ static struct argp_option optionsReadsb[] = {
     {"write-json-gzip", OptJsonGzip, 0, 0, "Write aircraft.json also as aircraft.json.gz", 1},
     {"write-json-binCraft-only", OptJsonBinCraft, "<n>", 0, "Use only binary binCraft format for globe files (1), for aircraft.json as well (2)", 1},
     {"json-reliable", OptJsonReliable,"<n>", 0, "Minimum position reliability to put it into json (default: 1, globe options will default set this to 2, disable speed filter: -1, max: 4)", 1},
+    {"jaero-timeout", OptJaeroTimeout,"<n>", 0, "How long in minutes JAERO positions remain valid and on the map in tar1090 (default:33)", 1},
     {"db-file", OptDbFile, "<file.csv.gz>", 0, "disable db loading: --db-file none Default: /usr/local/share/tar1090/git-db/aircraft.csv.gz", 1},
     {0,0,0,0, "Network options:", 2},
     {"net-connector", OptNetConnector, "<ip,port,protocol>", 0, "Establish connection, can be specified multiple times (e.g. 127.0.0.1,23004,beast_out) Protocols: beast_out, beast_in, raw_out, raw_in, sbs_in, sbs_in_jaero, sbs_out, sbs_out_jaero, vrs_out, json_out (one failover ip/address,port can be specified: primary-address,primary-port,protocol,failover-address,failover-port)", 2},
