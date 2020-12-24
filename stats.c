@@ -467,6 +467,8 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
 
     }
 
+    p = safe_snprintf(p, end, ",\"messages_valid\": %u\n", st->messages_total);
+    p = safe_snprintf(p, end, ",\"position_count_total\": %u\n", st->pos_all);
 
     p = safe_snprintf(p, end, ",\"position_count_by_type\": {");
     for (int i = 0; i < NUM_TYPES; i++) {
@@ -480,10 +482,12 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
         p = safe_snprintf(p, end,
                 ",\"remote\":{\"modeac\":%u"
                 ",\"modes\":%u"
+                ",\"basestation\": %u"
                 ",\"bad\":%u"
                 ",\"unknown_icao\":%u",
                 st->remote_received_modeac,
                 st->remote_received_modes,
+                st->remote_received_basestation_valid,
                 st->remote_rejected_bad,
                 st->remote_rejected_unknown_icao);
 
