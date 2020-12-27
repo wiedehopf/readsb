@@ -1308,10 +1308,6 @@ int traceAdd(struct aircraft *a, uint64_t now) {
 
     if (now > a->seenPosReliable + TRACE_STALE + 2 * SECONDS) {
         stale = 1;
-        // save a point if reception is spotty so we can mark track as spotty on display
-        goto save_state;
-        //if (a->addr == Modes.cpr_focus)
-        //    fprintf(stderr, "stale, elapsed: %0.1f\n", (now - a->seenPosReliable) / 1000.0);
     }
 
     int agValid = 0;
@@ -1375,6 +1371,10 @@ int traceAdd(struct aircraft *a, uint64_t now) {
     if (elapsed < 2000)
         goto no_save_state;
 
+    if (stale) {
+        // save a point if reception is spotty so we can mark track as spotty on display
+        goto save_state;
+    }
 
     if (on_ground) {
         if (distance * track_diff > 200)
