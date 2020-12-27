@@ -1450,9 +1450,6 @@ int traceAdd(struct aircraft *a, uint64_t now) {
 
 save_state:
     posUsed = 1;
-    if (a->addr == Modes.cpr_focus) {
-        fprintf(stderr, "trace ground:%d a->airground: %s valid: %d source: %s\n", on_ground, airground_to_string(a->airground), trackDataValid(&a->airground_valid), source_enum_string(a->airground_valid.source));
-    }
 no_save_state:
 
     if (!a->trace || !a->trace_len) {
