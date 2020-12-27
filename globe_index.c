@@ -1314,14 +1314,17 @@ int traceAdd(struct aircraft *a, uint64_t now) {
         //    fprintf(stderr, "stale, elapsed: %0.1f\n", (now - a->seenPosReliable) / 1000.0);
     }
 
-    if (trackDataValid(&a->airground_valid) && a->airground_valid.source >= SOURCE_MODE_S_CHECKED && a->airground == AG_GROUND) {
-        on_ground = 1;
-
-        if (trackVState(now, &a->true_heading_valid, &a->position_valid)) {
-            track = a->true_heading;
-            track_valid = 1;
-        } else {
-            track_valid = 0;
+    int agValid = 0;
+    if (trackDataValid(&a->airground_valid) && a->airground_valid.source >= SOURCE_MODE_S_CHECKED) {
+        agValid = 1;
+        if (a->airground == AG_GROUND) {
+            on_ground = 1;
+            if (trackVState(now, &a->true_heading_valid, &a->position_valid)) {
+                track = a->true_heading;
+                track_valid = 1;
+            } else {
+                track_valid = 0;
+            }
         }
     }
 
@@ -1336,19 +1339,36 @@ int traceAdd(struct aircraft *a, uint64_t now) {
 
     int32_t last_alt = last->altitude * 25;
 
+    // keep the last air ground state if the current isn't valid
+    if (!agValid) {
+        on_ground = last->flags.on_ground;
+    }
+    if (on_ground) {
+        // just do this twice so we cover the first point in a trace as well as using the last airground state
+        if (trackVState(now, &a->true_heading_valid, &a->position_valid)) {
+            track = a->true_heading;
+            track_valid = 1;
+        } else {
+            track_valid = 0;
+        }
+    }
+
     if (on_ground != last->flags.on_ground) {
         goto save_state;
     }
 
     double distance = greatcircle(a->trace_llat, a->trace_llon, a->lat, a->lon);
 
-    // record non moving targets every 10 minutes
-    if (elapsed > 20 * Modes.json_trace_interval)
+    // record non moving targets every 5 minutes
+    if (elapsed > 10 * Modes.json_trace_interval)
         goto save_state;
     if (distance < 40)
         goto no_save_state;
 
-    if (elapsed > Modes.json_trace_interval) // default 30000 ms
+    if (!on_ground && elapsed > Modes.json_trace_interval) // default 30000 ms
+        goto save_state;
+
+    if (on_ground && elapsed > 4 * Modes.json_trace_interval)
         goto save_state;
 
     if (elapsed < 2000)
@@ -1426,6 +1446,9 @@ int traceAdd(struct aircraft *a, uint64_t now) {
 
 save_state:
     posUsed = 1;
+    if (a->addr == Modes.cpr_focus) {
+        fprintf(stderr, "trace point on_ground: %d\n", on_ground);
+    }
 no_save_state:
 
     if (!a->trace || !a->trace_len) {

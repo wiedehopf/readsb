@@ -1490,13 +1490,20 @@ end_alt:
             if (mm->airground != a->airground)
                 mm->reduce_forward = 1;
             if (accept_data(&a->airground_valid, mm->source, mm, 0)) {
+
+                static uint64_t antiSpam;
+                if ((now > antiSpam + 5 * SECONDS || a->airground != mm->airground) && a->addr == Modes.cpr_focus) {
+                    antiSpam = now;
+                    //displayModesMessage(mm);
+                    //fflush(stdout);
+                    fprintf(stderr, "Source: %s, Air/Ground: %s\n",
+                            source_enum_string(mm->source),
+                            airground_to_string(mm->airground));
+                }
+
                 a->airground = mm->airground;
 
                 //if (a->airground == AG_GROUND && mm->source == SOURCE_MODE_S) {
-                //if (a->addr == Modes.cpr_focus) {
-                //    displayModesMessage(mm);
-                //    fflush(stdout);
-                //}
             }
         }
     }

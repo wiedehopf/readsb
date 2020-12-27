@@ -1547,21 +1547,6 @@ static const char *altitude_unit_to_string(altitude_unit_t unit) {
     }
 }
 
-static const char *airground_to_string(airground_t airground) {
-    switch (airground) {
-        case AG_GROUND:
-            return "ground";
-        case AG_AIRBORNE:
-            return "airborne";
-        case AG_INVALID:
-            return "invalid";
-        case AG_UNCERTAIN:
-            return "airborne?";
-        default:
-            return "(unknown airground state)";
-    }
-}
-
 static const char *cpr_type_to_string(cpr_type_t type) {
     switch (type) {
         case CPR_SURFACE:
@@ -2172,7 +2157,7 @@ void useModesMessage(struct modesMessage *mm) {
     a = trackUpdateFromMessage(mm);
 
     // In non-interactive non-quiet mode, display messages on standard output
-    if ((!Modes.interactive && !Modes.quiet) || (mm->addr == Modes.show_only)) {
+    if (!Modes.quiet || (mm->addr == Modes.show_only)) {
         displayModesMessage(mm);
     }
 

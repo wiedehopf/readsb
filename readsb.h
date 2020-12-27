@@ -532,7 +532,7 @@ struct _Modes
     char *state_dir;
     char *prom_file;
     int64_t heatmap_current_interval;
-    uint32_t heatmap_interval;
+    uint32_t heatmap_interval; // don't change data type
     int heatmap;
     char *heatmap_dir;
     uint32_t keep_traces; // how long traces are saved in internal memory

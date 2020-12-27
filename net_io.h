@@ -35,6 +35,8 @@ struct net_service;
 typedef int (*read_fn)(struct client *, char *, int, uint64_t);
 typedef void (*heartbeat_fn)(struct net_service *);
 const char *addrtype_enum_string(addrtype_t type);
+const char *source_enum_string(datasource_t src);
+const char *airground_to_string(airground_t airground);
 
 typedef enum
 {

@@ -1131,6 +1131,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 
         case OptCprFocus:
             Modes.cpr_focus = strtol(arg, NULL, 16);
+            Modes.interactive = 0;
+            Modes.keep_traces = 2 * HOURS;
             fprintf(stderr, "cpr_focus = %06x\n", Modes.cpr_focus);
             break;
         case OptReceiverFocus:
