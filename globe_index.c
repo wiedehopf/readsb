@@ -1354,6 +1354,7 @@ int traceAdd(struct aircraft *a, uint64_t now) {
     }
 
     if (on_ground != last->flags.on_ground) {
+        traceUsePosBuffered(a);
         goto save_state;
     }
 
@@ -1431,6 +1432,9 @@ int traceAdd(struct aircraft *a, uint64_t now) {
         if (track_diff > 0.5
                 && (elapsed > (uint64_t) (100.0 * 1000.0 / turn_density / track_diff))
            ) {
+            if (elapsed > 5 && track_diff > 4) {
+                traceUsePosBuffered(a);
+            }
             //fprintf(stderr, "t");
             goto save_state;
         }
