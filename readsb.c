@@ -912,6 +912,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptInteractive:
             Modes.interactive = 1;
+            Modes.quiet = 1;
             break;
         case OptInteractiveTTL:
             Modes.interactive_display_ttl = (uint64_t) (1000 * atof(arg));
