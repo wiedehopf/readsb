@@ -78,5 +78,6 @@ unsigned int get_seed();
 // increment target by increment in ms, if result is in the past, set target to now.
 // specialized function for scheduling threads using pthreadcondtimedwait
 void incTimedwait(struct timespec *target, uint64_t increment);
+void log_with_timestamp(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
 
 #endif

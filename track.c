@@ -1112,9 +1112,10 @@ static int addressReliable(struct modesMessage *mm) {
     return 0;
 }
 
-static inline void focusGroundstateChange(struct aircraft *a, struct modesMessage *mm, int arg) {
+static inline void focusGroundstateChange(struct aircraft *a, struct modesMessage *mm, int arg, uint64_t now) {
     if (a->addr == Modes.cpr_focus && a->airground != mm->airground) {
-        fprintf(stderr, "Ground state change %d: Source: %s, %s -> %s\n",
+        fprintf(stderr, "%.3f s Ground state change %d: Source: %s, %s -> %s\n",
+                (now % (60 * SECONDS)) / 1000.0,
                 arg,
                 source_enum_string(mm->source),
                 airground_to_string(a->airground),
@@ -1500,7 +1501,7 @@ end_alt:
             if (mm->airground != a->airground)
                 mm->reduce_forward = 1;
             if (accept_data(&a->airground_valid, mm->source, mm, 0)) {
-                focusGroundstateChange(a, mm, 1);
+                focusGroundstateChange(a, mm, 1, now);
                 a->airground = mm->airground;
 
                 //if (a->airground == AG_GROUND && mm->source == SOURCE_MODE_S) {
@@ -1625,14 +1626,14 @@ end_alt:
         // making especially sure we catch surface -> airborne transitions
         if (a->last_cpr_type == CPR_SURFACE && mm->cpr_type == CPR_AIRBORNE
                 && accept_data(&a->airground_valid, mm->source, mm, 0)) {
-            focusGroundstateChange(a, mm, 2);
+            focusGroundstateChange(a, mm, 2, now);
             a->airground = AG_AIRBORNE;
             mm->reduce_forward = 1;
 
         }
         if (a->last_cpr_type == CPR_AIRBORNE && mm->cpr_type == CPR_SURFACE
                 && accept_data(&a->airground_valid, mm->source, mm, 0)) {
-            focusGroundstateChange(a, mm, 2);
+            focusGroundstateChange(a, mm, 2, now);
             a->airground = AG_GROUND;
             mm->reduce_forward = 1;
         }

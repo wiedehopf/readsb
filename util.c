@@ -269,3 +269,24 @@ int writeGz(gzFile gzfp, void *source, int toWrite, char *errorContext) {
     }
     return nwritten;
 }
+
+void log_with_timestamp(const char *format, ...) {
+    char timebuf[128];
+    char msg[1024];
+    time_t now;
+    struct tm local;
+    va_list ap;
+
+    now = time(NULL);
+    localtime_r(&now, &local);
+    strftime(timebuf, 128, "%c %Z", &local);
+    timebuf[127] = 0;
+
+    va_start(ap, format);
+    vsnprintf(msg, 1024, format, ap);
+    va_end(ap);
+    msg[1023] = 0;
+
+    fprintf(stderr, "%s  %s\n", timebuf, msg);
+}
+

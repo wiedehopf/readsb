@@ -65,28 +65,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state);
 //
 // ============================= Utility functions ==========================
 //
-static void log_with_timestamp(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
 static void cleanup_and_exit(int code);
-
-static void log_with_timestamp(const char *format, ...) {
-    char timebuf[128];
-    char msg[1024];
-    time_t now;
-    struct tm local;
-    va_list ap;
-
-    now = time(NULL);
-    localtime_r(&now, &local);
-    strftime(timebuf, 128, "%c %Z", &local);
-    timebuf[127] = 0;
-
-    va_start(ap, format);
-    vsnprintf(msg, 1024, format, ap);
-    va_end(ap);
-    msg[1023] = 0;
-
-    fprintf(stderr, "%s  %s\n", timebuf, msg);
-}
 
 static void sigintHandler(int dummy) {
     MODES_NOTUSED(dummy);
