@@ -1480,6 +1480,7 @@ end_alt:
         a->geom_rate = mm->geom_rate;
     }
 
+    static uint64_t antiSpam;
     if (mm->airground != AG_INVALID && mm->source != SOURCE_MODE_S &&
             !(a->last_cpr_type == CPR_SURFACE && mm->airground == AG_AIRBORNE && now < a->airground_valid.updated + TRACK_EXPIRE_LONG)
        ) {
@@ -1491,7 +1492,6 @@ end_alt:
                 mm->reduce_forward = 1;
             if (accept_data(&a->airground_valid, mm->source, mm, 0)) {
 
-                static uint64_t antiSpam;
                 if ((now > antiSpam + 5 * SECONDS || a->airground != mm->airground) && a->addr == Modes.cpr_focus) {
                     antiSpam = now;
                     //displayModesMessage(mm);
@@ -1625,8 +1625,14 @@ end_alt:
         // making especially sure we catch surface -> airborne transitions
         if (a->last_cpr_type == CPR_SURFACE && mm->cpr_type == CPR_AIRBORNE
                 && accept_data(&a->airground_valid, mm->source, mm, 0)) {
+            if (a->airground != AG_AIRBORNE && a->addr == Modes.cpr_focus) {
+                fprintf(stderr, "Source: %s, Air/Ground: %s SHIT?\n",
+                        source_enum_string(mm->source),
+                        airground_to_string(mm->airground));
+            }
             a->airground = AG_AIRBORNE;
             mm->reduce_forward = 1;
+
         }
         if (a->last_cpr_type == CPR_AIRBORNE && mm->cpr_type == CPR_SURFACE
                 && accept_data(&a->airground_valid, mm->source, mm, 0)) {
