@@ -223,7 +223,7 @@ static void update_range_histogram(double lat, double lon) {
 // return true if it's OK for the aircraft to have travelled from its last known position
 // to a new position at (lat,lon,surface) at a time of now.
 
-static int speed_check(struct aircraft *a, datasource_t source, double lat, double lon, struct modesMessage *mm) {
+static int speed_check(struct aircraft *a, datasource_t source, double lat, double lon, struct modesMessage *mm, cpr_local_t cpr_local) {
     uint64_t elapsed;
     double distance;
     double range;
@@ -325,9 +325,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
             || (a->addr == Modes.cpr_focus && distance > 0.1)) {
 
         //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
-        fprintf(stderr, "%06x: %s %s %s %s reliable: %2d tD: %3.0f: %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
+        fprintf(stderr, "%06x: %s %s %s %s %s R: %2d tD: %3.0f: %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
                 a->addr,
                 source == a->position_valid.last_source ? "SQ" : "LQ",
+                cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "O"),
                 mm->cpr_odd ? "O" : "E",
                 (inrange ? "  ok" : "FAIL"),
                 (surface ? "S" : "A"),
@@ -418,7 +419,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
             //        r->id, r->positionCounter,
             //        r->latMin, r->latMax,
             //        r->lonMin, r->lonMax);
-            int sc = speed_check(a, mm->source, *lat, *lon, mm);
+            int sc = speed_check(a, mm->source, *lat, *lon, mm, CPR_GLOBAL);
             fprintf(stderr, "%s%06x surface CPR rec. ref.: %4.0f %4.0f sc: %d result: %7.2f %7.2f --> %7.2f %7.2f\n",
                     (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : " ",
                     a->addr, reflat, reflon, sc, a->lat, a->lon, *lat, *lon);
@@ -428,7 +429,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
             if (receiver && !trackDataValid(&a->position_valid))
                 fprintf(stderr, "%06x using receiver reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
         }
-        if (receiver && a->addr == Modes.cpr_focus)
+        if (Modes.debug_receiver && receiver && a->addr == Modes.cpr_focus)
             fprintf(stderr, "%06x using reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
     } else {
         // airborne global CPR
@@ -467,7 +468,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
     }
 
     // check speed limit
-    if (!speed_check(a, mm->source, *lat, *lon, mm)) {
+    if (!speed_check(a, mm->source, *lat, *lon, mm, CPR_GLOBAL)) {
         Modes.stats_current.cpr_global_speed_checks++;
         return -2;
     }
@@ -562,10 +563,7 @@ static int doLocalCPR(struct aircraft *a, struct modesMessage *mm, double *lat, 
     }
 
     // check speed limit
-    if (!speed_check(a, mm->source, *lat, *lon, mm)) {
-        if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
-            fprintf(stderr, "Speed check for %06x with local decoding failed\n", a->addr);
-        }
+    if (!speed_check(a, mm->source, *lat, *lon, mm, CPR_LOCAL)) {
         Modes.stats_current.cpr_local_speed_checks++;
         return -2;
     }
@@ -766,8 +764,8 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
             return;
         }
 
-        if (a->addr == Modes.cpr_focus)
-            fprintf(stderr, "%06x: localCPR: %d\n", a->addr, location_result);
+        //if (a->addr == Modes.cpr_focus)
+        //    fprintf(stderr, "%06x: localCPR: %d\n", a->addr, location_result);
 
         if (location_result >= 0 && accept_data(&a->position_valid, mm->source, mm, 1)) {
             Modes.stats_current.cpr_local_ok++;
@@ -1660,7 +1658,7 @@ end_alt:
         if (old_jaero || greatcircle(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon) < 1) {
         } else if (
                 mm->source != SOURCE_PRIO
-                && !speed_check(a, mm->source, mm->decoded_lat, mm->decoded_lon, mm)
+                && !speed_check(a, mm->source, mm->decoded_lat, mm->decoded_lon, mm, CPR_NONE)
            )
         {
             mm->pos_bad = 1;

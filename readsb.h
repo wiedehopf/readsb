@@ -218,6 +218,11 @@ typedef enum
 
 typedef enum
 {
+   CPR_NONE, CPR_LOCAL, CPR_GLOBAL
+} cpr_local_t;
+
+typedef enum
+{
     HEADING_INVALID, // Not set
     HEADING_GROUND_TRACK, // Direction of track over ground, degrees clockwise from true north
     HEADING_TRUE, // Heading, degrees clockwise from true north
