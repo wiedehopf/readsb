@@ -1448,10 +1448,11 @@ int traceAdd(struct aircraft *a, uint64_t now) {
         }
     }
 
-    if (trackDataValid(&a->gs_valid) && last->flags.gs_valid && fabs(last->gs / 10.0 - a->gs) > 7) {
+    if (trackDataValid(&a->gs_valid) && last->flags.gs_valid && fabs(last->gs / 10.0 - a->gs) > 5) {
         //fprintf(stderr, "s\n");
-        //fprintf(stderr, "%06x %0.1f %0.1f\n", a->addr, fabs(last->gs / 10.0 - a->gs), a->gs);
+        //fprintf(stderr, "%06x %0.1f %0.1f -> %0.1f\n", a->addr, fabs(last->gs / 10.0 - a->gs), last->gs / 10.0, a->gs);
         // if available save the last position but not the current one
+        goto save_state;
     }
 
     goto no_save_state;
