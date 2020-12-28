@@ -1570,6 +1570,10 @@ no_save_state:
     } else {
         a->tracePosBuffered = 1;
     }
+    if (bufferedPosUsed) {
+        // in some cases we want to add a 2nd point right now.
+        traceAdd(a, now);
+    }
 
     return posUsed || bufferedPosUsed;
 }
