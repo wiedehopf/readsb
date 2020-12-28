@@ -1219,10 +1219,16 @@ void traceResize(struct aircraft *a, uint64_t now) {
     }
 }
 
-void traceUsePosBuffered(struct aircraft *a) {
+int traceUsePosBuffered(struct aircraft *a) {
     if (a->tracePosBuffered) {
         a->tracePosBuffered = 0;
+        // bookkeeping:
         a->trace_len++;
+        a->trace_write = 1;
+        a->trace_full_write++;
+        return 1;
+    } else {
+        return 0;
     }
 }
 
@@ -1288,6 +1294,9 @@ void traceMaintenance(struct aircraft *a, uint64_t now) {
 
 int traceAdd(struct aircraft *a, uint64_t now) {
     int posUsed = 0;
+    int bufferedPosUsed = 0;
+    double distance = 0;
+    int64_t elapsed = 0;
 
     if (!Modes.keep_traces)
         return 0;
@@ -1329,7 +1338,7 @@ int traceAdd(struct aircraft *a, uint64_t now) {
 
     last = &(a->trace[a->trace_len-1]);
     float track_diff = fabs(track - last->track / 10.0);
-    uint64_t elapsed = now - last->timestamp;
+    elapsed = now - last->timestamp;
     if (now < last->timestamp)
         elapsed = 0;
 
@@ -1354,7 +1363,7 @@ int traceAdd(struct aircraft *a, uint64_t now) {
         goto save_state;
     }
 
-    double distance = greatcircle(a->trace_llat, a->trace_llon, a->lat, a->lon);
+    distance = greatcircle(last->lat / 1E6, last->lon / 1E6, a->lat, a->lon);
 
     // record non moving targets every 5 minutes
     if (elapsed > 10 * Modes.json_trace_interval)
@@ -1368,7 +1377,7 @@ int traceAdd(struct aircraft *a, uint64_t now) {
     if (on_ground && elapsed > 4 * Modes.json_trace_interval)
         goto save_state;
 
-    if (elapsed < 2000)
+    if (elapsed < TRACE_MIN_ELAPSED)
         goto no_save_state;
 
     if (stale) {
@@ -1377,8 +1386,9 @@ int traceAdd(struct aircraft *a, uint64_t now) {
     }
 
     if (on_ground) {
-        if (distance * track_diff > 200)
+        if (distance * track_diff > 200) {
             goto save_state;
+        }
 
         if (distance > 400)
             goto save_state;
@@ -1393,7 +1403,8 @@ int traceAdd(struct aircraft *a, uint64_t now) {
 
             if (a->altitude_baro > 8000 && abs((a->altitude_baro + 250)/500 - (last_alt + 250)/500) >= 1) {
                 //fprintf(stderr, "1");
-                goto save_state;
+                //fprintf(stderr, "%06x %d -> %d\n", a->addr, last_alt, a->altitude_baro);
+                goto save_state_no_buf;
             }
 
             {
@@ -1404,7 +1415,7 @@ int traceAdd(struct aircraft *a, uint64_t now) {
                 if (a->altitude_baro <= 8000 && a->altitude_baro > 4000
                         && abs((a->altitude_baro + alt_add)/div - (last_alt + last_alt_add)/div) >= 1) {
                     //fprintf(stderr, "2");
-                    goto save_state;
+                    goto save_state_no_buf;
                 }
             }
 
@@ -1416,7 +1427,7 @@ int traceAdd(struct aircraft *a, uint64_t now) {
                 if (a->altitude_baro <= 4000
                         && abs((a->altitude_baro + alt_add)/div - (last_alt + last_alt_add)/div) >= 1) {
                     //fprintf(stderr, "3");
-                    goto save_state;
+                    goto save_state_no_buf;
                 }
             }
 
@@ -1430,26 +1441,40 @@ int traceAdd(struct aircraft *a, uint64_t now) {
 
     if (last->flags.track_valid && track_valid) {
         if (track_diff > 0.5
-                && (elapsed > (uint64_t) (100.0 * 1000.0 / turn_density / track_diff))
+                && (elapsed > (100.0 * 1000.0 / turn_density / track_diff))
            ) {
-            if (elapsed > 5 && track_diff > 4) {
-                traceUsePosBuffered(a);
-            }
             //fprintf(stderr, "t");
             goto save_state;
         }
     }
 
-    if (trackDataValid(&a->gs_valid) && last->flags.gs_valid && fabs(last->gs / 10.0 - a->gs) > 8) {
+    if (trackDataValid(&a->gs_valid) && last->flags.gs_valid && fabs(last->gs / 10.0 - a->gs) > 7) {
         //fprintf(stderr, "s\n");
         //fprintf(stderr, "%06x %0.1f %0.1f\n", a->addr, fabs(last->gs / 10.0 - a->gs), a->gs);
-        goto save_state;
+        // if available save the last position but not the current one
     }
 
     goto no_save_state;
 
 save_state:
+    // always try using the buffered position instead of the current one
+    // this should provide a better picture of changing track / speed / altitude
+
+    if (a->tracePosBuffered
+            && (int64_t) a->trace[a->trace_len].timestamp - (int64_t) last->timestamp > TRACE_MIN_ELAPSED
+            && traceUsePosBuffered(a)
+       ) {
+        posUsed = 0;
+        bufferedPosUsed = 1;
+    } else {
+        posUsed = 1;
+    }
+    //fprintf(stderr, "traceAdd: %06x elapsed: %8.1f s distance: %8.3f km\n", a->addr, elapsed / 1000.0, distance / 1000.0);
+    goto no_save_state;
+
+save_state_no_buf:
     posUsed = 1;
+
 no_save_state:
 
     if (!a->trace || !a->trace_len) {
@@ -1535,12 +1560,17 @@ no_save_state:
         to_state_all(a, new_all, now);
     }
 
-    if (posUsed)
+    if (posUsed) {
         a->tracePosBuffered = 0;
-    else
+        // bookkeeping:
+        a->trace_len++;
+        a->trace_write = 1;
+        a->trace_full_write++;
+    } else {
         a->tracePosBuffered = 1;
+    }
 
-    return posUsed;
+    return posUsed || bufferedPosUsed;
 }
 
 

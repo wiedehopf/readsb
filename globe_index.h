@@ -10,6 +10,7 @@
 #define TDATE_FORMAT "%Y/%m/%d"
 
 #define TRACE_STALE (15 * SECONDS)
+#define TRACE_MIN_ELAPSED (1642) // milliseconds
 
 struct tile {
     int south;
@@ -34,7 +35,7 @@ void traceRealloc(struct aircraft *a, int len);
 void traceCleanup(struct aircraft *a);
 int traceAdd(struct aircraft *a, uint64_t now);
 void traceResize(struct aircraft *a, uint64_t now);
-void traceUsePosBuffered();
+int traceUsePosBuffered();
 void traceMaintenance(struct aircraft *a, uint64_t now);
 
 int handleHeatmap(uint64_t now);

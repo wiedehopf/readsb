@@ -251,8 +251,8 @@ struct aircraft
 
   uint64_t trace_next_mw; // timestamp for next full trace write to /run (tmpfs)
   uint64_t trace_next_fw; // timestamp for next full trace write to history_dir (disk)
-  double trace_llat; // last saved lat
-  double trace_llon; // last saved lon
+  double unused_trace_llat; // last saved lat
+  double unused_trace_llon; // last saved lon
 
   // ----
 

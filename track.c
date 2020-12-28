@@ -643,15 +643,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         set_globe_index(a, globe_index(a->lat, a->lon));
 
         if (traceAdd(a, now)) {
-            (mm->jsonPos = 1);
-            // bookkeeping:
-            a->trace_llat = a->lat;
-            a->trace_llon = a->lon;
-
-            (a->trace_len)++;
-            a->trace_write = 1;
-            a->trace_full_write++;
-
+            mm->jsonPos = 1;
             //fprintf(stderr, "Added to trace for %06x (%d).\n", a->addr, a->trace_len);
         }
 
