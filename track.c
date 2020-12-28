@@ -2015,7 +2015,7 @@ void trackPeriodicUpdate() {
     unlockThreads();
 
     static uint64_t antiSpam;
-    if (elapsed > 35 && now > antiSpam + 30 * SECONDS) {
+    if (elapsed > 50 && now > antiSpam + 30 * SECONDS) {
         fprintf(stderr, "<3>High load: removeStale took %"PRIu64" ms! Suppressing for 30 seconds\n", elapsed);
         antiSpam = now;
     }
