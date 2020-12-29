@@ -1293,6 +1293,9 @@ void traceMaintenance(struct aircraft *a, uint64_t now) {
 
 
 int traceAdd(struct aircraft *a, uint64_t now) {
+    if (!Modes.keep_traces)
+        return 0;
+
     int posUsed = 0;
     int bufferedPosUsed = 0;
     double distance = 0;
@@ -1318,9 +1321,6 @@ int traceAdd(struct aircraft *a, uint64_t now) {
     if (a->squawk_valid.source != SOURCE_INVALID && a->squawk == 0x7777) {
         min_elapsed += 60 * SECONDS;
     }
-
-    if (!Modes.keep_traces)
-        return 0;
 
     for (int i = max(0, a->trace_len - 6); i < a->trace_len; i++) {
         if ( (int32_t) (a->lat * 1E6) == a->trace[i].lat
@@ -1423,24 +1423,19 @@ int traceAdd(struct aircraft *a, uint64_t now) {
             goto save_state;
         }
         if (last->flags.altitude_valid) {
+            int alt = a->altitude_baro;
             int alt_diff = abs(a->altitude_baro - last_alt);
-            int alt_diff_min = 200;
 
             int div = 500;
-            int alt = a->altitude_baro;
 
-            if (alt > 8000 && alt_diff >= 200) {
-                alt_diff_min = 200;
+            if (alt > 8000) {
                 div = 500;
             }
 
             if (alt > 4000 && alt <= 8000) {
-                alt_diff_min = 100;
                 div = 250;
             }
-
             if (alt <= 4000) {
-                alt_diff_min = 50;
                 div = 125;
             }
 
@@ -1450,13 +1445,14 @@ int traceAdd(struct aircraft *a, uint64_t now) {
 
             // think of this simpler equation for altitudes that are > 0, div 500 and offset 250
             // abs((alt + 250)/500 - (last_alt + 250)/500) >= 1
-            if (abs((alt + alt_add)/div - (last_alt + last_alt_add)/div) >= 1 && alt_diff >= alt_diff_min) {
+            // we are basically detecting changes between altitude slices or divs / divisions
+            if (abs((alt + alt_add)/div - (last_alt + last_alt_add)/div) >= 1 && alt_diff >= div / 3) {
                 //fprintf(stderr, "%d", div/125);
                 //fprintf(stderr, "%06x %d -> %d\n", a->addr, last_alt, alt);
                 goto save_state_no_buf;
             }
 
-            if (alt_diff >= 75 && elapsed > (1000 * 22 * div / alt_diff)) {
+            if (alt_diff >= 25 && elapsed > (1000 * 22 * div / alt_diff)) {
                 //fprintf(stderr, "5\n");
                 //fprintf(stderr, "%06x %d %d\n", a->addr, alt_diff, (1000 * 24 * div / alt_diff));
                 goto save_state;
