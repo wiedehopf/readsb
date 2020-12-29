@@ -1314,6 +1314,10 @@ int traceAdd(struct aircraft *a, uint64_t now) {
         max_elapsed *= 0.75;
         max_speed_diff = 30;
     }
+    // some towers on MLAT .... create unnecessary data
+    if (a->squawk_valid.source != SOURCE_INVALID && a->squawk == 0x7777) {
+        min_elapsed += 60 * SECONDS;
+    }
 
     if (!Modes.keep_traces)
         return 0;
@@ -1374,15 +1378,22 @@ int traceAdd(struct aircraft *a, uint64_t now) {
         }
     }
 
+    distance = greatcircle(last->lat / 1E6, last->lon / 1E6, a->lat, a->lon);
+
+
+    // record ground air state changes precisely
     if (on_ground != last->flags.on_ground) {
         goto save_state;
     }
 
-    distance = greatcircle(last->lat / 1E6, last->lon / 1E6, a->lat, a->lon);
+    // don't record unnecessary many points
+    if (elapsed < min_elapsed)
+        goto no_save_state;
 
     // record non moving targets every 5 minutes
     if (elapsed > 10 * max_elapsed)
         goto save_state;
+
     if (distance < 40)
         goto no_save_state;
 
@@ -1391,9 +1402,6 @@ int traceAdd(struct aircraft *a, uint64_t now) {
 
     if (on_ground && elapsed > 4 * max_elapsed)
         goto save_state;
-
-    if (elapsed < min_elapsed)
-        goto no_save_state;
 
     if (stale) {
         // save a point if reception is spotty so we can mark track as spotty on display
@@ -1828,7 +1836,7 @@ int handleHeatmap(uint64_t now) {
             struct state *trace = a->trace;
             uint64_t next = start;
             int slice = 0;
-            uint32_t squawk = 8888; // impossible squawk
+            uint32_t squawk = 0x8888; // impossible squawk
             uint64_t callsign = 0; // quackery
 
             for (int i = 0; i < a->trace_len; i++) {
