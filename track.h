@@ -479,8 +479,9 @@ static inline int
 trackVState (uint64_t now, const data_validity *v, const data_validity *pos_valid)
 {
     // source is valid, allow normal expiration time for shitty position sources
-    if (pos_valid->source > SOURCE_JAERO)
+    if (pos_valid->source > SOURCE_JAERO) {
         return (v->source != SOURCE_INVALID && now < v->updated + TRACK_EXPIRE);
+    }
 
     return (v->source != SOURCE_INVALID);
 }
