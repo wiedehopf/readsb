@@ -1428,7 +1428,7 @@ int traceAdd(struct aircraft *a, uint64_t now) {
         goto save_state;
 
     // don't record non moving targets except for speed changes
-    if (distance < 30 && speed_diff < max_speed_diff)
+    if (distance < 35 && speed_diff < max_speed_diff)
         goto no_save_state;
 
     if (!on_ground && elapsed > max_elapsed) // default 30000 ms
