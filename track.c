@@ -101,14 +101,11 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
     d->stale = 0;
 
     if (receiveTime > d->next_reduce_forward && !mm->sbs_in) {
-        if (reduce_often || mm->msgtype == 17 || mm->msgtype == 18) {
+        d->next_reduce_forward = receiveTime + Modes.net_output_beast_reduce_interval * 4;
+        if (reduce_often == 1)
             d->next_reduce_forward = receiveTime + Modes.net_output_beast_reduce_interval;
-        } else {
-            d->next_reduce_forward = receiveTime + Modes.net_output_beast_reduce_interval * 4;
-        }
-        if ((mm->msgtype == 17 || mm->msgtype == 18) && !mm->cpr_valid) {
+        if (reduce_often == 2)
             d->next_reduce_forward = receiveTime + Modes.net_output_beast_reduce_interval / 2;
-        }
         // make sure global CPR stays possible even at high interval:
         if (Modes.net_output_beast_reduce_interval > 7000 && mm->cpr_valid) {
             d->next_reduce_forward = receiveTime + 7000;
@@ -623,7 +620,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
                 && trackDataAge(now, &a->track_valid) > TRACK_EXPIRE
                 && distance > 10e3 // more than 10 km
            ) {
-            accept_data(&a->track_valid, SOURCE_JAERO, mm, 1);
+            accept_data(&a->track_valid, SOURCE_JAERO, mm, 2);
             a->track = a->calc_track;
         }
     }
@@ -720,7 +717,7 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
             // Nonfatal, try again later.
             Modes.stats_current.cpr_global_skipped++;
         } else {
-            if (accept_data(&a->position_valid, mm->source, mm, 1)) {
+            if (accept_data(&a->position_valid, mm->source, mm, 2)) {
                 Modes.stats_current.cpr_global_ok++;
 
                 globalCPR = 1;
@@ -746,7 +743,7 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
         //if (a->addr == Modes.cpr_focus)
         //    fprintf(stderr, "%06x: localCPR: %d\n", a->addr, location_result);
 
-        if (location_result >= 0 && accept_data(&a->position_valid, mm->source, mm, 1)) {
+        if (location_result >= 0 && accept_data(&a->position_valid, mm->source, mm, 2)) {
             Modes.stats_current.cpr_local_ok++;
             mm->cpr_relative = 1;
 
@@ -1331,7 +1328,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
         goto discard_alt;
 accept_alt:
-            if (accept_data(&a->altitude_baro_valid, mm->source, mm, 1)) {
+            if (accept_data(&a->altitude_baro_valid, mm->source, mm, 2)) {
                 a->alt_reliable = min(ALTITUDE_BARO_RELIABLE_MAX , a->alt_reliable + (good_crc+1));
                 if (0 && a->addr == 0x4b2917 && abs(delta) > -1 && delta != alt) {
                     fprintf(stderr, "Alt check S: %06x: %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
@@ -1415,7 +1412,7 @@ end_alt:
             htype = a->adsb_tah;
         }
 
-        if (htype == HEADING_GROUND_TRACK && accept_data(&a->track_valid, mm->source, mm, 1)) {
+        if (htype == HEADING_GROUND_TRACK && accept_data(&a->track_valid, mm->source, mm, 2)) {
             a->track = mm->heading;
         } else if (htype == HEADING_MAGNETIC) {
             double dec;
@@ -1447,33 +1444,33 @@ end_alt:
 
     if (mm->gs_valid) {
         mm->gs.selected = (*message_version == 2 ? mm->gs.v2 : mm->gs.v0);
-        if (accept_data(&a->gs_valid, mm->source, mm, 1)) {
+        if (accept_data(&a->gs_valid, mm->source, mm, 2)) {
             a->gs = mm->gs.selected;
         }
     }
 
-    if (mm->ias_valid && accept_data(&a->ias_valid, mm->source, mm, 0)) {
+    if (mm->ias_valid && accept_data(&a->ias_valid, mm->source, mm, 1)) {
         a->ias = mm->ias;
     }
 
     if (mm->tas_valid
             && !(trackDataValid(&a->ias_valid) && mm->tas < a->ias)
-            && accept_data(&a->tas_valid, mm->source, mm, 0)) {
+            && accept_data(&a->tas_valid, mm->source, mm, 1)) {
         a->tas = mm->tas;
         calc_temp(a, now);
         calc_wind(a, now);
     }
 
-    if (mm->mach_valid && accept_data(&a->mach_valid, mm->source, mm, 0)) {
+    if (mm->mach_valid && accept_data(&a->mach_valid, mm->source, mm, 1)) {
         a->mach = mm->mach;
         calc_temp(a, now);
     }
 
-    if (mm->baro_rate_valid && accept_data(&a->baro_rate_valid, mm->source, mm, 1)) {
+    if (mm->baro_rate_valid && accept_data(&a->baro_rate_valid, mm->source, mm, 2)) {
         a->baro_rate = mm->baro_rate;
     }
 
-    if (mm->geom_rate_valid && accept_data(&a->geom_rate_valid, mm->source, mm, 1)) {
+    if (mm->geom_rate_valid && accept_data(&a->geom_rate_valid, mm->source, mm, 2)) {
         a->geom_rate = mm->geom_rate;
     }
 
@@ -1601,7 +1598,7 @@ end_alt:
     // to keep the barometric altitude consistent with geometric altitude, save a derived geom_delta if all data are current
     if (mm->altitude_geom_valid && !mm->geom_delta_valid && a->alt_reliable >= Modes.json_reliable + 1
             && trackDataAge(now, &a->altitude_baro_valid) < 1 * SECONDS
-            && accept_data(&a->geom_delta_valid, mm->source, mm, 1)
+            && accept_data(&a->geom_delta_valid, mm->source, mm, 2)
        ) {
         a->geom_delta = a->altitude_geom - a->altitude_baro;
     }
@@ -1651,7 +1648,7 @@ end_alt:
         {
             mm->pos_bad = 1;
             // speed check failed, do nothing
-        } else if (accept_data(&a->position_valid, mm->source, mm, 0)) {
+        } else if (accept_data(&a->position_valid, mm->source, mm, 2)) {
 
             incrementReliable(a, mm, now, 2);
 
@@ -1677,7 +1674,7 @@ end_alt:
             a->rr_seen = now;
             if (Modes.debug_rough_receiver_location
                     && now > a->seenPosReliable + 5 * MINUTES
-                    && accept_data(&a->position_valid, SOURCE_MODE_AC, mm, 1)) {
+                    && accept_data(&a->position_valid, SOURCE_MODE_AC, mm, 2)) {
                 a->addrtype_updated = now;
                 a->addrtype = ADDR_MODE_S;
                 mm->decoded_lat = reflat;
