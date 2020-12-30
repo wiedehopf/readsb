@@ -145,6 +145,7 @@ static void modesInitConfig(void) {
     Modes.json_reliable = -13;
 
     Modes.cpr_focus = 0xc0ffeeba;
+    Modes.trace_focus = 0xc0ffeeba;
     //Modes.cpr_focus = 0x43BF95;
     //
     //Modes.receiver_focus = 0x1aa14156975948af;
@@ -1109,6 +1110,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.net_connector_delay = (uint64_t) 1000 * atof(arg);
             break;
 
+        case OptTraceFocus:
+            Modes.trace_focus = strtol(arg, NULL, 16);
+            Modes.interactive = 0;
+            Modes.keep_traces = 2 * HOURS;
+            fprintf(stderr, "trace_focus = %06x\n", Modes.trace_focus);
+            break;
         case OptCprFocus:
             Modes.cpr_focus = strtol(arg, NULL, 16);
             Modes.interactive = 0;

@@ -78,6 +78,7 @@ static struct argp_option optionsReadsb[] = {
     {"debug", OptDebug, "<flags>", 0, "Debug mode (verbose), n: network, P: CPR, S: speed check", 1},
     {"receiver-focus", OptReceiverFocus, "<receiverId>", 0, "only process messages from receiverId", 1},
     {"cpr-focus", OptCprFocus, "<hex>", 0, "show CPR details for this hex", 1},
+    {"trace-focus", OptTraceFocus, "<hex>", 0, "show traceAdd details for this hex", 1},
     {"quiet", OptQuiet, 0, 0, "Disable output (default)", 1},
     {"dcfilter", OptDcFilter, 0, OPTION_HIDDEN, "Apply a 1Hz DC filter to input data (requires more CPU)", 1},
     {"enable-biastee", OptBiasTee, 0, OPTION_HIDDEN, "Enable bias tee on supporting interfaces (default: disabled)", 1},

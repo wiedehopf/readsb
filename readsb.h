@@ -496,6 +496,7 @@ struct _Modes
     uint32_t trackExpireMax;
 
     uint32_t cpr_focus;
+    uint32_t trace_focus;
     uint32_t show_only; // Only show messages from this ICAO
     uint64_t receiver_focus;
 
@@ -845,6 +846,7 @@ enum {
     OptDebug,
     OptReceiverFocus,
     OptCprFocus,
+    OptTraceFocus,
     OptQuiet,
     OptShowOnly,
     OptFilterDF,
