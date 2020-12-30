@@ -101,10 +101,13 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
     d->stale = 0;
 
     if (receiveTime > d->next_reduce_forward && !mm->sbs_in) {
-        if (mm->msgtype == 17 || reduce_often) {
+        if (reduce_often || mm->msgtype == 17 || mm->msgtype == 18) {
             d->next_reduce_forward = receiveTime + Modes.net_output_beast_reduce_interval;
         } else {
             d->next_reduce_forward = receiveTime + Modes.net_output_beast_reduce_interval * 4;
+        }
+        if ((mm->msgtype == 17 || mm->msgtype == 18) && !mm->cpr_valid) {
+            d->next_reduce_forward = receiveTime + Modes.net_output_beast_reduce_interval / 2;
         }
         // make sure global CPR stays possible even at high interval:
         if (Modes.net_output_beast_reduce_interval > 7000 && mm->cpr_valid) {
