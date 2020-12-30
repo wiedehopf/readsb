@@ -1419,8 +1419,8 @@ int traceAdd(struct aircraft *a, uint64_t now) {
         goto save_state;
     }
 
-    // don't record unnecessary many points
-    if (elapsed < min_elapsed)
+    // don't record unnecessary many points unless the speed changes fast
+    if (elapsed < min_elapsed && speed_diff < max_speed_diff)
         goto no_save_state;
 
     // record non moving targets every 5 minutes
