@@ -94,8 +94,8 @@ This file contains readsb list of recently seen aircraft. The keys are:
    * rssi: recent average RSSI (signal power), in dbFS; this will always be negative.
    * alert: Flight status alert bit (2.2.3.2.3.2)
    * spi: Flight status special position identification bit (2.2.3.2.3.2)
-   * wd, ws: wind direction, wind speed: calculated from ground track, true heading, true airspeed and ground speed
-   * oat, tat: outer air temperate, total air temperature: calculated from mach number and true airspeed (typically somewhat inaccurate at lower altitudes / mach numbers below 0.5)
+   * wd, ws: wind direction and wind speed are calculated from ground track, true heading, true airspeed and ground speed
+   * oat, tat: outer/static air temperature and total air temperature are calculated from mach number and true airspeed (typically somewhat inaccurate at lower altitudes / mach numbers below 0.5, calculation is inhibited for mach < 0.395)
 
 Section references (2.2.xyz) refer to DO-260B.
 
@@ -110,6 +110,56 @@ oldest history entry. To load history, you should:
  * load that many history_N.json files
  * sort the resulting files by their "now" values
  * process the files in order
+
+## trace jsons
+
+ * overall structure
+```
+{
+    icao: "0123ac", // hex id of the aircraft
+    timestamp: 1609275898.495, // unix timestamp in seconds since epoch (1970)
+    trace: [
+        [ seconds after timestamp,
+            lat,
+            lon,
+            altitude in ft or "ground" or null,
+            ground speed in knots or null,
+            track in degrees or null, (if altitude == "ground", this will be true heading instead of track)
+            flags as a bitfield: (use bitwise and to extract data)
+                (flags & 1 > 0): position is stale (no position received for 20 seconds before this one)
+                (flags & 2 > 0): start of a new leg (tries to detect a separation point between landing and takeoff that separates fligths)
+                (flags & 4 > 0): vertical rate is geometric and not barometric
+                (flags & 8 > 0): altitude is geometric and not barometric
+             ,
+            vertical rate in fpm or null,
+            aircraft object with extra details or null (see aircraft.json documentation, note that not all fields are present as lat and lon for example arlready in the values above)
+        ],
+        [next entry like the one before],
+        [next entry like the one before],
+    ]
+}
+```
+
+Example :
+```json
+{"icao":"0d8300",
+    "r":"YV3382",
+    "t":"LJ31",
+    "desc":"Bombardier Learjet 31 A",
+    "timestamp": 1609275898.495,
+    "trace":[
+        [0.0,30.404617,-86.476566,-300,0.7,0.0,1,0,
+    {"type":"adsb_icao","flight":"YV3382  ","alt_geom":-75,"track":0.00,"baro_rate":0,"squawk":"1604","emergency":"none","category":"A1","nic":8,"rc":186,"version":2,"nic_baro":1,"nac_p":10,"nac_v":2,"sil":3,"sil_type":"perhour","gva":2,"sda":2,"alert":0,"spi":0}],
+    [95.1,30.404617,-86.476575,-300,0.7,0.0,0,0,null],
+    [136.3,30.404617,-86.476575,-300,0.7,0.0,0,0,null],
+    [162.3,30.404846,-86.476782,-300,0.7,0.0,1,0,null],
+    [254.4,30.375614,-86.448889,525,37.8,142.5,1,64,
+    {"type":"adsb_icao","alt_geom":675,"track":142.52,"baro_rate":64,"category":"A1","nic":8,"rc":186,"version":2,"nac_v":2,"sil_type":"perhour","alert":0,"spi":1}],
+    [303.2,30.347078,-86.418896,1275,171.9,136.7,1,448,null],
+    [327.0,30.332932,-86.403647,1900,171.9,137.1,1,1664,null]
+    ]
+}
+```
 
 ## stats.json
 
