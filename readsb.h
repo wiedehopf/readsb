@@ -323,6 +323,7 @@ typedef enum {
 
 // Include subheaders after all the #defines are in place
 
+#include "toString.h"
 #include "util.h"
 #include "fasthash.h"
 #include "anet.h"
@@ -337,6 +338,7 @@ typedef enum {
 #include "globe_index.h"
 #include "receiver.h"
 #include "aircraft.h"
+#include "geomag.h"
 
 //======================== structure declarations =========================
 

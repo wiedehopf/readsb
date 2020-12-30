@@ -1547,19 +1547,6 @@ static const char *altitude_unit_to_string(altitude_unit_t unit) {
     }
 }
 
-static const char *cpr_type_to_string(cpr_type_t type) {
-    switch (type) {
-        case CPR_SURFACE:
-            return "Surface";
-        case CPR_AIRBORNE:
-            return "Airborne";
-        case CPR_COARSE:
-            return "TIS-B Coarse";
-        default:
-            return "unknown CPR type";
-    }
-}
-
 static const char *heading_type_to_string(heading_type_t type) {
     switch (type) {
         case HEADING_GROUND_TRACK:
@@ -1999,7 +1986,7 @@ void displayModesMessage(struct modesMessage *mm) {
     if (mm->cpr_valid) {
         printf("  CPR type:      %s\n"
                 "  CPR odd flag:  %s\n",
-                cpr_type_to_string(mm->cpr_type),
+                cpr_type_string(mm->cpr_type),
                 mm->cpr_odd ? "odd" : "even");
 
         if (mm->cpr_decoded) {

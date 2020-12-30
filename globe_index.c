@@ -1373,13 +1373,6 @@ int traceAdd(struct aircraft *a, uint64_t now) {
         alt_diff = abs(a->altitude_baro - last_alt);
     }
 
-    float track_diff = 0;
-    if (last->flags.track_valid && track_valid) {
-        track_diff = fabs(track - last->track / 10.0);
-        if (track_diff > 180)
-            track_diff = 360 - track_diff;
-    }
-
     if (now >= last->timestamp)
         elapsed = now - last->timestamp;
 
@@ -1401,10 +1394,22 @@ int traceAdd(struct aircraft *a, uint64_t now) {
         }
     }
 
+    float track_diff = 0;
+    if (last->flags.track_valid && track_valid) {
+        track_diff = fabs(track - last->track / 10.0);
+        if (track_diff > 180)
+            track_diff = 360 - track_diff;
+    }
+
+
     distance = greatcircle(last->lat / 1E6, last->lon / 1E6, a->lat, a->lon);
 
+    if (distance < 5)
+        traceDebug = 0;
+
     if (traceDebug) {
-        fprintf(stderr, "d:%5.0f a:%6d D%4d s:%4.0f D%3.0f t: %5.1f D%5.1f ",
+        fprintf(stderr, "%4.1fs d:%5.0f a:%6d D%4d s:%4.0f D%3.0f t: %5.1f D%5.1f ",
+                (now % (600 * SECONDS)) / 1000.0,
                 distance, alt, alt_diff, a->gs, speed_diff, a->track, track_diff);
     }
 
@@ -1422,7 +1427,8 @@ int traceAdd(struct aircraft *a, uint64_t now) {
     if (elapsed > 10 * max_elapsed)
         goto save_state;
 
-    if (distance < 40)
+    // don't record non moving targets except for speed changes
+    if (distance < 30 && speed_diff < max_speed_diff)
         goto no_save_state;
 
     if (!on_ground && elapsed > max_elapsed) // default 30000 ms
@@ -1438,6 +1444,7 @@ int traceAdd(struct aircraft *a, uint64_t now) {
 
     if (on_ground) {
         if (distance * track_diff > 250) {
+            if (traceDebug) fprintf(stderr, "track_change: %0.1f %0.1f -> %0.1f", track_diff, last->track / 10.0, a->track);
             goto save_state;
         }
 
@@ -1445,15 +1452,15 @@ int traceAdd(struct aircraft *a, uint64_t now) {
             goto save_state;
     }
 
-        if (track_diff > 0.5
-                && (elapsed / 1000.0 * track_diff * turn_density > 100.0)
-           ) {
-            if (traceDebug) fprintf(stderr, "track_change: %0.1f %0.1f -> %0.1f", track_diff, last->track / 10.0, a->track);
-            goto save_state;
-        }
-
     if (speed_diff > max_speed_diff) {
         if (traceDebug) fprintf(stderr, "speed_change: %0.1f %0.1f -> %0.1f", fabs(last->gs / 10.0 - a->gs), last->gs / 10.0, a->gs);
+        goto save_state;
+    }
+
+    if (track_diff > 0.5
+            && (elapsed / 1000.0 * track_diff * turn_density > 100.0)
+       ) {
+        if (traceDebug) fprintf(stderr, "track_change: %0.1f %0.1f -> %0.1f", track_diff, last->track / 10.0, a->track);
         goto save_state;
     }
 

@@ -52,8 +52,6 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "readsb.h"
-#include <inttypes.h>
-#include "geomag.h"
 
 uint32_t modeAC_count[4096];
 uint32_t modeAC_lastcount[4096];
@@ -454,15 +452,11 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
     if (Modes.maxRange > 0 && (Modes.bUserFlags & MODES_USER_LATLON_VALID)) {
         double range = greatcircle(Modes.fUserLat, Modes.fUserLon, *lat, *lon);
         if (range > Modes.maxRange) {
-            if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
+            if (a->addr == Modes.cpr_focus) {
                 fprintf(stderr, "Global range check failed: %06x: %.3f,%.3f, max range %.1fkm, actual %.1fkm\n",
                         a->addr, *lat, *lon, Modes.maxRange / 1000.0, range / 1000.0);
             }
-
             Modes.stats_current.cpr_global_range_checks++;
-            if (a->addr == Modes.cpr_focus || Modes.debug_cpr ) {
-                fprintf(stderr, "global CPR failure (invalid) for (%06x): out of receiver range\n", a->addr);
-            }
             return (-2); // we consider an out-of-range value to be bad data
         }
     }
@@ -712,7 +706,6 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
             // This is bad data.
 
             mm->pos_bad = 1;
-
             return;
         } else if (location_result == -1) {
             if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
@@ -733,15 +726,6 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
                 location_result = -2;
             }
         }
-    } else {
-        if (a->addr == Modes.cpr_focus)
-            fprintf(stderr, "%06x: unable global CPR, current CPR: %s, other CPR age %0.1f sources %d %d %d %d types: %s\n",
-                    a->addr,
-                    mm->cpr_odd ? " odd" : "even",
-                    mm->cpr_odd ? fmin(999, ((double) now - a->cpr_even_valid.updated) / 1000.0) : fmin(999, ((double) now - a->cpr_odd_valid.updated) / 1000.0),
-                    a->cpr_odd_valid.source, a->cpr_even_valid.source,
-                    a->cpr_odd_valid.last_source, a->cpr_even_valid.last_source,
-                    (a->cpr_odd_type == a->cpr_even_type) ? "same" : "diff");
     }
 
     // Otherwise try relative CPR.
@@ -773,6 +757,15 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
             Modes.stats_current.cpr_local_skipped++;
             location_result = -1;
         }
+    }
+
+    if (location_result == -1 && a->addr == Modes.cpr_focus) {
+        fprintf(stderr, "-1: mm->cpr: %s %s, other CPR age %0.1f sources %s %s %s %s odd_t: %s even_t: %s\n",
+                mm->cpr_odd ? " odd" : "even", cpr_type_string(mm->cpr_type),
+                mm->cpr_odd ? fmin(999, ((double) now - a->cpr_even_valid.updated) / 1000.0) : fmin(999, ((double) now - a->cpr_odd_valid.updated) / 1000.0),
+                source_enum_string(a->cpr_odd_valid.source), source_enum_string(a->cpr_even_valid.source),
+                source_enum_string(a->cpr_odd_valid.last_source), source_enum_string(a->cpr_even_valid.last_source),
+                cpr_type_string(a->cpr_odd_type), cpr_type_string(a->cpr_even_type));
     }
 
     if (location_result >= 0) {
@@ -1104,8 +1097,8 @@ static int addressReliable(struct modesMessage *mm) {
 
 static inline void focusGroundstateChange(struct aircraft *a, struct modesMessage *mm, int arg, uint64_t now) {
     if (a->addr == Modes.cpr_focus && a->airground != mm->airground) {
-        fprintf(stderr, "%.3f s Ground state change %d: Source: %s, %s -> %s\n",
-                (now % (60 * SECONDS)) / 1000.0,
+        fprintf(stderr, "%4.1fs Ground state change %d: Source: %s, %s -> %s\n",
+                (now % (600 * SECONDS)) / 1000.0,
                 arg,
                 source_enum_string(mm->source),
                 airground_to_string(a->airground),

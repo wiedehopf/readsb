@@ -1,3 +1,6 @@
+#ifndef GEOMAG_H
+#define GEOMAG_H
+
 // this library is NOT thread safe.
 // UNSAFE with threading
 //
@@ -38,3 +41,5 @@ int geomag_calc(double alt, double glat, double glon, double time, double *dec, 
 
 // more or less the original program this library was adapted from, interactive console input/output of data
 void geomag_interactive();
+
+#endif

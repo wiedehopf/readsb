@@ -34,9 +34,6 @@ struct client;
 struct net_service;
 typedef int (*read_fn)(struct client *, char *, int, uint64_t);
 typedef void (*heartbeat_fn)(struct net_service *);
-const char *addrtype_enum_string(addrtype_t type);
-const char *source_enum_string(datasource_t src);
-const char *airground_to_string(airground_t airground);
 
 typedef enum
 {
@@ -188,9 +185,6 @@ __attribute__ ((format(printf, 3, 4))) static inline char *safe_snprintf(char *p
     return p;
 }
 
-// keep unused functions for now
-const char *airground_enum_string(airground_t ag);
 const char *nav_modes_flags_string(nav_modes_t flags);
-const char *nav_altitude_source_enum_string(nav_altitude_source_t src);
 
 #endif
