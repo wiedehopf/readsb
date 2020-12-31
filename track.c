@@ -341,7 +341,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     }
 
     if (!inrange && mm->source == SOURCE_ADSB
-            && distance - range > 1200 && track_diff > 45
+            && distance - range > 800 && track_diff > 45
             && a->pos_reliable_odd >= Modes.filter_persistence * 3 / 4
             && a->pos_reliable_even >= Modes.filter_persistence * 3 / 4
        ) {
@@ -1526,6 +1526,11 @@ end_alt:
 
     if (mm->spi_valid && accept_data(&a->spi_valid, mm->source, mm, 0)) {
         a->spi = mm->spi;
+    }
+
+    // forward all CPRs to the apex for faster garbage detection
+    if (Modes.netIngest && mm->cpr_valid) {
+        mm->reduce_forward = 1;
     }
 
     // CPR, even

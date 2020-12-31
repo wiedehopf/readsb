@@ -185,8 +185,8 @@ void receiverTest() {
     printf("%"PRIu64"\n", Modes.receiverCount);
 }
 
-static uint64_t timeout() {
-    return 10 * SECONDS;
+static inline uint64_t timeout() {
+    return 8 * SECONDS;
 }
 
 int receiverCheckBad(uint64_t id, uint64_t now) {
