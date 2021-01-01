@@ -23,6 +23,10 @@ ifneq ($(AIRCRAFT_HASH_BITS),)
   CPPFLAGS += -DAIRCRAFT_HASH_BITS=$(AIRCRAFT_HASH_BITS)
 endif
 
+ifeq ($(STATS_PHASE),yes)
+  CPPFLAGS += -DSTATS_PHASE
+endif
+
 ifeq ($(RTLSDR), yes)
   SDR_OBJ += sdr_rtlsdr.o
   CPPFLAGS += -DENABLE_RTLSDR

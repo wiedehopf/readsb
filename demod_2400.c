@@ -109,6 +109,7 @@ void demodulate2400(struct mag_buf *mag) {
         if (!(preamble[0] < preamble[1] && preamble[12] > preamble[13]))
             continue;
 
+        int prePhase;
         if (preamble[1] > preamble[2] && // 1
                 preamble[2] < preamble[3] && preamble[3] > preamble[4] && // 3
                 preamble[8] < preamble[9] && preamble[9] > preamble[10] && // 9
@@ -117,6 +118,7 @@ void demodulate2400(struct mag_buf *mag) {
             high = (preamble[1] + preamble[3] + preamble[9] + preamble[11] + preamble[12]) / 4;
             base_signal = preamble[1] + preamble[3] + preamble[9];
             base_noise = preamble[5] + preamble[6] + preamble[7];
+            prePhase = 0;
         } else if (preamble[1] > preamble[2] && // 1
                 preamble[2] < preamble[3] && preamble[3] > preamble[4] && // 3
                 preamble[8] < preamble[9] && preamble[9] > preamble[10] && // 9
@@ -125,6 +127,7 @@ void demodulate2400(struct mag_buf *mag) {
             high = (preamble[1] + preamble[3] + preamble[9] + preamble[12]) / 4;
             base_signal = preamble[1] + preamble[3] + preamble[9] + preamble[12];
             base_noise = preamble[5] + preamble[6] + preamble[7] + preamble[8];
+            prePhase = 1;
         } else if (preamble[1] > preamble[2] && // 1
                 preamble[2] < preamble[3] && preamble[4] > preamble[5] && // 3-4
                 preamble[8] < preamble[9] && preamble[10] > preamble[11] && // 9-10
@@ -133,6 +136,7 @@ void demodulate2400(struct mag_buf *mag) {
             high = (preamble[1] + preamble[3] + preamble[4] + preamble[9] + preamble[10] + preamble[12]) / 4;
             base_signal = preamble[1] + preamble[12];
             base_noise = preamble[6] + preamble[7];
+            prePhase = 2;
         } else if (preamble[1] > preamble[2] && // 1
                 preamble[3] < preamble[4] && preamble[4] > preamble[5] && // 4
                 preamble[9] < preamble[10] && preamble[10] > preamble[11] && // 10
@@ -141,6 +145,7 @@ void demodulate2400(struct mag_buf *mag) {
             high = (preamble[1] + preamble[4] + preamble[10] + preamble[12]) / 4;
             base_signal = preamble[1] + preamble[4] + preamble[10] + preamble[12];
             base_noise = preamble[5] + preamble[6] + preamble[7] + preamble[8];
+            prePhase = 3;
         } else if (preamble[2] > preamble[3] && // 1-2
                 preamble[3] < preamble[4] && preamble[4] > preamble[5] && // 4
                 preamble[9] < preamble[10] && preamble[10] > preamble[11] && // 10
@@ -149,14 +154,24 @@ void demodulate2400(struct mag_buf *mag) {
             high = (preamble[1] + preamble[2] + preamble[4] + preamble[10] + preamble[12]) / 4;
             base_signal = preamble[4] + preamble[10] + preamble[12];
             base_noise = preamble[6] + preamble[7] + preamble[8];
+            prePhase = 4;
         } else {
             // no suitable peaks
             continue;
         }
+#ifdef STATS_PHASE
+        Modes.stats_current.demod_prePhase1[prePhase]++;
+#else
+    MODES_NOTUSED(prePhase);
+#endif
 
         // Check for enough signal
         if (base_signal * 2 < 3 * base_noise) // about 3.5dB SNR
             continue;
+
+#ifdef STATS_PHASE
+        Modes.stats_current.demod_prePhase2[prePhase]++;
+#endif
 
         // Check that the "quiet" bits 6,7,15,16,17 are actually quiet
         if (preamble[5] >= high ||
@@ -170,6 +185,11 @@ void demodulate2400(struct mag_buf *mag) {
                 preamble[18] >= high) {
             continue;
         }
+
+#ifdef STATS_PHASE
+        Modes.stats_current.demod_prePhase3[prePhase]++;
+#endif
+
 
         // try all phases
         Modes.stats_current.demod_preambles++;
@@ -337,6 +357,10 @@ void demodulate2400(struct mag_buf *mag) {
                 Modes.stats_current.demod_accepted[mm.correctedbits]++;
             }
         }
+
+#ifdef STATS_PHASE
+        Modes.stats_current.demod_bestPhase[bestphase - 4]++;
+#endif
 
         // measure signal power
         {
