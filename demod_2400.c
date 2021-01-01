@@ -65,11 +65,11 @@ static inline int slice_phase0(uint16_t *m) {
 }
 
 static inline int slice_phase1(uint16_t *m) {
-    return 15 * m[0] - 5 * m[1] - 10 * m[2];
+    return 15 * m[0] - 6 * m[1] - 9 * m[2];
 }
 
 static inline int slice_phase2(uint16_t *m) {
-    return 13 * m[0] + 3 * m[1] - 16 * m[2];
+    return 13 * m[0] + 2 * m[1] - 15 * m[2];
 }
 
 static inline int slice_phase3(uint16_t *m) {
@@ -77,7 +77,7 @@ static inline int slice_phase3(uint16_t *m) {
 }
 
 static inline int slice_phase4(uint16_t *m) {
-    return 8 * m[0] + 15 * m[1] - 25 * m[2] + 2 * m[3];
+    return 9 * m[0] + 15 * m[1] - 25 * m[2] + 1 * m[3];
 }
 
 //
