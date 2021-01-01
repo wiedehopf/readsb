@@ -45,24 +45,27 @@
 // nb: the correlation functions sum to zero, so we do not need to adjust for the DC offset in the input signal
 // (adding any constant value to all of m[0..3] does not change the result)
 
+// 20 units per sample, 24 units per symbol that are distributed according to phase
+// 1 bit has 2 symbols, first symbol is high, second is low
+
 static inline int slice_phase0(uint16_t *m) {
-    return 5 * m[0] - 3 * m[1] - 2 * m[2];
+    return 20 * m[0] - 12 * m[1] - 8 * m[2];
 }
 
 static inline int slice_phase1(uint16_t *m) {
-    return 4 * m[0] - m[1] - 3 * m[2];
+    return 16 * m[0] - 4 * m[1] - 12 * m[2];
 }
 
 static inline int slice_phase2(uint16_t *m) {
-    return 3 * m[0] + m[1] - 4 * m[2];
+    return 12 * m[0] + 4 * m[1] - 16 * m[2];
 }
 
 static inline int slice_phase3(uint16_t *m) {
-    return 2 * m[0] + 3 * m[1] - 5 * m[2];
+    return 8 * m[0] + 12 * m[1] - 20 * m[2];
 }
 
 static inline int slice_phase4(uint16_t *m) {
-    return m[0] + 5 * m[1] - 5 * m[2] - m[3];
+    return 4 * m[0] + 20 * m[1] - 20 * m[2] - 4 * m[3];
 }
 
 //
