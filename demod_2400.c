@@ -102,7 +102,6 @@ void demodulate2400(struct mag_buf *mag) {
 
     for (j = 0; j < mlen; j++) {
         uint16_t *preamble = &m[j];
-        int high;
         uint32_t base_signal, base_noise;
         int try_phase;
         int msglen;
@@ -118,95 +117,74 @@ void demodulate2400(struct mag_buf *mag) {
         // phase 5: 0/5\1/3 3\0 0 0 0/3 3\1/5\0 0 0 0 0 0 0 X1
         // phase 6: 0/4\2 2/4\0 0 0 0 2/4\0/5\1 0 0 0 0 0 0 X2
         // phase 7: 0/3 3\1/5\0 0 0 0 1/5\0/4\2 0 0 0 0 0 0 X3
-        //
 
-        // quick check: we must have a rising edge 0->1 and a falling edge 12->13
-        if (!(preamble[0] < preamble[1] && preamble[12] > preamble[13]))
-            continue;
+        // 9 noise samples
+        base_noise = preamble[5] + preamble[6] + preamble[7] + preamble[8]
+            + preamble[14] + preamble[15] + preamble[16] + preamble[17] + preamble[18];
+        // base_signal is adjusted to 4 samples
 
-        int prePhase;
-        if (preamble[1] > preamble[2] && // 1
-                preamble[2] < preamble[3] && preamble[3] > preamble[4] && // 3
-                preamble[8] < preamble[9] && preamble[9] > preamble[10] && // 9
-                preamble[10] < preamble[11]) { // 11-12
-            // peaks at 1,3,9,11-12: phase 3
-            high = (preamble[1] + preamble[3] + preamble[9] + preamble[11] + preamble[12]) / 4;
-            base_signal = preamble[1] + preamble[3] + preamble[9];
-            base_noise = preamble[5] + preamble[6] + preamble[7];
-            prePhase = 0;
-        } else if (preamble[1] > preamble[2] && // 1
-                preamble[2] < preamble[3] && preamble[3] > preamble[4] && // 3
-                preamble[8] < preamble[9] && preamble[9] > preamble[10] && // 9
-                preamble[11] < preamble[12]) { // 12
-            // peaks at 1,3,9,12: phase 4
-            high = (preamble[1] + preamble[3] + preamble[9] + preamble[12]) / 4;
-            base_signal = preamble[1] + preamble[3] + preamble[9] + preamble[12];
-            base_noise = preamble[5] + preamble[6] + preamble[7] + preamble[8];
-            prePhase = 1;
-        } else if (preamble[1] > preamble[2] && // 1
-                preamble[2] < preamble[3] && preamble[4] > preamble[5] && // 3-4
-                preamble[8] < preamble[9] && preamble[10] > preamble[11] && // 9-10
-                preamble[11] < preamble[12]) { // 12
-            // peaks at 1,3-4,9-10,12: phase 5
-            high = (preamble[1] + preamble[3] + preamble[4] + preamble[9] + preamble[10] + preamble[12]) / 4;
-            base_signal = preamble[1] + preamble[12];
-            base_noise = preamble[6] + preamble[7];
-            prePhase = 2;
-        } else if (preamble[1] > preamble[2] && // 1
-                preamble[3] < preamble[4] && preamble[4] > preamble[5] && // 4
-                preamble[9] < preamble[10] && preamble[10] > preamble[11] && // 10
-                preamble[11] < preamble[12]) { // 12
-            // peaks at 1,4,10,12: phase 6
-            high = (preamble[1] + preamble[4] + preamble[10] + preamble[12]) / 4;
-            base_signal = preamble[1] + preamble[4] + preamble[10] + preamble[12];
-            base_noise = preamble[5] + preamble[6] + preamble[7] + preamble[8];
-            prePhase = 3;
-        } else if (preamble[2] > preamble[3] && // 1-2
-                preamble[3] < preamble[4] && preamble[4] > preamble[5] && // 4
-                preamble[9] < preamble[10] && preamble[10] > preamble[11] && // 10
-                preamble[11] < preamble[12]) { // 12
-            // peaks at 1-2,4,10,12: phase 7
-            high = (preamble[1] + preamble[2] + preamble[4] + preamble[10] + preamble[12]) / 4;
-            base_signal = preamble[4] + preamble[10] + preamble[12];
-            base_noise = preamble[6] + preamble[7] + preamble[8];
-            prePhase = 4;
-        } else {
-            // no suitable peaks
-            continue;
-        }
-#ifdef STATS_PHASE
-        Modes.stats_current.demod_prePhase1[prePhase]++;
-#else
-    MODES_NOTUSED(prePhase);
-#endif
+        uint32_t ref_level;
 
-        // Check for enough signal
-        if (base_signal * 2 < 3 * base_noise) // about 3.5dB SNR
-            continue;
+        // reduce number of preamble detections if we recently dropped samples
+        if (Modes.stats_15min.samples_dropped)
+            ref_level = base_noise * 30;
+        else
+            ref_level = base_noise * 25;
 
-#ifdef STATS_PHASE
-        Modes.stats_current.demod_prePhase2[prePhase]++;
-#endif
+        int prePhase = -1;
 
-        // Check that the "quiet" bits 6,7,15,16,17 are actually quiet
-        if (preamble[5] >= high ||
-                preamble[6] >= high ||
-                preamble[7] >= high ||
-                preamble[8] >= high ||
-                preamble[14] >= high ||
-                preamble[15] >= high ||
-                preamble[16] >= high ||
-                preamble[17] >= high ||
-                preamble[18] >= high) {
-            continue;
-        }
+        // peaks at 1,3,9,11-12: phase 3
+        // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
+        // phase 3: 2/4\0/5\1 0 0 0 0/5\1/3 3\0 0 0 0 0 0 X4
+        base_signal = preamble[1] + preamble[3] + preamble[9] + preamble[11] + preamble[12];
+        base_signal *= 21;
+        prePhase = 3;
+        if (base_signal >= ref_level)
+            goto snr_good;
 
-#ifdef STATS_PHASE
-        Modes.stats_current.demod_prePhase3[prePhase]++;
-#endif
+        // peaks at 1,3,9,12: phase 4
+        // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
+        // phase 4: 1/5\0/4\2 0 0 0 0/4\2 2/4\0 0 0 0 0 0 0 X0
+        base_signal = preamble[1] + preamble[3] + preamble[9] + preamble[12];
+        base_signal *= 27;
+        prePhase = 4;
+        if (base_signal >= ref_level)
+            goto snr_good;
 
+        // peaks at 1,3-4,9-10,12: phase 5
+        // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
+        // phase 5: 0/5\1/3 3\0 0 0 0/3 3\1/5\0 0 0 0 0 0 0 X1
+        base_signal = preamble[1] + preamble[3] + preamble[4] + preamble[9] + preamble[10] + preamble[12];
+        base_signal *= 20;
+        prePhase = 5;
+        if (base_signal >= ref_level)
+            goto snr_good;
+
+        // peaks at 1,4,10,12: phase 6
+        // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
+        // phase 6: 0/4\2 2/4\0 0 0 0 2/4\0/5\1 0 0 0 0 0 0 X2
+        base_signal = preamble[1] + preamble[4] + preamble[10] + preamble[12];
+        base_signal *= 28;
+        prePhase = 6;
+        if (base_signal >= ref_level)
+            goto snr_good;
+
+        // peaks at 1-2,4,10,12: phase 7
+        // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
+        // phase 7: 0/3 3\1/5\0 0 0 0 1/5\0/4\2 0 0 0 0 0 0 X3
+        base_signal = preamble[2] + preamble[3] + preamble[4] + preamble[10] + preamble[12];
+        base_signal *= 23;
+        prePhase = 7;
+        if (base_signal >= ref_level)
+            goto snr_good;
+
+        // no suitable peaks
+        continue;
+
+snr_good:
 
         // try all phases
+        Modes.stats_current.demod_preamblePhase[prePhase - 3]++;
         Modes.stats_current.demod_preambles++;
         bestmsg = NULL;
         bestscore = -2;
@@ -373,9 +351,7 @@ void demodulate2400(struct mag_buf *mag) {
             }
         }
 
-#ifdef STATS_PHASE
         Modes.stats_current.demod_bestPhase[bestphase - 4]++;
-#endif
 
         // measure signal power
         {

@@ -110,22 +110,16 @@ void display_stats(struct stats *st) {
         printf("  %u messages with signal power above -3dBFS\n",
                 st->strong_signal_count);
 
-#ifdef STATS_PHASE
         printf("\n Phase stats");
         printf("\n ");
         for (int i = 0; i < 5; i++) printf(" %8u", i + 3);
         printf("\n ");
-        for (int i = 0; i < 5; i++) printf(" %8u", st->demod_prePhase1[i]);
-        printf("\n ");
-        for (int i = 0; i < 5; i++) printf(" %8u", st->demod_prePhase2[i]);
-        printf("\n ");
-        for (int i = 0; i < 5; i++) printf(" %8u", st->demod_prePhase3[i]);
+        for (int i = 0; i < 5; i++) printf(" %8u", st->demod_preamblePhase[i]);
         printf("\n ");
         for (int i = 0; i < 5; i++) printf(" %8u", i + 4);
         printf("\n ");
         for (int i = 0; i < 5; i++) printf(" %8u", st->demod_bestPhase[i]);
         printf("\n\n");
-#endif
 
     }
 
@@ -290,14 +284,10 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
         target->demod_accepted[i] = st1->demod_accepted[i] + st2->demod_accepted[i];
     target->demod_modeac = st1->demod_modeac + st2->demod_modeac;
 
-#ifdef STATS_PHASE
     for (int i = 0; i < 5; i++) {
-        target->demod_prePhase1[i] = st1->demod_prePhase1[i] + st2->demod_prePhase1[i];
-        target->demod_prePhase2[i] = st1->demod_prePhase2[i] + st2->demod_prePhase2[i];
-        target->demod_prePhase3[i] = st1->demod_prePhase3[i] + st2->demod_prePhase3[i];
+        target->demod_preamblePhase[i] = st1->demod_preamblePhase[i] + st2->demod_preamblePhase[i];
         target->demod_bestPhase[i] = st1->demod_bestPhase[i] + st2->demod_bestPhase[i];
     }
-#endif
 
     target->samples_processed = st1->samples_processed + st2->samples_processed;
     target->samples_dropped = st1->samples_dropped + st2->samples_dropped;
@@ -491,17 +481,11 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
 
         p = safe_snprintf(p, end, ",\"strong_signals\":%d}", st->strong_signal_count);
 
-#ifdef STATS_PHASE
         p = safe_snprintf(p, end, ",\n\"pre_phase_1\":[");
-        for (int i = 0; i < 5; i++) p = safe_snprintf(p, end, "%9u,", st->demod_prePhase1[i]);
-        p--; p = safe_snprintf(p, end, "],\n\"pre_phase_2\":[");
-        for (int i = 0; i < 5; i++) p = safe_snprintf(p, end, "%9u,", st->demod_prePhase2[i]);
-        p--; p = safe_snprintf(p, end, "],\n\"pre_phase_3\":[");
-        for (int i = 0; i < 5; i++) p = safe_snprintf(p, end, "%9u,", st->demod_prePhase3[i]);
+        for (int i = 0; i < 5; i++) p = safe_snprintf(p, end, "%9u,", st->demod_preamblePhase[i]);
         p--; p = safe_snprintf(p, end, "],\n\"best_phase\" :[");
         for (int i = 0; i < 5; i++) p = safe_snprintf(p, end, "%9u,", st->demod_bestPhase[i]);
         p--; p = safe_snprintf(p, end, "]\n");
-#endif
 
     }
 

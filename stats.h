@@ -54,8 +54,6 @@
 #ifndef DUMP1090_STATS_H
 #define DUMP1090_STATS_H
 
-#define STATS_PHASE
-
 struct stats
 {
   uint64_t start;
@@ -65,12 +63,8 @@ struct stats
   uint32_t demod_rejected_bad;
   uint32_t demod_rejected_unknown_icao;
   uint32_t demod_accepted[MODES_MAX_BITERRORS + 1];
-#ifdef STATS_PHASE
-  uint32_t demod_prePhase1[5];
-  uint32_t demod_prePhase2[5];
-  uint32_t demod_prePhase3[5];
+  uint32_t demod_preamblePhase[5];
   uint32_t demod_bestPhase[5];
-#endif
   uint64_t samples_processed;
   uint64_t samples_dropped;
   // Mode A/C demodulator counts:
