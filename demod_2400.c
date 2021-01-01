@@ -48,24 +48,35 @@
 // 20 units per sample, 24 units per symbol that are distributed according to phase
 // 1 bit has 2 symbols, first symbol is high, second is low
 
+// let's make the assumption that the bits beyond our control are a statistical mean of 0 and 1
+// such a mean is represented by two symbols which are between high and low, 12 units per symbol
+
+// as an example for the above let's sicuss the first slice function:
+// samples 0 and 1 are completely occupied by the bit we are trying to judge thus no outside symbols
+// the 3rd sample is 8 units of our bit and 12 units of the following bit
+// the symbol from us is low so that makes -8 units but we also get +6 units from the half high following symbol
+//
+// i'm not entirely sure this makes sense ... just experimenting at this point
+// just ignore the slightly skewed DC offset issues this introduces
+//
 static inline int slice_phase0(uint16_t *m) {
-    return 20 * m[0] - 12 * m[1] - 8 * m[2];
+    return 20 * m[0] - 12 * m[1] - 2 * m[2];
 }
 
 static inline int slice_phase1(uint16_t *m) {
-    return 16 * m[0] - 4 * m[1] - 12 * m[2];
+    return 18 * m[0] - 4 * m[1] - 8 * m[2];
 }
 
 static inline int slice_phase2(uint16_t *m) {
-    return 12 * m[0] + 4 * m[1] - 16 * m[2];
+    return 16 * m[0] + 4 * m[1] - 14 * m[2];
 }
 
 static inline int slice_phase3(uint16_t *m) {
-    return 8 * m[0] + 12 * m[1] - 20 * m[2];
+    return 14 * m[0] + 12 * m[1] - 20 * m[2];
 }
 
 static inline int slice_phase4(uint16_t *m) {
-    return 4 * m[0] + 20 * m[1] - 20 * m[2] - 4 * m[3];
+    return 12 * m[0] + 20 * m[1] - 20 * m[2] + 4 * m[3];
 }
 
 //
