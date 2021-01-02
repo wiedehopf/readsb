@@ -90,6 +90,7 @@ void receiverPositionChanged(float lat, float lon, float alt) {
 }
 
 
+
 //
 // =============================== Initialization ===========================
 //
