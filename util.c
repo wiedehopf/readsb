@@ -62,6 +62,9 @@ void msleep(uint64_t ms) {
 }
 
 uint64_t mstime(void) {
+    if (Modes.sdr_type == SDR_IFILE)
+        return Modes.ifile_now;
+
     struct timeval tv;
     uint64_t mst;
 

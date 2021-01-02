@@ -329,6 +329,9 @@ void demodulate2400(struct mag_buf *mag) {
         // compute message receive time as block-start-time + difference in the 12MHz clock
         mm.sysTimestampMsg = mag->sysTimestamp + receiveclock_ms_elapsed(mag->sampleTimestamp, mm.timestampMsg);
 
+        if (Modes.sdr_type == SDR_IFILE)
+            Modes.ifile_now = mm.sysTimestampMsg;
+
         mm.score = bestscore;
 
         // Decode the received message
