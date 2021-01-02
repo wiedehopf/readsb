@@ -71,7 +71,6 @@
 
 // ============================= Include files ==========================
 
-#ifndef _WIN32
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -94,11 +93,8 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <zlib.h>
-/* for PRIX64 */
 #include <inttypes.h>
-#else
-#include "winstubs.h" //Put everything Windows specific in here
-#endif
+#include <sched.h>
 
 #include "compat/compat.h"
 
@@ -448,10 +444,6 @@ struct _Modes
     int avLen;
     struct av *byLat;
     struct av *byLon;
-
-#ifdef _WIN32
-    WSADATA wsaData; // Windows socket initialisation
-#endif
 
     // Configuration
     int8_t nfix_crc; // Number of crc bit error(s) to correct

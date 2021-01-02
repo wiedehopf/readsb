@@ -53,9 +53,6 @@
 
 #include "readsb.h"
 #include "help.h"
-#include "geomag.h"
-
-#include <stdarg.h>
 
 struct _Modes Modes;
 
@@ -104,10 +101,18 @@ static void modesInitConfig(void) {
         Modes.threadNumber[i] = i;
     }
 
+    cpu_set_t mask;
+    int nprocs = 1;
+    if (sched_getaffinity(getpid(), sizeof(mask), &mask) == 0)
+        nprocs = CPU_COUNT(&mask);
+
+    Modes.preambleThreshold = 60;
+    if (nprocs < 2)
+        Modes.preambleThreshold = 80;
+
     // Now initialise things that should not be 0/NULL to their defaults
     Modes.gain = MODES_MAX_GAIN;
     Modes.freq = MODES_DEFAULT_FREQ;
-    Modes.preambleThreshold = 60;
     Modes.check_crc = 1;
     Modes.net_heartbeat_interval = MODES_NET_HEARTBEAT_INTERVAL;
     Modes.db_file = strdup("/usr/local/share/tar1090/git-db/aircraft.csv.gz");
