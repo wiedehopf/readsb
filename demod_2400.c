@@ -252,9 +252,9 @@ void demodulate2400(struct mag_buf *mag) {
 
         // reduce number of preamble detections if we recently dropped samples
         if (Modes.stats_15min.samples_dropped)
-            ref_level = base_noise * 27;
+            ref_level = base_noise / 2 * max(54, Modes.preambleThreshold);
         else
-            ref_level = base_noise * 23;
+            ref_level = base_noise / 2 * Modes.preambleThreshold;
 
         int prePhase = -1;
 

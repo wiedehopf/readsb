@@ -502,6 +502,7 @@ struct _Modes
     uint32_t show_only; // Only show messages from this ICAO
     uint64_t receiver_focus;
 
+    uint32_t preambleThreshold;
     int net_output_flush_size; // Minimum Size of output data
     uint32_t net_output_beast_reduce_interval; // Position update interval for data reduction
     uint32_t net_connector_delay;
@@ -828,6 +829,7 @@ enum {
     OptNoInteractive,
     OptInteractiveTTL,
     OptRaw,
+    OptPreambleThreshold,
     OptModeAc,
     OptNoModeAcAuto,
     OptForwardMlat,

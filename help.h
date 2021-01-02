@@ -66,6 +66,7 @@ static struct argp_option optionsReadsb[] = {
     {"freq", OptFreq, "<hz>", 0, "Set frequency (default: 1090 MHz)", 1},
     {"interactive", OptInteractive, 0, 0, "Interactive mode refreshing data on screen. Implies --throttle", 1},
     {"raw", OptRaw, 0, 0, "Show only messages hex values", 1},
+    {"preamble-threshold", OptPreambleThreshold, "<30-60>", 0, "lower threshold --> more CPU usage (default: 46, pi zero / pi 1: 54, best setting: 42)", 1},
     {"no-modeac-auto", OptNoModeAcAuto, 0, 0, "Don't enable Mode A/C if requested by a Beast connection", 1},
     {"forward-mlat", OptForwardMlat, 0, 0, "Allow forwarding of received mlat results to output ports", 1},
     {"mlat", OptMlat, 0, 0, "Display raw messages in Beast ASCII mode", 1},
