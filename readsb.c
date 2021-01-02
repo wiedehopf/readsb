@@ -107,7 +107,7 @@ static void modesInitConfig(void) {
     // Now initialise things that should not be 0/NULL to their defaults
     Modes.gain = MODES_MAX_GAIN;
     Modes.freq = MODES_DEFAULT_FREQ;
-    Modes.preambleThreshold = 46;
+    Modes.preambleThreshold = 60;
     Modes.check_crc = 1;
     Modes.net_heartbeat_interval = MODES_NET_HEARTBEAT_INTERVAL;
     Modes.db_file = strdup("/usr/local/share/tar1090/git-db/aircraft.csv.gz");
@@ -863,7 +863,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.raw = 1;
             break;
         case OptPreambleThreshold:
-            Modes.preambleThreshold = (uint32_t) (max(min(strtoll(arg, NULL, 10), 60), 30));
+            Modes.preambleThreshold = (uint32_t) (max(min(strtoll(arg, NULL, 10), 100), 1));
             break;
         case OptNet:
             Modes.net = 1;

@@ -252,14 +252,14 @@ void demodulate2400(struct mag_buf *mag) {
 
         // reduce number of preamble detections if we recently dropped samples
         if (Modes.stats_15min.samples_dropped)
-            ref_level = base_noise / 2 * max(54, Modes.preambleThreshold);
+            ref_level = base_noise / 2 * max(74, Modes.preambleThreshold);
         else
             ref_level = base_noise / 2 * Modes.preambleThreshold;
 
         int prePhase = -1;
 
         bestmsg = NULL;
-        bestscore = -2;
+        bestscore = -17;
         bestphase = -1;
 
         // peaks at 1,3,9,11-12: phase 3
@@ -311,7 +311,7 @@ void demodulate2400(struct mag_buf *mag) {
         if (bestscore < 0) {
             if (bestscore == -1)
                 Modes.stats_current.demod_rejected_unknown_icao++;
-            else
+            else if (bestscore != -17)
                 Modes.stats_current.demod_rejected_bad++;
             continue; // nope.
         }
