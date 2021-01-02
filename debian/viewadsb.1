@@ -1,0 +1,83 @@
+.TH "viewadsb" 1 "02 September 2019" "" ""
+.RS
+.SH NAME
+viewadsb \- Mode-S viewer for readsb output data.
+.SH VERSION
+v3.8
+.SH DESCRIPTION
+\fBviewadsb Mode-S viewer for readsb output data
+.SH USAGE
+\fBviewadsb [OPTION\.\.\.]
+.SH OPTIONS
+.TP
+.B
+\fB--fix\fP
+Enable CRC single-bit error correction (default)
+.TP
+.B
+\fB--interactive-ttl\fP=<sec>
+Remove from list if idle for <sec> (default: 60)
+.TP
+.B
+\fB--lat\fP=<lat>
+Reference/receiver surface latitude
+.TP
+.B
+\fB--lon\fP=<lon>
+Reference/receiver surface longitude
+.TP
+.B
+\fB--max-range\fP=<dist>
+Absolute maximum range for position decoding (in
+nm, default: 300)
+.TP
+.B
+\fB--metric\fP
+Use metric units
+.TP
+.B
+\fB--modeac\fP
+Enable decoding of SSR Modes 3/A & 3/C
+.TP
+.B
+\fB--no-crc-check\fP
+Disable messages with invalid CRC (discouraged)
+.TP
+.B
+\fB--no-fix\fP
+Disable CRC single-bit error correction
+.TP
+.B
+\fB--no-interactive\fP
+Disable interactive mode, print to stdout
+.TP
+.B
+\fB--show-only\fP=<addr>
+Show only messages by given ICAO on stdout
+.SS  NETWORK OPTIONS
+.TP
+.B
+\fB--net-bind-address\fP=<ip>
+IP address to bind to (default: Any; Use 127.0.0.1 for private)
+.TP
+.B
+\fB--net-bo-port\fP=<ports>
+TCP Beast output listen ports (default: 30005)
+.SS  HELP OPTIONS
+.TP
+.B
+-?, \fB--help\fP
+Give this help list
+.TP
+.B
+\fB--usage\fP
+Give a short usage message
+.TP
+.B
+\fB-V\fP, \fB--version\fP
+Print program version
+.PP
+.SH BUGS
+Report bugs to Michael Wolf <michael@mictronics.de>.
+.SH AUTHOR
+Michael Wolf

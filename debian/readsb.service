@@ -1,0 +1,23 @@
+# readsb service for systemd
+
+[Unit]
+Description=readsb ADS-B receiver
+Documentation=https://github.com/mictronics/readsb
+Wants=network.target
+After=network.target
+
+[Service]
+EnvironmentFile=/etc/default/readsb
+User=readsb
+RuntimeDirectory=readsb
+RuntimeDirectoryMode=0755
+ExecStart=/usr/bin/readsb \
+ $RECEIVER_OPTIONS $DECODER_OPTIONS $NET_OPTIONS $JSON_OPTIONS \
+ --write-json /run/readsb --quiet
+Type=simple
+Restart=on-failure
+RestartSec=30
+Nice=-5
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,384 @@
+.TH "readsb" 1 "12 December 2019" "" ""
+.RS
+.SH NAME
+readsb \- Mode-S aircraft data processor for various receiver hardware.
+.SH VERSION
+v3.8.1
+.SH DESCRIPTION
+\fBreadsb Mode-S Receiver
+.SH BUILD OPTIONS
+.IP \(bu 3
+ENABLE_RTLSDR
+.IP \(bu 3
+ENABLE_BLADERF
+.SH USAGE
+\fBreadsb [OPTION\.\.\.]
+.SH OPTIONS
+.TP
+.B
+\fB--dcfilter\fP
+Apply a 1Hz DC filter to input data (requires more
+CPU)
+.TP
+.B
+\fB--enable-biastee\fP
+Enable bias tee on supporting interfaces (default: disabled)
+.TP
+.B
+\fB--debug\fP=<flags>
+Debug mode (verbose), see flags below
+.TP
+.B
+\fB--device-type\fP=<type>
+Select SDR type
+.TP
+.B
+\fB--fix\fP
+Enable CRC single-bit error correction (default)
+.TP
+.B
+\fB--forward-mlat\fP
+Allow forwarding of received mlat results to
+output ports
+.TP
+.B
+\fB--freq\fP=<hz>
+Set frequency (default: 1090 MHz)
+.TP
+.B
+\fB--gain\fP=<db>
+Set gain (default: max gain. Use \fB-10\fP for
+auto-gain)
+.TP
+.B
+\fB--gnss\fP
+Show altitudes as GNSS when available
+.TP
+.B
+\fB--interactive\fP
+Interactive mode refreshing data on screen.
+Implies \fB--throttle\fP
+.TP
+.B
+\fB--interactive-ttl\fP=<sec>
+Remove from list if idle for <sec> (default: 60)
+.TP
+.B
+\fB--json-location-accuracy\fP=<n>
+Accuracy of receiver location in json metadata:
+.RS
+.IP 0
+no location
+.IP 1
+approximate
+.IP 2
+exact
+.RE
+.RE
+.TP
+.B
+\fB--lat\fP=<lat>
+Reference/receiver surface latitude
+.TP
+.B
+\fB--lon\fP=<lon>
+Reference/receiver surface longitude
+.TP
+.B
+\fB--max-range\fP=<dist>
+Absolute maximum range for position decoding (in
+nm, default: 300)
+.TP
+.B
+\fB--metric\fP
+Use metric units
+.TP
+.B
+\fB--mlat\fP
+Display raw messages in Beast ASCII mode
+.TP
+.B
+\fB--modeac\fP
+Enable decoding of SSR Modes 3/A & 3/C
+.TP
+.B
+\fB--no-crc-check\fP
+Disable messages with invalid CRC (discouraged)
+.TP
+.B
+\fB--no-fix\fP
+Disable CRC single-bit error correction
+.TP
+.B
+\fB--no-interactive\fP
+Disable interactive mode, print to stdout
+.TP
+.B
+\fB--no-modeac-auto\fP
+Don't enable Mode A/C if requested by a Beast
+connection
+.TP
+.B
+\fB--onlyaddr\fP
+Show only ICAO addresses
+.TP
+.B
+\fB--quiet\fP
+Disable output. Use for daemon applications
+.TP
+.B
+\fB--raw\fP
+Show only messages hex values
+.TP
+.B
+\fB--show-only\fP=<addr>
+Show only messages by given ICAO on stdout
+.TP
+.B
+\fB--snip\fP=<level>
+Strip IQ file removing samples < level
+.TP
+.B
+\fB--stats\fP
+With \fB--ifile\fP print stats at exit. No other output
+.TP
+.B
+\fB--stats-every\fP=<sec>
+Show and reset stats every <sec> seconds
+.TP
+.B
+\fB--stats-range\fP
+Collect/show range histogram
+.TP
+.B
+\fB--write-json\fP=<dir>
+Periodically write json output to <dir> (for
+external webserver)
+.TP
+.B
+\fB--write-json-every\fP=<t>
+Write json output every t seconds (default 1)
+.SS  NETWORK OPTIONS
+.TP
+.B
+\fB--net\fP
+Enable networking
+.TP
+.B
+\fB--net-bi-port\fP=<ports>
+TCP Beast input listen ports (default:
+30004,30104)
+.TP
+.B
+\fB--net-vrs-port\fP=<ports>
+TCP VRS json output listen ports (default: 0)
+.TP
+.B
+\fB--net-beast-reduce-out-port\fP=<ports>
+TCP BeastReduce output listen ports (default: 0)
+.TP
+.B
+\fB--net-beast-reduce-interval\fP=<seconds>
+BeastReduce position update interval, longer means less data
+(default: 0.125, valid range: 0.000 - 14.999)
+.TP
+.B
+\fB--net-bind-address\fP=<ip>
+IP address to bind to (default: Any; Use 127.0.0.1 for private)
+.TP
+.B
+\fB--net-bo-port\fP=<ports>
+TCP Beast output listen ports (default: 30005)
+.TP
+.B
+\fB--net-buffer\fP=<n>
+TCP buffer size 64Kb * (2^n) (default: n=0, 64Kb)
+.TP
+.B
+\fB--net-heartbeat\fP=<rate>
+TCP heartbeat rate in seconds (default: 60 sec, 0 to disable)
+.TP
+.B
+\fB--net-only\fP
+Enable just networking, no RTL device or file used
+.TP
+.B
+\fB--net-connector\fP=<ip,port,protocol>
+Establish connection, can be specified multiple times (example: 127.0.0.1,23004,beast_out) Protocols: beast_out, beast_in, raw_out, raw_in, sbs_out, vrs_out.
+.TP
+.B
+\fB--net-connector-delay\fP=<seconds>
+Outbound re-connection delay (default: 30)
+.TP
+.B
+\fB--net-ri-port\fP=<ports>
+TCP raw input listen ports  (default: 30001)
+.TP
+.B
+\fB--net-ro-interval\fP=<rate>
+TCP output memory flush rate in seconds
+(default: 0)
+.TP
+.B
+\fB--net-ro-port\fP=<ports>
+TCP raw output listen ports (default: 30002)
+.TP
+.B
+\fB--net-ro-size\fP=<size>
+TCP output minimum size (default: 0)
+.TP
+.B
+\fB--net-sbs-port\fP=<ports>
+TCP BaseStation output listen ports (default: 30003)
+.RE
+.TP
+.B
+\fB--net-verbatim\fP
+Forward messages unchanged
+.SS  RTLSDR OPTIONS
+.I
+use with \fB--device-type\fP rtlsdr
+.TP
+.B
+\fB--device\fP=<index|serial>
+Select device by index or serial number
+.TP
+.B
+\fB--enable-agc\fP
+Enable digital AGC (not tuner AGC!)
+.TP
+.B
+\fB--ppm\fP=<correction>
+Set oscillator frequency correction in PPM
+.SS  BLADERF OPTIONS
+.I
+use with \fB--device-type\fP bladerf
+.TP
+.B
+\fB--bladerf-bandwidth\fP=<hz>
+Set LPF bandwidth ('bypass' to bypass the
+LPF)
+.TP
+.B
+\fB--bladerf-decimation\fP=<N>
+Assume FPGA decimates by a factor of N
+.TP
+.B
+\fB--bladerf-fpga\fP=<path>
+Use alternative FPGA bitstream ('' to disable FPGA load)
+.TP
+.B
+\fB--device\fP=<ident>
+Select device by bladeRF 'device identifier'
+.SS  MODES BEAST OPTIONS
+.I
+use with \fB--device-type\fP modesbeast
+.PP
+Beast binary protocol and hardware handshake are always enabled.
+.TP
+.B
+\fB--beast-crc-off\fP
+Turn OFF CRC checking
+.TP
+.B
+\fB--beast-df045-on\fP
+Turn ON DF0/4/5 filter
+.TP
+.B
+\fB--beast-df1117-on\fP
+Turn ON DF11/17-only filter
+.TP
+.B
+\fB--beast-fec-off\fP
+Turn OFF forward error correction
+.TP
+.B
+\fB--beast-mlat-off\fP
+Turn OFF MLAT time stamps
+.TP
+.B
+\fB--beast-modeac\fP
+Turn ON mode A/C
+.TP
+.B
+\fB--beast-serial\fP=<path>
+Path to Beast serial device (default
+/dev/ttyUSB0)
+.SS  ADALM-Pluto OPTIONS
+.I
+use with \fB--device-type\fP plutosdr
+.PP
+Default device expected at hostname 'pluto.local'.
+.TP
+.B
+\fB--pluto-uri\fP=<USB URI>
+Create USB context from URI (eg. usb:1.2.5)
+.TP
+.B
+\fB--pluto-network\fP=<hostname or IP>
+Create network context from hostname or IP (default pluto.local)
+.SS  IFILE OPTIONS
+.I
+use with \fB--ifile\fP
+.TP
+.B
+\fB--ifile\fP=<path>
+Read samples from given file ('-' for stdin)
+.TP
+.B
+\fB--iformat\fP=<type>
+Set sample format (UC8, SC16, SC16Q11)
+.TP
+.B
+\fB--throttle\fP
+Process samples at the original capture speed
+.SS  HELP OPTIONS
+.TP
+.B
+-?, \fB--help\fP
+Give this help list
+.TP
+.B
+\fB--usage\fP
+Give a short usage message
+.TP
+.B
+\fB-V\fP, \fB--version\fP
+Print program version
+.SH DEBUG MODE FLAGS
+.TP
+.B
+d
+Log frames decoded with errors
+.TP
+.B
+D
+Log frames decoded with zero errors
+.TP
+.B
+c
+Log frames with bad CRC
+.TP
+.B
+C
+Log frames with good CRC
+.TP
+.B
+p
+Log frames with bad preamble
+.TP
+.B
+n
+Log network debugging info
+.TP
+.B
+j
+Log frames to frames.js, loadable by debug.html
+.PP
+.SH CREDITS
+Matthias Wirth aka wiedehopf
+Taner Halicioglu aka tanerH
+.SH BUGS
+Report bugs to Michael Wolf <michael@mictronics.de>.
+.SH AUTHOR
+Michael Wolf
