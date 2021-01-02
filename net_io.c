@@ -2640,7 +2640,6 @@ struct char_buffer generateReceiverJson() {
 
 // Write JSON to file
 static inline void writeJsonTo (const char* dir, const char *file, struct char_buffer cb, int gzip) {
-#ifndef _WIN32
 
     char pathbuf[PATH_MAX];
     char tmppath[PATH_MAX];
@@ -2734,7 +2733,6 @@ error_2:
     if (!gzip)
         free(content);
     return;
-#endif
 }
 
 void writeJsonToFile (const char* dir, const char *file, struct char_buffer cb) {
@@ -2815,15 +2813,8 @@ static void modesReadFromClient(struct client *c) {
             left = MODES_CLIENT_BUF_SIZE - c->buflen - 1; // leave 1 extra byte for NUL termination in the ASCII case
             // If there is garbage, read more to discard it ASAP
         }
-#ifndef _WIN32
         nread = read(c->fd, c->buf + c->buflen, left);
         int err = errno;
-#else
-        nread = recv(c->fd, c->buf + c->buflen, left, 0);
-        if (nread < 0) {
-            errno = WSAGetLastError();
-        }
-#endif
 
         // If we didn't get all the data we asked for, then return once we've processed what we did get.
         if (nread != left) {
@@ -2842,11 +2833,7 @@ static void modesReadFromClient(struct client *c) {
             return;
         }
 
-#ifndef _WIN32
         if (nread < 0 && (err == EAGAIN || err == EWOULDBLOCK)) // No data available (not really an error)
-#else
-        if (nread < 0 && errno == EWOULDBLOCK) // No data available (not really an error)
-#endif
         {
             return;
         }

@@ -330,11 +330,7 @@ static void *readerThreadEntryPoint(void *arg) {
     pthread_cond_signal(&Modes.data_cond);
     pthread_mutex_unlock(&Modes.data_mutex);
 
-#ifndef _WIN32
     pthread_exit(NULL);
-#else
-    return NULL;
-#endif
 }
 
 static void *jsonThreadEntryPoint(void *arg) {
@@ -391,11 +387,7 @@ static void *jsonThreadEntryPoint(void *arg) {
 
     pthread_mutex_unlock(&Modes.jsonMutex);
 
-#ifndef _WIN32
     pthread_exit(NULL);
-#else
-    return NULL;
-#endif
 }
 
 static void *jsonGlobeThreadEntryPoint(void *arg) {
@@ -471,11 +463,7 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
 
     pthread_mutex_unlock(&Modes.jsonGlobeMutex);
 
-#ifndef _WIN32
     pthread_exit(NULL);
-#else
-    return NULL;
-#endif
 }
 
 static void *decodeThreadEntryPoint(void *arg) {
@@ -637,11 +625,7 @@ static void *decodeThreadEntryPoint(void *arg) {
 
     pthread_mutex_unlock(&Modes.decodeMutex);
 
-#ifndef _WIN32
     pthread_exit(NULL);
-#else
-    return NULL;
-#endif
 }
 //
 // ============================== Snip mode =================================
@@ -770,12 +754,9 @@ static void cleanup_and_exit(int code) {
         ca_destroy(&Modes.globeLists[i]);
     }
 
-#ifndef _WIN32
     exit(code);
-#else
-    return (code);
-#endif
 }
+
 static int make_net_connector(char *arg) {
     if (!Modes.net_connectors || Modes.net_connectors_count + 1 > Modes.net_connectors_size) {
         Modes.net_connectors_size = Modes.net_connectors_count * 2 + 8;
@@ -950,7 +931,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             snipMode(atoi(arg));
             cleanup_and_exit(0);
             break;
-#ifndef _WIN32
         case OptPromFile:
             Modes.prom_file = strdup(arg);
             break;
@@ -1013,7 +993,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptJsonGlobeIndex:
             Modes.json_globe_index = 1;
             break;
-#endif
         case OptNetHeartbeat:
             Modes.net_heartbeat_interval = (uint64_t) (1000 * atof(arg));
             break;
@@ -1319,13 +1298,6 @@ int main(int argc, char **argv) {
     parseCommandLine(argc, argv);
 
     configAfterParse();
-
-#ifdef _WIN32
-    // Try to comply with the Copyright license conditions for binary distribution
-    if (!Modes.quiet) {
-        showCopyright();
-    }
-#endif
 
     // Initialization
     log_with_timestamp("%s starting up.", MODES_READSB_VARIANT);

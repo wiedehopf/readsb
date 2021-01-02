@@ -1931,11 +1931,7 @@ void *staleThreadEntryPoint(void *arg) {
     }
     pthread_mutex_unlock(&Modes.staleMutex[thread]);
 
-#ifndef _WIN32
     pthread_exit(NULL);
-#else
-    return NULL;
-#endif
 }
 
 
@@ -2150,11 +2146,7 @@ void *miscThreadEntryPoint(void *arg) {
 
     pthread_mutex_unlock(&Modes.miscMutex);
 
-#ifndef _WIN32
     pthread_exit(NULL);
-#else
-    return NULL;
-#endif
 }
 
 /*
