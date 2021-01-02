@@ -80,6 +80,132 @@ static inline int slice_phase4(uint16_t *m) {
     return 9 * m[0] + 15 * m[1] - 25 * m[2] + 1 * m[3];
 }
 
+static void tryPhase(int try_phase, uint16_t *m, int j, unsigned char **bestmsg, int *bestscore, int *bestphase, unsigned char **msg, unsigned char *msg1, unsigned char *msg2) {
+    Modes.stats_current.demod_preamblePhase[try_phase - 4]++;
+    Modes.stats_current.demod_preambles++;
+    uint16_t *pPtr;
+    int phase, i, score, bytelen;
+
+    // Decode all the next 112 bits, regardless of the actual message
+    // size. We'll check the actual message type later
+
+    pPtr = &m[j + 19] + (try_phase / 5);
+    phase = try_phase % 5;
+
+    bytelen = MODES_LONG_MSG_BYTES;
+    for (i = 0; i < bytelen; ++i) {
+        uint8_t theByte = 0;
+
+        switch (phase) {
+            case 0:
+                theByte =
+                    (slice_phase0(pPtr) > 0 ? 0x80 : 0) |
+                    (slice_phase2(pPtr + 2) > 0 ? 0x40 : 0) |
+                    (slice_phase4(pPtr + 4) > 0 ? 0x20 : 0) |
+                    (slice_phase1(pPtr + 7) > 0 ? 0x10 : 0) |
+                    (slice_phase3(pPtr + 9) > 0 ? 0x08 : 0) |
+                    (slice_phase0(pPtr + 12) > 0 ? 0x04 : 0) |
+                    (slice_phase2(pPtr + 14) > 0 ? 0x02 : 0) |
+                    (slice_phase4(pPtr + 16) > 0 ? 0x01 : 0);
+
+
+                phase = 1;
+                pPtr += 19;
+                break;
+
+            case 1:
+                theByte =
+                    (slice_phase1(pPtr) > 0 ? 0x80 : 0) |
+                    (slice_phase3(pPtr + 2) > 0 ? 0x40 : 0) |
+                    (slice_phase0(pPtr + 5) > 0 ? 0x20 : 0) |
+                    (slice_phase2(pPtr + 7) > 0 ? 0x10 : 0) |
+                    (slice_phase4(pPtr + 9) > 0 ? 0x08 : 0) |
+                    (slice_phase1(pPtr + 12) > 0 ? 0x04 : 0) |
+                    (slice_phase3(pPtr + 14) > 0 ? 0x02 : 0) |
+                    (slice_phase0(pPtr + 17) > 0 ? 0x01 : 0);
+
+                phase = 2;
+                pPtr += 19;
+                break;
+
+            case 2:
+                theByte =
+                    (slice_phase2(pPtr) > 0 ? 0x80 : 0) |
+                    (slice_phase4(pPtr + 2) > 0 ? 0x40 : 0) |
+                    (slice_phase1(pPtr + 5) > 0 ? 0x20 : 0) |
+                    (slice_phase3(pPtr + 7) > 0 ? 0x10 : 0) |
+                    (slice_phase0(pPtr + 10) > 0 ? 0x08 : 0) |
+                    (slice_phase2(pPtr + 12) > 0 ? 0x04 : 0) |
+                    (slice_phase4(pPtr + 14) > 0 ? 0x02 : 0) |
+                    (slice_phase1(pPtr + 17) > 0 ? 0x01 : 0);
+
+                phase = 3;
+                pPtr += 19;
+                break;
+
+            case 3:
+                theByte =
+                    (slice_phase3(pPtr) > 0 ? 0x80 : 0) |
+                    (slice_phase0(pPtr + 3) > 0 ? 0x40 : 0) |
+                    (slice_phase2(pPtr + 5) > 0 ? 0x20 : 0) |
+                    (slice_phase4(pPtr + 7) > 0 ? 0x10 : 0) |
+                    (slice_phase1(pPtr + 10) > 0 ? 0x08 : 0) |
+                    (slice_phase3(pPtr + 12) > 0 ? 0x04 : 0) |
+                    (slice_phase0(pPtr + 15) > 0 ? 0x02 : 0) |
+                    (slice_phase2(pPtr + 17) > 0 ? 0x01 : 0);
+
+                phase = 4;
+                pPtr += 19;
+                break;
+
+            case 4:
+                theByte =
+                    (slice_phase4(pPtr) > 0 ? 0x80 : 0) |
+                    (slice_phase1(pPtr + 3) > 0 ? 0x40 : 0) |
+                    (slice_phase3(pPtr + 5) > 0 ? 0x20 : 0) |
+                    (slice_phase0(pPtr + 8) > 0 ? 0x10 : 0) |
+                    (slice_phase2(pPtr + 10) > 0 ? 0x08 : 0) |
+                    (slice_phase4(pPtr + 12) > 0 ? 0x04 : 0) |
+                    (slice_phase1(pPtr + 15) > 0 ? 0x02 : 0) |
+                    (slice_phase3(pPtr + 17) > 0 ? 0x01 : 0);
+
+                phase = 0;
+                pPtr += 20;
+                break;
+        }
+
+        (*msg)[i] = theByte;
+        if (i == 0) {
+            switch ((*msg)[0] >> 3) {
+                case 0: case 4: case 5: case 11:
+                    bytelen = MODES_SHORT_MSG_BYTES;
+                    break;
+
+                case 16: case 17: case 18: case 20: case 21: case 24:
+                    break;
+
+                default:
+                    bytelen = 1; // unknown DF, give up immediately
+                    break;
+            }
+        }
+    }
+
+    // Score the mode S message and see if it's any good.
+    score = scoreModesMessage(*msg, i * 8);
+    if (score > *bestscore) {
+        // new high score!
+        *bestmsg = *msg;
+        *bestscore = score;
+        *bestphase = try_phase;
+
+        // swap to using the other buffer so we don't clobber our demodulated data
+        // (if we find a better result then we'll swap back, but that's OK because
+        // we no longer need this copy if we found a better one)
+        *msg = (*msg == msg1) ? msg2 : msg1;
+    }
+}
+
 //
 // Given 'mlen' magnitude samples in 'm', sampled at 2.4MHz,
 // try to demodulate some Mode S messages.
@@ -103,7 +229,6 @@ void demodulate2400(struct mag_buf *mag) {
     for (j = 0; j < mlen; j++) {
         uint16_t *preamble = &m[j];
         uint32_t base_signal, base_noise;
-        int try_phase;
         int msglen;
 
         // Look for a message starting at around sample 0 with phase offset 3..7
@@ -127,29 +252,33 @@ void demodulate2400(struct mag_buf *mag) {
 
         // reduce number of preamble detections if we recently dropped samples
         if (Modes.stats_15min.samples_dropped)
-            ref_level = base_noise * 30;
+            ref_level = base_noise * 27;
         else
-            ref_level = base_noise * 25;
+            ref_level = base_noise * 23;
 
         int prePhase = -1;
+
+        bestmsg = NULL;
+        bestscore = -2;
+        bestphase = -1;
 
         // peaks at 1,3,9,11-12: phase 3
         // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
         // phase 3: 2/4\0/5\1 0 0 0 0/5\1/3 3\0 0 0 0 0 0 X4
         base_signal = preamble[1] + preamble[3] + preamble[9] + preamble[11] + preamble[12];
-        base_signal *= 21;
+        base_signal *= 23;
         prePhase = 3;
         if (base_signal >= ref_level)
-            goto snr_good;
+            tryPhase(prePhase + 1, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
         // peaks at 1,3,9,12: phase 4
         // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
         // phase 4: 1/5\0/4\2 0 0 0 0/4\2 2/4\0 0 0 0 0 0 0 X0
         base_signal = preamble[1] + preamble[3] + preamble[9] + preamble[12];
-        base_signal *= 27;
+        base_signal *= 28;
         prePhase = 4;
         if (base_signal >= ref_level)
-            goto snr_good;
+            tryPhase(prePhase + 1, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
         // peaks at 1,3-4,9-10,12: phase 5
         // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
@@ -158,7 +287,7 @@ void demodulate2400(struct mag_buf *mag) {
         base_signal *= 20;
         prePhase = 5;
         if (base_signal >= ref_level)
-            goto snr_good;
+            tryPhase(prePhase + 1, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
         // peaks at 1,4,10,12: phase 6
         // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
@@ -167,7 +296,7 @@ void demodulate2400(struct mag_buf *mag) {
         base_signal *= 28;
         prePhase = 6;
         if (base_signal >= ref_level)
-            goto snr_good;
+            tryPhase(prePhase + 1, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
         // peaks at 1-2,4,10,12: phase 7
         // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
@@ -176,142 +305,7 @@ void demodulate2400(struct mag_buf *mag) {
         base_signal *= 23;
         prePhase = 7;
         if (base_signal >= ref_level)
-            goto snr_good;
-
-        // no suitable peaks
-        continue;
-
-snr_good:
-
-        // try all phases
-        Modes.stats_current.demod_preamblePhase[prePhase - 3]++;
-        Modes.stats_current.demod_preambles++;
-        bestmsg = NULL;
-        bestscore = -2;
-        bestphase = -1;
-        for (try_phase = 4; try_phase <= 8; ++try_phase) {
-            uint16_t *pPtr;
-            int phase, i, score, bytelen;
-
-            // Decode all the next 112 bits, regardless of the actual message
-            // size. We'll check the actual message type later
-
-            pPtr = &m[j + 19] + (try_phase / 5);
-            phase = try_phase % 5;
-
-            bytelen = MODES_LONG_MSG_BYTES;
-            for (i = 0; i < bytelen; ++i) {
-                uint8_t theByte = 0;
-
-                switch (phase) {
-                    case 0:
-                        theByte =
-                                (slice_phase0(pPtr) > 0 ? 0x80 : 0) |
-                                (slice_phase2(pPtr + 2) > 0 ? 0x40 : 0) |
-                                (slice_phase4(pPtr + 4) > 0 ? 0x20 : 0) |
-                                (slice_phase1(pPtr + 7) > 0 ? 0x10 : 0) |
-                                (slice_phase3(pPtr + 9) > 0 ? 0x08 : 0) |
-                                (slice_phase0(pPtr + 12) > 0 ? 0x04 : 0) |
-                                (slice_phase2(pPtr + 14) > 0 ? 0x02 : 0) |
-                                (slice_phase4(pPtr + 16) > 0 ? 0x01 : 0);
-
-
-                        phase = 1;
-                        pPtr += 19;
-                        break;
-
-                    case 1:
-                        theByte =
-                                (slice_phase1(pPtr) > 0 ? 0x80 : 0) |
-                                (slice_phase3(pPtr + 2) > 0 ? 0x40 : 0) |
-                                (slice_phase0(pPtr + 5) > 0 ? 0x20 : 0) |
-                                (slice_phase2(pPtr + 7) > 0 ? 0x10 : 0) |
-                                (slice_phase4(pPtr + 9) > 0 ? 0x08 : 0) |
-                                (slice_phase1(pPtr + 12) > 0 ? 0x04 : 0) |
-                                (slice_phase3(pPtr + 14) > 0 ? 0x02 : 0) |
-                                (slice_phase0(pPtr + 17) > 0 ? 0x01 : 0);
-
-                        phase = 2;
-                        pPtr += 19;
-                        break;
-
-                    case 2:
-                        theByte =
-                                (slice_phase2(pPtr) > 0 ? 0x80 : 0) |
-                                (slice_phase4(pPtr + 2) > 0 ? 0x40 : 0) |
-                                (slice_phase1(pPtr + 5) > 0 ? 0x20 : 0) |
-                                (slice_phase3(pPtr + 7) > 0 ? 0x10 : 0) |
-                                (slice_phase0(pPtr + 10) > 0 ? 0x08 : 0) |
-                                (slice_phase2(pPtr + 12) > 0 ? 0x04 : 0) |
-                                (slice_phase4(pPtr + 14) > 0 ? 0x02 : 0) |
-                                (slice_phase1(pPtr + 17) > 0 ? 0x01 : 0);
-
-                        phase = 3;
-                        pPtr += 19;
-                        break;
-
-                    case 3:
-                        theByte =
-                                (slice_phase3(pPtr) > 0 ? 0x80 : 0) |
-                                (slice_phase0(pPtr + 3) > 0 ? 0x40 : 0) |
-                                (slice_phase2(pPtr + 5) > 0 ? 0x20 : 0) |
-                                (slice_phase4(pPtr + 7) > 0 ? 0x10 : 0) |
-                                (slice_phase1(pPtr + 10) > 0 ? 0x08 : 0) |
-                                (slice_phase3(pPtr + 12) > 0 ? 0x04 : 0) |
-                                (slice_phase0(pPtr + 15) > 0 ? 0x02 : 0) |
-                                (slice_phase2(pPtr + 17) > 0 ? 0x01 : 0);
-
-                        phase = 4;
-                        pPtr += 19;
-                        break;
-
-                    case 4:
-                        theByte =
-                                (slice_phase4(pPtr) > 0 ? 0x80 : 0) |
-                                (slice_phase1(pPtr + 3) > 0 ? 0x40 : 0) |
-                                (slice_phase3(pPtr + 5) > 0 ? 0x20 : 0) |
-                                (slice_phase0(pPtr + 8) > 0 ? 0x10 : 0) |
-                                (slice_phase2(pPtr + 10) > 0 ? 0x08 : 0) |
-                                (slice_phase4(pPtr + 12) > 0 ? 0x04 : 0) |
-                                (slice_phase1(pPtr + 15) > 0 ? 0x02 : 0) |
-                                (slice_phase3(pPtr + 17) > 0 ? 0x01 : 0);
-
-                        phase = 0;
-                        pPtr += 20;
-                        break;
-                }
-
-                msg[i] = theByte;
-                if (i == 0) {
-                    switch (msg[0] >> 3) {
-                        case 0: case 4: case 5: case 11:
-                            bytelen = MODES_SHORT_MSG_BYTES;
-                            break;
-
-                        case 16: case 17: case 18: case 20: case 21: case 24:
-                            break;
-
-                        default:
-                            bytelen = 1; // unknown DF, give up immediately
-                            break;
-                    }
-                }
-            }
-
-            // Score the mode S message and see if it's any good.
-            score = scoreModesMessage(msg, i * 8);
-            if (score > bestscore) {
-                // new high score!
-                bestmsg = msg;
-                bestscore = score;
-                bestphase = try_phase;
-
-                // swap to using the other buffer so we don't clobber our demodulated data
-                // (if we find a better result then we'll swap back, but that's OK because
-                // we no longer need this copy if we found a better one)
-                msg = (msg == msg1) ? msg2 : msg1;
-            }
-        }
+            tryPhase(prePhase + 1, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
         // Do we have a candidate?
         if (bestscore < 0) {
