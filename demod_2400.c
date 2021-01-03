@@ -60,39 +60,43 @@
 //
 // try and fix the DC offset ... by somewhat arbitrarily subtracting from the coefficients
 //
-static inline int slice_phase0(uint16_t *m) {
+static inline int slice_phase0(uint16_t lb, uint16_t *m) {
+    MODES_NOTUSED(lb);
     return 17 * m[0] - 14 * m[1] - 3 * m[2];
 }
 
-static inline int slice_phase1(uint16_t *m) {
+static inline int slice_phase1(uint16_t lb, uint16_t *m) {
+    MODES_NOTUSED(lb);
     return 15 * m[0] - 6 * m[1] - 9 * m[2];
 }
 
-static inline int slice_phase2(uint16_t *m) {
+static inline int slice_phase2(uint16_t lb, uint16_t *m) {
+    MODES_NOTUSED(lb);
     return 13 * m[0] + 2 * m[1] - 15 * m[2];
 }
 
-static inline int slice_phase3(uint16_t *m) {
+static inline int slice_phase3(uint16_t lb, uint16_t *m) {
+    MODES_NOTUSED(lb);
     return 12 * m[0] + 11 * m[1] - 23 * m[2];
 }
 
-static inline int slice_phase4(uint16_t *m) {
+static inline int slice_phase4(uint16_t lb, uint16_t *m) {
+    MODES_NOTUSED(lb);
     return 9 * m[0] + 15 * m[1] - 25 * m[2] + 1 * m[3];
 }
 
-static inline uint8_t slice_byte(uint16_t **pPtr, int *phase) {
+static inline uint8_t slice_byte(uint16_t **pPtr, int *phase, uint16_t lb) {
     uint8_t theByte = 0;
 
     if (*phase == 0) {
-        theByte =
-            (slice_phase0(*pPtr) > 0 ? 0x80 : 0) |
-            (slice_phase2(*pPtr + 2) > 0 ? 0x40 : 0) |
-            (slice_phase4(*pPtr + 4) > 0 ? 0x20 : 0) |
-            (slice_phase1(*pPtr + 7) > 0 ? 0x10 : 0) |
-            (slice_phase3(*pPtr + 9) > 0 ? 0x08 : 0) |
-            (slice_phase0(*pPtr + 12) > 0 ? 0x04 : 0) |
-            (slice_phase2(*pPtr + 14) > 0 ? 0x02 : 0) |
-            (slice_phase4(*pPtr + 16) > 0 ? 0x01 : 0);
+            theByte += ((lb = (slice_phase0(lb, *pPtr) > 0)) ? 0x80 : 0);
+            theByte += ((lb = (slice_phase2(lb, *pPtr + 2) > 0)) ? 0x40 : 0);
+            theByte += ((lb = (slice_phase4(lb, *pPtr + 4) > 0)) ? 0x20 : 0);
+            theByte += ((lb = (slice_phase1(lb, *pPtr + 7) > 0)) ? 0x10 : 0);
+            theByte += ((lb = (slice_phase3(lb, *pPtr + 9) > 0)) ? 0x08 : 0);
+            theByte += ((lb = (slice_phase0(lb, *pPtr + 12) > 0)) ? 0x04 : 0);
+            theByte += ((lb = (slice_phase2(lb, *pPtr + 14) > 0)) ? 0x02 : 0);
+            theByte += ((lb = (slice_phase4(lb, *pPtr + 16) > 0)) ? 0x01 : 0);
 
 
         *phase = 1;
@@ -101,15 +105,14 @@ static inline uint8_t slice_byte(uint16_t **pPtr, int *phase) {
     }
 
     if (*phase == 1) {
-        theByte =
-            (slice_phase1(*pPtr) > 0 ? 0x80 : 0) |
-            (slice_phase3(*pPtr + 2) > 0 ? 0x40 : 0) |
-            (slice_phase0(*pPtr + 5) > 0 ? 0x20 : 0) |
-            (slice_phase2(*pPtr + 7) > 0 ? 0x10 : 0) |
-            (slice_phase4(*pPtr + 9) > 0 ? 0x08 : 0) |
-            (slice_phase1(*pPtr + 12) > 0 ? 0x04 : 0) |
-            (slice_phase3(*pPtr + 14) > 0 ? 0x02 : 0) |
-            (slice_phase0(*pPtr + 17) > 0 ? 0x01 : 0);
+            theByte += ((lb = (slice_phase1(lb, *pPtr) > 0)) ? 0x80 : 0);
+            theByte += ((lb = (slice_phase3(lb, *pPtr + 2) > 0)) ? 0x40 : 0);
+            theByte += ((lb = (slice_phase0(lb, *pPtr + 5) > 0)) ? 0x20 : 0);
+            theByte += ((lb = (slice_phase2(lb, *pPtr + 7) > 0)) ? 0x10 : 0);
+            theByte += ((lb = (slice_phase4(lb, *pPtr + 9) > 0)) ? 0x08 : 0);
+            theByte += ((lb = (slice_phase1(lb, *pPtr + 12) > 0)) ? 0x04 : 0);
+            theByte += ((lb = (slice_phase3(lb, *pPtr + 14) > 0)) ? 0x02 : 0);
+            theByte += ((lb = (slice_phase0(lb, *pPtr + 17) > 0)) ? 0x01 : 0);
 
         *phase = 2;
         *pPtr += 19;
@@ -117,15 +120,14 @@ static inline uint8_t slice_byte(uint16_t **pPtr, int *phase) {
     }
 
     if (*phase == 2) {
-        theByte =
-            (slice_phase2(*pPtr) > 0 ? 0x80 : 0) |
-            (slice_phase4(*pPtr + 2) > 0 ? 0x40 : 0) |
-            (slice_phase1(*pPtr + 5) > 0 ? 0x20 : 0) |
-            (slice_phase3(*pPtr + 7) > 0 ? 0x10 : 0) |
-            (slice_phase0(*pPtr + 10) > 0 ? 0x08 : 0) |
-            (slice_phase2(*pPtr + 12) > 0 ? 0x04 : 0) |
-            (slice_phase4(*pPtr + 14) > 0 ? 0x02 : 0) |
-            (slice_phase1(*pPtr + 17) > 0 ? 0x01 : 0);
+            theByte += ((lb = (slice_phase2(lb, *pPtr) > 0)) ? 0x80 : 0);
+            theByte += ((lb = (slice_phase4(lb, *pPtr + 2) > 0)) ? 0x40 : 0);
+            theByte += ((lb = (slice_phase1(lb, *pPtr + 5) > 0)) ? 0x20 : 0);
+            theByte += ((lb = (slice_phase3(lb, *pPtr + 7) > 0)) ? 0x10 : 0);
+            theByte += ((lb = (slice_phase0(lb, *pPtr + 10) > 0)) ? 0x08 : 0);
+            theByte += ((lb = (slice_phase2(lb, *pPtr + 12) > 0)) ? 0x04 : 0);
+            theByte += ((lb = (slice_phase4(lb, *pPtr + 14) > 0)) ? 0x02 : 0);
+            theByte += ((lb = (slice_phase1(lb, *pPtr + 17) > 0)) ? 0x01 : 0);
 
         *phase = 3;
         *pPtr += 19;
@@ -133,15 +135,14 @@ static inline uint8_t slice_byte(uint16_t **pPtr, int *phase) {
     }
 
     if (*phase == 3) {
-        theByte =
-            (slice_phase3(*pPtr) > 0 ? 0x80 : 0) |
-            (slice_phase0(*pPtr + 3) > 0 ? 0x40 : 0) |
-            (slice_phase2(*pPtr + 5) > 0 ? 0x20 : 0) |
-            (slice_phase4(*pPtr + 7) > 0 ? 0x10 : 0) |
-            (slice_phase1(*pPtr + 10) > 0 ? 0x08 : 0) |
-            (slice_phase3(*pPtr + 12) > 0 ? 0x04 : 0) |
-            (slice_phase0(*pPtr + 15) > 0 ? 0x02 : 0) |
-            (slice_phase2(*pPtr + 17) > 0 ? 0x01 : 0);
+            theByte += ((lb = (slice_phase3(lb, *pPtr) > 0)) ? 0x80 : 0);
+            theByte += ((lb = (slice_phase0(lb, *pPtr + 3) > 0)) ? 0x40 : 0);
+            theByte += ((lb = (slice_phase2(lb, *pPtr + 5) > 0)) ? 0x20 : 0);
+            theByte += ((lb = (slice_phase4(lb, *pPtr + 7) > 0)) ? 0x10 : 0);
+            theByte += ((lb = (slice_phase1(lb, *pPtr + 10) > 0)) ? 0x08 : 0);
+            theByte += ((lb = (slice_phase3(lb, *pPtr + 12) > 0)) ? 0x04 : 0);
+            theByte += ((lb = (slice_phase0(lb, *pPtr + 15) > 0)) ? 0x02 : 0);
+            theByte += ((lb = (slice_phase2(lb, *pPtr + 17) > 0)) ? 0x01 : 0);
 
         *phase = 4;
         *pPtr += 19;
@@ -149,15 +150,14 @@ static inline uint8_t slice_byte(uint16_t **pPtr, int *phase) {
     }
 
     if (*phase == 4) {
-        theByte =
-            (slice_phase4(*pPtr) > 0 ? 0x80 : 0) |
-            (slice_phase1(*pPtr + 3) > 0 ? 0x40 : 0) |
-            (slice_phase3(*pPtr + 5) > 0 ? 0x20 : 0) |
-            (slice_phase0(*pPtr + 8) > 0 ? 0x10 : 0) |
-            (slice_phase2(*pPtr + 10) > 0 ? 0x08 : 0) |
-            (slice_phase4(*pPtr + 12) > 0 ? 0x04 : 0) |
-            (slice_phase1(*pPtr + 15) > 0 ? 0x02 : 0) |
-            (slice_phase3(*pPtr + 17) > 0 ? 0x01 : 0);
+            theByte += ((lb = (slice_phase4(lb, *pPtr) > 0)) ? 0x80 : 0);
+            theByte += ((lb = (slice_phase1(lb, *pPtr + 3) > 0)) ? 0x40 : 0);
+            theByte += ((lb = (slice_phase3(lb, *pPtr + 5) > 0)) ? 0x20 : 0);
+            theByte += ((lb = (slice_phase0(lb, *pPtr + 8) > 0)) ? 0x10 : 0);
+            theByte += ((lb = (slice_phase2(lb, *pPtr + 10) > 0)) ? 0x08 : 0);
+            theByte += ((lb = (slice_phase4(lb, *pPtr + 12) > 0)) ? 0x04 : 0);
+            theByte += ((lb = (slice_phase1(lb, *pPtr + 15) > 0)) ? 0x02 : 0);
+            theByte += ((lb = (slice_phase3(lb, *pPtr + 17) > 0)) ? 0x01 : 0);
 
         *phase = 0;
         *pPtr += 20;
@@ -178,24 +178,23 @@ static void tryPhase(int try_phase, uint16_t *m, int j, unsigned char **bestmsg,
     pPtr = &m[j + 19] + (try_phase / 5);
     phase = try_phase % 5;
 
-    bytelen = MODES_LONG_MSG_BYTES;
-    (*msg)[0] = slice_byte(&pPtr, &phase);
+    (*msg)[0] = slice_byte(&pPtr, &phase, 0);
     switch ((*msg)[0] >> 3) {
         case 0: case 4: case 5: case 11:
             bytelen = MODES_SHORT_MSG_BYTES;
             break;
 
         case 16: case 17: case 18: case 20: case 21: case 24:
+            bytelen = MODES_LONG_MSG_BYTES;
             break;
 
         default:
             return; // unknown DF, give up immediately
             break;
     }
-    if (bytelen == MODES_SHORT_MSG_BYTES || bytelen == MODES_LONG_MSG_BYTES) {
-        for (i = 1; i < bytelen; ++i) {
-            (*msg)[i] = slice_byte(&pPtr, &phase);
-        }
+    assert(bytelen == MODES_SHORT_MSG_BYTES || bytelen == MODES_LONG_MSG_BYTES);
+    for (i = 1; i < bytelen; ++i) {
+        (*msg)[i] = slice_byte(&pPtr, &phase, (*msg)[i-1] & 0x01);
     }
 
     // Score the mode S message and see if it's any good.
