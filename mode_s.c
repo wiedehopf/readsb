@@ -69,19 +69,6 @@
  */
 #define MAGIC_MLAT_TIMESTAMP 0xFF004D4C4154ULL
 
-//=========================================================================
-//
-// Given the Downlink Format (DF) of the message, return the message length in bits.
-//
-// All known DF's 16 or greater are long. All known DF's 15 or less are short.
-// There are lots of unused codes in both category, so we can assume ICAO will stick to
-// these rules, meaning that the most significant bit of the DF indicates the length.
-//
-
-int modesMessageLenByType(int type) {
-    return (type & 0x10) ? MODES_LONG_MSG_BITS : MODES_SHORT_MSG_BITS;
-}
-
 //
 //=========================================================================
 //

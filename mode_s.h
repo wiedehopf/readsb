@@ -30,7 +30,6 @@
 //
 // Functions exported from mode_s.c
 //
-int modesMessageLenByType (int type);
 int scoreModesMessage (unsigned char *msg, int validbits);
 int decodeModesMessage (struct modesMessage *mm, unsigned char *msg);
 void displayModesMessage (struct modesMessage *mm);
@@ -113,5 +112,19 @@ getbits (unsigned char *data, unsigned firstbit, unsigned lastbit)
       return 0;
     }
 }
+
+//=========================================================================
+//
+// Given the Downlink Format (DF) of the message, return the message length in bits.
+//
+// All known DF's 16 or greater are long. All known DF's 15 or less are short.
+// There are lots of unused codes in both category, so we can assume ICAO will stick to
+// these rules, meaning that the most significant bit of the DF indicates the length.
+//
+
+static inline int modesMessageLenByType(int type) {
+    return (type & 0x10) ? MODES_LONG_MSG_BITS : MODES_SHORT_MSG_BITS;
+}
+
 
 #endif
