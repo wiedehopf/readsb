@@ -60,8 +60,7 @@
 //
 // try and fix the DC offset ... by somewhat arbitrarily subtracting from the coefficients
 //
-static inline int slice_phase0(uint16_t lb, uint16_t *m) {
-    MODES_NOTUSED(lb);
+static inline int slice_phase0(__attribute__ ((unused)) uint16_t lb, uint16_t *m) {
     return 18 * m[0] - 15 * m[1] - 3 * m[2];
 }
 
@@ -253,7 +252,7 @@ void demodulate2400(struct mag_buf *mag) {
 
         // reduce number of preamble detections if we recently dropped samples
         if (Modes.stats_15min.samples_dropped)
-            ref_level = base_noise * max(80, Modes.preambleThreshold);
+            ref_level = base_noise * max(PREAMBLE_THRESHOLD_PIZERO, Modes.preambleThreshold);
         else
             ref_level = base_noise * Modes.preambleThreshold;
 

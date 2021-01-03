@@ -107,9 +107,9 @@ static void modesInitConfig(void) {
     if (sched_getaffinity(getpid(), sizeof(mask), &mask) == 0)
         nprocs = CPU_COUNT(&mask);
 
-    Modes.preambleThreshold = 60;
+    Modes.preambleThreshold = PREAMBLE_THRESHOLD_DEFAULT;
     if (nprocs < 2)
-        Modes.preambleThreshold = 80;
+        Modes.preambleThreshold = PREAMBLE_THRESHOLD_PIZERO;
 
     // Now initialise things that should not be 0/NULL to their defaults
     Modes.gain = MODES_MAX_GAIN;
@@ -850,7 +850,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.raw = 1;
             break;
         case OptPreambleThreshold:
-            Modes.preambleThreshold = (uint32_t) (max(min(strtoll(arg, NULL, 10), 100), 1));
+            Modes.preambleThreshold = (uint32_t) (max(min(strtoll(arg, NULL, 10), 200), 60));
             break;
         case OptNet:
             Modes.net = 1;

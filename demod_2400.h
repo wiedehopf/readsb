@@ -26,6 +26,9 @@
 
 #include <stdint.h>
 
+#define PREAMBLE_THRESHOLD_DEFAULT 70
+#define PREAMBLE_THRESHOLD_PIZERO 80
+
 struct mag_buf;
 
 void demodulate2400 (struct mag_buf *mag);

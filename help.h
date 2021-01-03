@@ -25,6 +25,9 @@ const char *argp_program_version = VERSION_STRING;
 const char *argp_program_bug_address = "Matthias Wirth <matthias.wirth@gmail.com>";
 static error_t parse_opt (int key, char *arg, struct argp_state *state);
 
+// preprocessor sillyness, yes both lines are necessary.
+#define _stringize(x) #x
+#define stringize(x) _stringize(x)
 static struct argp_option optionsViewadsb[] = {
     {0,0,0,0, "General options:", 1},
     {"lat", OptLat, "<lat>", 0, "Reference/receiver surface latitude", 1},
@@ -66,7 +69,7 @@ static struct argp_option optionsReadsb[] = {
     {"freq", OptFreq, "<hz>", 0, "Set frequency (default: 1090 MHz)", 1},
     {"interactive", OptInteractive, 0, 0, "Interactive mode refreshing data on screen. Implies --throttle", 1},
     {"raw", OptRaw, 0, 0, "Show only messages hex values", 1},
-    {"preamble-threshold", OptPreambleThreshold, "<1-100>", 0, "lower threshold --> more CPU usage (default: 60, pi zero / pi 1: 80, hot CPU: 42)", 1},
+    {"preamble-threshold", OptPreambleThreshold, "<60-200>", 0, "lower threshold --> more CPU usage (default: "stringize(PREAMBLE_THRESHOLD_DEFAULT)", pi zero / pi 1: "stringize(PREAMBLE_THRESHOLD_PIZERO)", hot CPU 60)", 1},
     {"no-modeac-auto", OptNoModeAcAuto, 0, 0, "Don't enable Mode A/C if requested by a Beast connection", 1},
     {"forward-mlat", OptForwardMlat, 0, 0, "Allow forwarding of received mlat results to output ports", 1},
     {"mlat", OptMlat, 0, 0, "Display raw messages in Beast ASCII mode", 1},
@@ -170,5 +173,7 @@ static struct argp_option optionsReadsb[] = {
     {0,0,0,0, "Help options:", 100},
     { 0 }
 };
+#undef stringize
+#undef _stringize
 
 #endif /* HELP_H */
