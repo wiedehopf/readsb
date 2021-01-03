@@ -1246,6 +1246,8 @@ void traceMaintenance(struct aircraft *a, uint64_t now) {
     if (!(Modes.keep_traces && a->trace_alloc))
         return;
 
+    a->lastTraceMaintenance = now;
+
     //fprintf(stderr, "%06x\n", a->addr);
     int oldAlloc = a->trace_alloc;
 
@@ -1263,26 +1265,23 @@ void traceMaintenance(struct aircraft *a, uint64_t now) {
         fprintf(stderr, "%06x: grow: trace_len: %d traceRealloc: %d -> %d\n", a->addr, a->trace_len, oldAlloc, a->trace_alloc);
     }
 
-    if (Modes.json_globe_index) {
-        if (now > a->trace_next_fw) {
-            traceResize(a, now);
+    if (now > a->trace_next_fw) {
+        traceResize(a, now);
+        if (Modes.json_globe_index) {
             a->trace_write = 1;
+        } else {
+            // without globe_index don't write trace but make sure we still call traceResize now and then.
+            a->trace_next_fw = now + Modes.keep_traces + random() % (30 * MINUTES);
         }
+    }
 
-        if (Modes.doFullTraceWrite) {
-            if (now < a->seen_pos + 3 * HOURS) {
-                a->trace_next_fw = now + random() % (2 * MINUTES); // spread over 2 mins
-                a->trace_full_write = 0xc0ffee;
-            } else {
-                a->trace_next_fw = now + 3 * MINUTES + random() % (2 * MINUTES); // spread over 2 mins
-                a->trace_full_write = 0xc0ffee;
-            }
-        }
-    } else {
-        // without globe_index keep traces in memory only for 2 hours (used for heatmap)
-        if (now > a->trace_next_fw) {
-            traceResize(a, now);
-            a->trace_next_fw = now + 2 * HOURS + random() % (30 * MINUTES);
+    if (Modes.doFullTraceWrite) {
+        if (now < a->seen_pos + 3 * HOURS) {
+            a->trace_next_fw = now + random() % (2 * MINUTES); // spread over 2 mins
+            a->trace_full_write = 0xc0ffee;
+        } else {
+            a->trace_next_fw = now + 3 * MINUTES + random() % (2 * MINUTES); // spread over 2 mins
+            a->trace_full_write = 0xc0ffee;
         }
     }
 }
