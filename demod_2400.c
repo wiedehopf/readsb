@@ -71,17 +71,15 @@ static inline int slice_phase1(uint16_t lb, uint16_t *m) {
 }
 
 static inline int slice_phase2(uint16_t lb, uint16_t *m) {
-    MODES_NOTUSED(lb);
-    return 13 * m[0] + 2 * m[1] - 15 * m[2];
+    // this isn't DC balanced ... but what works works
+    return (14 - 1 * lb) * m[0] + 5 * m[1] + (-18 + 2 * lb) * m[2];
 }
 
 static inline int slice_phase3(uint16_t lb, uint16_t *m) {
-    MODES_NOTUSED(lb);
-    return (8 - 3 * lb) * m[0] + 11 * m[1] + (-19 + 3 * lb)  * m[2];
+    return (8 - 3 * lb) * m[0] + 11 * m[1] + (-19 + 3 * lb) * m[2];
 }
 
 static inline int slice_phase4(uint16_t lb, uint16_t *m) {
-    MODES_NOTUSED(lb);
     return (4 - 3 * lb) * m[0] + 15 * m[1] + (-20 + 3 * lb) * m[2] + 1 * m[3];
 }
 
