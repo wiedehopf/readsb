@@ -166,7 +166,6 @@ static inline uint8_t slice_byte(uint16_t **pPtr, int *phase, uint16_t lb) {
 
 static void tryPhase(int try_phase, uint16_t *m, int j, unsigned char **bestmsg, int *bestscore, int *bestphase, unsigned char **msg, unsigned char *msg1, unsigned char *msg2) {
     Modes.stats_current.demod_preamblePhase[try_phase - 4]++;
-    Modes.stats_current.demod_preambles++;
     uint16_t *pPtr;
     int phase, i, score, bytelen;
 
@@ -263,7 +262,7 @@ void demodulate2400(struct mag_buf *mag) {
         int prePhase = -1;
 
         bestmsg = NULL;
-        bestscore = -17;
+        bestscore = -42;
         bestphase = -1;
 
         // peaks at 1,3,9,11-12: phase 3
@@ -311,11 +310,21 @@ void demodulate2400(struct mag_buf *mag) {
         if (base_signal >= ref_level)
             tryPhase(prePhase + 1, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
+
+        // no preamble detected
+        if (bestscore == -42)
+            continue;
+
+        // we had at least one phase greater than the preamble threshold
+        // and used scoremodesmessage on those bytes
+        Modes.stats_current.demod_preambles++;
+
         // Do we have a candidate?
         if (bestscore < 0) {
+
             if (bestscore == -1)
                 Modes.stats_current.demod_rejected_unknown_icao++;
-            else if (bestscore != -17)
+            else
                 Modes.stats_current.demod_rejected_bad++;
             continue; // nope.
         }
