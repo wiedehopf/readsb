@@ -82,7 +82,7 @@ static inline int slice_phase3(uint16_t lb, uint16_t *m) {
 
 static inline int slice_phase4(uint16_t lb, uint16_t *m) {
     MODES_NOTUSED(lb);
-    return 9 * m[0] + 15 * m[1] - 25 * m[2] + 1 * m[3];
+    return 4 * m[0] + 15 * m[1] - 20 * m[2] + 1 * m[3];
 }
 
 static inline uint8_t slice_byte(uint16_t **pPtr, int *phase, uint16_t lb) {
