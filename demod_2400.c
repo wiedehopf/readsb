@@ -245,8 +245,14 @@ void demodulate2400(struct mag_buf *mag) {
         // phase 6: 0/4\2 2/4\0 0 0 0 2/4\0/5\1 0 0 0 0 0 0 X2
         // phase 7: 0/3 3\1/5\0 0 0 0 1/5\0/4\2 0 0 0 0 0 0 X3
 
-        // 10 noise samples
-        base_noise = pa[5] + pa[6] + pa[7] + pa[8] + pa[13] + pa[14] + pa[15] + pa[16] + pa[17] + pa[18];
+        // do some bad pre-check if CPU is really important
+        if (Modes.preambleThreshold >= PREAMBLE_THRESHOLD_PIZERO) {
+            if (!(pa[6] < pa[1] && pa[15] < pa[12]))
+                continue;
+        }
+
+        // 5 noise samples
+        base_noise = pa[5] + pa[8] + pa[13] + pa[15] + pa[18];
         // pa_mag is the sum of the 4 preamble high bits
         // minus 2 low bits between each of high bit pairs
 
@@ -256,53 +262,47 @@ void demodulate2400(struct mag_buf *mag) {
         else
             ref_level = base_noise * Modes.preambleThreshold;
 
-        ref_level >>= 6; // divide by 64
-
-        int prePhase = -1;
+        ref_level >>= 5; // divide by 32
 
         bestmsg = NULL;
         bestscore = -42;
         bestphase = -1;
 
-        // peaks at 1,3,9,11-12: phase 3
+        int32_t diff_2_3 =  pa[2] - pa[3];
+        int32_t sum_1_4 = pa[1] + pa[4];
+        int32_t diff_10_11 = pa[10] - pa[11];
+        int32_t common3456 = sum_1_4 - diff_2_3 + pa[9] + pa[12];
+
         // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
         // phase 3: 2/4\0/5\1 0 0 0 0/5\1/3 3\0 0 0 0 0 0 X4
-        pa_mag = pa[1] - pa[2] + pa[3] + pa[4] + pa[9] - pa[10] + pa[11] + pa[12];
-        prePhase = 3;
-        if (pa_mag >= ref_level)
-            tryPhase(prePhase + 1, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
-
-        // peaks at 1,3,9,12: phase 4
-        // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
         // phase 4: 1/5\0/4\2 0 0 0 0/4\2 2/4\0 0 0 0 0 0 0 X0
-        pa_mag = pa[1] - pa[2] + pa[3] + pa[4] + pa[9] - pa[10] + pa[11] + pa[12];
-        prePhase = 4;
-        if (pa_mag >= ref_level)
-            tryPhase(prePhase + 1, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
+        pa_mag = common3456 - diff_10_11;
+        if (pa_mag >= ref_level) {
+            // peaks at 1,3,9,11-12: phase 3
+            tryPhase(4, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
-        // peaks at 1,3-4,9-10,12: phase 5
+            // peaks at 1,3,9,12: phase 4
+            tryPhase(5, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
+        }
+
         // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
         // phase 5: 0/5\1/3 3\0 0 0 0/3 3\1/5\0 0 0 0 0 0 0 X1
-        pa_mag = pa[1] - pa[2] + pa[3] + pa[4] + pa[9] + pa[10] - pa[11] + pa[12];
-        prePhase = 5;
-        if (pa_mag >= ref_level)
-            tryPhase(prePhase + 1, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
-
-        // peaks at 1,4,10,12: phase 6
-        // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
         // phase 6: 0/4\2 2/4\0 0 0 0 2/4\0/5\1 0 0 0 0 0 0 X2
-        pa_mag = pa[1] - pa[2] + pa[3] + pa[4] + pa[10] - pa[11] + pa[12];
-        prePhase = 6;
-        if (pa_mag >= ref_level)
-            tryPhase(prePhase + 1, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
+        pa_mag = common3456 + diff_10_11;
+        if (pa_mag >= ref_level) {
+            // peaks at 1,3-4,9-10,12: phase 5
+            tryPhase(6, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
+
+            // peaks at 1,4,10,12: phase 6
+            tryPhase(7, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
+        }
 
         // peaks at 1-2,4,10,12: phase 7
         // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
         // phase 7: 0/3 3\1/5\0 0 0 0 1/5\0/4\2 0 0 0 0 0 0 X3
-        pa_mag = pa[1] + pa[2] - pa[3] + pa[4] + pa[10] - pa[11] + pa[12];
-        prePhase = 7;
+        pa_mag = sum_1_4 + diff_2_3 + diff_10_11 + pa[12];
         if (pa_mag >= ref_level)
-            tryPhase(prePhase + 1, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
+            tryPhase(8, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
 
         // no preamble detected
