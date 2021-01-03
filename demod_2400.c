@@ -230,8 +230,8 @@ void demodulate2400(struct mag_buf *mag) {
     msg = msg1;
 
     for (j = 0; j < mlen; j++) {
-        uint16_t *preamble = &m[j];
-        uint32_t base_signal, base_noise;
+        uint16_t *pa = &m[j];
+        int32_t pa_mag, base_noise, ref_level;
         int msglen;
 
         // Look for a message starting at around sample 0 with phase offset 3..7
@@ -246,18 +246,18 @@ void demodulate2400(struct mag_buf *mag) {
         // phase 6: 0/4\2 2/4\0 0 0 0 2/4\0/5\1 0 0 0 0 0 0 X2
         // phase 7: 0/3 3\1/5\0 0 0 0 1/5\0/4\2 0 0 0 0 0 0 X3
 
-        // 9 noise samples
-        base_noise = preamble[5] + preamble[6] + preamble[7] + preamble[8]
-            + preamble[14] + preamble[15] + preamble[16] + preamble[17] + preamble[18];
-        // base_signal is adjusted to 4 samples
-
-        uint32_t ref_level;
+        // 10 noise samples
+        base_noise = pa[5] + pa[6] + pa[7] + pa[8] + pa[13] + pa[14] + pa[15] + pa[16] + pa[17] + pa[18];
+        // pa_mag is the sum of the 4 preamble high bits
+        // minus 2 low bits between each of high bit pairs
 
         // reduce number of preamble detections if we recently dropped samples
         if (Modes.stats_15min.samples_dropped)
-            ref_level = base_noise / 2 * max(80, Modes.preambleThreshold);
+            ref_level = base_noise * max(80, Modes.preambleThreshold);
         else
-            ref_level = base_noise / 2 * Modes.preambleThreshold;
+            ref_level = base_noise * Modes.preambleThreshold;
+
+        ref_level >>= 6; // divide by 64
 
         int prePhase = -1;
 
@@ -268,46 +268,41 @@ void demodulate2400(struct mag_buf *mag) {
         // peaks at 1,3,9,11-12: phase 3
         // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
         // phase 3: 2/4\0/5\1 0 0 0 0/5\1/3 3\0 0 0 0 0 0 X4
-        base_signal = preamble[1] + preamble[3] + preamble[9] + preamble[11] + preamble[12];
-        base_signal *= 23;
+        pa_mag = pa[1] - pa[2] + pa[3] + pa[4] + pa[9] - pa[10] + pa[11] + pa[12];
         prePhase = 3;
-        if (base_signal >= ref_level)
+        if (pa_mag >= ref_level)
             tryPhase(prePhase + 1, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
         // peaks at 1,3,9,12: phase 4
         // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
         // phase 4: 1/5\0/4\2 0 0 0 0/4\2 2/4\0 0 0 0 0 0 0 X0
-        base_signal = preamble[1] + preamble[3] + preamble[9] + preamble[12];
-        base_signal *= 28;
+        pa_mag = pa[1] - pa[2] + pa[3] + pa[4] + pa[9] - pa[10] + pa[11] + pa[12];
         prePhase = 4;
-        if (base_signal >= ref_level)
+        if (pa_mag >= ref_level)
             tryPhase(prePhase + 1, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
         // peaks at 1,3-4,9-10,12: phase 5
         // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
         // phase 5: 0/5\1/3 3\0 0 0 0/3 3\1/5\0 0 0 0 0 0 0 X1
-        base_signal = preamble[1] + preamble[3] + preamble[4] + preamble[9] + preamble[10] + preamble[12];
-        base_signal *= 20;
+        pa_mag = pa[1] - pa[2] + pa[3] + pa[4] + pa[9] + pa[10] - pa[11] + pa[12];
         prePhase = 5;
-        if (base_signal >= ref_level)
+        if (pa_mag >= ref_level)
             tryPhase(prePhase + 1, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
         // peaks at 1,4,10,12: phase 6
         // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
         // phase 6: 0/4\2 2/4\0 0 0 0 2/4\0/5\1 0 0 0 0 0 0 X2
-        base_signal = preamble[1] + preamble[4] + preamble[10] + preamble[12];
-        base_signal *= 28;
+        pa_mag = pa[1] - pa[2] + pa[3] + pa[4] + pa[10] - pa[11] + pa[12];
         prePhase = 6;
-        if (base_signal >= ref_level)
+        if (pa_mag >= ref_level)
             tryPhase(prePhase + 1, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
         // peaks at 1-2,4,10,12: phase 7
         // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
         // phase 7: 0/3 3\1/5\0 0 0 0 1/5\0/4\2 0 0 0 0 0 0 X3
-        base_signal = preamble[2] + preamble[3] + preamble[4] + preamble[10] + preamble[12];
-        base_signal *= 23;
+        pa_mag = pa[1] + pa[2] - pa[3] + pa[4] + pa[10] - pa[11] + pa[12];
         prePhase = 7;
-        if (base_signal >= ref_level)
+        if (pa_mag >= ref_level)
             tryPhase(prePhase + 1, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
 
