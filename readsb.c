@@ -1043,6 +1043,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptNetJsonPorts:
             free(Modes.net_output_json_ports);
             Modes.net_output_json_ports = strdup(arg);
+            Modes.keep_traces = 2 * HOURS;
             break;
         case OptNetApiPorts:
             free(Modes.net_output_api_ports);
