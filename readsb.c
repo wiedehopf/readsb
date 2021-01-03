@@ -1289,6 +1289,7 @@ int main(int argc, char **argv) {
     modesInitConfig();
 
     Modes.startup_time = mstime();
+    Modes.ifile_now = Modes.startup_time;
     srandom(get_seed());
 
     // signal handlers:
