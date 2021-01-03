@@ -62,7 +62,7 @@
 //
 static inline int slice_phase0(uint16_t lb, uint16_t *m) {
     MODES_NOTUSED(lb);
-    return 17 * m[0] - 14 * m[1] - 3 * m[2];
+    return 18 * m[0] - 15 * m[1] - 3 * m[2];
 }
 
 static inline int slice_phase1(uint16_t lb, uint16_t *m) {
