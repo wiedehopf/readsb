@@ -250,11 +250,11 @@ void demodulate2400(struct mag_buf *mag) {
         // phase 7: 0/3 3\1/5\0 0 0 0 1/5\0/4\2 0 0 0 0 0 0 X3
 
         // do some bad pre-check if CPU is really important
-        if (!(pa[1] > pa[6] && pa[12] > pa[15] && pa[12] > pa[14]))
+        if (!(pa[1] > pa[6] && pa[12] > pa[14] && pa[12] > pa[15]))
             continue;
 
         // 5 noise samples
-        base_noise = pa[5] + pa[8] + pa[13] + pa[15] + pa[18];
+        base_noise = pa[5] + pa[8] + pa[16] + pa[17] + pa[18];
         // pa_mag is the sum of the 4 preamble high bits
         // minus 2 low bits between each of high bit pairs
 
