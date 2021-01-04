@@ -1742,7 +1742,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
     } else if (ch == '5') {
         // Special case for Radarcape position messages.
         float lat, lon, alt;
-
+        unsigned char msg[21];
         for (j = 0; j < 21; j++) { // and the data
             msg[j] = ch = *p++;
             if (0x1A == ch) {
@@ -1755,10 +1755,8 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
         alt = ieee754_binary32_le_to_float(msg + 12);
 
         handle_radarcape_position(lat, lon, alt);
-    }
-
-    if (!msgLen)
         return 0;
+    }
 
     /* Beast messages are marked depending on their source. From internet they are marked
      * remote so that we don't try to pass them off as being received by this instance
