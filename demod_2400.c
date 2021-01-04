@@ -250,11 +250,8 @@ void demodulate2400(struct mag_buf *mag) {
         // phase 7: 0/3 3\1/5\0 0 0 0 1/5\0/4\2 0 0 0 0 0 0 X3
 
         // do some bad pre-check if CPU is really important
-        if (Modes.stats_15min.samples_dropped || Modes.preambleThreshold >= PREAMBLE_THRESHOLD_PIZERO) {
-            if (!(pa[6] < pa[1] && pa[15] < pa[12]))
-                continue;
-        }
-        //if (!(pa[0] < pa[1] && pa[12] > pa[13]))
+        if (!(pa[1] > pa[6] && pa[12] > pa[15] && pa[12] > pa[14]))
+            continue;
 
         // 5 noise samples
         base_noise = pa[5] + pa[8] + pa[13] + pa[15] + pa[18];
