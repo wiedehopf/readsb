@@ -194,7 +194,6 @@ void ifileRun() {
 
         // Compute the sample timestamp for the start of the block
         outbuf->sampleTimestamp = sampleCounter * 12e6 / Modes.sample_rate;
-        sampleCounter += MODES_MAG_BUF_SAMPLES;
 
         // Copy trailing data from last block (or reset if not valid)
         if (lastbuf->length >= Modes.trailing_samples) {
@@ -223,6 +222,7 @@ void ifileRun() {
         }
 
         slen = outbuf->length = MODES_MAG_BUF_SAMPLES - toread / ifile.bytes_per_sample;
+        sampleCounter += slen;
 
         // Convert the new data
         ifile.converter(ifile.readbuf, &outbuf->data[Modes.trailing_samples], slen, ifile.converter_state, &outbuf->mean_level, &outbuf->mean_power);
@@ -247,8 +247,10 @@ void ifileRun() {
     }
 
     // Wait for the main thread to consume all data
-    while (!Modes.exit && Modes.first_filled_buffer != Modes.first_free_buffer)
+    while (!Modes.exit && Modes.first_filled_buffer != Modes.first_free_buffer) {
+        pthread_cond_signal(&Modes.data_cond);
         pthread_cond_wait(&Modes.data_cond, &Modes.data_mutex);
+    }
 
     Modes.exit = 1;
     pthread_cond_signal(&Modes.data_cond);

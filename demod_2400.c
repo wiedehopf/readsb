@@ -240,6 +240,10 @@ void demodulate2400(struct mag_buf *mag) {
 
     msg = msg1;
 
+    // advance ifile artificial clock even if we don't receive anything
+    if (Modes.sdr_type == SDR_IFILE)
+        Modes.ifile_now = mag->sysTimestamp;
+
     for (j = 0; j < mlen; j++) {
         uint16_t *pa = &m[j];
         int32_t pa_mag, base_noise, ref_level;
@@ -346,6 +350,7 @@ void demodulate2400(struct mag_buf *mag) {
         // compute message receive time as block-start-time + difference in the 12MHz clock
         mm.sysTimestampMsg = mag->sysTimestamp + receiveclock_ms_elapsed(mag->sampleTimestamp, mm.timestampMsg);
 
+        // advance ifile artifical clock for every message received
         if (Modes.sdr_type == SDR_IFILE)
             Modes.ifile_now = mm.sysTimestampMsg;
 
