@@ -81,101 +81,99 @@ static inline __attribute__((always_inline)) int slice_phase1(uint16_t *m) {
 
 // slightly DC unbalanced but better results
 static inline __attribute__((always_inline)) int slice_phase2(uint16_t *m) {
-    return 16 * m[0] + 5 * m[1] + -20 * m[2];
+    return 16 * m[0] + 5 * m[1] - 20 * m[2];
 }
 
 static inline __attribute__((always_inline)) int slice_phase3(uint16_t *m) {
-    return 7 * m[0] + 11 * m[1] + -18 * m[2];
+    return 7 * m[0] + 11 * m[1] - 18 * m[2];
 }
 
 static inline __attribute__((always_inline)) int slice_phase4(uint16_t *m) {
-    return 4 * m[0] + 15 * m[1] + -20 * m[2] + 1 * m[3];
+    return 4 * m[0] + 15 * m[1] - 20 * m[2] + 1 * m[3];
 }
 
+// extract one byte from the mag buffers using slice_phase functions
+// advance pPtr and phase
 static inline __attribute__((always_inline)) uint8_t slice_byte(uint16_t **pPtr, int *phase) {
     uint8_t theByte = 0;
 
-    if (*phase == 0) {
-        theByte =
-            (slice_phase0(*pPtr) > 0 ? 0x80 : 0) |
-            (slice_phase2(*pPtr + 2) > 0 ? 0x40 : 0) |
-            (slice_phase4(*pPtr + 4) > 0 ? 0x20 : 0) |
-            (slice_phase1(*pPtr + 7) > 0 ? 0x10 : 0) |
-            (slice_phase3(*pPtr + 9) > 0 ? 0x08 : 0) |
-            (slice_phase0(*pPtr + 12) > 0 ? 0x04 : 0) |
-            (slice_phase2(*pPtr + 14) > 0 ? 0x02 : 0) |
-            (slice_phase4(*pPtr + 16) > 0 ? 0x01 : 0);
+    switch (*phase) {
+        case 0:
+            theByte =
+                (slice_phase0(*pPtr) > 0 ? 0x80 : 0) |
+                (slice_phase2(*pPtr+2) > 0 ? 0x40 : 0) |
+                (slice_phase4(*pPtr+4) > 0 ? 0x20 : 0) |
+                (slice_phase1(*pPtr+7) > 0 ? 0x10 : 0) |
+                (slice_phase3(*pPtr+9) > 0 ? 0x08 : 0) |
+                (slice_phase0(*pPtr+12) > 0 ? 0x04 : 0) |
+                (slice_phase2(*pPtr+14) > 0 ? 0x02 : 0) |
+                (slice_phase4(*pPtr+16) > 0 ? 0x01 : 0);
 
+            *phase = 1;
+            *pPtr += 19;
+            break;
 
-        *phase = 1;
-        *pPtr += 19;
-        return theByte;
+        case 1:
+            theByte =
+                (slice_phase1(*pPtr) > 0 ? 0x80 : 0) |
+                (slice_phase3(*pPtr+2) > 0 ? 0x40 : 0) |
+                (slice_phase0(*pPtr+5) > 0 ? 0x20 : 0) |
+                (slice_phase2(*pPtr+7) > 0 ? 0x10 : 0) |
+                (slice_phase4(*pPtr+9) > 0 ? 0x08 : 0) |
+                (slice_phase1(*pPtr+12) > 0 ? 0x04 : 0) |
+                (slice_phase3(*pPtr+14) > 0 ? 0x02 : 0) |
+                (slice_phase0(*pPtr+17) > 0 ? 0x01 : 0);
+
+            *phase = 2;
+            *pPtr += 19;
+            break;
+
+        case 2:
+            theByte =
+                (slice_phase2(*pPtr) > 0 ? 0x80 : 0) |
+                (slice_phase4(*pPtr+2) > 0 ? 0x40 : 0) |
+                (slice_phase1(*pPtr+5) > 0 ? 0x20 : 0) |
+                (slice_phase3(*pPtr+7) > 0 ? 0x10 : 0) |
+                (slice_phase0(*pPtr+10) > 0 ? 0x08 : 0) |
+                (slice_phase2(*pPtr+12) > 0 ? 0x04 : 0) |
+                (slice_phase4(*pPtr+14) > 0 ? 0x02 : 0) |
+                (slice_phase1(*pPtr+17) > 0 ? 0x01 : 0);
+
+            *phase = 3;
+            *pPtr += 19;
+            break;
+
+        case 3:
+            theByte =
+                (slice_phase3(*pPtr) > 0 ? 0x80 : 0) |
+                (slice_phase0(*pPtr+3) > 0 ? 0x40 : 0) |
+                (slice_phase2(*pPtr+5) > 0 ? 0x20 : 0) |
+                (slice_phase4(*pPtr+7) > 0 ? 0x10 : 0) |
+                (slice_phase1(*pPtr+10) > 0 ? 0x08 : 0) |
+                (slice_phase3(*pPtr+12) > 0 ? 0x04 : 0) |
+                (slice_phase0(*pPtr+15) > 0 ? 0x02 : 0) |
+                (slice_phase2(*pPtr+17) > 0 ? 0x01 : 0);
+
+            *phase = 4;
+            *pPtr += 19;
+            break;
+
+        case 4:
+            theByte =
+                (slice_phase4(*pPtr) > 0 ? 0x80 : 0) |
+                (slice_phase1(*pPtr+3) > 0 ? 0x40 : 0) |
+                (slice_phase3(*pPtr+5) > 0 ? 0x20 : 0) |
+                (slice_phase0(*pPtr+8) > 0 ? 0x10 : 0) |
+                (slice_phase2(*pPtr+10) > 0 ? 0x08 : 0) |
+                (slice_phase4(*pPtr+12) > 0 ? 0x04 : 0) |
+                (slice_phase1(*pPtr+15) > 0 ? 0x02 : 0) |
+                (slice_phase3(*pPtr+17) > 0 ? 0x01 : 0);
+
+            *phase = 0;
+            *pPtr += 20;
+            break;
     }
-
-    if (*phase == 1) {
-        theByte =
-            (slice_phase1(*pPtr) > 0 ? 0x80 : 0) |
-            (slice_phase3(*pPtr + 2) > 0 ? 0x40 : 0) |
-            (slice_phase0(*pPtr + 5) > 0 ? 0x20 : 0) |
-            (slice_phase2(*pPtr + 7) > 0 ? 0x10 : 0) |
-            (slice_phase4(*pPtr + 9) > 0 ? 0x08 : 0) |
-            (slice_phase1(*pPtr + 12) > 0 ? 0x04 : 0) |
-            (slice_phase3(*pPtr + 14) > 0 ? 0x02 : 0) |
-            (slice_phase0(*pPtr + 17) > 0 ? 0x01 : 0);
-
-        *phase = 2;
-        *pPtr += 19;
-        return theByte;
-    }
-
-    if (*phase == 2) {
-        theByte =
-            (slice_phase2(*pPtr) > 0 ? 0x80 : 0) |
-            (slice_phase4(*pPtr + 2) > 0 ? 0x40 : 0) |
-            (slice_phase1(*pPtr + 5) > 0 ? 0x20 : 0) |
-            (slice_phase3(*pPtr + 7) > 0 ? 0x10 : 0) |
-            (slice_phase0(*pPtr + 10) > 0 ? 0x08 : 0) |
-            (slice_phase2(*pPtr + 12) > 0 ? 0x04 : 0) |
-            (slice_phase4(*pPtr + 14) > 0 ? 0x02 : 0) |
-            (slice_phase1(*pPtr + 17) > 0 ? 0x01 : 0);
-
-        *phase = 3;
-        *pPtr += 19;
-        return theByte;
-    }
-
-    if (*phase == 3) {
-        theByte =
-            (slice_phase3(*pPtr) > 0 ? 0x80 : 0) |
-            (slice_phase0(*pPtr + 3) > 0 ? 0x40 : 0) |
-            (slice_phase2(*pPtr + 5) > 0 ? 0x20 : 0) |
-            (slice_phase4(*pPtr + 7) > 0 ? 0x10 : 0) |
-            (slice_phase1(*pPtr + 10) > 0 ? 0x08 : 0) |
-            (slice_phase3(*pPtr + 12) > 0 ? 0x04 : 0) |
-            (slice_phase0(*pPtr + 15) > 0 ? 0x02 : 0) |
-            (slice_phase2(*pPtr + 17) > 0 ? 0x01 : 0);
-
-        *phase = 4;
-        *pPtr += 19;
-        return theByte;
-    }
-
-    if (*phase == 4) {
-        theByte =
-            (slice_phase4(*pPtr) > 0 ? 0x80 : 0) |
-            (slice_phase1(*pPtr + 3) > 0 ? 0x40 : 0) |
-            (slice_phase3(*pPtr + 5) > 0 ? 0x20 : 0) |
-            (slice_phase0(*pPtr + 8) > 0 ? 0x10 : 0) |
-            (slice_phase2(*pPtr + 10) > 0 ? 0x08 : 0) |
-            (slice_phase4(*pPtr + 12) > 0 ? 0x04 : 0) |
-            (slice_phase1(*pPtr + 15) > 0 ? 0x02 : 0) |
-            (slice_phase3(*pPtr + 17) > 0 ? 0x01 : 0);
-
-        *phase = 0;
-        *pPtr += 20;
-        return theByte;
-    }
-    return 0;
+    return theByte;
 }
 
 static void score_phase(int try_phase, uint16_t *m, int j, unsigned char **bestmsg, int *bestscore, int *bestphase, unsigned char **msg, unsigned char *msg1, unsigned char *msg2) {
