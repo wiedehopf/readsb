@@ -850,7 +850,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.raw = 1;
             break;
         case OptPreambleThreshold:
-            Modes.preambleThreshold = (uint32_t) (max(min(strtoll(arg, NULL, 10), 200), 60));
+            Modes.preambleThreshold = (uint32_t) (max(min(strtoll(arg, NULL, 10), 100), 40));
             break;
         case OptNet:
             Modes.net = 1;
