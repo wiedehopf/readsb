@@ -27,7 +27,7 @@
 #include <stdint.h>
 
 #define PREAMBLE_THRESHOLD_DEFAULT 70
-#define PREAMBLE_THRESHOLD_PIZERO 80
+#define PREAMBLE_THRESHOLD_PIZERO 75
 
 struct mag_buf;
 
