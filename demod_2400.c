@@ -178,7 +178,7 @@ static inline __attribute__((always_inline)) uint8_t slice_byte(uint16_t **pPtr,
     return 0;
 }
 
-static void tryPhase(int try_phase, uint16_t *m, int j, unsigned char **bestmsg, int *bestscore, int *bestphase, unsigned char **msg, unsigned char *msg1, unsigned char *msg2) {
+static void score_phase(int try_phase, uint16_t *m, int j, unsigned char **bestmsg, int *bestscore, int *bestphase, unsigned char **msg, unsigned char *msg1, unsigned char *msg2) {
     Modes.stats_current.demod_preamblePhase[try_phase - 4]++;
     uint16_t *pPtr;
     int phase, i, score, bytelen;
@@ -295,10 +295,10 @@ void demodulate2400(struct mag_buf *mag) {
         pa_mag = common3456 - diff_10_11;
         if (pa_mag >= ref_level) {
             // peaks at 1,3,9,11-12: phase 3
-            tryPhase(4, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
+            score_phase(4, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
             // peaks at 1,3,9,12: phase 4
-            tryPhase(5, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
+            score_phase(5, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
         }
 
         // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
@@ -307,10 +307,10 @@ void demodulate2400(struct mag_buf *mag) {
         pa_mag = common3456 + diff_10_11;
         if (pa_mag >= ref_level) {
             // peaks at 1,3-4,9-10,12: phase 5
-            tryPhase(6, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
+            score_phase(6, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
             // peaks at 1,4,10,12: phase 6
-            tryPhase(7, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
+            score_phase(7, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
         }
 
         // peaks at 1-2,4,10,12: phase 7
@@ -318,7 +318,7 @@ void demodulate2400(struct mag_buf *mag) {
         // phase 7: 0/3 3\1/5\0 0 0 0 1/5\0/4\2 0 0 0 0 0 0 X3
         pa_mag = sum_1_4 + diff_2_3 + diff_10_11 + pa[12];
         if (pa_mag >= ref_level)
-            tryPhase(8, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
+            score_phase(8, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
 
         // no preamble detected
