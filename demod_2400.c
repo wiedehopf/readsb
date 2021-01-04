@@ -45,21 +45,32 @@
 // nb: the correlation functions sum to zero, so we do not need to adjust for the DC offset in the input signal
 // (adding any constant value to all of m[0..3] does not change the result)
 
+
+// Changes 2020 by wiedehopf:
 // 20 units per sample, 24 units per symbol that are distributed according to phase
-// 1 bit has 2 symbols, first symbol is high, second is low
+// 1 bit has 2 symbols, in a bit representing a one the first symbol is high and the second is low
 
-// let's make the assumption that the bits beyond our control are a statistical mean of 0 and 1
-// such a mean is represented by two symbols which are between high and low, 12 units per symbol
+// The previous assumption was that symbols beyond our control are zero.
+// Let's make the assumption that the symbols beyond our control are a statistical mean of 0 and 1.
+// Such a mean is represented by 12 units per symbol.
+// As an example for the above let's discuss the first slice function:
+// Samples 0 and 1 are completely occupied by the bit we are trying to judge thus no outside symbols.
+// The 3rd sample is 8 units of our bit and 12 units of the following symbol.
+// Our bit contributes part of a low symbol represented by -8 units
+// but we also get 12 units of 0.5 resulting in +6 units from the following symbol.
+//
+// The above comment is how these changes started out, i'll leave them here as food for thought.
+// Using --ifile the coefficients from the above thought process were iteratively tweaked by hand.
+// Note one of the correlation functions is no longer DC balanced (but just slightly)
+// Further testing on your own samples using --ifile --quiet --stats is welcome
+// Note you might need to use --throttle unless your using wiedehopf's readsb fork,
+// otherwise position stats won't work as they rely on realtime differences between
+// reception of CPRs.
+// Creating a 5 minute sample with a gain of 43.9:
+// timeout 300 rtl_sdr -f 1090000000 -s 2400000 -g 43.9 sample.dat
+// Checking a set of correlation functions using the above sample:
+// make && ./readsb --device-type ifile --ifile sample.dat --quiet --stats
 
-// as an example for the above let's sicuss the first slice function:
-// samples 0 and 1 are completely occupied by the bit we are trying to judge thus no outside symbols
-// the 3rd sample is 8 units of our bit and 12 units of the following bit
-// the symbol from us is low so that makes -8 units but we also get +6 units from the half high following symbol
-//
-// i'm not entirely sure this makes sense ... just experimenting at this point
-//
-// try and fix the DC offset ... by somewhat arbitrarily subtracting from the coefficients
-//
 static inline int slice_phase0(uint16_t *m) {
     return 18 * m[0] - 15 * m[1] - 3 * m[2];
 }
@@ -172,9 +183,6 @@ static void tryPhase(int try_phase, uint16_t *m, int j, unsigned char **bestmsg,
     uint16_t *pPtr;
     int phase, i, score, bytelen;
 
-    // Decode all the next 112 bits, regardless of the actual message
-    // size. We'll check the actual message type later
-
     pPtr = &m[j + 19] + (try_phase / 5);
     phase = try_phase % 5;
 
@@ -249,7 +257,7 @@ void demodulate2400(struct mag_buf *mag) {
         // phase 6: 0/4\2 2/4\0 0 0 0 2/4\0/5\1 0 0 0 0 0 0 X2
         // phase 7: 0/3 3\1/5\0 0 0 0 1/5\0/4\2 0 0 0 0 0 0 X3
 
-        // do some bad pre-check if CPU is really important
+        // do a pre-check to reduce CPU usage
         if (!(pa[1] > pa[6] && pa[12] > pa[14] && pa[12] > pa[15]))
             continue;
 
