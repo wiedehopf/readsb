@@ -250,6 +250,8 @@ void ifileRun() {
     while (!Modes.exit && Modes.first_filled_buffer != Modes.first_free_buffer)
         pthread_cond_wait(&Modes.data_cond, &Modes.data_mutex);
 
+    Modes.exit = 1;
+    pthread_cond_signal(&Modes.data_cond);
     pthread_mutex_unlock(&Modes.data_mutex);
 }
 
