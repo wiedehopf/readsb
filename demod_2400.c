@@ -71,28 +71,28 @@
 // Checking a set of correlation functions using the above sample:
 // make && ./readsb --device-type ifile --ifile sample.dat --quiet --stats
 
-static inline int slice_phase0(uint16_t *m) {
+static inline __attribute__((always_inline)) int slice_phase0(uint16_t *m) {
     return 18 * m[0] - 15 * m[1] - 3 * m[2];
 }
 
-static inline int slice_phase1(uint16_t *m) {
+static inline __attribute__((always_inline)) int slice_phase1(uint16_t *m) {
     return 14 * m[0] - 5 * m[1] - 9 * m[2];
 }
 
 // slightly DC unbalanced but better results
-static inline int slice_phase2(uint16_t *m) {
+static inline __attribute__((always_inline)) int slice_phase2(uint16_t *m) {
     return 16 * m[0] + 5 * m[1] + -20 * m[2];
 }
 
-static inline int slice_phase3(uint16_t *m) {
+static inline __attribute__((always_inline)) int slice_phase3(uint16_t *m) {
     return 7 * m[0] + 11 * m[1] + -18 * m[2];
 }
 
-static inline int slice_phase4(uint16_t *m) {
+static inline __attribute__((always_inline)) int slice_phase4(uint16_t *m) {
     return 4 * m[0] + 15 * m[1] + -20 * m[2] + 1 * m[3];
 }
 
-static inline uint8_t slice_byte(uint16_t **pPtr, int *phase) {
+static inline __attribute__((always_inline)) uint8_t slice_byte(uint16_t **pPtr, int *phase) {
     uint8_t theByte = 0;
 
     if (*phase == 0) {
@@ -187,6 +187,7 @@ static void tryPhase(int try_phase, uint16_t *m, int j, unsigned char **bestmsg,
     phase = try_phase % 5;
 
     (*msg)[0] = slice_byte(&pPtr, &phase);
+
     switch ((*msg)[0] >> 3) {
         case 0: case 4: case 5: case 11:
             bytelen = MODES_SHORT_MSG_BYTES;
@@ -200,6 +201,7 @@ static void tryPhase(int try_phase, uint16_t *m, int j, unsigned char **bestmsg,
             return; // unknown DF, give up immediately
             break;
     }
+
     assert(bytelen == MODES_SHORT_MSG_BYTES || bytelen == MODES_LONG_MSG_BYTES);
     for (i = 1; i < bytelen; ++i) {
         (*msg)[i] = slice_byte(&pPtr, &phase);
