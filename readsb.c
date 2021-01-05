@@ -880,7 +880,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.show_only = (uint32_t) strtoul(arg, NULL, 16);
             Modes.interactive = 0;
             Modes.quiet = 1;
-            Modes.cpr_focus = Modes.show_only;
+            //Modes.cpr_focus = Modes.show_only;
             break;
         case OptFilterDF:
             Modes.filterDF = (uint8_t) strtoul(arg, NULL, 10);

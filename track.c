@@ -1121,6 +1121,9 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         modeAC_count[modeAToIndex(mm->squawk)]++;
         return NULL;
     }
+    if (mm->addr == 0 && mm->msgtype == 0) {
+        return NULL;
+    }
 
     uint64_t now = mm->sysTimestampMsg;
 
