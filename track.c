@@ -1699,6 +1699,10 @@ end_alt:
         a->next_reduce_forward_DF11 = now + Modes.net_output_beast_reduce_interval * 4;
         mm->reduce_forward = 1;
     }
+    if (mm->msgtype == 0 && now > a->next_reduce_forward_DF0) {
+        a->next_reduce_forward_DF0 = now + Modes.net_output_beast_reduce_interval;
+        mm->reduce_forward = 1;
+    }
 
     if (mm->cpr_valid)
         a->last_cpr_type = mm->cpr_type;

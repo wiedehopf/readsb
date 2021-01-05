@@ -417,7 +417,7 @@ struct aircraft
   uint8_t dbFlags;
   uint16_t receiverIds[RECEIVERIDBUFFER]; // RECEIVERIDBUFFER = 12
 
-  void *padding124;
+  uint64_t next_reduce_forward_DF0;
 };
 
 /* Mode A/C tracking is done separately, not via the aircraft list,
