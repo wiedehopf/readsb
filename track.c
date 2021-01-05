@@ -1694,13 +1694,18 @@ end_alt:
         }
     }
 
+    // forward DF11 every beast_reduce_interval for beast_reduce
     if (mm->msgtype == 11 && mm->IID == 0 && mm->correctedbits == 0 && now > a->next_reduce_forward_DF11) {
-
-        a->next_reduce_forward_DF11 = now + Modes.net_output_beast_reduce_interval * 4;
+        a->next_reduce_forward_DF11 = now + 2 * Modes.net_output_beast_reduce_interval;
         mm->reduce_forward = 1;
     }
+    // forward DF0 every beast_reduce_interval for beast_reduce
     if (mm->msgtype == 0 && now > a->next_reduce_forward_DF0) {
-        a->next_reduce_forward_DF0 = now + Modes.net_output_beast_reduce_interval;
+        a->next_reduce_forward_DF0 = now + 2 * Modes.net_output_beast_reduce_interval;
+        mm->reduce_forward = 1;
+    }
+    // always forward DF16 for beast_reduce
+    if (mm->msgtype == 16) {
         mm->reduce_forward = 1;
     }
 
