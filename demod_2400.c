@@ -196,17 +196,16 @@ static void score_phase(int try_phase, uint16_t *m, int j, unsigned char **bestm
             break;
 
         default:
-            return; // unknown DF, give up immediately
+            bytelen = 1; // unknown DF, give up immediately
             break;
     }
 
-    assert(bytelen == MODES_SHORT_MSG_BYTES || bytelen == MODES_LONG_MSG_BYTES);
     for (i = 1; i < bytelen; ++i) {
         (*msg)[i] = slice_byte(&pPtr, &phase);
     }
 
     // Score the mode S message and see if it's any good.
-    score = scoreModesMessage(*msg, i * 8);
+    score = bytelen > 1 ? scoreModesMessage(*msg, i * 8) : -2;
     if (score > *bestscore) {
         // new high score!
         *bestmsg = *msg;
