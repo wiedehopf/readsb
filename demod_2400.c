@@ -262,7 +262,7 @@ void demodulate2400(struct mag_buf *mag) {
         // phase 7: 0/3 3\1/5\0 0 0 0 1/5\0/4\2 0 0 0 0 0 0 X3
 
         // do a pre-check to reduce CPU usage
-        if (!(pa[1] > pa[6] && pa[12] > pa[14] && pa[12] > pa[15]))
+        if (!(pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]))
             continue;
 
         // 5 noise samples
@@ -314,7 +314,7 @@ void demodulate2400(struct mag_buf *mag) {
         // peaks at 1-2,4,10,12: phase 7
         // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
         // phase 7: 0/3 3\1/5\0 0 0 0 1/5\0/4\2 0 0 0 0 0 0 X3
-        pa_mag = sum_1_4 + diff_2_3 + diff_10_11 + pa[12];
+        pa_mag = sum_1_4 + 2 * diff_2_3 + diff_10_11 + pa[12];
         if (pa_mag >= ref_level)
             score_phase(8, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
