@@ -151,6 +151,7 @@ static void modesInitConfig(void) {
     Modes.heatmap_interval = 60 * SECONDS;
     Modes.json_reliable = -13;
 
+    Modes.filterDF = -1; // don't filter when set to -1
     Modes.cpr_focus = 0xc0ffeeba;
     Modes.trace_focus = 0xc0ffeeba;
     //Modes.cpr_focus = 0x43BF95;

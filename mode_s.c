@@ -1731,7 +1731,7 @@ void displayModesMessage(struct modesMessage *mm) {
     int j;
 
 
-    if (Modes.filterDF && Modes.filterDF != mm->msgtype) {
+    if (Modes.filterDF != -1 && Modes.filterDF != mm->msgtype) {
         return;
     }
 

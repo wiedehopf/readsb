@@ -484,7 +484,7 @@ struct _Modes
     int8_t dbExchange;
     int8_t viewadsb;
 
-    uint8_t filterDF; // Only show messages with this DF type
+    int8_t filterDF; // Only show messages with this DF type
 
     uint32_t trackExpireJaero;
     uint32_t trackExpireMax;
