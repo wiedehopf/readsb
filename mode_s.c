@@ -1727,6 +1727,50 @@ static const char *esTypeName(unsigned metype, unsigned mesub) {
     }
 }
 
+static void printACASInfo(struct modesMessage *mm, struct aircraft *a) {
+    if (0 && a) {
+        if (!trackDataValid(&a->altitude_baro_valid)
+        || !mm->altitude_baro_valid
+        || abs(a->altitude_baro - mm->altitude_baro) > 5000)
+            return;
+    }
+    if (
+            mm->msgtype == 16
+            && getbits(mm->MV, 1, 4) == 3
+            && getbits(mm->MV, 5, 8) == 0
+            // checks to not get bogus messages or messages that have all zeros in the interesting part
+            && getbits(mm->MV, 9, 28) != 0
+            && !(getbit(mm->MV, 23) && getbit(mm->MV, 24))
+            && !(getbit(mm->MV, 25) && getbit(mm->MV, 26))
+            && getbits(mm->MV, 42, 56) == 0 // 29-56 are currently reserved and should all be zero
+       ) {
+
+        char timebuf[128];
+        time_t now;
+        struct tm utc;
+
+        now = time(NULL);
+        gmtime_r(&now, &utc);
+        strftime(timebuf, 128, "%T", &utc);
+        timebuf[127] = 0;
+
+        printf("%s %06x VS: %u SL: %u RI: %2u AC(ft): %6d MV: ",
+                timebuf, mm->addr, mm->VS, mm->SL, mm->RI, mm->altitude_baro);
+        print_hex_bytes(mm->MV, sizeof (mm->MV));
+        //printf(" %u,%u", getbits(mm->MV, 1, 4), getbits(mm->MV, 5, 8));
+        printf(" ARA: %u ", getbit(mm->MV, 9));
+        for (int i = 10; i <= 15; i++) printf("%u", getbit(mm->MV, i));
+        printf(" ");
+        for (int i = 15; i <= 22; i++) printf("%u", getbit(mm->MV, i));
+        printf(" RAC: ");
+        for (int i = 23; i <= 26; i++) printf("%u", getbit(mm->MV, i));
+        printf(" RAT: %u", getbit(mm->MV, 27));
+        printf(" MTE: %u", getbit(mm->MV, 28));
+        printf("\n");
+        fflush(stdout); // FLUSH
+    }
+}
+
 void displayModesMessage(struct modesMessage *mm) {
     int j;
 
@@ -1820,6 +1864,7 @@ void displayModesMessage(struct modesMessage *mm) {
                     mm->addr, mm->VS, mm->SL, mm->RI, mm->AC);
             print_hex_bytes(mm->MV, sizeof (mm->MV));
             printf("\n");
+            printACASInfo(mm, NULL);
             break;
 
         case 17:
@@ -2129,6 +2174,12 @@ void useModesMessage(struct modesMessage *mm) {
 
     // Track aircraft state
     a = trackUpdateFromMessage(mm);
+
+    if (Modes.debug_printACAS && mm->msgtype == 16
+            && a && mm->sysTimestampMsg < a->seen + 60 * SECONDS
+            && trackDataValid(&a->altitude_baro_valid)) {
+        printACASInfo(mm, a);
+    }
 
     // In non-interactive non-quiet mode, display messages on standard output
     if (!Modes.quiet || (mm->addr == Modes.show_only)) {

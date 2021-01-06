@@ -1141,6 +1141,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         break;
                     case 'U': Modes.debug_dbJson = 1;
                         break;
+                    case 'A': Modes.debug_printACAS = 1;
+                        fprintf(stderr, "printACAS enabled!\n");
+                        break;
                     default:
                         fprintf(stderr, "Unknown debugging flag: %c\n", *arg);
                         break;

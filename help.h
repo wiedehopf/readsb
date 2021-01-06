@@ -44,6 +44,7 @@ static struct argp_option optionsViewadsb[] = {
     {"receiver-focus", OptReceiverFocus, "<receiverId>", 0, "only process messages from receiverId", 1},
     {"cpr-focus", OptCprFocus, "<hex>", 0, "show CPR details for this hex", 1},
     {"quiet", OptQuiet, 0, 0, "Disable output (default)", 1},
+    {"debug", OptDebug, "<flags>", 0, "Debug mode (verbose), n: network, P: CPR, S: speed check", 1},
     {0,0,0,0, "Network options:", 2},
     {"net-connector", OptNetConnector, "<ip,port,protocol>", 0, "Establish connection, can be specified multiple times. (viewadsb default: --net-connector 127.0.0.1,30005,beast_in viewadsb first usage overrides default, second usage adds another input/output) \nProtocols: beast_out, beast_in, raw_out, raw_in, sbs_out, vrs_out, json_out", 2},
     {0,0,0,0, "Help options:", 100},
