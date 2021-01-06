@@ -1767,6 +1767,55 @@ static void printACASInfo(struct modesMessage *mm, struct aircraft *a) {
         printf(" RAT: %u", getbit(mm->MV, 27));
         printf(" MTE: %u", getbit(mm->MV, 28));
         printf("\n");
+        char *racs[4] = { "below", "above", " left", "right" };
+        printf("%s %06x ", timebuf, mm->addr);
+        for (int i = 23; i <= 26; i++) {
+            if (getbit(mm->MV, i))
+                printf(" do not pass %s", racs[i-23]);
+        }
+        if (getbit(mm->msg, 41) || getbit(mm->msg, 60)) {
+            printf(" RA is");
+            if (getbit(mm->msg, 60))
+                printf("   multithreat,");
+            else
+                printf(" single threat,");
+            if (getbit(mm->msg, 41)) {
+                if (getbit(mm->msg, 42))
+                    printf(" corrective");
+                else
+                    printf(" preventive");
+                if (getbit(mm->msg, 43))
+                    printf(" downward sense");
+                else
+                    printf(" upward sense");
+                if (getbit(mm->msg, 44))
+                    printf(" [x] increase rate");
+                else
+                    printf(" [ ] increase rate");
+                if (getbit(mm->msg, 45))
+                    printf(" [x] sense reversal");
+                else
+                    printf(" [ ] sense reversal");
+            } else {
+                if (getbit(mm->msg, 42))
+                    printf(" correct upwards");
+                if (getbit(mm->msg, 43))
+                    printf(" climb required");
+                if (getbit(mm->msg, 44))
+                    printf(" correct downwards");
+                if (getbit(mm->msg, 45))
+                    printf(" descent required");
+            }
+            if (getbit(mm->msg, 46))
+                printf(" [x] cross altitude of other plane");
+            else
+                printf(" [ ] cross altitude of other plane");
+            if (getbit(mm->msg, 47))
+                printf(" increase/maintain vertical rate");
+            else
+                printf("      reduce/limit vertical rate");
+        }
+        printf("\n");
         fflush(stdout); // FLUSH
     }
 }
