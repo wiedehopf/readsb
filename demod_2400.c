@@ -401,7 +401,10 @@ void demodulate2400(struct mag_buf *mag) {
         //  where the preamble of the second message clobbered the last
         //  few bits of the first message, but the message bits didn't
         //  overlap)
-        j += msglen * 12 / 5;
+        //j += msglen * 12 / 5;
+        //
+        // let's test something, only jump part of the message and let the preamble detection handle the rest.
+        j += msglen * 8 / 4;
 
         // Pass data to the next layer
         useModesMessage(&mm);
