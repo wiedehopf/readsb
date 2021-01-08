@@ -674,6 +674,17 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
     // MV (message, ACAS)
     if (mm->msgtype == 16) {
         memcpy(mm->MV, &msg[4], 7);
+        if (
+                getbits(mm->MV, 1, 4) == 3
+                && getbits(mm->MV, 5, 8) == 0
+                // checks to not get bogus messages or messages that have all zeros in the interesting part
+                && getbits(mm->MV, 9, 28) != 0
+                && !(getbit(mm->MV, 23) && getbit(mm->MV, 24))
+                && !(getbit(mm->MV, 25) && getbit(mm->MV, 26))
+                && getbits(mm->MV, 42, 56) == 0 // 29-56 are currently reserved and should all be zero
+           ) {
+            mm->acas_ra_valid = 1;
+        }
     }
 
     // ND (number of D-segment, Comm-D)
@@ -1728,96 +1739,83 @@ static const char *esTypeName(unsigned metype, unsigned mesub) {
 }
 
 static void printACASInfo(struct modesMessage *mm, struct aircraft *a) {
-    if (0 && a) {
-        if (!trackDataValid(&a->altitude_baro_valid)
-        || !mm->altitude_baro_valid
-        || abs(a->altitude_baro - mm->altitude_baro) > 5000)
-            return;
+    a = (void *) a;
+
+    if (!mm->acas_ra_valid)
+        return;
+
+    char timebuf[128];
+    time_t now;
+    struct tm utc;
+
+    now = time(NULL);
+    gmtime_r(&now, &utc);
+    strftime(timebuf, 128, "%T", &utc);
+    timebuf[127] = 0;
+
+    printf("%s %06x VS: %u SL: %u RI: %2u AC(ft): %6d MV: ",
+            timebuf, mm->addr, mm->VS, mm->SL, mm->RI, mm->altitude_baro);
+    print_hex_bytes(mm->MV, sizeof (mm->MV));
+    //printf(" %u,%u", getbits(mm->MV, 1, 4), getbits(mm->MV, 5, 8));
+    printf(" ARA: %u ", getbit(mm->MV, 9));
+    for (int i = 10; i <= 15; i++) printf("%u", getbit(mm->MV, i));
+    printf(" ");
+    for (int i = 15; i <= 22; i++) printf("%u", getbit(mm->MV, i));
+    printf(" RAC: ");
+    for (int i = 23; i <= 26; i++) printf("%u", getbit(mm->MV, i));
+    printf(" RAT: %u", getbit(mm->MV, 27));
+    printf(" MTE: %u", getbit(mm->MV, 28));
+    printf("\n");
+    char *racs[4] = { "below", "above", " left", "right" };
+    printf("%s %06x ", timebuf, mm->addr);
+    for (int i = 23; i <= 26; i++) {
+        if (getbit(mm->MV, i))
+            printf(" do not pass %s", racs[i-23]);
     }
-    if (
-            mm->msgtype == 16
-            && getbits(mm->MV, 1, 4) == 3
-            && getbits(mm->MV, 5, 8) == 0
-            // checks to not get bogus messages or messages that have all zeros in the interesting part
-            && getbits(mm->MV, 9, 28) != 0
-            && !(getbit(mm->MV, 23) && getbit(mm->MV, 24))
-            && !(getbit(mm->MV, 25) && getbit(mm->MV, 26))
-            && getbits(mm->MV, 42, 56) == 0 // 29-56 are currently reserved and should all be zero
-       ) {
-
-        char timebuf[128];
-        time_t now;
-        struct tm utc;
-
-        now = time(NULL);
-        gmtime_r(&now, &utc);
-        strftime(timebuf, 128, "%T", &utc);
-        timebuf[127] = 0;
-
-        printf("%s %06x VS: %u SL: %u RI: %2u AC(ft): %6d MV: ",
-                timebuf, mm->addr, mm->VS, mm->SL, mm->RI, mm->altitude_baro);
-        print_hex_bytes(mm->MV, sizeof (mm->MV));
-        //printf(" %u,%u", getbits(mm->MV, 1, 4), getbits(mm->MV, 5, 8));
-        printf(" ARA: %u ", getbit(mm->MV, 9));
-        for (int i = 10; i <= 15; i++) printf("%u", getbit(mm->MV, i));
-        printf(" ");
-        for (int i = 15; i <= 22; i++) printf("%u", getbit(mm->MV, i));
-        printf(" RAC: ");
-        for (int i = 23; i <= 26; i++) printf("%u", getbit(mm->MV, i));
-        printf(" RAT: %u", getbit(mm->MV, 27));
-        printf(" MTE: %u", getbit(mm->MV, 28));
-        printf("\n");
-        char *racs[4] = { "below", "above", " left", "right" };
-        printf("%s %06x ", timebuf, mm->addr);
-        for (int i = 23; i <= 26; i++) {
-            if (getbit(mm->MV, i))
-                printf(" do not pass %s", racs[i-23]);
+    if (getbit(mm->msg, 41) || getbit(mm->msg, 60)) {
+        printf(" RA is");
+        if (getbit(mm->msg, 60))
+            printf("   multithreat,");
+        else
+            printf(" single threat,");
+        if (getbit(mm->msg, 41)) {
+            if (getbit(mm->msg, 42))
+                printf(" corrective");
+            else
+                printf(" preventive");
+            if (getbit(mm->msg, 43))
+                printf(" downward sense");
+            else
+                printf(" upward sense");
+            if (getbit(mm->msg, 44))
+                printf(" [x] increase rate");
+            else
+                printf(" [ ] increase rate");
+            if (getbit(mm->msg, 45))
+                printf(" [x] sense reversal");
+            else
+                printf(" [ ] sense reversal");
+        } else {
+            if (getbit(mm->msg, 42))
+                printf(" correct upwards");
+            if (getbit(mm->msg, 43))
+                printf(" climb required");
+            if (getbit(mm->msg, 44))
+                printf(" correct downwards");
+            if (getbit(mm->msg, 45))
+                printf(" descent required");
         }
-        if (getbit(mm->msg, 41) || getbit(mm->msg, 60)) {
-            printf(" RA is");
-            if (getbit(mm->msg, 60))
-                printf("   multithreat,");
-            else
-                printf(" single threat,");
-            if (getbit(mm->msg, 41)) {
-                if (getbit(mm->msg, 42))
-                    printf(" corrective");
-                else
-                    printf(" preventive");
-                if (getbit(mm->msg, 43))
-                    printf(" downward sense");
-                else
-                    printf(" upward sense");
-                if (getbit(mm->msg, 44))
-                    printf(" [x] increase rate");
-                else
-                    printf(" [ ] increase rate");
-                if (getbit(mm->msg, 45))
-                    printf(" [x] sense reversal");
-                else
-                    printf(" [ ] sense reversal");
-            } else {
-                if (getbit(mm->msg, 42))
-                    printf(" correct upwards");
-                if (getbit(mm->msg, 43))
-                    printf(" climb required");
-                if (getbit(mm->msg, 44))
-                    printf(" correct downwards");
-                if (getbit(mm->msg, 45))
-                    printf(" descent required");
-            }
-            if (getbit(mm->msg, 46))
-                printf(" [x] cross altitude of other plane");
-            else
-                printf(" [ ] cross altitude of other plane");
-            if (getbit(mm->msg, 47))
-                printf(" increase/maintain vertical rate");
-            else
-                printf("      reduce/limit vertical rate");
-        }
-        printf("\n");
-        fflush(stdout); // FLUSH
+        if (getbit(mm->msg, 46))
+            printf(" [x] cross altitude of other plane");
+        else
+            printf(" [ ] cross altitude of other plane");
+        if (getbit(mm->msg, 47))
+            printf(" increase/maintain vertical rate");
+        else
+            printf("      reduce/limit vertical rate");
     }
+    printf("\n");
+    fflush(stdout); // FLUSH
 }
 
 void displayModesMessage(struct modesMessage *mm) {
@@ -2225,8 +2223,7 @@ void useModesMessage(struct modesMessage *mm) {
     a = trackUpdateFromMessage(mm);
 
     if (Modes.debug_printACAS && mm->msgtype == 16
-            && a && mm->sysTimestampMsg < a->seen + 60 * SECONDS
-            && trackDataValid(&a->altitude_baro_valid)) {
+            && a && mm->sysTimestampMsg < a->seen + 60 * SECONDS) {
         printACASInfo(mm, a);
     }
 

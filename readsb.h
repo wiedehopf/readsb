@@ -669,6 +669,7 @@ struct modesMessage
     unsigned emergency_valid : 1;
     unsigned sbs_pos_valid : 1;
     unsigned alt_q_bit : 1;
+    unsigned acas_ra_valid : 1;
     unsigned padding : 11;
 
     // valid if altitude_baro_valid:

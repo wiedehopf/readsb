@@ -1709,8 +1709,9 @@ end_alt:
         mm->reduce_forward = 1;
     }
 
-    if (mm->cpr_valid)
+    if (cpr_new) {
         a->last_cpr_type = mm->cpr_type;
+    }
 
     if (haveScratch && (mm->garbage || mm->pos_bad || mm->duplicate)) {
         memcpy(a, Modes.scratch, sizeof(struct aircraft));
