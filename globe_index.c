@@ -536,19 +536,32 @@ void *save_blobs(void *arg) {
 }
 
 static int load_aircraft(char **p, char *end, uint64_t now) {
+    static int size_changed;
 
-    if (end - *p < (long) sizeof(struct aircraft))
+    if (end - *p < 1000)
         return -1;
 
-    struct aircraft *a = malloc(sizeof(struct aircraft));
-    memcpy(a, *p, sizeof(struct aircraft));
-    *p += sizeof(struct aircraft);
+    struct aircraft *source = (struct aircraft *) *p;
+    struct aircraft *a;
 
-    if (a->size_struct_aircraft != sizeof(struct aircraft)) {
-            fprintf(stderr, "sizeof(struct aircraft) has changed, unable to read state!\n");
-        free(a);
+    if (end - *p < source->size_struct_aircraft)
         return -1;
+
+    if (source->size_struct_aircraft < sizeof(struct aircraft)) {
+        a = calloc(1, sizeof(struct aircraft)); // null the new fields that were added
+        memcpy(a, *p, source->size_struct_aircraft);
+    } else {
+        a = malloc(sizeof(struct aircraft));
+        memcpy(a, *p, sizeof(struct aircraft));
     }
+    *p += source->size_struct_aircraft;
+
+    if (!size_changed && source->size_struct_aircraft != sizeof(struct aircraft)) {
+        size_changed = 1;
+        fprintf(stderr, "sizeof(struct aircraft) has changed from %ld to %ld bytes, this means the code changed and if the coder didn't think properly might result in bad aircraft data. If your map doesn't have weird stuff ... probably all good and just an upgrade.\n",
+                (long) source->size_struct_aircraft, (long) sizeof(struct aircraft));
+    }
+    a->size_struct_aircraft = sizeof(struct aircraft);
 
     a->trace = NULL;
     a->trace_all = NULL;
@@ -559,9 +572,9 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
     }
 
     // just in case we have bogus values saved, make sure they time out
-    if (a->seen_pos > now + 26 * HOURS)
+    if (a->seen_pos > now + 1 * MINUTES)
         a->seen_pos = now - 26 * HOURS;
-    if (a->seen > now + 26 * HOURS)
+    if (a->seen > now + 1 * MINUTES)
         a->seen = now - 26 * HOURS;
 
     // make sure we don't think an extra position is still buffered in the trace memory
