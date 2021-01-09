@@ -418,8 +418,9 @@ struct aircraft
   uint16_t receiverIds[RECEIVERIDBUFFER]; // RECEIVERIDBUFFER = 12
 
   uint64_t next_reduce_forward_DF0;
-  //uint64_t acas_ra;
-  //data_validity acas_ra_valid;
+  unsigned char acas_ra[7]; // mm->MV from last acas RA message
+  unsigned char acas_flags; // maybe use for some flags, would be padding otherwise
+  data_validity acas_ra_valid;
 };
 
 /* Mode A/C tracking is done separately, not via the aircraft list,

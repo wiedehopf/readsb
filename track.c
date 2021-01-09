@@ -1554,6 +1554,11 @@ end_alt:
         cpr_new = 1;
     }
 
+    if (mm->acas_ra_valid && accept_data(&a->acas_ra_valid, mm->source, mm, 0)) {
+        mm->reduce_forward = 1;
+        memcpy(a->acas_ra, mm->MV, sizeof(a->acas_ra));
+    }
+
     if (mm->accuracy.sda_valid && accept_data(&a->sda_valid, mm->source, mm, 0)) {
         a->sda = mm->accuracy.sda;
     }

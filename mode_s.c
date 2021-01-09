@@ -1737,9 +1737,85 @@ static const char *esTypeName(unsigned metype, unsigned mesub) {
             return "Unknown";
     }
 }
+static void printACASInfo(uint32_t addr, unsigned char *MV) {
 
-static void printACASInfo(struct modesMessage *mm, struct aircraft *a) {
-    a = (void *) a;
+    char timebuf[128];
+    time_t now;
+    struct tm utc;
+
+    now = time(NULL);
+    gmtime_r(&now, &utc);
+    strftime(timebuf, 128, "%T", &utc);
+    timebuf[127] = 0;
+
+    printf("%s %06x MV: ", timebuf, addr);
+    print_hex_bytes(MV, 7);
+    //printf(" %u,%u", getbits(MV, 1, 4), getbits(MV, 5, 8));
+    printf(" ARA: %u ", getbit(MV, 9));
+    for (int i = 10; i <= 15; i++) printf("%u", getbit(MV, i));
+    printf(" ");
+    for (int i = 15; i <= 22; i++) printf("%u", getbit(MV, i));
+    printf(" RAC: ");
+    for (int i = 23; i <= 26; i++) printf("%u", getbit(MV, i));
+    printf(" RAT: %u", getbit(MV, 27));
+    printf(" MTE: %u", getbit(MV, 28));
+    printf("\n");
+    char *racs[4] = { "below", "above", " left", "right" };
+    printf("%s %06x ", timebuf, addr);
+    for (int i = 23; i <= 26; i++) {
+        if (getbit(MV, i))
+            printf(" do not pass %s", racs[i-23]);
+    }
+    bool ara = getbit(MV, 9);
+    //bool rat = getbit(MV, 27);
+    bool mte = getbit(MV, 28);
+    if (ara || mte) {
+        printf(" RA is");
+        if (mte)
+            printf("   multithreat,");
+        else
+            printf(" single threat,");
+        if (getbit(MV, 9)) {
+            if (getbit(MV, 10))
+                printf(" corrective");
+            else
+                printf(" preventive");
+            if (getbit(MV, 11))
+                printf(" downward sense");
+            else
+                printf(" upward sense");
+            if (getbit(MV, 12))
+                printf(" [x] increase rate");
+            else
+                printf(" [ ] increase rate");
+            if (getbit(MV, 13))
+                printf(" [x] sense reversal");
+            else
+                printf(" [ ] sense reversal");
+        } else {
+            if (getbit(MV, 10))
+                printf(" correct upwards");
+            if (getbit(MV, 11))
+                printf(" climb required");
+            if (getbit(MV, 12))
+                printf(" correct downwards");
+            if (getbit(MV, 13))
+                printf(" descent required");
+        }
+        if (getbit(MV, 14))
+            printf(" [x] cross altitude of other plane");
+        else
+            printf(" [ ] cross altitude of other plane");
+        if (getbit(MV, 15))
+            printf(" increase/maintain vertical rate");
+        else
+            printf("      reduce/limit vertical rate");
+    }
+    printf("\n");
+    fflush(stdout); // FLUSH
+}
+static void printACASInfoAll(struct modesMessage *mm, struct aircraft *a) {
+     a = (void *) a;
 
     if (!mm->acas_ra_valid)
         return;
@@ -1911,7 +1987,9 @@ void displayModesMessage(struct modesMessage *mm) {
                     mm->addr, mm->VS, mm->SL, mm->RI, mm->AC);
             print_hex_bytes(mm->MV, sizeof (mm->MV));
             printf("\n");
-            printACASInfo(mm, NULL);
+
+            if (mm->acas_ra_valid)
+                printACASInfo(mm->addr, mm->MV);
             break;
 
         case 17:
@@ -2222,9 +2300,10 @@ void useModesMessage(struct modesMessage *mm) {
     // Track aircraft state
     a = trackUpdateFromMessage(mm);
 
-    if (Modes.debug_printACAS && mm->msgtype == 16
+    if (Modes.debug_printACAS && mm->acas_ra_valid
             && a && mm->sysTimestampMsg < a->seen + 60 * SECONDS) {
-        printACASInfo(mm, a);
+        printACASInfoAll(mm, a);
+        printACASInfo(mm->addr, mm->MV);
     }
 
     // In non-interactive non-quiet mode, display messages on standard output
