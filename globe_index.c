@@ -1029,23 +1029,21 @@ void ca_destroy (struct craftArray *ca) {
 }
 
 void ca_add (struct craftArray *ca, struct aircraft *a) {
+    pthread_mutex_lock(&ca->mutex);
     if (ca->alloc == 0) {
-        pthread_mutex_lock(&ca->mutex);
         ca->alloc = 64;
         ca->list = realloc(ca->list, ca->alloc * sizeof(struct aircraft *));
-        pthread_mutex_unlock(&ca->mutex);
     }
     // + 32 ... some arbitrary buffer for concurrent stuff with limited locking
     if (ca->len + 32 >= ca->alloc) {
-        pthread_mutex_lock(&ca->mutex);
         ca->alloc = ca->alloc * 3 / 2;
         ca->list = realloc(ca->list, ca->alloc * sizeof(struct aircraft *));
-        pthread_mutex_unlock(&ca->mutex);
     }
     if (!ca->list) {
         fprintf(stderr, "ca_add(): out of memory!\n");
         exit(1);
     }
+    pthread_mutex_unlock(&ca->mutex);
     for (int i = 0; i < ca->len; i++) {
         if (a == ca->list[i]) {
             pthread_mutex_lock(&ca->mutex);
