@@ -1737,7 +1737,7 @@ static const char *esTypeName(unsigned metype, unsigned mesub) {
             return "Unknown";
     }
 }
-static void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a) {
+static void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm) {
 
     bool ara = getbit(MV, 9);
     bool rat = getbit(MV, 27);
@@ -1756,7 +1756,10 @@ static void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft
     strftime(timebuf, 128, "%T", &utc);
     timebuf[127] = 0;
 
-    printf("%s %06x MV: ", timebuf, addr);
+    printf("%s %06x", timebuf, addr);
+    if (mm)
+        printf(" DF%u", mm->msgtype);
+    printf(" MV: ");
     print_hex_bytes(MV, 7);
     if (a) {
         if (altReliable(a))
@@ -2108,7 +2111,7 @@ void displayModesMessage(struct modesMessage *mm) {
             printf("\n");
 
             if (mm->acas_ra_valid)
-                printACASInfoShort(mm->addr, mm->MV, NULL);
+                printACASInfoShort(mm->addr, mm->MV, NULL, mm);
             break;
 
         case 17:
@@ -2429,7 +2432,7 @@ void useModesMessage(struct modesMessage *mm) {
             MSG = mm->MV;
         }
 
-        printACASInfoShort(mm->addr, MSG, a);
+        printACASInfoShort(mm->addr, MSG, a, mm);
 
         if (0) {
             printACASInfoAll(mm, a);
