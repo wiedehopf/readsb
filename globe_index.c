@@ -1419,6 +1419,10 @@ int traceAdd(struct aircraft *a, uint64_t now) {
                 distance, alt, alt_diff, a->gs, speed_diff, a->track, track_diff);
     }
 
+    // record track as precise as possible if we have a recent TCAS resolution advisory
+    if (trackDataValid(&a->acas_ra_valid)) {
+        goto save_state;
+    }
 
     // record ground air state changes precisely
     if (on_ground != last->flags.on_ground) {

@@ -2650,6 +2650,8 @@ void updateValidities(struct aircraft *a, uint64_t now) {
     updateValidity(&a->gva_valid, now, TRACK_EXPIRE);
     updateValidity(&a->sda_valid, now, TRACK_EXPIRE);
 
+    updateValidity(&a->acas_ra_valid, now, TRACK_EXPIRE);
+
     // reset position reliability when no position was received for 2 minutes
     if (trackDataAge(now, &a->position_valid) > 2 * MINUTES || now > a->seenPosGlobal + 10 * MINUTES) {
         a->pos_reliable_odd = 0;
