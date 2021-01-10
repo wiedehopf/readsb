@@ -1560,7 +1560,11 @@ end_alt:
 
     if (mm->acas_ra_valid && accept_data(&a->acas_ra_valid, mm->source, mm, 0)) {
         mm->reduce_forward = 1;
-        memcpy(a->acas_ra, mm->MV, sizeof(a->acas_ra));
+        if (mm->msgtype == 16) {
+            memcpy(a->acas_ra, mm->MV, sizeof(a->acas_ra));
+        } else {
+            memcpy(a->acas_ra, mm->MB, sizeof(a->acas_ra));
+        }
     }
 
     if (mm->accuracy.sda_valid && accept_data(&a->sda_valid, mm->source, mm, 0)) {
@@ -1703,18 +1707,26 @@ end_alt:
         }
     }
 
-    // forward DF11 every beast_reduce_interval for beast_reduce
+    // forward DF0/DF11 every 2 * beast_reduce_interval for beast_reduce
     if (mm->msgtype == 11 && mm->IID == 0 && mm->correctedbits == 0 && now > a->next_reduce_forward_DF11) {
         a->next_reduce_forward_DF11 = now + 2 * Modes.net_output_beast_reduce_interval;
         mm->reduce_forward = 1;
     }
-    // forward DF0 every beast_reduce_interval for beast_reduce
-    if (mm->msgtype == 0 && now > a->next_reduce_forward_DF0) {
+    if (mm->msgtype == 0 && (now > a->next_reduce_forward_DF0 || mm->reduce_forward)) {
         a->next_reduce_forward_DF0 = now + 2 * Modes.net_output_beast_reduce_interval;
         mm->reduce_forward = 1;
     }
-    // always forward DF16 for beast_reduce
-    if (mm->msgtype == 16) {
+    // forward DF16/20/21 every 2 * beast_reduce_interval for beast_reduce
+    if (mm->msgtype == 16 && (now > a->next_reduce_forward_DF16 || mm->reduce_forward)) {
+        a->next_reduce_forward_DF16 = now + Modes.net_output_beast_reduce_interval;
+        mm->reduce_forward = 1;
+    }
+    if (mm->msgtype == 20 && (now > a->next_reduce_forward_DF20 || mm->reduce_forward)) {
+        a->next_reduce_forward_DF20 = now + Modes.net_output_beast_reduce_interval;
+        mm->reduce_forward = 1;
+    }
+    if (mm->msgtype == 21 && (now > a->next_reduce_forward_DF21 || mm->reduce_forward)) {
+        a->next_reduce_forward_DF21 = now + Modes.net_output_beast_reduce_interval;
         mm->reduce_forward = 1;
     }
 
