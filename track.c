@@ -1305,7 +1305,12 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                 a->alt_reliable = 0;
             }
         }
-        int good_crc = (mm->crc == 0 && mm->source >= SOURCE_JAERO) ? 4 : 0;
+        int good_crc = 0;
+
+        // just trust messages with this source implicitely and rate the altitude as max reliable
+        // if we get the occasional altitude excursion that's acceptable and preferable to not capturing implausible altitude changes for example before a crash
+        if (mm->crc == 0 && mm->source >= SOURCE_JAERO)
+            good_crc = ALTITUDE_BARO_RELIABLE_MAX;
 
         if (mm->source == SOURCE_SBS || mm->source == SOURCE_MLAT)
             good_crc = ALTITUDE_BARO_RELIABLE_MAX/2 - 1;
@@ -1316,18 +1321,17 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             goto discard_alt;
         }
 
+        // accept the message if the good_crc score is better than the current alt reliable score
+        if (good_crc >= a->alt_reliable)
+            goto accept_alt;
+        // accept the altitude if the source is better than the current one
+        if (mm->source > a->altitude_baro_valid.source)
+            goto accept_alt;
+
         if (a->alt_reliable <= 0  || abs(delta) < 300)
             goto accept_alt;
         if (fpm < max_fpm && fpm > min_fpm)
             goto accept_alt;
-        if (good_crc > a->alt_reliable)
-            goto accept_alt;
-        if (mm->source > a->altitude_baro_valid.source)
-            goto accept_alt;
-        if (mm->source == SOURCE_JAERO && (a->altitude_baro_valid.source == SOURCE_JAERO || a->altitude_baro_valid.source == SOURCE_INVALID)) {
-            good_crc = ALTITUDE_BARO_RELIABLE_MAX;
-            goto accept_alt;
-        }
 
         goto discard_alt;
 accept_alt:
@@ -1354,7 +1358,7 @@ discard_alt:
             if (a->alt_reliable <= 0) {
                 //fprintf(stderr, "Altitude INVALIDATED: %06x\n", a->addr);
                 a->alt_reliable = 0;
-                if (a->position_valid.source > SOURCE_JAERO)
+                if (a->position_valid.source != SOURCE_JAERO)
                     a->altitude_baro_valid.source = SOURCE_INVALID;
             }
             if (Modes.garbage_ports)
