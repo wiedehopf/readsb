@@ -1752,14 +1752,13 @@ static void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft
     print_hex_bytes(MV, 7);
     if (a) {
         if (altReliable(a))
-            printf(" %d ft", a->altitude_baro);
+            printf(" %5dft", a->altitude_baro);
 
         if (trackDataValid(&a->geom_rate_valid)) {
-            printf(" %d fpm", a->geom_rate);
+            printf(" %5dfpm", a->geom_rate);
         } else if (trackDataValid(&a->baro_rate_valid)) {
-            printf(" %d fpm", a->baro_rate);
+            printf(" %5dfpm", a->baro_rate);
         }
-
     }
     printf(" ARA: ");
     for (int i = 9; i <= 15; i++) printf("%u", getbit(MV, i));
