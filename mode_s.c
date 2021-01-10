@@ -1737,6 +1737,104 @@ static const char *esTypeName(unsigned metype, unsigned mesub) {
             return "Unknown";
     }
 }
+static void printACASInfoShort(uint32_t addr, unsigned char *MV) {
+
+    char timebuf[128];
+    time_t now;
+    struct tm utc;
+
+    now = time(NULL);
+    gmtime_r(&now, &utc);
+    strftime(timebuf, 128, "%T", &utc);
+    timebuf[127] = 0;
+
+    printf("%s %06x MV: ", timebuf, addr);
+    print_hex_bytes(MV, 7);
+    printf(" ARA: ");
+    for (int i = 9; i <= 15; i++) printf("%u", getbit(MV, i));
+    printf(" RAT,MTE: %u,%u", getbit(MV, 27), getbit(MV, 28));
+    printf(" RAC: ");
+    for (int i = 23; i <= 26; i++) printf("%u", getbit(MV, i));
+    char *racs[4] = { "below", "above", " left", "right" };
+    for (int i = 23; i <= 26; i++) {
+        if (getbit(MV, i))
+            printf(" not %s", racs[i-23]);
+    }
+    bool ara = getbit(MV, 9);
+    bool rat = getbit(MV, 27);
+    bool mte = getbit(MV, 28);
+    if (rat) {
+        printf(" RA: Clear of Conflict");
+    } else if (ara) {
+        printf(" RA:");
+        bool corr = getbit(MV, 10);
+        bool down = getbit(MV, 11);
+        bool increase = getbit(MV, 12);
+        bool reversal = getbit(MV, 13);
+        bool crossing = getbit(MV, 14);
+        bool rateRequired = getbit(MV, 15); // also called positive RA
+        if (!corr && !rateRequired) {
+            printf(" Do Not");
+            if (down)
+                printf(" Climb");
+            else
+                printf(" Descend");
+        } else if (corr) {
+            if (rateRequired) {
+                if (!reversal) {
+                    // reversal has priority and comes later
+                } else if (increase) {
+                    // this should have priority over crossing modificator .. not sure
+                    printf(" Increase");
+                } else if (crossing) {
+                    printf(" Crossing");
+                }
+
+                if (down)
+                    printf(" Descend");
+                else
+                    printf(" Climb");
+
+                if (reversal) {
+                    if (down)
+                        printf(", Descend");
+                    else
+                        printf(", Climb");
+                    printf(" NOW");
+                }
+            }
+            if (!rateRequired) {
+                printf(" Reduce");
+                if (down)
+                    printf(" Climb");
+                else
+                    printf(" Descend");
+            }
+        } else {
+                printf(" consult bitfield");
+        }
+    } else if (mte) {
+        printf(" RA multithreat:");
+        if (getbit(MV, 10))
+            printf(" correct upwards");
+        if (getbit(MV, 11))
+            printf(" climb required");
+        if (getbit(MV, 12))
+            printf(" correct downwards");
+        if (getbit(MV, 13))
+            printf(" descent required");
+        if (getbit(MV, 14))
+            printf(" [x] crossing");
+        else
+            printf(" [ ] crossing");
+        if (getbit(MV, 15))
+            printf(" increase/maintain vertical rate");
+        else
+            printf("      reduce/limit vertical rate");
+    }
+    printf("\n");
+    fflush(stdout); // FLUSH
+}
 static void printACASInfo(uint32_t addr, unsigned char *MV) {
 
     char timebuf[128];
@@ -2307,11 +2405,19 @@ void useModesMessage(struct modesMessage *mm) {
 
     if (Modes.debug_printACAS && mm->acas_ra_valid
             && a && mm->sysTimestampMsg < a->seen + 60 * SECONDS) {
-        printACASInfoAll(mm, a);
+
+        unsigned char *MSG;
         if (mm->commb_format == COMMB_ACAS_RA) {
-            printACASInfo(mm->addr, mm->MB);
+            MSG = mm->MB;
         } else {
-            printACASInfo(mm->addr, mm->MV);
+            MSG = mm->MV;
+        }
+
+        printACASInfoShort(mm->addr, MSG);
+
+        if (0) {
+            printACASInfoAll(mm, a);
+            printACASInfoShort(mm->addr, mm->MB);
         }
     }
 
