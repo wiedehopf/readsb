@@ -2064,6 +2064,7 @@ void checkNewDay(uint64_t now) {
     return;
 }
 
+/*
 void *load_state(void *arg) {
     uint64_t now = mstime();
     char pathbuf[PATH_MAX];
@@ -2111,4 +2112,4 @@ void *load_state(void *arg) {
     }
     return NULL;
 }
-
+*/
