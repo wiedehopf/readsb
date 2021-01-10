@@ -2,15 +2,20 @@
 
 This is a detached fork of https://github.com/Mictronics/readsb
 
-It's main purpose is to be the backend for the global map at https://adsbexchange.com/
-For that purpose it's used in conjunction with tar1090: https://github.com/wiedehopf/tar1090#0800-destroy-sd-card
-
 It's continually under development, expect bugs, segfaults and all the good stuff :)
 
 ## NO WARRANTY
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 see the LICENSE file for details
+
+
+## how to install
+
+I'd recommend following either of these pages if you're not familiar with compiling stuff:
+
+- https://github.com/wiedehopf/adsb-scripts/wiki/Automatic-installation-for-readsb
+- https://github.com/wiedehopf/adsb-wiki/wiki/Building-readsb-from-source
 
 ### aircraft.json format:
 
@@ -34,13 +39,6 @@ this output are normal beast messages and compatible with every program able to 
 ## readsb Debian/Raspbian packages
 
 It is designed to build as a Debian package.
-
-## Building under jessie, stretch or buster
-
-
-### Dependencies - rtlsdr
-
-This is packaged with jessie. "sudo apt-get install librtlsdr-dev"
 
 ### Actually building it
 
@@ -76,11 +74,13 @@ support code when building, be sure to include preprocessor define macro HAVE_BI
 
 "make HAVE_BIASTEE=yes" will enable biastee support for RTLSDR interfaces.
 
-## Credits
+I personally prefer to use an little helper to just enable the bias tee before starting readsb:
+https://github.com/wiedehopf/adsb-wiki/wiki/RTL-Bias-Tee
 
-- Michael Wolf (mictronics.de)
-- Matthias Wirth aka wiedehopf
-- Taner Halicioglu aka tanerH
+## Global map of aircraft
+
+One of this forks main uses is to be the backend for the global map at https://adsbexchange.com/
+For that purpose it's used in conjunction with tar1090: https://github.com/wiedehopf/tar1090#0800-destroy-sd-card
 
 ## --debug=S: speed check debugging output
 
