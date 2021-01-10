@@ -12,7 +12,7 @@ CPPFLAGS += -DMODES_READSB_VERSION=\"$(READSB_VERSION)\" -D_GNU_SOURCE
 #OPTIMIZE ?= -march=native
 
 DIALECT = -std=c11
-CFLAGS := $(DIALECT) -g -W -D_DEFAULT_SOURCE -Wall -Werror -fno-common -O2 $(OPTIMIZE) $(CFLAGS)
+CFLAGS := $(DIALECT) -g -W -D_DEFAULT_SOURCE -Wall -Werror -Wno-format-truncation -fno-common -O2 $(OPTIMIZE) $(CFLAGS)
 LIBS = -pthread -lpthread -lm -lz -lrt
 
 ifeq ($(HISTORY), yes)

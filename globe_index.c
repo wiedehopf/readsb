@@ -544,7 +544,7 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
     struct aircraft *source = (struct aircraft *) *p;
     struct aircraft *a;
 
-    if (end - *p < source->size_struct_aircraft)
+    if (end - *p < (int) source->size_struct_aircraft)
         return -1;
 
     if (source->size_struct_aircraft < sizeof(struct aircraft)) {
