@@ -1739,6 +1739,14 @@ static const char *esTypeName(unsigned metype, unsigned mesub) {
 }
 static void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a) {
 
+    bool ara = getbit(MV, 9);
+    bool rat = getbit(MV, 27);
+    bool mte = getbit(MV, 28);
+
+    // we don't really care about the stuff that's not an actual RA or terminated RA
+    if (!ara && !rat && !mte)
+        return;
+
     char timebuf[128];
     time_t now;
     struct tm utc;
@@ -1770,9 +1778,7 @@ static void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft
         if (getbit(MV, i))
             printf(" not %s", racs[i-23]);
     }
-    bool ara = getbit(MV, 9);
-    bool rat = getbit(MV, 27);
-    bool mte = getbit(MV, 28);
+
     if (rat) {
         printf(" RA: Clear of Conflict");
     } else if (ara) {
