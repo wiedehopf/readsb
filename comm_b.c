@@ -261,6 +261,16 @@ static int decodeBDS30(struct modesMessage *mm, bool store) {
 
     if (store) {
         mm->commb_format = COMMB_ACAS_RA;
+
+        if (
+                // checks to not get bogus messages or messages that have all zeros in the interesting part
+                getbits(msg, 9, 28) != 0
+                && !(getbit(msg, 23) && getbit(msg, 24))
+                && !(getbit(msg, 25) && getbit(msg, 26))
+                && getbits(msg, 42, 56) == 0 // 29-56 are currently reserved and should all be zero
+           ) {
+            mm->acas_ra_valid = 1;
+        }
     }
 
     // just accept it.

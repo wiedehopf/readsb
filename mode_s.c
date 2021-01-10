@@ -1820,6 +1820,11 @@ static void printACASInfoAll(struct modesMessage *mm, struct aircraft *a) {
     if (!mm->acas_ra_valid)
         return;
 
+
+    unsigned char *msg = mm->MV;
+    if (mm->commb_format == COMMB_ACAS_RA)
+        msg = mm->MB;
+
     char timebuf[128];
     time_t now;
     struct tm utc;
@@ -1829,23 +1834,23 @@ static void printACASInfoAll(struct modesMessage *mm, struct aircraft *a) {
     strftime(timebuf, 128, "%T", &utc);
     timebuf[127] = 0;
 
-    printf("%s %06x VS: %u SL: %u RI: %2u AC(ft): %6d MV: ",
-            timebuf, mm->addr, mm->VS, mm->SL, mm->RI, mm->altitude_baro);
-    print_hex_bytes(mm->MV, sizeof (mm->MV));
-    //printf(" %u,%u", getbits(mm->MV, 1, 4), getbits(mm->MV, 5, 8));
-    printf(" ARA: %u ", getbit(mm->MV, 9));
-    for (int i = 10; i <= 15; i++) printf("%u", getbit(mm->MV, i));
+    printf("%s %06x VS: %u SL: %u RI: %2u AC(ft): %6d %s: ",
+            timebuf, mm->addr, mm->VS, mm->SL, mm->RI, mm->altitude_baro, mm->msgtype == 16 ? "MV" : "MB");
+    print_hex_bytes(msg, 7);
+    //printf(" %u,%u", getbits(msg, 1, 4), getbits(msg, 5, 8));
+    printf(" ARA: %u ", getbit(msg, 9));
+    for (int i = 10; i <= 15; i++) printf("%u", getbit(msg, i));
     printf(" ");
-    for (int i = 15; i <= 22; i++) printf("%u", getbit(mm->MV, i));
+    for (int i = 15; i <= 22; i++) printf("%u", getbit(msg, i));
     printf(" RAC: ");
-    for (int i = 23; i <= 26; i++) printf("%u", getbit(mm->MV, i));
-    printf(" RAT: %u", getbit(mm->MV, 27));
-    printf(" MTE: %u", getbit(mm->MV, 28));
+    for (int i = 23; i <= 26; i++) printf("%u", getbit(msg, i));
+    printf(" RAT: %u", getbit(msg, 27));
+    printf(" MTE: %u", getbit(msg, 28));
     printf("\n");
     char *racs[4] = { "below", "above", " left", "right" };
     printf("%s %06x ", timebuf, mm->addr);
     for (int i = 23; i <= 26; i++) {
-        if (getbit(mm->MV, i))
+        if (getbit(msg, i))
             printf(" do not pass %s", racs[i-23]);
     }
     if (getbit(mm->msg, 41) || getbit(mm->msg, 60)) {
@@ -2303,7 +2308,11 @@ void useModesMessage(struct modesMessage *mm) {
     if (Modes.debug_printACAS && mm->acas_ra_valid
             && a && mm->sysTimestampMsg < a->seen + 60 * SECONDS) {
         printACASInfoAll(mm, a);
-        printACASInfo(mm->addr, mm->MV);
+        if (mm->commb_format == COMMB_ACAS_RA) {
+            printACASInfo(mm->addr, mm->MB);
+        } else {
+            printACASInfo(mm->addr, mm->MV);
+        }
     }
 
     // In non-interactive non-quiet mode, display messages on standard output
