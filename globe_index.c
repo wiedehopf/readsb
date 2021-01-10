@@ -1419,8 +1419,12 @@ int traceAdd(struct aircraft *a, uint64_t now) {
                 distance, alt, alt_diff, a->gs, speed_diff, a->track, track_diff);
     }
 
-    // record track as precise as possible if we have a recent TCAS resolution advisory
-    if (trackDataValid(&a->acas_ra_valid)) {
+    // record track very precisely if we have a recent TCAS resolution advisory
+    if (trackDataValid(&a->acas_ra_valid) && elapsed > 0.8 * SECONDS) {
+        goto save_state;
+    }
+    // record more points when the altitude changes very quickly
+    if (alt_diff >= 200 && elapsed <= min_elapsed) {
         goto save_state;
     }
 
