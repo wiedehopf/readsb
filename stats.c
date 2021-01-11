@@ -479,14 +479,15 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
         if (st->peak_signal_power > 0)
             p = safe_snprintf(p, end, ",\"peak_signal\":%.1f", 10 * log10(st->peak_signal_power));
 
-        p = safe_snprintf(p, end, ",\"strong_signals\":%d}", st->strong_signal_count);
+        p = safe_snprintf(p, end, ",\"strong_signals\":%d", st->strong_signal_count);
 
         p = safe_snprintf(p, end, ",\n\"pre_phase_1\":[");
         for (int i = 0; i < 5; i++) p = safe_snprintf(p, end, "%9u,", st->demod_preamblePhase[i]);
-        p--; p = safe_snprintf(p, end, "],\n\"best_phase\" :[");
+        p--; p = safe_snprintf(p, end, "],\"best_phase\" :[");
         for (int i = 0; i < 5; i++) p = safe_snprintf(p, end, "%9u,", st->demod_bestPhase[i]);
-        p--; p = safe_snprintf(p, end, "]\n");
+        p--; p = safe_snprintf(p, end, "]");
 
+        p = safe_snprintf(p, end, "}");
     }
 
     p = safe_snprintf(p, end, ",\"messages_valid\": %u", st->messages_total);
