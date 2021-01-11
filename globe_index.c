@@ -1316,6 +1316,7 @@ int traceAdd(struct aircraft *a, uint64_t now) {
     float turn_density = 4.5;
 
     float max_speed_diff = 5.0;
+    int max_alt_diff = 200;
 
     if (trackVState(now, &a->altitude_baro_valid, &a->position_valid) && a->altitude_baro > 10000) {
         max_speed_diff = 10.0;
@@ -1419,12 +1420,13 @@ int traceAdd(struct aircraft *a, uint64_t now) {
                 distance, alt, alt_diff, a->gs, speed_diff, a->track, track_diff);
     }
 
-    // record track very precisely if we have a recent TCAS resolution advisory
-    if (trackDataValid(&a->acas_ra_valid) && elapsed > 0.8 * SECONDS) {
+    // record more points when the altitude changes very quickly
+    if (alt_diff >= max_alt_diff && elapsed <= min_elapsed) {
         goto save_state;
     }
-    // record more points when the altitude changes very quickly
-    if (alt_diff >= 200 && elapsed <= min_elapsed) {
+
+    if (speed_diff > max_speed_diff) {
+        if (traceDebug) fprintf(stderr, "speed_change: %0.1f %0.1f -> %0.1f", fabs(last->gs / 10.0 - a->gs), last->gs / 10.0, a->gs);
         goto save_state;
     }
 
@@ -1433,16 +1435,16 @@ int traceAdd(struct aircraft *a, uint64_t now) {
         goto save_state;
     }
 
-    // don't record unnecessary many points unless the speed changes fast
-    if (elapsed < min_elapsed && speed_diff < max_speed_diff)
+    // don't record unnecessary many points
+    if (elapsed < min_elapsed)
         goto no_save_state;
 
     // record non moving targets every 5 minutes
     if (elapsed > 10 * max_elapsed)
         goto save_state;
 
-    // don't record non moving targets except for speed changes
-    if (distance < 35 && speed_diff < max_speed_diff)
+    // don't record non moving targets
+    if (distance < 35)
         goto no_save_state;
 
     if (!on_ground && elapsed > max_elapsed) // default 30000 ms
@@ -1456,6 +1458,11 @@ int traceAdd(struct aircraft *a, uint64_t now) {
         goto save_state;
     }
 
+    // record trace precisely if we have a TCAS advisory
+    if (trackDataValid(&a->acas_ra_valid)) {
+        goto save_state;
+    }
+
     if (on_ground) {
         if (distance * track_diff > 250) {
             if (traceDebug) fprintf(stderr, "track_change: %0.1f %0.1f -> %0.1f", track_diff, last->track / 10.0, a->track);
@@ -1464,11 +1471,6 @@ int traceAdd(struct aircraft *a, uint64_t now) {
 
         if (distance > 400)
             goto save_state;
-    }
-
-    if (speed_diff > max_speed_diff) {
-        if (traceDebug) fprintf(stderr, "speed_change: %0.1f %0.1f -> %0.1f", fabs(last->gs / 10.0 - a->gs), last->gs / 10.0, a->gs);
-        goto save_state;
     }
 
     if (track_diff > 0.5
