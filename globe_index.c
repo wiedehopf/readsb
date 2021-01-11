@@ -1447,6 +1447,12 @@ int traceAdd(struct aircraft *a, uint64_t now) {
     if (distance < 35)
         goto no_save_state;
 
+
+    // even if the squawk gets invalid we continue to record more points
+    if (a->squawk == 0x7700 && elapsed > 2 * min_elapsed) {
+        goto save_state;
+    }
+
     if (!on_ground && elapsed > max_elapsed) // default 30000 ms
         goto save_state;
 
