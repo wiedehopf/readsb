@@ -76,6 +76,25 @@ static inline const char *sil_type_enum_string(sil_type_t type) {
 
 static inline const char *source_enum_string(datasource_t src) {
     switch (src) {
+        case SOURCE_INVALID: return "INVALID";
+        case SOURCE_INDIRECT: return "INDIRECT";
+        case SOURCE_MODE_AC: return "MODE_AC";
+        case SOURCE_SBS: return "SBS";
+        case SOURCE_MLAT: return "MLAT";
+        case SOURCE_MODE_S: return "MODE_S";
+        case SOURCE_JAERO: return "JAERO";
+        case SOURCE_MODE_S_CHECKED: return "MODE_S_CHECKED";
+        case SOURCE_TISB: return "TISB";
+        case SOURCE_ADSR: return "ADSR";
+        case SOURCE_ADSB: return "ADSB";
+        case SOURCE_PRIO: return "PRIO";
+        default: return "WTF";
+    }
+}
+
+/*
+static inline const char *source_enum_string_long(datasource_t src) {
+    switch (src) {
         case SOURCE_INVALID: return "SOURCE_INVALID";
         case SOURCE_INDIRECT: return "SOURCE_INDIRECT";
         case SOURCE_MODE_AC: return "SOURCE_MODE_AC";
@@ -91,6 +110,7 @@ static inline const char *source_enum_string(datasource_t src) {
         default: return "SOURCE_WTF";
     }
 }
+*/
 
 static inline const char *nav_altitude_source_enum_string(nav_altitude_source_t src) {
     switch (src) {

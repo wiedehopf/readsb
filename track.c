@@ -230,35 +230,36 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     double track_diff = -1;
     double track_bonus = 0;
     int inrange;
+    int override = -1;
     uint64_t now = a->seen;
     double oldLat = a->lat;
     double oldLon = a->lon;
-
-    // json_reliable == -1 disables the speed check
-    if (Modes.json_reliable == -1)
-        return 1;
-
     MODES_NOTUSED(mm);
-    if (bogus_lat_lon(lat, lon) ||
-            (mm->cpr_valid && mm->cpr_lat == 0 && mm->cpr_lon == 0)
-       ) {
-        mm->pos_ignore = 1; // don't decrement pos_reliable
-        return 0;
-    }
 
     int surface = trackDataValid(&a->airground_valid)
         && a->airground == AG_GROUND
         && a->pos_surface
         && (!mm->cpr_valid || mm->cpr_type == CPR_SURFACE);
 
-    if (a->pos_reliable_odd < 1 && a->pos_reliable_even < 1)
-        return 1;
-    if (now > a->position_valid.updated + (120 * 1000))
-        return 1; // no reference or older than 120 seconds, assume OK
-    if (source > a->position_valid.last_source)
-        return 1; // data is better quality, OVERRIDE
-
     elapsed = trackDataAge(now, &a->position_valid);
+
+    // json_reliable == -1 disables the speed check
+    if (Modes.json_reliable == -1) {
+        override = 1;
+    } else if (bogus_lat_lon(lat, lon) ||
+            (mm->cpr_valid && mm->cpr_lat == 0 && mm->cpr_lon == 0)
+       ) {
+        mm->pos_ignore = 1; // don't decrement pos_reliable
+        override = 0;
+    } else if (a->pos_reliable_odd < 1 && a->pos_reliable_even < 1) {
+        override = 1;
+    } else if (now > a->position_valid.updated + (120 * 1000)) {
+        override = 1; // no reference or older than 120 seconds, assume OK
+    } else if (source > a->position_valid.last_source) {
+        override = 1; // data is better quality, OVERRIDE
+    } else if (source <= SOURCE_MLAT && elapsed > 25 * SECONDS) {
+        override = 1;
+    }
 
     speed = surface ? 150 : 900; // guess
 
@@ -274,8 +275,6 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     }
 
     if (source <= SOURCE_MLAT) {
-        if (elapsed > 25 * SECONDS)
-            return 1;
         speed = speed * 2;
         speed = min(speed, 2400);
     }
@@ -319,16 +318,22 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
     inrange = (distance <= range);
 
+    // override, this allows for printing stuff instead of returning
+    if (override != -1) {
+        inrange = override;
+    }
+
     if ((source > SOURCE_MLAT && track_diff < 190 && !inrange && (Modes.debug_cpr || Modes.debug_speed_check))
             || (a->addr == Modes.cpr_focus && distance > 0.1)) {
 
         //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
-        fprintf(stderr, "%06x: %s %s %s %s %s R: %2d tD: %3.0f: %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
+        fprintf(stderr, "%5.1fs %06x: %s %s %s %s %s R: %2d tD: %3.0f: %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
+                (now % (600 * SECONDS)) / 1000.0,
                 a->addr,
                 source == a->position_valid.last_source ? "SQ" : "LQ",
                 cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "O"),
                 mm->cpr_odd ? "O" : "E",
-                (inrange ? "  ok" : "FAIL"),
+                (override != -1 ? (override ? "over" : " bog") : (inrange ? "  ok" : "FAIL")),
                 (surface ? "S" : "A"),
                 min(a->pos_reliable_odd, a->pos_reliable_even),
                 track_diff,
@@ -760,12 +765,13 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
     }
 
     if (location_result == -1 && a->addr == Modes.cpr_focus) {
-        fprintf(stderr, "-1: mm->cpr: %s %s, other CPR age %0.1f sources %s %s %s %s odd_t: %s even_t: %s\n",
+        fprintf(stderr, "%5.1fs -1: mm->cpr: %s %s, other CPR age %0.1f lpos source: %s sources o: %s %s e: %s %s\n",
+                (now % (600 * SECONDS)) / 1000.0,
                 mm->cpr_odd ? " odd" : "even", cpr_type_string(mm->cpr_type),
                 mm->cpr_odd ? fmin(999, ((double) now - a->cpr_even_valid.updated) / 1000.0) : fmin(999, ((double) now - a->cpr_odd_valid.updated) / 1000.0),
-                source_enum_string(a->cpr_odd_valid.source), source_enum_string(a->cpr_even_valid.source),
-                source_enum_string(a->cpr_odd_valid.last_source), source_enum_string(a->cpr_even_valid.last_source),
-                cpr_type_string(a->cpr_odd_type), cpr_type_string(a->cpr_even_type));
+                source_enum_string(a->position_valid.last_source),
+                source_enum_string(a->cpr_odd_valid.source), cpr_type_string(a->cpr_odd_type),
+                source_enum_string(a->cpr_even_valid.source), cpr_type_string(a->cpr_even_type));
     }
 
     if (location_result >= 0) {
@@ -1097,7 +1103,7 @@ static int addressReliable(struct modesMessage *mm) {
 
 static inline void focusGroundstateChange(struct aircraft *a, struct modesMessage *mm, int arg, uint64_t now) {
     if (a->addr == Modes.cpr_focus && a->airground != mm->airground) {
-        fprintf(stderr, "%4.1fs Ground state change %d: Source: %s, %s -> %s\n",
+        fprintf(stderr, "%5.1fs Ground state change %d: Source: %s, %s -> %s\n",
                 (now % (600 * SECONDS)) / 1000.0,
                 arg,
                 source_enum_string(mm->source),
@@ -1547,6 +1553,8 @@ end_alt:
         a->cpr_even_lon = mm->cpr_lon;
         compute_nic_rc_from_message(mm, a, &a->cpr_even_nic, &a->cpr_even_rc);
         cpr_new = 1;
+        if (0 && a->addr == Modes.cpr_focus)
+            fprintf(stderr, "E \n");
     }
 
     // CPR, odd
@@ -1556,6 +1564,8 @@ end_alt:
         a->cpr_odd_lon = mm->cpr_lon;
         compute_nic_rc_from_message(mm, a, &a->cpr_odd_nic, &a->cpr_odd_rc);
         cpr_new = 1;
+        if (0 && a->addr == Modes.cpr_focus)
+            fprintf(stderr, "O \n");
     }
 
     if (mm->acas_ra_valid && accept_data(&a->acas_ra_valid, mm->source, mm, 0)) {
