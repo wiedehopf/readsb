@@ -1153,10 +1153,6 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
     // only count the aircraft as "seen" for reliable messages with CRC
     if (addressReliable(mm)) {
-        if (!a->onActiveList) {
-            a->onActiveList = 1;
-            ca_add(&Modes.aircraftActive, a);
-        }
         a->seen = now;
     }
 
@@ -1744,6 +1740,11 @@ end_alt:
         memcpy(a, Modes.scratch, sizeof(struct aircraft));
         if (mm->pos_bad) {
             position_bad(mm, a);
+        }
+    } else {
+        if (!a->onActiveList) {
+            a->onActiveList = 1;
+            ca_add(&Modes.aircraftActive, a);
         }
     }
 
