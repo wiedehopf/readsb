@@ -2217,10 +2217,13 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
     uint32_t ac_count_pos = Modes.globalStatsCount.json_ac_count_pos;
     memWrite(p, ac_count_pos);
 
-    uint32_t index = globe_index;
+    uint32_t index = globe_index < 0 ? 42777 : globe_index;
     memWrite(p, index);
 
-    int16_t south, west, north, east;
+    int16_t south = -90;
+    int16_t west = -180;
+    int16_t north = 90;
+    int16_t east = 180;
 
     if (globe_index >= GLOBE_MIN_INDEX) {
         int grid = GLOBE_INDEX_GRID;
@@ -2228,7 +2231,7 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
         west = ((globe_index - GLOBE_MIN_INDEX) % GLOBE_LAT_MULT) * grid - 180;
         north = south + grid;
         east = west + grid;
-    } else {
+    } else if (globe_index >= 0) {
         struct tile *tiles = Modes.json_globe_special_tiles;
         struct tile tile = tiles[globe_index];
         south = tile.south;
@@ -2249,7 +2252,10 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
 
     struct craftArray *ca = NULL;
     int good;
-    if (globe_index <= GLOBE_MAX_INDEX) {
+    if (globe_index == -1) {
+        ca = &Modes.aircraftActive;
+        good = 1;
+    } else if (globe_index <= GLOBE_MAX_INDEX) {
         ca = &Modes.globeLists[globe_index];
         good = 1;
     } else {
@@ -2417,37 +2423,45 @@ struct char_buffer generateAircraftJson(){
 
     p = safe_snprintf(p, end, "  \"aircraft\" : [");
 
-    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
-        for (a = Modes.aircraft[j]; a; a = a->next) {
-            //fprintf(stderr, "a: %05x\n", a->addr);
+    //for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+    //    for (a = Modes.aircraft[j]; a; a = a->next) {
 
-            // don't include stale aircraft in the JSON
-            if (a->position_valid.source != SOURCE_JAERO
-                    && now > a->seen + TRACK_EXPIRE / 2
-                    && now > a->seenPosReliable + TRACK_EXPIRE
-               ) {
-                continue;
-            }
-            if (a->messages < 2)
-                continue;
+    struct craftArray *ca = &Modes.aircraftActive;
 
-            // check if we have enough space
-            if ((p + 1000) >= end) {
-                int used = p - buf;
-                buflen *= 2;
-                buf = (char *) realloc(buf, buflen);
-                p = buf + used;
-                end = buf + buflen;
-            }
+    for (int i = 0; i < ca->len; i++) {
+        a = ca->list[i];
 
-            p = sprintAircraftObject(p, end, a, now, 0);
+        if (a == NULL)
+            continue;
+        //fprintf(stderr, "a: %05x\n", a->addr);
 
-            *p++ = ',';
-
-            if (p >= end)
-                fprintf(stderr, "buffer overrun aircraft json\n");
+        // don't include stale aircraft in the JSON
+        if (a->position_valid.source != SOURCE_JAERO
+                && now > a->seen + TRACK_EXPIRE / 2
+                && now > a->seenPosReliable + TRACK_EXPIRE
+           ) {
+            continue;
         }
+        if (a->messages < 2)
+            continue;
+
+        // check if we have enough space
+        if ((p + 1000) >= end) {
+            int used = p - buf;
+            buflen *= 2;
+            buf = (char *) realloc(buf, buflen);
+            p = buf + used;
+            end = buf + buflen;
+        }
+
+        p = sprintAircraftObject(p, end, a, now, 0);
+
+        *p++ = ',';
+
+        if (p >= end)
+            fprintf(stderr, "buffer overrun aircraft json\n");
     }
+
     if (*(p-1) == ',')
         p--;
 

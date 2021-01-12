@@ -266,7 +266,8 @@ struct aircraft
   uint64_t category_updated;
   unsigned category; // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
   uint16_t receiverCountMlat;
-  uint16_t paddingabc;
+  uint8_t onActiveList;
+  uint8_t paddingabc;
 
 
   uint64_t lastTraceMaintenance;

@@ -227,6 +227,7 @@ static void modesInit(void) {
     for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
         ca_init(&Modes.globeLists[i]);
     }
+    ca_init(&Modes.aircraftActive);
 
     geomag_init();
 
@@ -361,6 +362,10 @@ static void *jsonThreadEntryPoint(void *arg) {
         if (Modes.json_gzip)
             writeJsonToGzip(Modes.json_dir, "aircraft.json.gz", cb, 5);
         writeJsonToFile(Modes.json_dir, "aircraft.json", cb);
+
+        struct char_buffer cb2 = generateGlobeBin(-1, 1);
+        writeJsonToGzip(Modes.json_dir, "globeMil_42777.binCraft", cb2, 5);
+        free(cb2.buffer);
 
         if ((ALL_JSON) && now >= next_history) {
             char filebuf[PATH_MAX];
@@ -755,6 +760,7 @@ static void cleanup_and_exit(int code) {
     for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
         ca_destroy(&Modes.globeLists[i]);
     }
+    ca_destroy(&Modes.aircraftActive);
 
     exit(code);
 }

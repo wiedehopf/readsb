@@ -663,6 +663,11 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
     set_globe_index(a, new_index);
     updateValidities(a, now);
 
+    if (a->onActiveList) {
+        a->onActiveList = 1;
+        ca_add(&Modes.aircraftActive, a);
+    }
+
     return 0;
 }
 

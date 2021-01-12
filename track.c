@@ -1153,8 +1153,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
     // only count the aircraft as "seen" for reliable messages with CRC
     if (addressReliable(mm)) {
-        //if (now > a->seen + Modes.trackExpireMax)
-            //ca_add(&Modes.activeAircraft, a);
+        if (!a->onActiveList) {
+            a->onActiveList = 1;
+            ca_add(&Modes.aircraftActive, a);
+        }
         a->seen = now;
     }
 
@@ -1914,6 +1916,11 @@ void trackRemoveStaleThread(int thread, int start, int end, uint64_t now) {
                 // remove from the globeList
                 set_globe_index(a, -5);
 
+                if (a->onActiveList) {
+                    a->onActiveList = 0;
+                    ca_remove(&Modes.aircraftActive, a);
+                }
+
                 // Remove the element from the linked list
                 *nextPointer = a->next;
 
@@ -2612,8 +2619,12 @@ static const char *source_string(datasource_t source) {
 void updateValidities(struct aircraft *a, uint64_t now) {
     a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = 0;
 
-    if (a->globe_index >= 0 && now > a->seen_pos + Modes.trackExpireJaero + 1 * MINUTES) {
+    if (a->globe_index >= 0 && now > a->seen_pos + Modes.trackExpireMax) {
         set_globe_index(a, -5);
+    }
+    if (a->onActiveList && now > a->seen + Modes.trackExpireMax) {
+        a->onActiveList = 0;
+        ca_remove(&Modes.aircraftActive, a);
     }
 
     if (now > a->category_updated + 2 * HOURS)
