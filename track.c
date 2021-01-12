@@ -244,7 +244,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     elapsed = trackDataAge(now, &a->position_valid);
 
     // json_reliable == -1 disables the speed check
-    if (Modes.json_reliable == -1) {
+    if (Modes.json_reliable == -1 || mm->source == SOURCE_PRIO) {
         override = 1;
     } else if (bogus_lat_lon(lat, lon) ||
             (mm->cpr_valid && mm->cpr_lat == 0 && mm->cpr_lon == 0)
@@ -327,14 +327,13 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
             || (a->addr == Modes.cpr_focus && distance > 0.1)) {
 
         //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
-        fprintf(stderr, "%5.1fs %06x: %s %s %s %s %s R: %2d tD: %3.0f: %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
+        fprintf(stderr, "%5.1fs %06x: %s %s %s %s R:%2d tD:%3.0f  %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
                 (now % (600 * SECONDS)) / 1000.0,
                 a->addr,
-                source == a->position_valid.last_source ? "SQ" : "LQ",
-                cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "O"),
                 mm->cpr_odd ? "O" : "E",
-                (override != -1 ? (override ? "over" : " bog") : (inrange ? "  ok" : "FAIL")),
+                cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "S"),
                 (surface ? "S" : "A"),
+                (override != -1 ? (override ? "over" : " bog") : (inrange ? "pass" : "FAIL")),
                 min(a->pos_reliable_odd, a->pos_reliable_even),
                 track_diff,
                 distance / 1000.0,
@@ -372,6 +371,28 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
     return inrange;
 }
+
+/* debug code for surface CPR decoding ... might be useful and reduce typing at some point
+   if (Modes.debug_receiver && Modes.debug_speed_check && receiver && a->seen_pos
+   && *lat < 89
+   && *lat > -89
+   && (fabs(a->lat - *lat) > 35 || fabs(a->lon - *lon) > 35 || fabs(reflat - *lat) > 35 || fabs(reflon - *lon) > 35)
+   && !bogus_lat_lon(*lat, *lon)
+   ) {
+//struct receiver *r = receiver;
+//fprintf(stderr, "id: %016"PRIx64" #pos: %9"PRIu64" lat min:%4.0f max:%4.0f lon min:%4.0f max:%4.0f\n",
+//        r->id, r->positionCounter,
+//        r->latMin, r->latMax,
+//        r->lonMin, r->lonMax);
+int sc = speed_check(a, mm->source, *lat, *lon, mm, CPR_GLOBAL);
+fprintf(stderr, "%s%06x surface CPR rec. ref.: %4.0f %4.0f sc: %d result: %7.2f %7.2f --> %7.2f %7.2f\n",
+(a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : " ",
+a->addr, reflat, reflon, sc, a->lat, a->lon, *lat, *lon);
+}
+
+if (Modes.debug_receiver && receiver && a->addr == Modes.cpr_focus)
+fprintf(stderr, "%06x using reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
+*/
 
 static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat, double *lon, unsigned *nic, unsigned *rc) {
     int result;
@@ -411,29 +432,6 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
                 fflag,
                 lat, lon);
 
-        if (Modes.debug_receiver && Modes.debug_speed_check && receiver && a->seen_pos
-                && *lat < 89
-                && *lat > -89
-                && (fabs(a->lat - *lat) > 35 || fabs(a->lon - *lon) > 35 || fabs(reflat - *lat) > 35 || fabs(reflon - *lon) > 35)
-                && !bogus_lat_lon(*lat, *lon)
-           ) {
-            //struct receiver *r = receiver;
-            //fprintf(stderr, "id: %016"PRIx64" #pos: %9"PRIu64" lat min:%4.0f max:%4.0f lon min:%4.0f max:%4.0f\n",
-            //        r->id, r->positionCounter,
-            //        r->latMin, r->latMax,
-            //        r->lonMin, r->lonMax);
-            int sc = speed_check(a, mm->source, *lat, *lon, mm, CPR_GLOBAL);
-            fprintf(stderr, "%s%06x surface CPR rec. ref.: %4.0f %4.0f sc: %d result: %7.2f %7.2f --> %7.2f %7.2f\n",
-                    (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : " ",
-                    a->addr, reflat, reflon, sc, a->lat, a->lon, *lat, *lon);
-        }
-
-        if (0 && Modes.debug_receiver && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
-            if (receiver && !trackDataValid(&a->position_valid))
-                fprintf(stderr, "%06x using receiver reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
-        }
-        if (Modes.debug_receiver && receiver && a->addr == Modes.cpr_focus)
-            fprintf(stderr, "%06x using reference: %4.0f %4.0f result: %7.2f %7.2f\n", a->addr, reflat, reflon, *lat, *lon);
     } else {
         // airborne global CPR
         result = decodeCPRairborne(a->cpr_even_lat, a->cpr_even_lon,
@@ -1672,11 +1670,7 @@ end_alt:
         }
         // avoid using already received positions
         if (old_jaero || greatcircle(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon) < 1) {
-        } else if (
-                mm->source != SOURCE_PRIO
-                && !speed_check(a, mm->source, mm->decoded_lat, mm->decoded_lon, mm, CPR_NONE)
-           )
-        {
+        } else if (!speed_check(a, mm->source, mm->decoded_lat, mm->decoded_lon, mm, CPR_NONE)) {
             mm->pos_bad = 1;
             // speed check failed, do nothing
         } else if (accept_data(&a->position_valid, mm->source, mm, 2)) {
