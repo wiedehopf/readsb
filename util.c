@@ -138,12 +138,20 @@ void startWatch(struct timespec *start_time) {
     clock_gettime(CLOCK_MONOTONIC, start_time);
 }
 
-// return elapsed time
-int64_t stopWatch(const struct timespec *start_time) {
+// return elapsed time and set start_time to current time
+int64_t stopWatch(struct timespec *start_time) {
     struct timespec end_time;
     clock_gettime(CLOCK_MONOTONIC, &end_time);
-    return ((int64_t) end_time.tv_sec * 1000UL + end_time.tv_nsec / 1000000UL)
-            - ((int64_t) start_time->tv_sec * 1000UL + start_time->tv_nsec / 1000000UL);
+
+    int64_t res = ((int64_t) end_time.tv_sec * 1000UL + end_time.tv_nsec / 1000000UL)
+        - ((int64_t) start_time->tv_sec * 1000UL + start_time->tv_nsec / 1000000UL);
+
+    if (start_time->tv_sec == 0 && start_time->tv_nsec == 0) {
+        res = 0;
+    }
+
+    *start_time = end_time;
+    return res;
 }
 
 // this is not cryptographic but much better than mstime() as a seed

@@ -68,9 +68,10 @@ void end_cpu_timing (const struct timespec *start_time, struct timespec *add_to)
 void start_monotonic_timing(struct timespec *start_time);
 void end_monotonic_timing (const struct timespec *start_time, struct timespec *add_to);
 
-// stopwatch, returns elapsed time in milliseconds
+// start watch for stopWatch
 void startWatch(struct timespec *start_time);
-int64_t stopWatch(const struct timespec *start_time);
+// return elapsed time and set start_time to current time
+int64_t stopWatch(struct timespec *start_time);
 
 // get nanoseconds and some other stuff for use with srand
 unsigned int get_seed();
