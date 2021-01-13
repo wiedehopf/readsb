@@ -3293,9 +3293,9 @@ void modesNetPeriodicWork(void) {
     int64_t elapsed3 = stopWatch(&watch);
 
     static uint64_t antiSpam;
-    if ((elapsed1 > 60 || elapsed2 > 60 || elapsed3 > 60 || interval > 1200) && now > antiSpam + 10 * SECONDS) {
-        //antiSpam = now;
-        fprintf(stderr, "<3>High load: elapsed1/2/3/interval %"PRId64"/%"PRId64"/%"PRId64"/%"PRId64" ms, suppressing for 10 seconds!\n",
+    if ((elapsed1 > 100 || elapsed2 > 100 || elapsed3 > 100 || interval > 1100) && now > antiSpam + 5 * SECONDS) {
+        antiSpam = now;
+        fprintf(stderr, "<3>High load: elapsed1/2/3/interval %"PRId64"/%"PRId64"/%"PRId64"/%"PRId64" ms, suppressing for 5 seconds!\n",
                 elapsed1, elapsed2, elapsed3, interval);
     }
 
