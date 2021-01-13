@@ -270,7 +270,7 @@ struct aircraft
   uint8_t paddingabc;
 
 
-  uint64_t lastTraceMaintenance;
+  uint64_t unused2343;
   uint64_t addrtype_updated;
   float tat;
   uint16_t no_signal_count; // consecutive messages without signal strength specified

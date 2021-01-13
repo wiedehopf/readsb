@@ -34,7 +34,6 @@ ssize_t stateAllBytes(int len);
 void traceRealloc(struct aircraft *a, int len);
 void traceCleanup(struct aircraft *a);
 int traceAdd(struct aircraft *a, uint64_t now);
-void traceResize(struct aircraft *a, uint64_t now);
 int traceUsePosBuffered();
 void traceMaintenance(struct aircraft *a, uint64_t now);
 
