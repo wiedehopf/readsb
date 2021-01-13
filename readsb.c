@@ -660,43 +660,16 @@ static void display_total_stats(void) {
 // from the net, refreshing the screen in interactive mode, and so forth
 //
 static void backgroundTasks(void) {
-    static uint64_t next_second;
-    static struct timespec watch;
-
-    int64_t interval = stopWatch(&watch);
-
     if (Modes.net) {
         modesNetPeriodicWork();
     }
-
-    uint64_t now = mstime();
-
-    icaoFilterExpire(now);
-
-    int64_t elapsed1 = stopWatch(&watch);
-
-    if (now > next_second) {
-        next_second = now + 1000;
-
-        if (Modes.net)
-            modesNetSecondWork();
-    }
-
-    int64_t elapsed2 = stopWatch(&watch);
-
-    static uint64_t antiSpam;
-    if ((elapsed1 > 40 || elapsed2 > 40 || interval > 1200) && now > antiSpam + 10 * SECONDS) {
-        //antiSpam = now;
-        fprintf(stderr, "<3>High load: modesNetPeriodicWork()/modesNetSecondWork()/interval took %"PRId64"/%"PRId64"/%"PRId64" ms, suppressing for 10 seconds!\n", elapsed1, elapsed2, interval);
-    }
-    //fprintf(stderr, "net %"PRId64" ms\n", elapsed);
-
-
 
     // Refresh screen when in interactive mode
     if (Modes.interactive) {
         interactiveShowData();
     }
+
+    icaoFilterExpire(mstime());
 }
 
 //=========================================================================

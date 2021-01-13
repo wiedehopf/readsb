@@ -699,11 +699,12 @@ void modesInitNet(void) {
 
 //
 //=========================================================================
-//
-// This function gets called from time to time when the decoding thread is
-// awakened by new data arriving. This usually happens a few times every second
-//
-static uint64_t modesAcceptClients(uint64_t now) {
+// Accept new connections
+void modesAcceptClients(uint64_t now) {
+    static uint64_t next_accept;
+    if (now < next_accept)
+        return;
+
     int fd;
     struct net_service *s;
     struct client *c;
@@ -746,11 +747,11 @@ static uint64_t modesAcceptClients(uint64_t now) {
     // temporarily stop trying to accept new clients if we are limited by file descriptors
     if (errno == EMFILE) {
         fprintf(stderr, "Accepting new connections suspended for 3 seconds: %s\n", Modes.aneterr);
-        return (now + 3000);
+        next_accept = now + 3000;
     }
 
     // only check for new clients not sooner than 150 ms from now
-    return (now + 150);
+    next_accept = now + 150;
 }
 
 //
@@ -3255,16 +3256,48 @@ static void readWriteClients() {
 // Perform periodic network work
 //
 void modesNetPeriodicWork(void) {
-    uint64_t now = mstime();
     static uint64_t next_tcp_json;
-    static uint64_t next_accept;
+    static uint64_t next_second;
+    static struct timespec watch;
+    uint64_t now;
 
-    // Accept new connections
-    if (now > next_accept) {
-        next_accept = modesAcceptClients(now);
-    }
+    int64_t interval = stopWatch(&watch);
 
     readWriteClients();
+
+    int64_t elapsed1 = stopWatch(&watch);
+
+    now = mstime();
+
+    if (now > next_second) {
+        next_second = now + 1000;
+        modesNetSecondWork();
+    }
+
+    modesAcceptClients(now);
+
+    int64_t elapsed2 = stopWatch(&watch);
+
+    // If we have data that has been waiting to be written for a while,
+    // write it now.
+    for (struct net_service *s = Modes.services; s; s = s->next) {
+        if (s->writer &&
+                s->writer->dataUsed &&
+                ((s->writer->lastWrite + Modes.net_output_flush_interval) <= now)) {
+            flushWrites(s->writer);
+        }
+    }
+
+    serviceReconnectCallback(now);
+
+    int64_t elapsed3 = stopWatch(&watch);
+
+    static uint64_t antiSpam;
+    if ((elapsed1 > 60 || elapsed2 > 60 || elapsed3 > 60 || interval > 1200) && now > antiSpam + 10 * SECONDS) {
+        //antiSpam = now;
+        fprintf(stderr, "<3>High load: elapsed1/2/3/interval %"PRId64"/%"PRId64"/%"PRId64"/%"PRId64" ms, suppressing for 10 seconds!\n",
+                elapsed1, elapsed2, elapsed3, interval);
+    }
 
     // supply JSON to vrs_out writer
     if (Modes.vrs_out.service && Modes.vrs_out.service->connections && now >= next_tcp_json) {
@@ -3280,18 +3313,6 @@ void modesNetPeriodicWork(void) {
             count += 2;
         }
     }
-
-    // If we have data that has been waiting to be written for a while,
-    // write it now.
-    for (struct net_service *s = Modes.services; s; s = s->next) {
-        if (s->writer &&
-                s->writer->dataUsed &&
-                ((s->writer->lastWrite + Modes.net_output_flush_interval) <= now)) {
-            flushWrites(s->writer);
-        }
-    }
-
-    serviceReconnectCallback(now);
 }
 
 /**

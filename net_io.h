@@ -159,6 +159,7 @@ void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a);
 void modesNetSecondWork(void);
 void modesNetPeriodicWork (void);
 void modesReadSerialClient(void);
+void modesAcceptClients(uint64_t now);
 void cleanupNetwork(void);
 void netFreeClients();
 
