@@ -432,14 +432,11 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
                 fflag,
                 lat, lon);
         double refDistance = greatcircle(reflat, reflon, *lat, *lon);
-        if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
-            fprintf(stderr, "%06x CPRsurface ref %d refDistance: %4.0f km (%4.0f, %4.0f)\n", a->addr, ref, refDistance / 1000.0, reflat, reflon);
-        }
         if (refDistance > 450e3) {
-            result = -2;
-            if (!posReliable(a)) {
-                a->surfaceCPR_allow_ac_rel = 0;
+            if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
+                fprintf(stderr, "%06x CPRsurface ref %d refDistance: %4.0f km (%4.0f, %4.0f) allow_ac_rel %d\n", a->addr, ref, refDistance / 1000.0, reflat, reflon, a->surfaceCPR_allow_ac_rel);
             }
+            result = -2;
             return result;
         }
     } else {
@@ -2265,9 +2262,11 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
         a->position_valid.source = SOURCE_INVALID;
         a->pos_reliable_odd = 0;
         a->pos_reliable_even = 0;
-        a->seenPosGlobal = 0;
         a->cpr_odd_valid.source = SOURCE_INVALID;
         a->cpr_even_valid.source = SOURCE_INVALID;
+
+        a->seenPosGlobal = 0;
+        a->surfaceCPR_allow_ac_rel = 0;
     }
 }
 

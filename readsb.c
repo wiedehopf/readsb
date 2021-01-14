@@ -183,6 +183,7 @@ static void modesInit(void) {
         else
             Modes.json_reliable = 2;
     }
+    fprintf(stderr, "json_reliable: %d\n", Modes.json_reliable);
     if (Modes.net_output_flush_interval < 5)
         Modes.net_output_flush_interval = 5;
     if (Modes.net_output_flush_interval > 500)
