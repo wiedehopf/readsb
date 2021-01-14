@@ -324,7 +324,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     }
 
     if ((source > SOURCE_MLAT && track_diff < 190 && !inrange && (Modes.debug_cpr || Modes.debug_speed_check))
-            || (a->addr == Modes.cpr_focus && distance > 0.1)) {
+            || (a->addr == Modes.cpr_focus)) {
 
         //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
         fprintf(stderr, "%5.1fs %06x: %s %s %s %s R:%2d tD:%3.0f  %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
@@ -410,17 +410,22 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
         // surface global CPR
         // find reference location
 
-        if ((receiver = receiverGetReference(mm->receiverId, &reflat, &reflon, a))) {
+        int ref = 0;
+        if ((receiver = receiverGetReference(mm->receiverId, &reflat, &reflon, a, 0))) {
             //function sets reflat and reflon on success, nothing to do here.
+            ref = 1;
         } else if (trackDataValid(&a->position_valid)) { // Ok to try aircraft relative first
             reflat = a->lat;
             reflon = a->lon;
+            ref = 2;
         } else if (Modes.bUserFlags & MODES_USER_LATLON_VALID) {
             reflat = Modes.fUserLat;
             reflon = Modes.fUserLon;
+            ref = 3;
         } else if (a->seen_pos && a->surfaceCPR_allow_ac_rel) {
             reflat = a->latReliable;
             reflon = a->lonReliable;
+            ref = 4;
         } else {
             // No local reference, give up
             return (-1);
@@ -433,16 +438,16 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
                 lat, lon);
         double refDistance = greatcircle(reflat, reflon, *lat, *lon);
         if (refDistance > 450e3) {
-            if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
-                fprintf(stderr, "%06x CPRsurface decode failure refDistance > 450 km: %4.0f km\n", a->addr, refDistance / 1000.0);
-            }
-
             result = -2;
             if (!posReliable(a)) {
                 a->surfaceCPR_allow_ac_rel = 0;
             }
             return result;
         }
+        if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
+            fprintf(stderr, "%06x CPRsurface ref %d refDistance: %4.0f km (%4.0f, %4.0f)\n", a->addr, ref, refDistance / 1000.0, reflat, reflon);
+        }
+
     } else {
         // airborne global CPR
         result = decodeCPRairborne(a->cpr_even_lat, a->cpr_even_lon,
@@ -721,7 +726,6 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
             // This is bad data.
 
             mm->pos_bad = 1;
-            return;
         } else if (location_result == -1) {
             if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
                 if (mm->source == SOURCE_MLAT) {
@@ -746,19 +750,16 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
     // Otherwise try relative CPR.
     if (location_result == -1) {
         location_result = doLocalCPR(a, mm, &new_lat, &new_lon, &new_nic, &new_rc);
+        //if (a->addr == Modes.cpr_focus)
+        //    fprintf(stderr, "%06x: localCPR: %d\n", a->addr, location_result);
+
 
         if (location_result == -2) {
             // Local CPR failed because the position produced implausible results.
             // This is bad data.
 
             mm->pos_bad = 1;
-            return;
-        }
-
-        //if (a->addr == Modes.cpr_focus)
-        //    fprintf(stderr, "%06x: localCPR: %d\n", a->addr, location_result);
-
-        if (location_result >= 0 && accept_data(&a->position_valid, mm->source, mm, 2)) {
+        } else if (location_result >= 0 && accept_data(&a->position_valid, mm->source, mm, 2)) {
             Modes.stats_current.cpr_local_ok++;
             mm->cpr_relative = 1;
 
@@ -772,17 +773,6 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
             Modes.stats_current.cpr_local_skipped++;
             location_result = -1;
         }
-    }
-
-    if (location_result == -1 && a->addr == Modes.cpr_focus) {
-        fprintf(stderr, "%5.1fs -1: mm->cpr: (%d) (%d) %s %s, %s age: %0.1f sources o: %s %s e: %s %s lpos src: %s \n",
-                (now % (600 * SECONDS)) / 1000.0,
-                mm->cpr_lat, mm->cpr_lon,
-                mm->cpr_odd ? " odd" : "even", cpr_type_string(mm->cpr_type), mm->cpr_odd ? "even" : " odd",
-                mm->cpr_odd ? fmin(999, ((double) now - a->cpr_even_valid.updated) / 1000.0) : fmin(999, ((double) now - a->cpr_odd_valid.updated) / 1000.0),
-                source_enum_string(a->position_valid.last_source),
-                source_enum_string(a->cpr_odd_valid.source), cpr_type_string(a->cpr_odd_type),
-                source_enum_string(a->cpr_even_valid.source), cpr_type_string(a->cpr_even_type));
     }
 
     if (location_result >= 0) {
@@ -802,6 +792,17 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
         setPosition(a, mm, now);
     }
 
+    if (location_result == -1 && a->addr == Modes.cpr_focus) {
+        fprintf(stderr, "%5.1fs %d: mm->cpr: (%d) (%d) %s %s, %s age: %0.1f sources o: %s %s e: %s %s lpos src: %s \n",
+                (now % (600 * SECONDS)) / 1000.0,
+                location_result,
+                mm->cpr_lat, mm->cpr_lon,
+                mm->cpr_odd ? " odd" : "even", cpr_type_string(mm->cpr_type), mm->cpr_odd ? "even" : " odd",
+                mm->cpr_odd ? fmin(999, ((double) now - a->cpr_even_valid.updated) / 1000.0) : fmin(999, ((double) now - a->cpr_odd_valid.updated) / 1000.0),
+                source_enum_string(a->position_valid.last_source),
+                source_enum_string(a->cpr_odd_valid.source), cpr_type_string(a->cpr_odd_type),
+                source_enum_string(a->cpr_even_valid.source), cpr_type_string(a->cpr_even_type));
+    }
 }
 
 static unsigned compute_nic(unsigned metype, unsigned version, unsigned nic_a, unsigned nic_b, unsigned nic_c) {
@@ -1703,7 +1704,7 @@ end_alt:
     if (mm->msgtype == 11 && mm->IID == 0 && mm->correctedbits == 0) {
         double reflat;
         double reflon;
-        struct receiver *r = receiverGetReference(mm->receiverId, &reflat, &reflon, a);
+        struct receiver *r = receiverGetReference(mm->receiverId, &reflat, &reflon, a, 1);
         if (r) {
             a->rr_lat = reflat;
             a->rr_lon = reflon;

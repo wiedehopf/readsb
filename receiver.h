@@ -33,7 +33,7 @@ void receiverPositionReceived(struct aircraft *a, uint64_t id, double lat, doubl
 void receiverTimeout(int part, int nParts, uint64_t now);
 void receiverCleanup();
 void receiverTest();
-struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft *a);
+struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft *a, int noDebug);
 int receiverCheckBad(uint64_t id, uint64_t now);
 struct receiver *receiverBad(uint64_t id, uint32_t addr, uint64_t now);
 
