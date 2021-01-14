@@ -499,7 +499,7 @@ static int doLocalCPR(struct aircraft *a, struct modesMessage *mm, double *lat, 
     }
 
     uint64_t now = mm->sysTimestampMsg;
-    if (now < a->seenPosGlobal + 10 * MINUTES) {
+    if (now < a->seenPosGlobal + 10 * MINUTES && a->localCPR_allow_ac_rel) {
         reflat = a->lat;
         reflon = a->lon;
 
@@ -789,9 +789,9 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
                 mm->cpr_lat, mm->cpr_lon,
                 mm->cpr_odd ? " odd" : "even", cpr_type_string(mm->cpr_type), mm->cpr_odd ? "even" : " odd",
                 mm->cpr_odd ? fmin(999, ((double) now - a->cpr_even_valid.updated) / 1000.0) : fmin(999, ((double) now - a->cpr_odd_valid.updated) / 1000.0),
-                source_enum_string(a->position_valid.last_source),
                 source_enum_string(a->cpr_odd_valid.source), cpr_type_string(a->cpr_odd_type),
-                source_enum_string(a->cpr_even_valid.source), cpr_type_string(a->cpr_even_type));
+                source_enum_string(a->cpr_even_valid.source), cpr_type_string(a->cpr_even_type),
+                source_enum_string(a->position_valid.last_source));
     }
 }
 
@@ -1897,7 +1897,7 @@ void trackRemoveStaleThread(int thread, int start, int end, uint64_t now) {
     uint64_t noposTimeout = now - 5 * MINUTES;
 
 
-    uint64_t doValiditiesCutoff = now - Modes.trackExpireMax;
+    uint64_t doValiditiesCutoff = now - (Modes.trackExpireMax + 2 * MINUTES);
 
     for (int j = start; j < end; j++) {
         struct aircraft **nextPointer = &(Modes.aircraft[j]);
@@ -2265,8 +2265,8 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
         a->cpr_odd_valid.source = SOURCE_INVALID;
         a->cpr_even_valid.source = SOURCE_INVALID;
 
-        a->seenPosGlobal = 0;
         a->surfaceCPR_allow_ac_rel = 0;
+        a->localCPR_allow_ac_rel = 0;
     }
 }
 
@@ -2743,6 +2743,7 @@ static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint6
 
 static void incrementReliable(struct aircraft *a, struct modesMessage *mm, uint64_t now, int odd) {
     a->seenPosGlobal = now;
+    a->localCPR_allow_ac_rel = 1;
 
     if (mm->source > SOURCE_JAERO && now > a->seenPosReliable + 2 * MINUTES
             && a->pos_reliable_odd <= 0 && a->pos_reliable_even <= 0) {

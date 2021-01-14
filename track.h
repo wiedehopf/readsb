@@ -366,8 +366,9 @@ struct aircraft
   unsigned last_cpr_type : 2; // mm->cpr_type associated with current position
   unsigned tracePosBuffered : 1; // denotes if a->trace[a->trace_len] has a valid state buffered in it
   unsigned surfaceCPR_allow_ac_rel : 1; // allow surface cpr relative to last known aircraft location
-  // 23 bit ??
-  unsigned padding_b : 9;
+  unsigned localCPR_allow_ac_rel : 1; // allow local cpr relative to last known aircraft location
+  // 24 bit
+  unsigned padding_b : 8;
   // 32 bit !!
 
   // ----

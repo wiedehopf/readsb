@@ -144,7 +144,7 @@ struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, str
     }
     if (!r) {
         if (!noDebug) {
-            fprintf(stderr, "id:%016"PRIx64" no data on this receiverId\n", id);
+            fprintf(stderr, "id:%016"PRIx64" NOREF: receiverId not known\n", id);
         }
         return NULL;
     }
@@ -156,6 +156,17 @@ struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, str
     *lat = r->latMin + latDiff / 2;
     *lon = r->lonMin + lonDiff / 2;
 
+    if (r->positionCounter < 100 || r->badExtent) {
+        if (!noDebug) {
+            fprintf(stderr, "id:%016"PRIx64" NOREF: #posCounter:%9"PRIu64" refLoc: %4.0f,%4.0f lat: %4.0f to %4.0f lon: %4.0f to %4.0f\n",
+                    r->id, r->positionCounter,
+                    *lat, *lon,
+                    r->latMin, r->latMax,
+                    r->lonMin, r->lonMax);
+        }
+        return NULL;
+    }
+
     if (!noDebug) {
         fprintf(stderr, "id:%016"PRIx64" #posCounter:%9"PRIu64" refLoc: %4.0f,%4.0f lat: %4.0f to %4.0f lon: %4.0f to %4.0f\n",
                 r->id, r->positionCounter,
@@ -163,11 +174,6 @@ struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, str
                 r->latMin, r->latMax,
                 r->lonMin, r->lonMax);
     }
-
-    if (r->positionCounter < 100)
-        return NULL;
-    if (r->badExtent)
-        return NULL;
 
     return r;
 }
