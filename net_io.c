@@ -1596,10 +1596,10 @@ static void handle_radarcape_position(float lat, float lon, float alt) {
     if (!isfinite(lat) || lat < -90 || lat > 90 || !isfinite(lon) || lon < -180 || lon > 180 || !isfinite(alt))
         return;
 
-    if (!(Modes.bUserFlags & MODES_USER_LATLON_VALID)) {
+    if (!Modes.userLocationValid) {
         Modes.fUserLat = lat;
         Modes.fUserLon = lon;
-        Modes.bUserFlags |= MODES_USER_LATLON_VALID;
+        Modes.userLocationValid = 1;
         receiverPositionChanged(lat, lon, alt);
     }
 }
@@ -2603,7 +2603,7 @@ struct char_buffer generateReceiverJson() {
             1.0 * Modes.json_interval, Modes.json_aircraft_history_next + 1);
 
 
-    if (Modes.json_location_accuracy && (Modes.fUserLat != 0.0 || Modes.fUserLon != 0.0)) {
+    if (Modes.json_location_accuracy && Modes.userLocationValid) {
         if (Modes.json_location_accuracy == 1) {
             p = safe_snprintf(p, end, ", "
                     "\"lat\": %.2f, "

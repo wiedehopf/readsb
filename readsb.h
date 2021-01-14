@@ -132,8 +132,6 @@
 #define MODES_OUT_FLUSH_SIZE       (15*1024)
 #define MODES_OUT_FLUSH_INTERVAL   (60000)
 
-#define MODES_USER_LATLON_VALID (1<<0)
-
 #define INVALID_ALTITUDE (-9999)
 
 /* Where did a bit of data arrive from? In order of increasing priority */
@@ -549,12 +547,15 @@ struct _Modes
     int net_sndbuf_size; // TCP output buffer size (64Kb * 2^n)
     int json_aircraft_history_next;
     int json_aircraft_history_full;
-    int bUserFlags; // Flags relating to the user details
+    int8_t userLocationValid;
     int8_t biastee;
     int8_t mday;
     int8_t traceDay;
     int8_t doFullTraceWrite;
     int8_t jsonBinCraft; // only write binCraft for globe (1) and also aircraft.json (2)
+
+    int8_t updateStats;
+    int8_t staleStop;
 
     struct timespec reader_cpu_accumulator; // CPU time used by the reader thread, copied out and reset by the main thread under the mutex
     struct mag_buf mag_buffers[MODES_MAG_BUFFERS]; // Converted magnitude buffers from RTL or file input
@@ -566,8 +567,6 @@ struct _Modes
     uint64_t next_stats_display;
     uint64_t next_api_update;
     uint64_t next_remove_stale;
-    int8_t updateStats;
-    int8_t staleStop;
     int stats_bucket; // index that has just been writte to
     struct stats stats_10[STAT_BUCKETS];
     struct stats stats_current;

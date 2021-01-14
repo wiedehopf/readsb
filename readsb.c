@@ -178,7 +178,7 @@ static void modesInit(void) {
     if (Modes.json_reliable == -13) {
         if (Modes.json_globe_index || Modes.globe_history_dir)
             Modes.json_reliable = 2;
-        else if (Modes.bUserFlags & MODES_USER_LATLON_VALID)
+        else if (Modes.userLocationValid)
             Modes.json_reliable = 1;
         else
             Modes.json_reliable = 2;
@@ -274,11 +274,8 @@ static void modesInit(void) {
     // If both Lat and Lon are 0.0 then the users location is either invalid/not-set, or (s)he's in the
     // Atlantic ocean off the west coast of Africa. This is unlikely to be correct.
     // Set the user LatLon valid flag only if either Lat or Lon are non zero. Note the Greenwich meridian
-    // is at 0.0 Lon,so we must check for either fLat or fLon being non zero not both.
-    // Testing the flag at runtime will be much quicker than ((fLon != 0.0) || (fLat != 0.0))
-    Modes.bUserFlags &= ~MODES_USER_LATLON_VALID;
-    if ((Modes.fUserLat != 0.0) || (Modes.fUserLon != 0.0) || Modes.bUserFlags & MODES_USER_LATLON_VALID) {
-        Modes.bUserFlags |= MODES_USER_LATLON_VALID;
+    if ((Modes.fUserLat != 0.0) || (Modes.fUserLon != 0.0)) {
+        Modes.userLocationValid = 1;
         fprintf(stderr, "Using lat: %9.4f, lon: %9.4f\n", Modes.fUserLat, Modes.fUserLon);
     }
 

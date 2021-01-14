@@ -192,9 +192,8 @@ static float bearing(double lat0, double lon0, double lat1, double lon1) {
 
 static void update_range_histogram(double lat, double lon) {
     double range = 0;
-    int valid_latlon = Modes.bUserFlags & MODES_USER_LATLON_VALID;
 
-    if (!valid_latlon)
+    if (!Modes.userLocationValid)
         return;
 
     range = greatcircle(Modes.fUserLat, Modes.fUserLon, lat, lon);
@@ -411,21 +410,17 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
         // find reference location
 
         int ref = 0;
-        if ((receiver = receiverGetReference(mm->receiverId, &reflat, &reflon, a, 0))) {
-            //function sets reflat and reflon on success, nothing to do here.
-            ref = 1;
-        } else if (trackDataValid(&a->position_valid)) { // Ok to try aircraft relative first
-            reflat = a->lat;
-            reflon = a->lon;
-            ref = 2;
-        } else if (Modes.bUserFlags & MODES_USER_LATLON_VALID) {
+        if (Modes.userLocationValid) {
             reflat = Modes.fUserLat;
             reflon = Modes.fUserLon;
-            ref = 3;
+            ref = 1;
+        } else if ((receiver = receiverGetReference(mm->receiverId, &reflat, &reflon, a, 0))) {
+            //function sets reflat and reflon on success, nothing to do here.
+            ref = 2;
         } else if (a->seen_pos && a->surfaceCPR_allow_ac_rel) {
             reflat = a->latReliable;
             reflon = a->lonReliable;
-            ref = 4;
+            ref = 3;
         } else {
             // No local reference, give up
             return (-1);
@@ -468,7 +463,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
     }
 
     // check max range
-    if (Modes.maxRange > 0 && (Modes.bUserFlags & MODES_USER_LATLON_VALID)) {
+    if (Modes.maxRange > 0 && Modes.userLocationValid) {
         double range = greatcircle(Modes.fUserLat, Modes.fUserLon, *lat, *lon);
         if (range > Modes.maxRange) {
             if (a->addr == Modes.cpr_focus) {
@@ -508,8 +503,7 @@ static int doLocalCPR(struct aircraft *a, struct modesMessage *mm, double *lat, 
     }
 
     uint64_t now = mm->sysTimestampMsg;
-    if (now < a->seenPosGlobal + 10 * MINUTES && trackDataValid(&a->position_valid)
-            && now < a->position_valid.updated + (10*60*1000)) {
+    if (now < a->seenPosGlobal + 10 * MINUTES) {
         reflat = a->lat;
         reflon = a->lon;
 
@@ -529,7 +523,7 @@ static int doLocalCPR(struct aircraft *a, struct modesMessage *mm, double *lat, 
         // validity should not provide bad positions (1 cell away).
 
         relative_to = 1;
-    } else if (!surface && (Modes.bUserFlags & MODES_USER_LATLON_VALID)) {
+    } else if (!surface && Modes.userLocationValid) {
         reflat = Modes.fUserLat;
         reflon = Modes.fUserLon;
 
