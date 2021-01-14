@@ -333,6 +333,7 @@ typedef enum {
 #include "receiver.h"
 #include "aircraft.h"
 #include "geomag.h"
+#include "json_out.h"
 
 //======================== structure declarations =========================
 

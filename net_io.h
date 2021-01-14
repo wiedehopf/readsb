@@ -163,29 +163,7 @@ void modesAcceptClients(uint64_t now);
 void cleanupNetwork(void);
 void netFreeClients();
 
-// TODO: move these somewhere else
-struct char_buffer generateAircraftJson();
-struct char_buffer generateGlobeBin(int globe_index, int mil);
-struct char_buffer generateGlobeJson(int globe_index);
-struct char_buffer generateTraceJson(struct aircraft *a, int start, int last);
-struct char_buffer generateReceiverJson ();
-struct char_buffer generateHistoryJson ();
-struct char_buffer generateClientsJson();
-void writeJsonToFile (const char* dir, const char *file, struct char_buffer cb);
-void writeJsonToGzip (const char* dir, const char *file, struct char_buffer cb, int gzip);
-struct char_buffer generateVRS(int part, int n_parts, int reduced_data);
 void writeJsonToNet(struct net_writer *writer, struct char_buffer cb);
 
-__attribute__ ((format(printf, 3, 4))) static inline char *safe_snprintf(char *p, char *end, const char *format, ...) {
-    va_list ap;
-    va_start(ap, format);
-    p += vsnprintf(p < end ? p : NULL, p < end ? (size_t) (end - p) : 0, format, ap);
-    if (p > end)
-        p = end;
-    va_end(ap);
-    return p;
-}
-
-const char *nav_modes_flags_string(nav_modes_t flags);
 
 #endif
