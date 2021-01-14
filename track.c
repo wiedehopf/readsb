@@ -418,9 +418,9 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
         } else if (Modes.bUserFlags & MODES_USER_LATLON_VALID) {
             reflat = Modes.fUserLat;
             reflon = Modes.fUserLon;
-        } else if (a->seen_pos) {
-            reflat = a->lat;
-            reflon = a->lon;
+        } else if (a->seen_pos && a->surfaceCPR_allow_ac_rel) {
+            reflat = a->latReliable;
+            reflon = a->lonReliable;
         } else {
             // No local reference, give up
             return (-1);
@@ -431,7 +431,18 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
                 a->cpr_odd_lat, a->cpr_odd_lon,
                 fflag,
                 lat, lon);
+        double refDistance = greatcircle(reflat, reflon, *lat, *lon);
+        if (refDistance > 450e3) {
+            if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
+                fprintf(stderr, "%06x CPRsurface decode failure refDistance > 450 km: %4.0f km\n", a->addr, refDistance / 1000.0);
+            }
 
+            result = -2;
+            if (!posReliable(a)) {
+                a->surfaceCPR_allow_ac_rel = 0;
+            }
+            return result;
+        }
     } else {
         // airborne global CPR
         result = decodeCPRairborne(a->cpr_even_lat, a->cpr_even_lon,
@@ -442,8 +453,8 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
 
     if (result < 0) {
         if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
-            fprintf(stderr, "CPR: decode failure for %06x (%d).\n", a->addr, result);
-            fprintf(stderr, "  even: %d %d   odd: %d %d  fflag: %s\n",
+            fprintf(stderr, "CPR: decode failure for %06x (%d): even: %d %d   odd: %d %d  fflag: %s\n",
+                    a->addr, result,
                     a->cpr_even_lat, a->cpr_even_lon,
                     a->cpr_odd_lat, a->cpr_odd_lon,
                     fflag ? "odd" : "even");
@@ -648,6 +659,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         a->seenPosReliable = now; // must be after traceAdd for trace stale detection
         a->latReliable = mm->decoded_lat;
         a->lonReliable = mm->decoded_lon;
+        a->surfaceCPR_allow_ac_rel = 1; // allow ac relative CPR for ground positions
     }
 
     a->pos_surface = trackDataValid(&a->airground_valid) && a->airground == AG_GROUND;
@@ -763,9 +775,10 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
     }
 
     if (location_result == -1 && a->addr == Modes.cpr_focus) {
-        fprintf(stderr, "%5.1fs -1: mm->cpr: %s %s, other CPR age %0.1f lpos source: %s sources o: %s %s e: %s %s\n",
+        fprintf(stderr, "%5.1fs -1: mm->cpr: (%d) (%d) %s %s, %s age: %0.1f sources o: %s %s e: %s %s lpos src: %s \n",
                 (now % (600 * SECONDS)) / 1000.0,
-                mm->cpr_odd ? " odd" : "even", cpr_type_string(mm->cpr_type),
+                mm->cpr_lat, mm->cpr_lon,
+                mm->cpr_odd ? " odd" : "even", cpr_type_string(mm->cpr_type), mm->cpr_odd ? "even" : " odd",
                 mm->cpr_odd ? fmin(999, ((double) now - a->cpr_even_valid.updated) / 1000.0) : fmin(999, ((double) now - a->cpr_odd_valid.updated) / 1000.0),
                 source_enum_string(a->position_valid.last_source),
                 source_enum_string(a->cpr_odd_valid.source), cpr_type_string(a->cpr_odd_type),
