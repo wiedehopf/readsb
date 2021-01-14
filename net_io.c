@@ -99,7 +99,6 @@ static void send_beast_heartbeat(struct net_service *service);
 static void send_sbs_heartbeat(struct net_service *service);
 
 static void autoset_modeac();
-static int hexDigitVal(int c);
 static void *pthreadGetaddrinfo(void *param);
 
 static char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now, int printMode);
@@ -1001,9 +1000,21 @@ static void send_beast_heartbeat(struct net_service *service) {
 //
 //=========================================================================
 //
+// Turn an hex digit into its 4 bit decimal value.
+// Returns -1 if the digit is not in the 0-F range.
+//
+static inline __attribute__((always_inline)) int hexDigitVal(int c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    else if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    else if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    else return -1;
+}
+//
+//=========================================================================
+//
 // Print the two hex digits to a string for a single byte.
 //
-static void printHexDigit(char *p, unsigned char c) {
+static inline __attribute__((always_inline)) void printHexDigit(char *p, unsigned char c) {
     const char hex_lookup[] = "0123456789ABCDEF";
     p[0] = hex_lookup[(c >> 4) & 0x0F];
     p[1] = hex_lookup[c & 0x0F];
@@ -1851,17 +1862,6 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
     return 0;
 }
 //
-//=========================================================================
-//
-// Turn an hex digit into its 4 bit decimal value.
-// Returns -1 if the digit is not in the 0-F range.
-//
-static int hexDigitVal(int c) {
-    if (c >= '0' && c <= '9') return c - '0';
-    else if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    else if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    else return -1;
-}
 //
 //=========================================================================
 //
@@ -1920,6 +1920,22 @@ static int decodeHexMessage(struct client *c, char *hex, int remote, uint64_t no
         }
 
         case '@': // No CRC check
+        // example timestamp 03BA2A7C1DD1, should be 12 MHz treat it as such
+        // example message: @03BA2A7C1DD15D4CA7F9A0B84B;
+        { // CRC is OK
+            hex++;
+            l -= 2; // Skip @ and ;
+
+            if (l <= 12) // if we have only enough hex for the timestamp or less it's invalid
+                return (0);
+            for (j = 0; j < 12; j++) {
+                mm.timestampMsg = (mm.timestampMsg << 4) | hexDigitVal(*hex);
+                hex++;
+            }
+
+            l -= 12; // timestamp now processed
+            break;
+        }
         case '%':
         { // CRC is OK
             hex += 13;
