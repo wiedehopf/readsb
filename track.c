@@ -432,6 +432,9 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
                 fflag,
                 lat, lon);
         double refDistance = greatcircle(reflat, reflon, *lat, *lon);
+        if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
+            fprintf(stderr, "%06x CPRsurface ref %d refDistance: %4.0f km (%4.0f, %4.0f)\n", a->addr, ref, refDistance / 1000.0, reflat, reflon);
+        }
         if (refDistance > 450e3) {
             result = -2;
             if (!posReliable(a)) {
@@ -439,10 +442,6 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
             }
             return result;
         }
-        if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
-            fprintf(stderr, "%06x CPRsurface ref %d refDistance: %4.0f km (%4.0f, %4.0f)\n", a->addr, ref, refDistance / 1000.0, reflat, reflon);
-        }
-
     } else {
         // airborne global CPR
         result = decodeCPRairborne(a->cpr_even_lat, a->cpr_even_lon,
@@ -2266,6 +2265,7 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
         a->position_valid.source = SOURCE_INVALID;
         a->pos_reliable_odd = 0;
         a->pos_reliable_even = 0;
+        a->seenPosGlobal = 0;
         a->cpr_odd_valid.source = SOURCE_INVALID;
         a->cpr_even_valid.source = SOURCE_INVALID;
     }
@@ -2639,43 +2639,6 @@ void updateValidities(struct aircraft *a, uint64_t now) {
     if (now > a->category_updated + 2 * HOURS)
         a->category = 0;
 
-    updateValidity(&a->callsign_valid, now, TRACK_EXPIRE_LONG);
-    updateValidity(&a->squawk_valid, now, TRACK_EXPIRE_LONG);
-    updateValidity(&a->airground_valid, now, TRACK_EXPIRE_LONG);
-    updateValidity(&a->altitude_baro_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->altitude_geom_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->geom_delta_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->gs_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->ias_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->tas_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->mach_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->track_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->track_rate_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->roll_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->mag_heading_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->true_heading_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->baro_rate_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->geom_rate_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->nav_qnh_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->nav_altitude_mcp_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->nav_altitude_fms_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->nav_altitude_src_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->nav_heading_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->nav_modes_valid, now, TRACK_EXPIRE);
-
-    updateValidity(&a->cpr_odd_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->cpr_even_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->position_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->nic_a_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->nic_c_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->nic_baro_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->nac_p_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->sil_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->gva_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->sda_valid, now, TRACK_EXPIRE);
-
-    updateValidity(&a->acas_ra_valid, now, TRACK_EXPIRE);
-
     // reset position reliability when no position was received for 2 minutes
     if (trackDataAge(now, &a->position_valid) > 2 * MINUTES || now > a->seenPosGlobal + 10 * MINUTES) {
         a->pos_reliable_odd = 0;
@@ -2687,6 +2650,50 @@ void updateValidities(struct aircraft *a, uint64_t now) {
 
     if (a->altitude_baro_valid.source == SOURCE_INVALID)
         a->alt_reliable = 0;
+
+    updateValidity(&a->callsign_valid, now, TRACK_EXPIRE_LONG);
+    updateValidity(&a->altitude_baro_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->altitude_geom_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->geom_delta_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->gs_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->ias_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->tas_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->mach_valid, now, TRACK_EXPIRE);
+
+    updateValidity(&a->track_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->track_rate_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->roll_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->mag_heading_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->true_heading_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->baro_rate_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->geom_rate_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->nic_a_valid, now, TRACK_EXPIRE);
+
+    updateValidity(&a->nic_c_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->nic_baro_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->nac_p_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->nac_v_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->sil_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->gva_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->sda_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->squawk_valid, now, TRACK_EXPIRE_LONG);
+
+    updateValidity(&a->emergency_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->airground_valid, now, TRACK_EXPIRE_LONG);
+    updateValidity(&a->nav_qnh_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->nav_altitude_mcp_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->nav_altitude_fms_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->nav_altitude_src_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->nav_heading_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->nav_modes_valid, now, TRACK_EXPIRE);
+
+    updateValidity(&a->cpr_odd_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->cpr_even_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->position_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->alert_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->spi_valid, now, TRACK_EXPIRE);
+
+    updateValidity(&a->acas_ra_valid, now, TRACK_EXPIRE);
 }
 
 static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint64_t now) {

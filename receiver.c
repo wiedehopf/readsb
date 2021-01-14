@@ -139,8 +139,11 @@ void receiverPositionReceived(struct aircraft *a, uint64_t id, double lat, doubl
 
 struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft *a, int noDebug) {
     struct receiver *r = receiverGet(id);
+    if (!(Modes.debug_receiver && a && a->addr == Modes.cpr_focus)) {
+        noDebug = 1;
+    }
     if (!r) {
-        if (!noDebug && Modes.debug_receiver && a && a->addr == Modes.cpr_focus) {
+        if (!noDebug) {
             fprintf(stderr, "id:%016"PRIx64" no data on this receiverId\n", id);
         }
         return NULL;
@@ -153,7 +156,7 @@ struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, str
     *lat = r->latMin + latDiff / 2;
     *lon = r->lonMin + lonDiff / 2;
 
-    if (!noDebug && Modes.debug_receiver && a && a->addr == Modes.cpr_focus) {
+    if (!noDebug) {
         fprintf(stderr, "id:%016"PRIx64" #posCounter:%9"PRIu64" refLoc: %4.0f,%4.0f lat: %4.0f to %4.0f lon: %4.0f to %4.0f\n",
                 r->id, r->positionCounter,
                 *lat, *lon,

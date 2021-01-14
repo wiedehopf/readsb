@@ -380,6 +380,7 @@ struct aircraft
   data_validity ias_valid;
   data_validity tas_valid;
   data_validity mach_valid;
+
   data_validity track_valid;
   data_validity track_rate_valid;
   data_validity roll_valid;
@@ -388,6 +389,7 @@ struct aircraft
   data_validity baro_rate_valid;
   data_validity geom_rate_valid;
   data_validity nic_a_valid;
+
   data_validity nic_c_valid;
   data_validity nic_baro_valid;
   data_validity nac_p_valid;
@@ -396,6 +398,7 @@ struct aircraft
   data_validity gva_valid;
   data_validity sda_valid;
   data_validity squawk_valid;
+
   data_validity emergency_valid;
   data_validity airground_valid;
   data_validity nav_qnh_valid;
@@ -404,6 +407,7 @@ struct aircraft
   data_validity nav_altitude_src_valid;
   data_validity nav_heading_valid;
   data_validity nav_modes_valid;
+
   data_validity cpr_odd_valid; // Last seen even CPR message
   data_validity cpr_even_valid; // Last seen odd CPR message
   data_validity position_valid;
