@@ -587,9 +587,8 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         showPositionDebug(a, mm, now);
     }
 
-    if (now < a->seen_pos + 3 * SECONDS && a->lat == mm->decoded_lat && a->lon == mm->decoded_lon) {
+    if (now < a->seen_pos + 2 * SECONDS && a->lat == mm->decoded_lat && a->lon == mm->decoded_lon) {
         // don't use duplicate positions for beastReduce
-        mm->reduce_forward = 0;
         mm->duplicate = 1;
         mm->pos_ignore = 1;
     }
@@ -1541,11 +1540,6 @@ end_alt:
         a->spi = mm->spi;
     }
 
-    // forward all CPRs to the apex for faster garbage detection
-    if (Modes.netIngest && mm->cpr_valid) {
-        mm->reduce_forward = 1;
-    }
-
     // CPR, even
     if (mm->cpr_valid && !mm->cpr_odd && accept_data(&a->cpr_even_valid, mm->source, mm, 1)) {
         a->cpr_even_type = mm->cpr_type;
@@ -1750,6 +1744,15 @@ end_alt:
             a->onActiveList = 1;
             ca_add(&Modes.aircraftActive, a);
         }
+    }
+    // never forward duplicate positions
+    if (mm->duplicate) {
+        mm->reduce_forward = 0;
+    }
+    // forward all CPRs to the apex for faster garbage detection and such
+    // even the duplicates and the garbage
+    if (Modes.netIngest && mm->cpr_valid) {
+        mm->reduce_forward = 1;
     }
 
     return (a);
