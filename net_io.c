@@ -900,7 +900,8 @@ static void completeWrite(struct net_writer *writer, void *endptr) {
 //
 static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *writer) {
     int msgLen = mm->msgbits / 8;
-    char *p = prepareWrite(writer, 2 + 2 * (7 + 8 + msgLen));
+    // 0x1a 0xe3 receiverId(2*8) 0x1a msgType timestamp+signal(2*7) message(2*msgLen)
+    char *p = prepareWrite(writer, (2 + 2 * 8 + 2 + 2 * 7) + 2 * msgLen);
     unsigned char ch;
     int j;
     int sig;
