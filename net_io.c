@@ -783,7 +783,7 @@ static void modesCloseClient(struct client *c) {
         autoset_modeac();
 }
 
-static void flushClient(struct client *c, uint64_t now) {
+static inline void flushClient(struct client *c, uint64_t now) {
     int toWrite = c->sendq_len;
     char *psendq = c->sendq;
 
@@ -818,8 +818,8 @@ static void flushClient(struct client *c, uint64_t now) {
         }
     }
 
-    // If writing has failed for 3 seconds, disconnect.
-    if (c->last_flush + 3000 < now) {
+    // If writing has failed for longer than flush_interval, disconnect.
+    if (c->last_flush + 2 * Modes.net_output_flush_interval < now) {
         fprintf(stderr, "%s: Unable to send data, disconnecting: %s port %s (fd %d, SendQ %d)\n", c->service->descr, c->host, c->port, c->fd, c->sendq_len);
         modesCloseClient(c);
         return;
@@ -868,15 +868,17 @@ static void *prepareWrite(struct net_writer *writer, int len) {
     if (!writer ||
             !writer->service ||
             !writer->service->connections ||
-            !writer->data)
+            !writer->data) {
         return NULL;
+    }
 
-    if (len > MODES_OUT_BUF_SIZE)
-        return NULL;
-
-    if (writer->dataUsed + len >= MODES_OUT_BUF_SIZE) {
-        // Flush now to free some space
+    if (writer->dataUsed + len >= Modes.net_output_flush_size) {
         flushWrites(writer);
+        if (writer->dataUsed + len >= Modes.net_output_flush_size) {
+            // this shouldn't happen due to flushWrites only writing to internal client buffers
+            fprintf(stderr, "prepareWrite: not enough space in writer buffer!\n");
+            return NULL;
+        }
     }
 
     return writer->data + writer->dataUsed;

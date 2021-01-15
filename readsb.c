@@ -184,10 +184,6 @@ static void modesInit(void) {
             Modes.json_reliable = 2;
     }
     fprintf(stderr, "json_reliable: %d\n", Modes.json_reliable);
-    if (Modes.net_output_flush_interval < 5)
-        Modes.net_output_flush_interval = 5;
-    if (Modes.net_output_flush_interval > 500)
-        Modes.net_output_flush_interval = 500;
 
     Modes.filter_persistence += Modes.json_reliable - 1;
 
@@ -280,14 +276,18 @@ static void modesInit(void) {
         fprintf(stderr, "Using lat: %9.4f, lon: %9.4f\n", Modes.fUserLat, Modes.fUserLon);
     }
 
-    // Limit the maximum requested raw output size to less than one Ethernet Block
-    // Set to default if 0
-    if (Modes.net_output_flush_size > (MODES_OUT_FLUSH_SIZE) || Modes.net_output_flush_size == 0) {
-        Modes.net_output_flush_size = MODES_OUT_FLUSH_SIZE;
+    if (Modes.net_output_flush_size > (MODES_OUT_BUF_SIZE)) {
+        Modes.net_output_flush_size = MODES_OUT_BUF_SIZE;
+    }
+    if (Modes.net_output_flush_size < 750) {
+        Modes.net_output_flush_size = 750;
     }
     if (Modes.net_output_flush_interval > (MODES_OUT_FLUSH_INTERVAL)) {
         Modes.net_output_flush_interval = MODES_OUT_FLUSH_INTERVAL;
     }
+    if (Modes.net_output_flush_interval < 5)
+        Modes.net_output_flush_interval = 5;
+
     if (Modes.net_sndbuf_size > (MODES_NET_SNDBUF_MAX)) {
         Modes.net_sndbuf_size = MODES_NET_SNDBUF_MAX;
     }
