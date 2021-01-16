@@ -1849,29 +1849,6 @@ static void updateAircraft() {
 }
 */
 
-static void trackRemoveStale(uint64_t now) {
-    MODES_NOTUSED(now);
-    //fprintf(stderr, "removeStale()\n");
-    //fprintf(stderr, "removeStale start: running for %ld ms\n", mstime() - Modes.startup_time);
-
-    for (int thread = 0; thread < STALE_THREADS; thread++) {
-        pthread_mutex_lock(&Modes.staleMutex[thread]);
-        Modes.staleRun[thread] = 1;
-        pthread_cond_signal(&Modes.staleCond[thread]);
-        pthread_mutex_unlock(&Modes.staleMutex[thread]);
-    }
-    for (int thread = 0; thread < STALE_THREADS; thread++) {
-        while (Modes.staleRun[thread]) {
-            int err = pthread_cond_wait(&Modes.staleDoneCond[thread], &Modes.staleDoneMutex[thread]);
-            if (err)
-                fprintf(stderr, "trackRemoveStale: pthread_cond unexpected error: %s\n", strerror(err));
-        }
-    }
-
-    Modes.doFullTraceWrite = 0;
-
-    //fprintf(stderr, "removeStale done: running for %ld ms\n", mstime() - Modes.startup_time);
-}
 //
 //=========================================================================
 //
@@ -1879,9 +1856,8 @@ static void trackRemoveStale(uint64_t now) {
 // we remove the aircraft from the list.
 //
 
-void trackRemoveStaleThread(int thread, int start, int end, uint64_t now) {
+static void removeStaleRange(int start, int end, uint64_t now) {
     //fprintf(stderr, "%d %d %d %d\n", thread, start, end, AIRCRAFT_BUCKETS);
-    MODES_NOTUSED(thread);
 
     // non-icao timeout
     uint64_t nonicaoTimeout = now - 1 * HOURS;
@@ -1949,6 +1925,31 @@ void trackRemoveStaleThread(int thread, int start, int end, uint64_t now) {
     }
 }
 
+static void removeStale(uint64_t now) {
+    MODES_NOTUSED(now);
+    //fprintf(stderr, "removeStale()\n");
+    //fprintf(stderr, "removeStale start: running for %ld ms\n", mstime() - Modes.startup_time);
+
+    for (int thread = 0; thread < STALE_THREADS; thread++) {
+        pthread_mutex_lock(&Modes.staleMutex[thread]);
+        Modes.staleRun[thread] = 1;
+        pthread_cond_signal(&Modes.staleCond[thread]);
+        pthread_mutex_unlock(&Modes.staleMutex[thread]);
+    }
+    for (int thread = 0; thread < STALE_THREADS; thread++) {
+        while (Modes.staleRun[thread]) {
+            int err = pthread_cond_wait(&Modes.staleDoneCond[thread], &Modes.staleDoneMutex[thread]);
+            if (err)
+                fprintf(stderr, "removeStale: pthread_cond unexpected error: %s\n", strerror(err));
+        }
+    }
+
+    Modes.doFullTraceWrite = 0;
+
+    //fprintf(stderr, "removeStale done: running for %ld ms\n", mstime() - Modes.startup_time);
+}
+
+
 void *staleThreadEntryPoint(void *arg) {
     int thread = * (int *) arg;
     pthread_mutex_lock(&Modes.staleMutex[thread]);
@@ -1968,7 +1969,7 @@ void *staleThreadEntryPoint(void *arg) {
         if (Modes.staleRun[thread]) {
             uint64_t now = mstime();
 
-            trackRemoveStaleThread(thread, thread_start, thread_end, now);
+            removeStaleRange(thread_start, thread_end, now);
 
             if (now > Modes.lastRemoveStale[thread] + 60 * SECONDS && Modes.lastRemoveStale[thread] && !Modes.staleStop) {
                 fprintf(stderr, "thread %d: removeStale interval too long: %.1f seconds\n", thread, (now - Modes.lastRemoveStale[thread]) / 1000.0);
@@ -2034,7 +2035,7 @@ void trackPeriodicUpdate() {
     start_monotonic_timing(&start_time);
 
     if (!Modes.miscThreadRunning && now > Modes.next_remove_stale) {
-        trackRemoveStale(now);
+        removeStale(now);
         if (now > Modes.next_remove_stale + 10 * SECONDS && Modes.next_remove_stale) {
             fprintf(stderr, "removeStale delayed by %.1f seconds\n", (now - Modes.next_remove_stale) / 1000.0);
         }

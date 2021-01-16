@@ -524,8 +524,6 @@ void miscStuff();
 void *miscThreadEntryPoint(void *arg);
 void *staleThreadEntryPoint(void *arg);
 
-void trackRemoveStaleThread(int thread, int start, int end, uint64_t now);
-
 void updateValidities(struct aircraft *a, uint64_t now);
 
 void from_state_all(struct state_all *in, struct aircraft *a , uint64_t ts);
