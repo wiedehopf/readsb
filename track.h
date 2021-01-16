@@ -468,7 +468,9 @@ trackDataValid (const data_validity *v)
 static inline int posReliable(struct aircraft *a) {
     if (!trackDataValid(&a->position_valid))
         return 0;
-    if (a->position_valid.source <= SOURCE_JAERO)
+    if (a->position_valid.source == SOURCE_JAERO)
+        return 1;
+    if (a->position_valid.source == SOURCE_MLAT)
         return 1;
     int reliable = Modes.json_reliable;
     if (reliable > 1 && (a->addr & MODES_NON_ICAO_ADDRESS || a->addrtype == ADDR_TISB_ICAO || a->addrtype == ADDR_ADSR_ICAO))
