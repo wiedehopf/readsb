@@ -603,7 +603,7 @@ static void *decodeThreadEntryPoint(void *arg) {
         pthread_mutex_unlock(&Modes.data_mutex);
 
         log_with_timestamp("Waiting for receive thread termination");
-        int err;
+        int err = 0;
         int count = 100;
         // Wait on reader thread exit
         while (count-- > 0 && (err = pthread_tryjoin_np(Modes.reader_thread, NULL))) {

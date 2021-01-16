@@ -1048,6 +1048,8 @@ void ca_add (struct craftArray *ca, struct aircraft *a) {
         exit(1);
     }
     pthread_mutex_unlock(&ca->mutex);
+    int foundOne = -1;
+    int foundTwo = -1;
     for (int i = 0; i < ca->len; i++) {
         if (a == ca->list[i]) {
             pthread_mutex_lock(&ca->mutex);
@@ -1058,18 +1060,19 @@ void ca_add (struct craftArray *ca, struct aircraft *a) {
                 return;
             }
             pthread_mutex_unlock(&ca->mutex);
-        }
-    }
-    int found = -1;
-    for (int i = 0; i < ca->len; i++) {
-        if (ca->list[i] == NULL) {
-            found = i;
+        } else if (ca->list[i] == NULL) {
+            if (foundOne == -1)
+                foundOne = i;
+            else if (foundTwo == -1)
+                foundTwo = i;
         }
     }
 
     pthread_mutex_lock(&ca->mutex);
-    if (found >= 0 && ca->list[found] == NULL) { // re-check under mutex, if not null just append at end
-        ca->list[found] = a; // added, len unchanged
+    if (foundOne >= 0 && ca->list[foundOne] == NULL) { // re-check under mutex, if not null try foundTwo
+        ca->list[foundOne] = a; // added, len unchanged
+    } else if (foundTwo >= 0 && ca->list[foundTwo] == NULL) { // re-check under mutex, if not null just append at end
+        ca->list[foundTwo] = a; // added, len unchanged
     } else {
         ca->list[ca->len] = a;  // added, len is incremented
         ca->len++;
@@ -1080,8 +1083,12 @@ void ca_add (struct craftArray *ca, struct aircraft *a) {
 }
 
 void ca_remove (struct craftArray *ca, struct aircraft *a) {
-    if (!ca->list)
+    pthread_mutex_lock(&ca->mutex);
+    if (!ca->list) {
+        pthread_mutex_unlock(&ca->mutex);
         return;
+    }
+    pthread_mutex_unlock(&ca->mutex);
     for (int i = 0; i < ca->len; i++) {
         if (ca->list[i] == a) {
 
