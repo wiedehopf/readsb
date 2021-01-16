@@ -1925,13 +1925,7 @@ static void activeUpdate(uint64_t now) {
 
         struct aircraft *a = ca->list[i];
         if (!a) {
-            if (ca->list[ca->len - 1]) {
-                ca->list[i] = ca->list[ca->len - 1];
-                ca->list[ca->len - 1] = NULL;
-                ca->len--;
-            } else {
-                continue;
-            }
+            continue;
         }
 
         traceMaintenance(a, now);
