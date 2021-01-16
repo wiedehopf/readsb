@@ -1909,9 +1909,7 @@ static void removeStaleRange(int start, int end, uint64_t now) {
                 freeAircraft(a);
 
             } else {
-                if (Modes.keep_traces && a->trace_alloc) {
-                    traceMaintenance(a, now);
-                }
+                traceMaintenance(a, now);
 
                 nextPointer = &(a->next);
             }
@@ -1927,9 +1925,7 @@ static void activeUpdate(uint64_t now) {
         if (!a)
             continue;
 
-        if (Modes.keep_traces && a->trace_alloc) {
-            traceMaintenance(a, now);
-        }
+        traceMaintenance(a, now);
 
         updateValidities(a, now);
 

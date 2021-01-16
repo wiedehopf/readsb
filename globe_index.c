@@ -662,7 +662,7 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
     set_globe_index(a, new_index);
     updateValidities(a, now);
 
-    a->traceWrittenForDay = -1;
+    a->traceWrittenForDay = 0;
 
     if (a->onActiveList) {
         a->onActiveList = 1;
@@ -1255,6 +1255,8 @@ void traceCleanup(struct aircraft *a) {
 
 
 void traceMaintenance(struct aircraft *a, uint64_t now) {
+    if (!(Modes.keep_traces && a->trace_alloc))
+        return;
 
     //fprintf(stderr, "%06x\n", a->addr);
 
