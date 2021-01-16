@@ -286,7 +286,8 @@ struct aircraft
   double lon; // Coordinates obtained from CPR encoded data
   int pos_reliable_odd; // Number of good global CPRs, indicates position reliability
   int pos_reliable_even;
-  int padding1234; // unused
+  int16_t traceWrittenForDay; // the full trace has been written for this aircraft today
+  int16_t padding1234; // unused
   float gs_last_pos; // Save a groundspeed associated with the last position
 
   float wind_speed;

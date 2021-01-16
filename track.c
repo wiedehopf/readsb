@@ -1875,9 +1875,6 @@ static void removeStaleRange(int start, int end, uint64_t now) {
     // timeout for aircraft with position
     uint64_t noposTimeout = now - 5 * MINUTES;
 
-
-    uint64_t doValiditiesCutoff = now - (Modes.trackExpireMax + 2 * MINUTES);
-
     for (int j = start; j < end; j++) {
         struct aircraft **nextPointer = &(Modes.aircraft[j]);
         while (*nextPointer) {
@@ -1900,6 +1897,7 @@ static void removeStaleRange(int start, int end, uint64_t now) {
                 // remove from the globeList
                 set_globe_index(a, -5);
 
+                // remove from activeList
                 if (a->onActiveList) {
                     a->onActiveList = 0;
                     ca_remove(&Modes.aircraftActive, a);
@@ -1911,10 +1909,6 @@ static void removeStaleRange(int start, int end, uint64_t now) {
                 freeAircraft(a);
 
             } else {
-                if (doValiditiesCutoff < a->seen) {
-                    updateValidities(a, now);
-                }
-
                 if (Modes.keep_traces && a->trace_alloc) {
                     traceMaintenance(a, now);
                 }
@@ -1925,11 +1919,34 @@ static void removeStaleRange(int start, int end, uint64_t now) {
     }
 }
 
+// update active Aircraft
+static void activeUpdate(uint64_t now) {
+    for (int i = 0; i < Modes.aircraftActive.len; i++) {
+
+        struct aircraft *a = Modes.aircraftActive.list[i];
+        if (!a)
+            continue;
+
+        if (Modes.keep_traces && a->trace_alloc) {
+            traceMaintenance(a, now);
+        }
+
+        updateValidities(a, now);
+
+        if (now > a->seen + Modes.trackExpireMax + 1 * MINUTES) {
+            a->onActiveList = 0;
+            ca_remove(&Modes.aircraftActive, a);
+        }
+    }
+}
+
+// run activeUpdate and remove stale aircraft for a fraction of the entire hashtable
 static void removeStale(uint64_t now) {
-    MODES_NOTUSED(now);
     //fprintf(stderr, "removeStale()\n");
     //fprintf(stderr, "removeStale start: running for %ld ms\n", mstime() - Modes.startup_time);
 
+    // leave this code here for now ... was hard enough to get working .. maybe we need worker style stuff in the future
+    /*
     for (int thread = 0; thread < STALE_THREADS; thread++) {
         pthread_mutex_lock(&Modes.staleMutex[thread]);
         Modes.staleRun[thread] = 1;
@@ -1943,9 +1960,19 @@ static void removeStale(uint64_t now) {
                 fprintf(stderr, "removeStale: pthread_cond unexpected error: %s\n", strerror(err));
         }
     }
+    */
 
-    Modes.doFullTraceWrite = 0;
+    activeUpdate(now);
 
+    static int part;
+    int nParts = 128; // power of 2
+    int partLen = AIRCRAFT_BUCKETS / nParts;
+    int start = part * partLen;
+    int end = start + partLen;
+
+    removeStaleRange(start, end, now);
+
+    part = (part + 1) % nParts;
     //fprintf(stderr, "removeStale done: running for %ld ms\n", mstime() - Modes.startup_time);
 }
 
@@ -2628,15 +2655,13 @@ static const char *source_string(datasource_t source) {
             return "UNKN";
     }
 }
+
 void updateValidities(struct aircraft *a, uint64_t now) {
+
     a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = 0;
 
     if (a->globe_index >= 0 && now > a->seen_pos + Modes.trackExpireMax) {
         set_globe_index(a, -5);
-    }
-    if (a->onActiveList && now > a->seen + Modes.trackExpireMax) {
-        a->onActiveList = 0;
-        ca_remove(&Modes.aircraftActive, a);
     }
 
     if (now > a->category_updated + 2 * HOURS)

@@ -304,7 +304,7 @@ typedef enum {
 #define TRACE_THREADS 8
 #define PERIODIC_UPDATE 200 // don't use values larger than 200 ... some hard-coded stuff
 
-#define STALE_THREADS 4
+#define STALE_THREADS 1
 #define STALE_BUCKETS (AIRCRAFT_BUCKETS / STALE_THREADS)
 
 #define STAT_BUCKETS 90 // 90 * 10 seconds = 15 min (max interval in stats.json)
@@ -553,7 +553,6 @@ struct _Modes
     int8_t biastee;
     int8_t mday;
     int8_t traceDay;
-    int8_t doFullTraceWrite;
     int8_t jsonBinCraft; // only write binCraft for globe (1) and also aircraft.json (2)
 
     int8_t updateStats;

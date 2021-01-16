@@ -662,6 +662,8 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
     set_globe_index(a, new_index);
     updateValidities(a, now);
 
+    a->traceWrittenForDay = -1;
+
     if (a->onActiveList) {
         a->onActiveList = 1;
         ca_add(&Modes.aircraftActive, a);
@@ -1271,7 +1273,8 @@ void traceMaintenance(struct aircraft *a, uint64_t now) {
         }
     }
 
-    if (Modes.doFullTraceWrite) {
+    if (a->traceWrittenForDay != Modes.mday) {
+        a->traceWrittenForDay = Modes.mday;
         if (now < a->seen_pos + 3 * HOURS) {
             a->trace_next_fw = now + random() % (2 * MINUTES); // spread over 2 mins
             a->trace_full_write = 0xc0ffee;
@@ -2068,8 +2071,6 @@ void checkNewDay(uint64_t now) {
 
     if (utc.tm_mday != Modes.mday) {
         Modes.mday = utc.tm_mday;
-
-        Modes.doFullTraceWrite = 1;
 
         createDateDir(Modes.globe_history_dir, &utc, dateDir);
 
