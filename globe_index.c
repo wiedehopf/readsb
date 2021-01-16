@@ -1100,6 +1100,9 @@ void ca_remove (struct craftArray *ca, struct aircraft *a) {
 
 void set_globe_index (struct aircraft *a, int new_index) {
 
+    if (!Modes.json_globe_index)
+        return;
+
     int old_index = a->globe_index;
     a->globe_index = new_index;
 
