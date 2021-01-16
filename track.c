@@ -1919,21 +1919,54 @@ static void removeStaleRange(int start, int end, uint64_t now) {
 
 // update active Aircraft
 static void activeUpdate(uint64_t now) {
-    for (int i = 0; i < Modes.aircraftActive.len; i++) {
+    struct craftArray *ca = &Modes.aircraftActive;
+    pthread_mutex_lock(&ca->mutex);
+    for (int i = 0; i < ca->len; i++) {
 
-        struct aircraft *a = Modes.aircraftActive.list[i];
-        if (!a)
-            continue;
+        struct aircraft *a = ca->list[i];
+        if (!a) {
+            if (ca->list[ca->len - 1]) {
+                ca->list[i] = ca->list[ca->len - 1];
+                ca->list[ca->len - 1] = NULL;
+                ca->len--;
+            } else {
+                continue;
+            }
+        }
 
         traceMaintenance(a, now);
 
         updateValidities(a, now);
 
-        if (now > a->seen + Modes.trackExpireMax + 1 * MINUTES) {
+        if (a->globe_index >= 0 && now > a->seen_pos + Modes.trackExpireMax) {
+            set_globe_index(a, -5);
+        }
+        if (
+                (a->position_valid.source == SOURCE_JAERO && now > a->seen + Modes.trackExpireJaero + 2 * MINUTES)
+                || (a->position_valid.source != SOURCE_JAERO && now > a->seen + TRACK_EXPIRE_LONG + 2 * MINUTES)
+           ) {
             a->onActiveList = 0;
-            ca_remove(&Modes.aircraftActive, a);
+
+            if (a->globe_index >= 0) {
+                set_globe_index(a, -5);
+            }
+
+            // we have the lock and are already scannign the array, remove without ca_remove()
+            // also keep this array compact
+
+            if (i == ca->len - 1) {
+                ca->list[i] = NULL;
+                ca->len--;
+            } else if (ca->list[ca->len - 1]) {
+                ca->list[i] = ca->list[ca->len - 1];
+                ca->list[ca->len - 1] = NULL;
+                ca->len--;
+                i--; // take a step back
+                continue;
+            }
         }
     }
+    pthread_mutex_unlock(&ca->mutex);
 }
 
 // run activeUpdate and remove stale aircraft for a fraction of the entire hashtable
@@ -2655,10 +2688,6 @@ static const char *source_string(datasource_t source) {
 void updateValidities(struct aircraft *a, uint64_t now) {
 
     a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = 0;
-
-    if (a->globe_index >= 0 && now > a->seen_pos + Modes.trackExpireMax) {
-        set_globe_index(a, -5);
-    }
 
     if (now > a->category_updated + 2 * HOURS)
         a->category = 0;
