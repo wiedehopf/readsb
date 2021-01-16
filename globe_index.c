@@ -1049,6 +1049,20 @@ void ca_add (struct craftArray *ca, struct aircraft *a) {
         fprintf(stderr, "ca_add(): out of memory!\n");
         exit(1);
     }
+    /*
+    for (int i = 0; i < ca->len; i++) {
+        if (a == ca->list[i]) {
+            pthread_mutex_lock(&ca->mutex);
+            // re-check under mutex
+            if (a == ca->list[i]) {
+                fprintf(stderr, "ca_add(): double add!\n");
+                pthread_mutex_unlock(&ca->mutex);
+                return;
+            }
+            pthread_mutex_unlock(&ca->mutex);
+        }
+    }
+    */
 
     ca->list[ca->len] = a;  // add at the end
     ca->len++;
@@ -1061,6 +1075,7 @@ void ca_remove (struct craftArray *ca, struct aircraft *a) {
         pthread_mutex_unlock(&ca->mutex);
         return;
     }
+    int found = 0;
     pthread_mutex_unlock(&ca->mutex);
     for (int i = 0; i < ca->len; i++) {
         if (ca->list[i] == a) {
@@ -1071,12 +1086,16 @@ void ca_remove (struct craftArray *ca, struct aircraft *a) {
                 ca->list[i] = ca->list[ca->len - 1];
                 ca->list[ca->len - 1] = NULL;
                 ca->len--;
+                i--;
+                if (found)
+                    fprintf(stderr, "<3>hex: %06x, ca_remove(): pointer found twice in array!\n", a->addr);
+                found = 1;
             }
             pthread_mutex_unlock(&ca->mutex);
-            return;
         }
     }
-    //fprintf(stderr, "hex: %06x, ca_remove(): pointer not in array!\n", a->addr);
+    if (!found)
+        fprintf(stderr, "<3>hex: %06x, ca_remove(): pointer not in array!\n", a->addr);
 }
 
 void set_globe_index (struct aircraft *a, int new_index) {
