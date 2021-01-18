@@ -819,8 +819,9 @@ static inline void flushClient(struct client *c, uint64_t now) {
     }
 
     // If writing has failed for longer than flush_interval, disconnect.
-    if (c->last_flush + 2 * Modes.net_output_flush_interval < now) {
-        fprintf(stderr, "%s: Unable to send data, disconnecting: %s port %s (fd %d, SendQ %d)\n", c->service->descr, c->host, c->port, c->fd, c->sendq_len);
+    uint64_t flushTimeout = 4 * Modes.net_output_flush_interval;
+    if (c->last_flush + flushTimeout < now) {
+        fprintf(stderr, "%s: Couldn't flush data for %.2fs (Insufficient bandwidth?): disconnecting: %s port %s (fd %d, SendQ %d)\n", c->service->descr, flushTimeout / 1000.0, c->host, c->port, c->fd, c->sendq_len);
         modesCloseClient(c);
         return;
     }
