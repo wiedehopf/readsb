@@ -24,7 +24,7 @@ void dbPut(uint32_t addr, dbEntry **index, dbEntry *d);
 void apiClear();
 void apiAdd(struct aircraft *a);
 void apiSort();
-void apiReq(double latMin, double latMax, double lonMin, double lonMax, uint32_t *scratch);
+int apiReq(double latMin, double latMax, double lonMin, double lonMax, uint32_t *scratch);
 
 struct av {
     uint32_t addr;

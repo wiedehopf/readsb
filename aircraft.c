@@ -171,7 +171,7 @@ static int compareUint32(const void *p1, const void *p2) {
     return (*a1 > *a2) - (*a1 < *a2);
 }
 
-void apiReq(double latMin, double latMax, double lonMin, double lonMax, uint32_t *scratch) {
+int apiReq(double latMin, double latMax, double lonMin, double lonMax, uint32_t *scratch) {
 
     int32_t lat1 = (int32_t) (latMin * 1E6);
     int32_t lat2 = (int32_t) (latMax * 1E6);
@@ -184,11 +184,9 @@ void apiReq(double latMin, double latMax, double lonMin, double lonMax, uint32_t
     int allocLat = rangeLat.to - rangeLat.from;
     int allocLon = rangeLon.to - rangeLon.from;
 
-    fprintf(stderr, "%d %d %d %d %d %d\n", allocLat, allocLon, rangeLat.from, rangeLat.to, rangeLon.from, rangeLon.to);
-
     if (!allocLat || !allocLon) {
         scratch[0] = 0;
-        return;
+        return 0;
     }
 
     uint32_t *listLat = &scratch[1 * API_INDEX_MAX];
@@ -218,13 +216,16 @@ void apiReq(double latMin, double latMax, double lonMin, double lonMax, uint32_t
         }
 
         scratch[i] = listLat[j];
-        fprintf(stderr, "%06x %06x\n", listLat[j], listLon[k]);
+        //fprintf(stderr, "%06x %06x\n", listLat[j], listLon[k]);
         i++;
         j++;
         k++;
     }
     scratch[i] = 0;
-    return;
+
+    //fprintf(stderr, "%d %d %d %d %d %d %d\n", i, allocLat, allocLon, rangeLat.from, rangeLat.to, rangeLon.from, rangeLon.to);
+
+    return i;
 }
 
 void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {

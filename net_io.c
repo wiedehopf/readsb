@@ -1659,10 +1659,10 @@ static int handleApiRequest(struct client *c, char *p, int remote, uint64_t now)
     remote = remote;
     c = c;
 
-    static uint32_t scratch[3 * API_INDEX_MAX];
+    //static uint32_t scratch[3 * API_INDEX_MAX];
 
     //writeJsonToNet(&Modes.api_out, generateAircraftJson(-1));
-    apiReq(50, 51, 10, 11, scratch);
+    //apiReq(50, 51, 10, 11, scratch);
 
     return 0;
 }

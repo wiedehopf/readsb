@@ -2182,6 +2182,16 @@ void miscStuff() {
             }
         }
         apiSort();
+
+        uint32_t scratch[3 * API_INDEX_MAX];
+        struct timespec watch;
+        startWatch(&watch);
+        int n = apiReq(-90, 90, -180, 180, scratch);
+        for (int i = 0; i < 100; i++) {
+            n = apiReq(-90, 90, -180, 180, scratch);
+        }
+        uint64_t elapsed = stopWatch(&watch);
+        fprintf(stderr, "api req took: %.5f s, got %d aircraft!\n", elapsed / 1000.0, n);
     }
 
     static uint64_t next_clients_json;
