@@ -285,8 +285,8 @@ static void modesInit(void) {
     if (Modes.net_output_flush_interval > (MODES_OUT_FLUSH_INTERVAL)) {
         Modes.net_output_flush_interval = MODES_OUT_FLUSH_INTERVAL;
     }
-    if (Modes.net_output_flush_interval < 5)
-        Modes.net_output_flush_interval = 5;
+    if (Modes.net_output_flush_interval < 4)
+        Modes.net_output_flush_interval = 4;
 
     if (Modes.net_sndbuf_size > (MODES_NET_SNDBUF_MAX)) {
         Modes.net_sndbuf_size = MODES_NET_SNDBUF_MAX;
@@ -489,7 +489,7 @@ static void *decodeThreadEntryPoint(void *arg) {
     interactiveInit();
 
     if (Modes.net_only) {
-        uint32_t maxSleep = Modes.net_output_flush_interval / 2; // in ms
+        uint32_t maxSleep = Modes.net_output_flush_interval / 4; // in ms
         struct timespec ts;
         clock_gettime(CLOCK_REALTIME, &ts);
         while (!Modes.exit) {
