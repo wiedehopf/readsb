@@ -2006,26 +2006,6 @@ static int decodeHexMessage(struct client *c, char *hex, int remote, uint64_t no
     return (0);
 }
 
-
-static void periodicReadFromClient(struct client *c) {
-    int nread, err;
-    char buf[512];
-
-    nread = read(c->fd, buf, sizeof(buf));
-    err = errno;
-
-    if (nread < 0 && (err == EAGAIN || err == EWOULDBLOCK)) {
-        return;
-    }
-    if (nread <= 0) { // Other errors, or EOF
-        fprintf(stderr, "%s: Socket Error: %s: %s port %s (fd %d)\n",
-                c->service->descr, nread < 0 ? strerror(err) : "EOF", c->host, c->port,
-                c->fd);
-        modesCloseClient(c);
-        return;
-    }
-}
-
 static const char *hexEscapeString(const char *str, char *buf, int len) {
     const char *in = str;
     char *out = buf, *end = buf + len - 10;
@@ -2106,31 +2086,37 @@ static void modesReadFromClient(struct client *c) {
             bContinue = 0;
         }
 
+        if (nread > 0)
+            c->last_read = now;
+
         // check for idle connection, this server version requires data
         // or a heartbeat, otherwise it will force a reconnect
-        if (Modes.net_heartbeat_interval && c->con && c->last_read + Modes.net_heartbeat_interval + 5 * SECONDS <= now
-                && c->service->read_mode != READ_MODE_IGNORE
-                && c->service->read_mode != READ_MODE_BEAST_COMMAND
+        if (
+                c->con && Modes.net_heartbeat_interval
+                && c->service->read_mode != READ_MODE_IGNORE && c->service->read_mode != READ_MODE_BEAST_COMMAND
+                && c->last_read + Modes.net_heartbeat_interval + 5 * SECONDS <= now
            ) {
-            fprintf(stderr, "%s: No data received for %.0f seconds, reconnecting: %s port %s\n",
+            fprintf(stderr, "%s: No data or heartbeat received for %.0f seconds, reconnecting: %s port %s\n",
                     c->service->descr, (double)(Modes.net_heartbeat_interval + 5 * SECONDS),c->host, c->port);
             modesCloseClient(c);
             return;
         }
 
-        if (nread < 0 && (err == EAGAIN || err == EWOULDBLOCK)) // No data available (not really an error)
+        // No data available, check later!
+        if (nread < 0 && (err == EAGAIN || err == EWOULDBLOCK))
         {
             return;
         }
 
-        if (nread < 0) { // Other errors
-                if (c->proxy_string[0] != '\0') {
+        // Other errors
+        if (nread < 0) {
+                if (c->service->read_mode != READ_MODE_IGNORE && c->proxy_string[0] != '\0') {
                     double elapsed = (now - c->connectedSince) / 1000.0;
                     fprintf(stderr, "disc: %56s rId %016"PRIx64"%016"PRIx64" %6.2f kbit/s for %6.1f s\n",
                             c->proxy_string, c->receiverId, c->receiverId2,
                             c->bytesReceived / 128.0 / elapsed, elapsed);
                 } else {
-                    fprintf(stderr, "%s: Receive Error: %s: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
+                    fprintf(stderr, "%s: Socket Error: %s: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
                             c->service->descr, strerror(err), c->host, c->port,
                             c->fd, c->sendq_len, c->buflen);
                 }
@@ -2138,7 +2124,8 @@ static void modesReadFromClient(struct client *c) {
             return;
         }
 
-        if (nread == 0) { // End of file
+        // End of file
+        if (nread == 0) {
             if (c->con) {
                 fprintf(stderr, "%s: Remote server disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
                         c->service->descr, c->con->address, c->con->port, c->fd, c->sendq_len, c->buflen);
@@ -2172,10 +2159,6 @@ static void modesReadFromClient(struct client *c) {
             /* Message from a local connected Modes-S beast or GNS5894 are passed off the internet */
             remote = 0;
         }
-
-
-        if (nread > 0)
-            c->last_read = now;
 
         // check for PROXY v1 header if connection is new / low bytes received
         if (Modes.netIngest && c->bytesReceived <= MODES_CLIENT_BUF_SIZE && c->buflen > 5 && som[0] == 'P' && som[1] == 'R') {
@@ -2466,12 +2449,8 @@ void modesNetSecondWork(void) {
         for (c = s->clients; c; c = c->next) {
             if (!c->service)
                 continue;
-            if (c->last_read + 30000 < now) {
-                // This is called if there is no read handler - we just read and discard to try to trigger socket errors
-                // (if 30 sec have passed)
-                periodicReadFromClient(c);
-                c->last_read = now;
-            }
+            // This is called if there is no read handler - we just read and discard to try to trigger socket errors
+            modesReadFromClient(c);
         }
     }
 
