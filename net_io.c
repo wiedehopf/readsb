@@ -874,7 +874,7 @@ static void *prepareWrite(struct net_writer *writer, int len) {
 
     if (writer->dataUsed + len >= Modes.net_output_flush_size) {
         flushWrites(writer);
-        if (writer->dataUsed + len >= Modes.net_output_flush_size) {
+        if (writer->dataUsed + len > MODES_OUT_BUF_SIZE) {
             // this shouldn't happen due to flushWrites only writing to internal client buffers
             fprintf(stderr, "prepareWrite: not enough space in writer buffer!\n");
             return NULL;
@@ -2566,7 +2566,7 @@ void modesNetPeriodicWork(void) {
     static uint64_t antiSpam;
     if ((elapsed1 > 100 || elapsed2 > 100 || elapsed3 > 100 || interval > 1100) && now > antiSpam + 5 * SECONDS) {
         antiSpam = now;
-        fprintf(stderr, "<3>High load: elapsed1/2/3/interval %"PRId64"/%"PRId64"/%"PRId64"/%"PRId64" ms, suppressing for 5 seconds!\n",
+        fprintf(stderr, "<3>High load: modesNetPeriodicWork() elapsed1/2/3/interval %"PRId64"/%"PRId64"/%"PRId64"/%"PRId64" ms, suppressing for 5 seconds!\n",
                 elapsed1, elapsed2, elapsed3, interval);
     }
 
@@ -2614,7 +2614,7 @@ void writeJsonToNet(struct net_writer *writer, struct char_buffer cb) {
     int written = 0;
     char *content = cb.buffer;
     char *pos;
-    int bytes = MODES_OUT_BUF_SIZE / 2;
+    int bytes = MODES_OUT_BUF_SIZE;
 
     char *p = prepareWrite(writer, bytes);
     if (!p) {
