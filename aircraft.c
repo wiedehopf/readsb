@@ -97,33 +97,28 @@ void apiAdd(struct aircraft *a) {
         fprintf(stderr, "too many aircraft!.\n");
         return;
     }
-    struct av byLat;
     struct av byLon;
 
-    byLat.addr = a->addr;
-    byLat.value = (int32_t) (a->lat * 1E6);
-
     byLon.addr = a->addr;
-    byLon.value = (int32_t) (a->lon * 1E6);
+    byLon.lat = (int32_t) (a->lat * 1E6);
+    byLon.lon = (int32_t) (a->lon * 1E6);
 
-    Modes.byLat[Modes.avLen] = byLat;
     Modes.byLon[Modes.avLen] = byLon;
 
     Modes.avLen++;
 }
 
-static int compareValue(const void *p1, const void *p2) {
+static int compareLon(const void *p1, const void *p2) {
     struct av *a1 = (struct av*) p1;
     struct av *a2 = (struct av*) p2;
-    return (a1->value > a2->value) - (a1->value < a2->value);
+    return (a1->lon > a2->lon) - (a1->lon < a2->lon);
 }
 
 void apiSort() {
-    qsort(Modes.byLat, Modes.avLen, sizeof(struct av), compareValue);
-    qsort(Modes.byLon, Modes.avLen, sizeof(struct av), compareValue);
+    qsort(Modes.byLon, Modes.avLen, sizeof(struct av), compareLon);
 }
 
-static struct range findRange(int32_t ref_from, int32_t ref_to, struct av *list, int len) {
+static struct range findLonRange(int32_t ref_from, int32_t ref_to, struct av *list, int len) {
     struct range res = {0, 0};
     if (len == 0 || ref_from > ref_to)
         return res;
@@ -135,12 +130,12 @@ static struct range findRange(int32_t ref_from, int32_t ref_to, struct av *list,
 
         int pivot = (i + j) / 2;
 
-        if (list[pivot].value < ref_from)
+        if (list[pivot].lon < ref_from)
             i = pivot;
         else
             j = pivot;
     }
-    if (list[j].value < ref_from)
+    if (list[j].lon < ref_from)
         res.from = j;
     else
         res.from = i;
@@ -152,23 +147,17 @@ static struct range findRange(int32_t ref_from, int32_t ref_to, struct av *list,
 
         int pivot = (i + j) / 2;
 
-        if (list[pivot].value <= ref_to)
+        if (list[pivot].lon <= ref_to)
             i = pivot;
         else
             j = pivot;
     }
-    if (list[j].value > ref_to)
+    if (list[j].lon > ref_to)
         res.to = j + 1;
     else
         res.to = i + 1;
 
     return res;
-}
-
-static int compareUint32(const void *p1, const void *p2) {
-    uint32_t *a1 = (uint32_t *) p1;
-    uint32_t *a2 = (uint32_t *) p2;
-    return (*a1 > *a2) - (*a1 < *a2);
 }
 
 int apiReq(double latMin, double latMax, double lonMin, double lonMax, uint32_t *scratch) {
@@ -178,54 +167,18 @@ int apiReq(double latMin, double latMax, double lonMin, double lonMax, uint32_t 
     int32_t lon1 = (int32_t) (lonMin * 1E6);
     int32_t lon2 = (int32_t) (lonMax * 1E6);
 
-    struct range rangeLat = findRange(lat1, lat2, Modes.byLat, Modes.avLen);
-    struct range rangeLon = findRange(lon1, lon2, Modes.byLon, Modes.avLen);
+    struct range rangeLon = findLonRange(lon1, lon2, Modes.byLon, Modes.avLen);
 
-    int allocLat = rangeLat.to - rangeLat.from;
-    int allocLon = rangeLon.to - rangeLon.from;
-
-    if (!allocLat || !allocLon) {
-        scratch[0] = 0;
-        return 0;
-    }
-
-    uint32_t *listLat = &scratch[1 * API_INDEX_MAX];
-    uint32_t *listLon = &scratch[2 * API_INDEX_MAX];
-
-    for (int i = 0; i < allocLat; i++) {
-        listLat[i] = Modes.byLat[rangeLat.from + i].addr;
-    }
-    qsort(listLat, allocLat, sizeof(uint32_t), compareUint32);
-
-    for (int i = 0; i < allocLon; i++) {
-        listLon[i] = Modes.byLon[rangeLon.from + i].addr;
-    }
-    qsort(listLon, allocLon, sizeof(uint32_t), compareUint32);
-
-    int i = 0;
-    int j = 0;
     int k = 0;
-    while (j < allocLat && k < allocLon) {
-        if (listLat[j] < listLon[k]) {
-            j++;
-            continue;
+    for (int j = rangeLon.from; j < rangeLon.to; j++) {
+        struct av a = Modes.byLon[j];
+        if (a.lat >= lat1 && a.lat <= lat2) {
+            scratch[k++] = a.addr;
         }
-        if (listLat[j] > listLon[k]) {
-            k++;
-            continue;
-        }
-
-        scratch[i] = listLat[j];
-        //fprintf(stderr, "%06x %06x\n", listLat[j], listLon[k]);
-        i++;
-        j++;
-        k++;
     }
-    scratch[i] = 0;
+    scratch[k] = 0;
 
-    //fprintf(stderr, "%d %d %d %d %d %d %d\n", i, allocLat, allocLon, rangeLat.from, rangeLat.to, rangeLon.from, rangeLon.to);
-
-    return i;
+    return k;
 }
 
 void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {

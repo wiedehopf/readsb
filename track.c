@@ -2175,20 +2175,23 @@ void miscStuff() {
         // this will probably get its own thread at some point
         enough = 1;
         Modes.next_api_update = now + 1 * SECONDS;
+        struct timespec watch;
+        startWatch(&watch);
         apiClear();
-        for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
-            for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
-                apiAdd(a);
-            }
+        struct craftArray *ca = &Modes.aircraftActive;
+        for (int i = 0; i < ca->len; i++) {
+            struct aircraft *a = ca->list[i];
+
+            if (a == NULL)
+                continue;
+            apiAdd(a);
         }
         apiSort();
 
         uint32_t scratch[3 * API_INDEX_MAX];
-        struct timespec watch;
-        startWatch(&watch);
         int n = apiReq(-90, 90, -180, 180, scratch);
-        for (int i = 0; i < 100; i++) {
-            n = apiReq(-90, 90, -180, 180, scratch);
+        for (int i = 0; i < 100000; i++) {
+            n = apiReq(-90, 90, -10, 10, scratch);
         }
         uint64_t elapsed = stopWatch(&watch);
         fprintf(stderr, "api req took: %.5f s, got %d aircraft!\n", elapsed / 1000.0, n);

@@ -28,7 +28,8 @@ int apiReq(double latMin, double latMax, double lonMin, double lonMax, uint32_t 
 
 struct av {
     uint32_t addr;
-    int32_t value;
+    int32_t lat;
+    int32_t lon;
 };
 
 struct range {
