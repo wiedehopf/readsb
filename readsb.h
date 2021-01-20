@@ -482,7 +482,7 @@ struct _Modes
     int8_t json_reliable;
     int8_t net; // Enable networking
     int8_t net_only; // Enable just networking
-    int8_t dbExchange;
+    int8_t jsonLongtype;
     int8_t viewadsb;
 
     int8_t filterDF; // Only show messages with this DF type

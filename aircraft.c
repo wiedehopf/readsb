@@ -427,12 +427,10 @@ int dbUpdate() {
         return 0;
     int fd = open(filename, O_RDONLY);
     if (fd == -1) {
-        filename = "/opt/html/aircraft.csv.gz";
-        fd = open(filename, O_RDONLY);
-        Modes.dbExchange = 1;
-    }
-    if (fd == -1)
+        fprintf(stderr, "dbUpdate: open db-file failed:");
+        perror(filename);
         return 0;
+    }
 
     struct stat fileinfo = {0};
     if (fstat(fd, &fileinfo)) {

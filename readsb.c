@@ -116,7 +116,8 @@ static void modesInitConfig(void) {
     Modes.freq = MODES_DEFAULT_FREQ;
     Modes.check_crc = 1;
     Modes.net_heartbeat_interval = MODES_NET_HEARTBEAT_INTERVAL;
-    Modes.db_file = strdup("/usr/local/share/tar1090/git-db/aircraft.csv.gz");
+    //Modes.db_file = strdup("/usr/local/share/tar1090/git-db/aircraft.csv.gz");
+    Modes.db_file = strdup("none");
     Modes.net_input_raw_ports = strdup("0");
     Modes.net_output_raw_ports = strdup("0");
     Modes.net_output_sbs_ports = strdup("0");
@@ -962,7 +963,11 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptDbFile:
             free(Modes.db_file);
-            Modes.db_file = strdup(arg);
+            if (strcmp(arg, "tar1090") == 0) {
+                Modes.db_file = strdup("/usr/local/share/tar1090/git-db/aircraft.csv.gz");
+            } else {
+                Modes.db_file = strdup(arg);
+            }
             break;
         case OptJsonGzip:
             Modes.json_gzip = 1;

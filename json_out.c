@@ -179,9 +179,8 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now,
                 p = safe_snprintf(p, end, ",\"t\":\"%.*s\"", (int) sizeof(a->typeCode), a->typeCode);
             if (a->dbFlags)
                 p = safe_snprintf(p, end, ",\"dbFlags\":%u", a->dbFlags);
-        }
-        if ((printMode == 0 || printMode == 2)&& !Modes.dbExchange) {
-            if (a->typeLong[0])
+
+            if (Modes.jsonLongtype && a->typeLong[0])
                 p = safe_snprintf(p, end, ",\"desc\":\"%.*s\"", (int) sizeof(a->typeLong), a->typeLong);
         }
     }
@@ -772,13 +771,12 @@ struct char_buffer generateReceiverJson() {
         }
     }
 
-    if (Modes.db || Modes.db2)
-        p = safe_snprintf(p, end, ", \"dbServer\": true");
-
-
     p = safe_snprintf(p, end, ", \"jaeroTimeout\": %.1f", ((double) Modes.trackExpireJaero) / (60 * SECONDS));
 
     if (Modes.json_globe_index) {
+        if (Modes.db || Modes.db2)
+            p = safe_snprintf(p, end, ", \"dbServer\": true");
+
         p = safe_snprintf(p, end, ", \"binCraft\": true");
         p = safe_snprintf(p, end, ", \"globeIndexGrid\": %d", GLOBE_INDEX_GRID);
 
