@@ -725,7 +725,7 @@ void modesAcceptClients(uint64_t now) {
 
                     setProxyString(c);
                     if (!Modes.netIngest && Modes.debug_net) {
-                        fprintf(stderr, "%s: new c from %s port %s (fd %d)\n", 
+                        fprintf(stderr, "%s: new c from %s port %s (fd %d)\n",
                                 c->service->descr, c->host, c->port, fd);
                     }
                     if (anetTcpKeepAlive(Modes.aneterr, fd) != ANET_OK)
@@ -2058,7 +2058,7 @@ static void modesReadFromClient(struct client *c) {
             static uint64_t antiSpam;
             if (now > antiSpam + 30 * SECONDS) {
                 antiSpam = now;
-                if (c->proxy_string[0] != '\0')
+                if (Modes.netIngest && c->proxy_string[0] != '\0')
                     fprintf(stderr, "<3>ERROR, not enough CPU: Discarding data from: %s (suppressing for 30 seconds)\n", c->proxy_string);
                 else
                     fprintf(stderr, "<3>%s: ERROR, not enough CPU: Discarding data from: %s port %s (fd %d) (suppressing for 30 seconds)\n",
@@ -2110,7 +2110,7 @@ static void modesReadFromClient(struct client *c) {
 
         // Other errors
         if (nread < 0) {
-                if (c->service->read_mode != READ_MODE_IGNORE && c->proxy_string[0] != '\0') {
+                if (Modes.netIngest && c->service->read_mode != READ_MODE_IGNORE && c->proxy_string[0] != '\0') {
                     double elapsed = (now - c->connectedSince) / 1000.0;
                     fprintf(stderr, "disc: %56s rId %016"PRIx64"%016"PRIx64" %6.2f kbit/s for %6.1f s\n",
                             c->proxy_string, c->receiverId, c->receiverId2,
@@ -2131,7 +2131,7 @@ static void modesReadFromClient(struct client *c) {
                         c->service->descr, c->con->address, c->con->port, c->fd, c->sendq_len, c->buflen);
             } else if (Modes.debug_net) {
 
-                if (c->proxy_string[0] != '\0') {
+                if (Modes.netIngest && c->proxy_string[0] != '\0') {
                     double elapsed = (now - c->connectedSince) / 1000.0;
                     fprintf(stderr, "disc: %56s rId %016"PRIx64"%016"PRIx64" %6.2f kbit/s for %6.1f s\n",
                             c->proxy_string, c->receiverId, c->receiverId2,
@@ -2211,7 +2211,7 @@ static void modesReadFromClient(struct client *c) {
                         char sample[64];
                         hexEscapeString(som, sample, sizeof(sample));
                         sample[sizeof(sample) - 1] = '\0';
-                        if (c->proxy_string[0] != '\0')
+                        if (Modes.netIngest && c->proxy_string[0] != '\0')
                             fprintf(stderr, "Garbage: Close: %s sample: %s\n", c->proxy_string, sample);
                         else
                             fprintf(stderr, "Garbage: Close: %s port %s sample: %s\n", c->host, c->port, sample);
