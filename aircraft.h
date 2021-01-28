@@ -21,15 +21,15 @@ uint32_t dbHash(uint32_t addr);
 dbEntry *dbGet(uint32_t addr, dbEntry **index);
 void dbPut(uint32_t addr, dbEntry **index, dbEntry *d);
 
-void apiClear();
-void apiAdd(struct aircraft *a);
-void apiSort();
-int apiReq(double latMin, double latMax, double lonMin, double lonMax, uint32_t *scratch);
+int apiUpdate(struct craftArray *ca);
+struct char_buffer apiReq(double latMin, double latMax, double lonMin, double lonMax, int maxLen);
 
-struct av {
+struct apiEntry {
     uint32_t addr;
     int32_t lat;
     int32_t lon;
+    int jsonLen;
+    char json[1024];
 };
 
 struct range {

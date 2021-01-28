@@ -441,9 +441,9 @@ struct _Modes
     struct net_writer fatsv_out; // FATSV-format output
     struct net_writer api_out; // some sort of api, who knows really?
     int api; // enable api output
-    int avLen;
-    struct av *byLat;
-    struct av *byLon;
+    int apiLen;
+    int apiAlloc;
+    struct apiEntry *apiList;
 
     // Configuration
     int8_t nfix_crc; // Number of crc bit error(s) to correct

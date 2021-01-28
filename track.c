@@ -2177,22 +2177,12 @@ void miscStuff() {
         Modes.next_api_update = now + 1 * SECONDS;
         struct timespec watch;
         startWatch(&watch);
-        apiClear();
-        struct craftArray *ca = &Modes.aircraftActive;
-        for (int i = 0; i < ca->len; i++) {
-            struct aircraft *a = ca->list[i];
 
-            if (a == NULL)
-                continue;
-            apiAdd(a);
+        int n = 0;
+        for (int i = 0; i < 1; i++) {
+            n = apiUpdate(&Modes.aircraftActive);
         }
-        apiSort();
 
-        uint32_t scratch[3 * API_INDEX_MAX];
-        int n = apiReq(-90, 90, -180, 180, scratch);
-        for (int i = 0; i < 100000; i++) {
-            n = apiReq(-90, 90, -10, 10, scratch);
-        }
         uint64_t elapsed = stopWatch(&watch);
         fprintf(stderr, "api req took: %.5f s, got %d aircraft!\n", elapsed / 1000.0, n);
     }

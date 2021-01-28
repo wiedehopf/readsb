@@ -85,40 +85,58 @@ struct aircraft *aircraftCreate(struct modesMessage *mm) {
 
     return a;
 }
-void apiClear() {
-    Modes.avLen = 0;
+
+static void apiClear(int len) {
+    Modes.apiLen = 0;
+    if (Modes.apiAlloc < len) {
+        Modes.apiAlloc = len + 128;
+        free(Modes.apiList);
+        Modes.apiList = malloc(Modes.apiAlloc * sizeof(struct apiEntry));
+        if (!Modes.apiList) {
+            fprintf(stderr, "apiList alloc: out of memory!\n");
+            exit(1);
+        }
+    }
 }
 
-void apiAdd(struct aircraft *a) {
+static inline void apiAdd(struct aircraft *a, uint64_t now) {
     if (!trackDataValid(&a->position_valid))
         return;
 
-    if (Modes.avLen > API_INDEX_MAX) {
-        fprintf(stderr, "too many aircraft!.\n");
-        return;
+    struct apiEntry entry;
+
+    entry.addr = a->addr;
+    entry.lat = (int32_t) (a->lat * 1E6);
+    entry.lon = (int32_t) (a->lon * 1E6);
+
+    char *p = entry.json;
+    char *end = p + sizeof(entry.json);
+
+    p = sprintAircraftObject(p, end, a, now, 0);
+
+    if (p >= end) {
+        fprintf(stderr, "buffer full apiAdd %p %p\n", p, end);
+        entry.jsonLen = 0;
+    } else {
+        entry.jsonLen = p - entry.json;
     }
-    struct av byLon;
 
-    byLon.addr = a->addr;
-    byLon.lat = (int32_t) (a->lat * 1E6);
-    byLon.lon = (int32_t) (a->lon * 1E6);
+    Modes.apiList[Modes.apiLen] = entry;
 
-    Modes.byLon[Modes.avLen] = byLon;
-
-    Modes.avLen++;
+    Modes.apiLen++;
 }
 
 static int compareLon(const void *p1, const void *p2) {
-    struct av *a1 = (struct av*) p1;
-    struct av *a2 = (struct av*) p2;
+    struct apiEntry *a1 = (struct apiEntry*) p1;
+    struct apiEntry *a2 = (struct apiEntry*) p2;
     return (a1->lon > a2->lon) - (a1->lon < a2->lon);
 }
 
-void apiSort() {
-    qsort(Modes.byLon, Modes.avLen, sizeof(struct av), compareLon);
+static void apiSort() {
+    qsort(Modes.apiList, Modes.apiLen, sizeof(struct apiEntry), compareLon);
 }
 
-static struct range findLonRange(int32_t ref_from, int32_t ref_to, struct av *list, int len) {
+static struct range findLonRange(int32_t ref_from, int32_t ref_to, struct apiEntry *list, int len) {
     struct range res = {0, 0};
     if (len == 0 || ref_from > ref_to)
         return res;
@@ -160,25 +178,62 @@ static struct range findLonRange(int32_t ref_from, int32_t ref_to, struct av *li
     return res;
 }
 
-int apiReq(double latMin, double latMax, double lonMin, double lonMax, uint32_t *scratch) {
+struct char_buffer apiReq(double latMin, double latMax, double lonMin, double lonMax, int maxLen) {
 
     int32_t lat1 = (int32_t) (latMin * 1E6);
     int32_t lat2 = (int32_t) (latMax * 1E6);
     int32_t lon1 = (int32_t) (lonMin * 1E6);
     int32_t lon2 = (int32_t) (lonMax * 1E6);
 
-    struct range rangeLon = findLonRange(lon1, lon2, Modes.byLon, Modes.avLen);
+    struct range rangeLon = findLonRange(lon1, lon2, Modes.apiList, Modes.apiLen);
 
-    int k = 0;
+    struct char_buffer cb = { 0 };
+
+    int alloc = maxLen * sizeof(struct apiEntry);
+    cb.buffer = malloc(alloc);
+
+    char *p = cb.buffer;
+    char *end = cb.buffer + alloc;
+    p = safe_snprintf(p, end, "{\"aircraft\":[");
     for (int j = rangeLon.from; j < rangeLon.to; j++) {
-        struct av a = Modes.byLon[j];
-        if (a.lat >= lat1 && a.lat <= lat2) {
-            scratch[k++] = a.addr;
+        struct apiEntry e = Modes.apiList[j];
+        if (e.lat >= lat1 && e.lat <= lat2) {
+            *p++ = '\n';
+            memcpy(p, e.json, e.jsonLen);
+            p += e.jsonLen;
+            *p++ = ',';
         }
     }
-    scratch[k] = 0;
+    if (p > cb.buffer + 1)
+        p--; // remove last comma
+    p = safe_snprintf(p, end, "\n]}\n");
 
-    return k;
+    cb.len = p - cb.buffer;
+
+    return cb;
+}
+
+int apiUpdate(struct craftArray *ca) {
+
+    apiClear(ca->len);
+
+    uint64_t now = mstime();
+    for (int i = 0; i < ca->len; i++) {
+        struct aircraft *a = ca->list[i];
+
+        if (a == NULL)
+            continue;
+        apiAdd(a, now);
+    }
+    apiSort();
+
+    struct char_buffer result;
+
+    for (int i = 0; i < 10000; i++) {
+        result = apiReq(-90, 90, -10, 10, ca->len);
+        writeJsonToFile(Modes.json_dir, "apiTest.json", result);
+    }
+    return result.len;
 }
 
 void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {

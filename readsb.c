@@ -297,11 +297,6 @@ static void modesInit(void) {
         Modes.net_connector_delay = 30 * 1000;
     }
 
-    if (Modes.api) {
-        Modes.byLat = malloc(API_INDEX_MAX * sizeof(struct av));
-        Modes.byLon = malloc(API_INDEX_MAX * sizeof(struct av));
-    }
-
     // Prepare error correction tables
     modesChecksumInit(Modes.nfix_crc);
     icaoFilterInit();
@@ -681,8 +676,7 @@ static void cleanup_and_exit(int code) {
     free(Modes.scratch);
     free(Modes.dev_name);
     free(Modes.filename);
-    free(Modes.byLat);
-    free(Modes.byLon);
+    free(Modes.apiList);
     free(Modes.prom_file);
     free(Modes.json_dir);
     free(Modes.globe_history_dir);
