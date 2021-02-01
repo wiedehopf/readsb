@@ -854,13 +854,15 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 Modes.quiet = 0;
             break;
         case OptShowOnly:
-            Modes.show_only = (uint32_t) strtoul(arg, NULL, 16);
+            Modes.show_only = (uint32_t) strtol(arg, NULL, 16);
             Modes.interactive = 0;
             Modes.quiet = 1;
             //Modes.cpr_focus = Modes.show_only;
+            fprintf(stderr, "show-only: %06x\n", Modes.show_only);
             break;
         case OptFilterDF:
-            Modes.filterDF = (uint8_t) strtoul(arg, NULL, 10);
+            Modes.filterDF = (int8_t) strtol(arg, NULL, 10);
+            fprintf(stderr, "filter-DF: %d\n", Modes.filterDF);
             break;
         case OptMlat:
             Modes.mlat = 1;
