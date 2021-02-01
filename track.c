@@ -2091,6 +2091,7 @@ void trackPeriodicUpdate() {
         }
         Modes.next_remove_stale = now + 1 * SECONDS;
     }
+    int64_t elapsed1 = stopWatch(&watch);
 
     if (Modes.mode_ac && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 2)
         trackMatchAC(now);
@@ -2108,13 +2109,13 @@ void trackPeriodicUpdate() {
     receiverTimeout((upcount % nParts), nParts, now);
 
     end_monotonic_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
-    int64_t elapsed = stopWatch(&watch);
+    int64_t elapsed2 = stopWatch(&watch);
 
     unlockThreads();
 
     static uint64_t antiSpam;
-    if (elapsed > 50 && now > antiSpam + 30 * SECONDS) {
-        fprintf(stderr, "<3>High load: removeStale took %"PRIu64" ms! Suppressing for 30 seconds\n", elapsed);
+    if (elapsed1 + elapsed2 > 60 && now > antiSpam + 30 * SECONDS) {
+        fprintf(stderr, "<3>High load: removeStale took %"PRIi64"/%"PRIi64" ms! upcount: %d stats: %d (suppressing for 30 seconds)\n", elapsed1, elapsed2, (int) (upcount % (1 * SECONDS / PERIODIC_UPDATE)), Modes.updateStats);
         antiSpam = now;
     }
 
