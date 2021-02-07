@@ -252,7 +252,7 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
         new->dbFlags = a->dbFlags;
     }
 
-    new->messages = a->messages;
+    new->messages = (uint16_t) a->messages;
 
     new->position_valid = posReliable(a);
 

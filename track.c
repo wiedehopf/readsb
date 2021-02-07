@@ -1187,7 +1187,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
     // reset to 100000 on overflow ... avoid any low message count checks
     if (a->messages == UINT32_MAX)
-        a->messages = 100000;
+        a->messages = UINT16_MAX + 1;
 
     a->messages++;
 
