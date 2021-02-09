@@ -1655,7 +1655,7 @@ end_alt:
         }
     }
 
-    if (mm->sbs_in && mm->sbs_pos_valid) {
+    if (mm->sbs_in && mm->sbs_pos_valid && !Modes.debug_rough_receiver_location) {
         int old_jaero = 0;
         if (mm->source == SOURCE_JAERO && a->trace_len > 0) {
             for (int i = max(0, a->trace_len - 10); i < a->trace_len; i++) {
@@ -1690,14 +1690,18 @@ end_alt:
         double reflon;
         struct receiver *r = receiverGetReference(mm->receiverId, &reflat, &reflon, a, 1);
         if (r) {
-            a->rr_lat = reflat;
-            a->rr_lon = reflon;
+            if (a->rr_seen > now - 30 * SECONDS) {
+                a->rr_lat = 0.25 * reflat + 0.75 * a->rr_lat;
+                a->rr_lon = 0.25 * reflon + 0.75 * a->rr_lon;
+            } else {
+                a->rr_lat = reflat;
+                a->rr_lon = reflon;
+            }
             a->rr_seen = now;
             if (Modes.debug_rough_receiver_location
-                    && now > a->seenPosReliable + 5 * MINUTES
-                    && accept_data(&a->position_valid, SOURCE_MODE_AC, mm, 2)) {
+                    && accept_data(&a->position_valid, SOURCE_SBS, mm, 2)) {
                 a->addrtype_updated = now;
-                a->addrtype = ADDR_MODE_S;
+                a->addrtype = ADDR_OTHER;
                 mm->decoded_lat = reflat;
                 mm->decoded_lon = reflon;
                 incrementReliable(a, mm, now, 2);
