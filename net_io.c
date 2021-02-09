@@ -1655,9 +1655,9 @@ void sendBeastSettings(int fd, const char *settings) {
 }
 static int handleApiRequest(struct client *c, char *p, int remote, uint64_t now) {
     MODES_NOTUSED(now);
-    p = p;
-    remote = remote;
-    c = c;
+    MODES_NOTUSED(p);
+    MODES_NOTUSED(remote);
+    MODES_NOTUSED(c);
 
     //static uint32_t scratch[3 * API_INDEX_MAX];
 
@@ -2418,6 +2418,7 @@ static void modesReadFromClient(struct client *c) {
     }
 }
 
+/*
 static inline unsigned unsigned_difference(unsigned v1, unsigned v2) {
     return (v1 > v2) ? (v1 - v2) : (v2 - v1);
 }
@@ -2426,6 +2427,7 @@ static inline float heading_difference(float h1, float h2) {
     float d = fabs(h1 - h2);
     return (d < 180) ? d : (360 - d);
 }
+*/
 
 const char *airground_enum_string(airground_t ag) {
     switch (ag) {

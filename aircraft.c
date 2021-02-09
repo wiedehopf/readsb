@@ -388,9 +388,9 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
 
 // rudimentary sanitization so the json output hopefully won't be invalid
 static inline void sanitize(char *str, unsigned len) {
-    char b2 = (1<<7) + (1<<6); // 2 byte code or more
-    char b3 = (1<<7) + (1<<6) + (1<<5); // 3 byte code or more
-    char b4 = (1<<7) + (1<<6) + (1<<5) + (1<<4); // 4 byte code
+    unsigned char b2 = (1<<7) + (1<<6); // 2 byte code or more
+    unsigned char b3 = (1<<7) + (1<<6) + (1<<5); // 3 byte code or more
+    unsigned char b4 = (1<<7) + (1<<6) + (1<<5) + (1<<4); // 4 byte code
 
     if (len >= 3 && (str[len - 3] & b4) == b4) {
         //fprintf(stderr, "%c\n", str[len - 3]);
