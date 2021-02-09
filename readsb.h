@@ -826,7 +826,7 @@ enum {
     OptRaw,
     OptPreambleThreshold,
     OptModeAc,
-    OptNoModeAcAuto,
+    OptModeAcAuto,
     OptForwardMlat,
     OptLat,
     OptLon,

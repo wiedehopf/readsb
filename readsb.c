@@ -137,7 +137,6 @@ static void modesInitConfig(void) {
     Modes.json_interval = 1000;
     Modes.json_location_accuracy = 1;
     Modes.maxRange = 1852 * 300; // 300NM default max range
-    Modes.mode_ac_auto = 0;
     Modes.nfix_crc = 1;
     Modes.biastee = 0;
     Modes.filter_persistence = 8;
@@ -835,10 +834,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptModeAc:
             Modes.mode_ac = 1;
-            Modes.mode_ac_auto = 0;
             break;
-        case OptNoModeAcAuto:
-            Modes.mode_ac_auto = 0;
+        case OptModeAcAuto:
+            Modes.mode_ac_auto = 1;
             break;
         case OptNetOnly:
             Modes.net = 1;
@@ -1248,6 +1246,11 @@ int parseCommandLine(int argc, char **argv) {
 
 static void configAfterParse() {
     Modes.trackExpireMax = Modes.trackExpireJaero + TRACK_EXPIRE_LONG + 1 * MINUTES;
+
+
+    if (Modes.mode_ac)
+        Modes.mode_ac_auto = 0;
+
 
     if (Modes.viewadsb && Modes.net_connectors_count == 0) {
         Modes.net_connectors_count++; // activate the default net-connector for viewadsb
