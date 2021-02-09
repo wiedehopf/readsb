@@ -1690,9 +1690,9 @@ end_alt:
         double reflon;
         struct receiver *r = receiverGetReference(mm->receiverId, &reflat, &reflon, a, 1);
         if (r) {
-            if (a->rr_seen > now - 30 * SECONDS) {
-                a->rr_lat = 0.25 * reflat + 0.75 * a->rr_lat;
-                a->rr_lon = 0.25 * reflon + 0.75 * a->rr_lon;
+            if (a->rr_seen > now - 60 * SECONDS) {
+                a->rr_lat = 0.1 * reflat + 0.9 * a->rr_lat;
+                a->rr_lon = 0.1 * reflon + 0.9 * a->rr_lon;
             } else {
                 a->rr_lat = reflat;
                 a->rr_lon = reflon;
@@ -1702,10 +1702,10 @@ end_alt:
                     && accept_data(&a->position_valid, SOURCE_SBS, mm, 2)) {
                 a->addrtype_updated = now;
                 a->addrtype = ADDR_OTHER;
-                mm->decoded_lat = reflat;
-                mm->decoded_lon = reflon;
+                mm->decoded_lat = a->rr_lat;
+                mm->decoded_lon = a->rr_lon;
                 incrementReliable(a, mm, now, 2);
-                set_globe_index(a, globe_index(reflat, reflon));
+                set_globe_index(a, globe_index(mm->decoded_lat, mm->decoded_lon));
                 setPosition(a, mm, now);
             }
         }
