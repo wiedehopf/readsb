@@ -656,6 +656,13 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
             p = safe_snprintf(p, end, ",\n\"desc\":\"%.*s\"", (int) sizeof(a->typeLong), a->typeLong);
         if (a->dbFlags)
             p = safe_snprintf(p, end, ",\n\"dbFlags\":%u", a->dbFlags);
+        dbEntry *e = dbGet(a->addr, Modes.dbIndex);
+        if (e) {
+            if (e->ownOp[0])
+                p = safe_snprintf(p, end, ",\n\"ownOp\":\"%.*s\"", (int) sizeof(e->ownOp), e->ownOp);
+            if (e->year[0])
+                p = safe_snprintf(p, end, ",\n\"year\":\"%.*s\"", (int) sizeof(e->year), e->year);
+        }
         if (p == regInfo)
             p = safe_snprintf(p, end, ",\n\"noRegData\":true");
     }

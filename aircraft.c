@@ -427,8 +427,12 @@ static char *sprintDB(char *p, char *end, dbEntry *d) {
         p = safe_snprintf(p, end, "\"desc\":\"%.*s\",", (int) sizeof(d->typeLong), d->typeLong);
     if (d->dbFlags)
         p = safe_snprintf(p, end, "\"dbFlags\":%u,", d->dbFlags);
+    if (d->ownOp[0])
+        p = safe_snprintf(p, end, "\"ownOp\":\"%.*s\",", (int) sizeof(d->ownOp), d->ownOp);
+    if (d->year[0])
+        p = safe_snprintf(p, end, "\"year\":\"%.*s\",", (int) sizeof(d->year), d->year);
     if (p == regInfo)
-        p = safe_snprintf(p, end, "\"noRegData\":true");
+        p = safe_snprintf(p, end, "\"noRegData\":true,");
     if (*(p-1) == ',')
         p--;
     p = safe_snprintf(p, end, "},");
@@ -476,6 +480,7 @@ static inline int nextToken(char delim, char **sot, char **eot, char **eol) {
 }
 
 int dbUpdate() {
+    gzFile gzfp = NULL;
     struct char_buffer cb = {0};
     char *filename = Modes.db_file;
     if (!filename || !strlen(filename) || !strcmp(filename, "none"))
@@ -494,20 +499,10 @@ int dbUpdate() {
     }
     uint64_t modTime = fileinfo.st_mtim.tv_sec;
 
-
     if (Modes.dbModificationTime == modTime)
         goto DBU0;
 
-    int alloc = (1<<20);
-    Modes.db2 = malloc(alloc * sizeof(dbEntry));
-    Modes.db2Index = calloc(DB_BUCKETS, sizeof(void*));
-
-    if (!Modes.db2 || !Modes.db2Index) {
-        fprintf(stderr, "db update error: malloc failure!\n");
-        goto DBU0;
-    }
-
-    gzFile gzfp = gzdopen(fd, "r");
+    gzfp = gzdopen(fd, "r");
     if (!gzfp) {
         fprintf(stderr, "db update error: gzdopen failed.\n");
         goto DBU0;
@@ -517,19 +512,31 @@ int dbUpdate() {
     cb = readWholeGz(gzfp, filename);
     if (!cb.buffer) {
         fprintf(stderr, "readWholeGz failed.\n");
-        gzclose(gzfp);
         goto DBU0;
     }
     if (cb.len < 1000) {
         fprintf(stderr, "database file very small, bailing out of dbUpdate.\n");
-        gzclose(gzfp);
+        goto DBU0;
+    }
+
+    int alloc = 0;
+    for (uint32_t i = 0; i < cb.len; i++) {
+        if (cb.buffer[i] == '\n')
+            alloc++;
+    }
+    Modes.db2 = malloc(alloc * sizeof(dbEntry));
+    Modes.db2Index = calloc(DB_BUCKETS, sizeof(void*));
+
+    if (!Modes.db2 || !Modes.db2Index) {
+        fprintf(stderr, "db update error: malloc failure!\n");
         goto DBU0;
     }
 
     char *eob = cb.buffer + cb.len;
     char *sol = cb.buffer;
     char *eol;
-    for (int i = 0; eob > sol && (eol = memchr(sol, '\n', eob - sol)); sol = eol + 1) {
+    int i;
+    for (i = 0; eob > sol && (eol = memchr(sol, '\n', eob - sol)); sol = eol + 1) {
 
         char *sot;
         char *eot = sol - 1; // this pointer must not be dereferenced, nextToken will increment it.
@@ -542,24 +549,30 @@ int dbUpdate() {
         if (curr->addr == 0)
             continue;
 
-        if (!nextToken(';', &sot, &eot, &eol)) continue;
-        memcpy(curr->registration, sot, min(sizeof(curr->registration), eot - sot));
-        sanitize(curr->registration, sizeof(curr->registration));
+
+#define copyDetail(d) do { memcpy(curr->d , sot, min(sizeof(curr->d ), eot - sot)); sanitize(curr->d , sizeof(curr->d )); } while (0)
 
         if (!nextToken(';', &sot, &eot, &eol)) continue;
-        memcpy(curr->typeCode, sot, min(sizeof(curr->typeCode), eot - sot));
-        sanitize(curr->typeCode, sizeof(curr->typeCode));
+        copyDetail(registration);
+
+        if (!nextToken(';', &sot, &eot, &eol)) continue;
+        copyDetail(typeCode);
 
         if (!nextToken(';', &sot, &eot, &eol)) continue;
         for (int j = 0; j < 16 && sot < eot; j++, sot++)
             curr->dbFlags |= ((*sot == '1') << j);
 
 
-        // nextToken wouldn't work as there is no trailing ;, set sot / eot by hand
-        sot = eot + 1;
-        eot = eol;
-        memcpy(curr->typeLong, sot, min(sizeof(curr->typeLong), eot - sot));
-        sanitize(curr->typeLong, sizeof(curr->typeLong));
+        if (!nextToken(';', &sot, &eot, &eol)) continue;
+        copyDetail(typeLong);
+
+        if (!nextToken(';', &sot, &eot, &eol)) continue;
+        copyDetail(year);
+
+        if (!nextToken(';', &sot, &eot, &eol)) continue;
+        copyDetail(ownOp);
+
+#undef copyDetail
 
         if (false) // debugging output
             fprintf(stdout, "%06X;%.12s;%.4s;%c%c;%.54s\n",
@@ -574,6 +587,11 @@ int dbUpdate() {
         // add to hashtable
         dbPut(curr->addr, Modes.db2Index, curr);
     }
+
+    if (i < 1) {
+        fprintf(stderr, "db update error: DB has no entries, maybe old / incorrect format?!\n");
+        goto DBU0;
+    }
     //fflush(stdout);
 
     gzclose(gzfp);
@@ -582,6 +600,8 @@ int dbUpdate() {
     writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
     return 1;
 DBU0:
+    if (gzfp)
+        gzclose(gzfp);
     free(cb.buffer);
     free(Modes.db2);
     free(Modes.db2Index);
