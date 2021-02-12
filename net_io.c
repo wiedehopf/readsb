@@ -1303,7 +1303,7 @@ basestation_invalid:
 //
 // Write SBS output to TCP clients
 //
-static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a) {
+static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, struct net_writer *writer) {
     char *p;
     struct timespec now;
     struct tm stTime_receive, stTime_now;
@@ -1313,7 +1313,7 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a) {
     if (mm->addr & MODES_NON_ICAO_ADDRESS)
         return;
 
-    p = prepareWrite(&Modes.sbs_out, 200);
+    p = prepareWrite(writer, 200);
     if (!p)
         return;
 
@@ -1548,10 +1548,11 @@ void modesQueueOutput(struct modesMessage *mm, struct aircraft *a) {
         return;
     }
 
-    if (a && !is_mlat && mm->correctedbits < 2) {
-        // Don't ever forward 2-bit-corrected messages via SBS output.
-        // Don't ever forward mlat messages via SBS output.
-        modesSendSBSOutput(mm, a);
+    if (a) {
+        if (!is_mlat || Modes.forward_mlat)
+            modesSendSBSOutput(mm, a, &Modes.sbs_out);
+        if (is_mlat)
+            modesSendSBSOutput(mm, a, &Modes.sbs_out_mlat);
     }
 
     if (!is_mlat && (Modes.net_verbatim || mm->correctedbits < 2)) {
