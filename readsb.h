@@ -399,6 +399,9 @@ struct _Modes
     pthread_cond_t miscCond;
     int8_t miscThreadRunning;
 
+    pthread_t sdrCancelThread;
+    pthread_t sdrCloseThread;
+
     unsigned first_free_buffer; // Entry in mag_buffers that will next be filled with input.
     unsigned first_filled_buffer; // Entry in mag_buffers that has valid data and will be demodulated next. If equal to next_free_buffer, there is no unprocessed data.
     unsigned trailing_samples; // extra trailing samples in magnitude buffers

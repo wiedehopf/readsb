@@ -556,7 +556,7 @@ static void *decodeThreadEntryPoint(void *arg) {
                 if (--watchdogCounter <= 0) {
                     log_with_timestamp("No data received from the SDR for a long time, it may have wedged, exiting!");
                     Modes.exit = 1;
-                    sdrCancel();
+                    break;
                 }
             }
 
@@ -597,19 +597,39 @@ static void *decodeThreadEntryPoint(void *arg) {
 
         pthread_mutex_unlock(&Modes.data_mutex);
 
-        log_with_timestamp("Waiting for receive thread termination");
-        int err = 0;
-        int count = 100;
-        // Wait on reader thread exit
-        while (count-- > 0 && (err = pthread_tryjoin_np(Modes.reader_thread, NULL))) {
-            msleep(100);
+        {
+            // avoid synchronous call in particular of the rtl-sdr cancel call ... as apparently it can hang.
+            // no need to join this thread ... we don't want to wait for it.
+            pthread_create(&Modes.sdrCancelThread, NULL, sdrCancel, NULL);
+
+            log_with_timestamp("Waiting for receive thread termination");
+            int err = 0;
+            int count = 100;
+            // Wait on reader thread exit
+            while (count-- > 0 && (err = pthread_tryjoin_np(Modes.reader_thread, NULL))) {
+                msleep(100);
+            }
+            if (err) {
+                log_with_timestamp("Receive thread termination failed, will raise SIGKILL on exit!");
+                Modes.exit = SIGKILL;
+            } else {
+                pthread_cond_destroy(&Modes.data_cond); // Thread cleanup - only after the reader thread is dead!
+                pthread_mutex_destroy(&Modes.data_mutex);
+            }
         }
-        if (err) {
-            log_with_timestamp("Receive thread termination failed, will raise SIGKILL on exit!");
-            Modes.exit = SIGKILL;
-        } else {
-            pthread_cond_destroy(&Modes.data_cond); // Thread cleanup - only after the reader thread is dead!
-            pthread_mutex_destroy(&Modes.data_mutex);
+        {
+            // avoid calling sdrClose synchrous as well ... we don't trust those rtl-sdr lib calls to not hang
+            pthread_create(&Modes.sdrCloseThread, NULL, sdrClose, NULL);
+            // Wait on sdrClose
+            int err = 0;
+            int count = 100;
+            while (count-- > 0 && (err = pthread_tryjoin_np(Modes.sdrCloseThread, NULL))) {
+                msleep(100);
+            }
+            if (err) {
+                log_with_timestamp("sdrClose timed out, will raise SIGKILL on exit!");
+                Modes.exit = SIGKILL;
+            }
         }
     }
 
@@ -1531,7 +1551,6 @@ int main(int argc, char **argv) {
     if (Modes.exit == SIGKILL) {
         raise(SIGKILL);
     }
-    sdrClose();
     if (Modes.exit != 1) {
         log_with_timestamp("Abnormal exit.");
         cleanup_and_exit(1);

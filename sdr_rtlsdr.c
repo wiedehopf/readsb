@@ -279,9 +279,6 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
 
     // Lock the data buffer variables before accessing them
     pthread_mutex_lock(&Modes.data_mutex);
-    if (Modes.exit) {
-        rtlsdr_cancel_async(RTLSDR.dev); // ask our caller to exit
-    }
 
     next_free_buffer = (Modes.first_free_buffer + 1) % MODES_MAG_BUFFERS;
     outbuf = &Modes.mag_buffers[Modes.first_free_buffer];
@@ -379,6 +376,7 @@ void rtlsdrRun() {
         fprintf(stderr,"rtlsdr_read_async returned unexpectedly, probably lost the USB device, bailing out");
     }
 }
+
 void rtlsdrCancel() {
     rtlsdr_cancel_async(RTLSDR.dev); // interrupt read_async
 }

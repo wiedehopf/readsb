@@ -157,10 +157,14 @@ void sdrRun() {
     return current_handler()->run();
 }
 
-void sdrCancel() {
-    return current_handler()->cancel();
+void *sdrCancel(void *arg) {
+    MODES_NOTUSED(arg);
+    current_handler()->cancel();
+    pthread_exit(NULL);
 }
 
-void sdrClose() {
+void *sdrClose(void *arg) {
+    MODES_NOTUSED(arg);
     current_handler()->close();
+    pthread_exit(NULL);
 }
