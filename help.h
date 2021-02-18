@@ -122,6 +122,7 @@ static struct argp_option optionsReadsb[] = {
     {"net-api-port", OptNetApiPorts, "<ports>", 0, "TCP API listen port (only for exactly one client, needs an external wrapper program communicating via this port) (work in progress) (default: 0)", 2},
     {"net-beast-reduce-out-port", OptNetBeastReducePorts, "<ports>", 0, "TCP BeastReduce output listen ports (default: 0)", 2},
     {"net-beast-reduce-interval", OptNetBeastReduceInterval, "<seconds>", 0, "BeastReduce position update interval, longer means less data (default: 0.125, valid range: 0.000 - 14.999)", 2},
+    {"net-sbs-reduce", OptNetSbsReduce, 0, 0, "Apply beast reduce logic and interval to SBS outputs", 2},
     {"net-receiver-id", OptNetReceiverId, 0, 0, "forward receiver ID", 2},
     {"net-ingest", OptNetIngest, 0, 0, "primary ingest node", 2},
     {"net-garbage", OptGarbage, "<ports>", 0, "timeout receivers, output messages from timed out receivers as beast on <ports>", 2},

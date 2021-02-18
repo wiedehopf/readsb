@@ -487,6 +487,7 @@ struct _Modes
     int8_t net_only; // Enable just networking
     int8_t jsonLongtype;
     int8_t viewadsb;
+    int8_t sbsReduce; // apply beast reduce logic to SBS messages
 
     int8_t filterDF; // Only show messages with this DF type
 
@@ -882,6 +883,7 @@ enum {
     OptNetBoPorts,
     OptNetBeastReducePorts,
     OptNetBeastReduceInterval,
+    OptNetSbsReduce,
     OptNetVRSPorts,
     OptNetVRSInterval,
     OptNetJsonPorts,

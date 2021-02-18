@@ -1137,20 +1137,7 @@ static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now)
 
     if (out) {
         memcpy(out, line, line_len);
-        //fprintf(stderr, "%s", out);
-        out += line_len;
-        *out++ = '\r';
-        *out++ = '\n';
-
-
-        if (mm.source == SOURCE_SBS)
-            completeWrite(&Modes.sbs_out_replay, out);
-        if (mm.source == SOURCE_MLAT)
-            completeWrite(&Modes.sbs_out_mlat, out);
-        if (mm.source == SOURCE_JAERO)
-            completeWrite(&Modes.sbs_out_jaero, out);
-        if (mm.source == SOURCE_PRIO)
-            completeWrite(&Modes.sbs_out_prio, out);
+        // completeWrite happens at end of function
     }
 
 
@@ -1285,6 +1272,22 @@ static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now)
     useModesMessage(&mm);
 
     Modes.stats_current.remote_received_basestation_valid++;
+
+    // don't write SBS message if sbsReduce is active and this message didn't have useful data
+    if (out && (!Modes.sbsReduce || mm.reduce_forward)) {
+        out += line_len;
+        *out++ = '\r';
+        *out++ = '\n';
+
+        if (mm.source == SOURCE_SBS)
+            completeWrite(&Modes.sbs_out_replay, out);
+        if (mm.source == SOURCE_MLAT)
+            completeWrite(&Modes.sbs_out_mlat, out);
+        if (mm.source == SOURCE_JAERO)
+            completeWrite(&Modes.sbs_out_jaero, out);
+        if (mm.source == SOURCE_PRIO)
+            completeWrite(&Modes.sbs_out_prio, out);
+    }
 
     return 0;
 
@@ -1548,7 +1551,7 @@ void modesQueueOutput(struct modesMessage *mm, struct aircraft *a) {
         return;
     }
 
-    if (a) {
+    if (a && (!Modes.sbsReduce || mm->reduce_forward)) {
         if (!is_mlat || Modes.forward_mlat)
             modesSendSBSOutput(mm, a, &Modes.sbs_out);
         if (is_mlat)

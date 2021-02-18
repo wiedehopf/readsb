@@ -1034,6 +1034,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             if (Modes.net_output_beast_reduce_interval > 15000)
                 Modes.net_output_beast_reduce_interval = 15000;
             break;
+        case OptNetSbsReduce:
+            Modes.sbsReduce = 1;
+            break;
         case OptNetBindAddr:
             free(Modes.net_bind_address);
             Modes.net_bind_address = strdup(arg);
