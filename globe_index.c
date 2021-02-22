@@ -1169,20 +1169,21 @@ static void tracePrune(struct aircraft *a, uint64_t now) {
 
     uint64_t keep_after = now - Modes.keep_traces;
 
-    if (a->trace_len == TRACE_SIZE || a->trace->timestamp < keep_after - 20 * MINUTES)  {
-        int new_start = a->trace_len;
-
-        if (a->trace_len + TRACE_MARGIN >= TRACE_SIZE) {
-            new_start = TRACE_SIZE / 64 + TRACE_MARGIN;
-        } else {
-            for (int i = 0; i < a->trace_len; i++) {
-                struct state *state = &a->trace[i];
-                if (state->timestamp > keep_after) {
-                    new_start = i;
-                    break;
-                }
+    int new_start = -1;
+    if (a->trace_len + TRACE_MARGIN >= TRACE_SIZE) {
+        new_start = TRACE_SIZE / 64 + TRACE_MARGIN;
+    } else if (a->trace->timestamp < keep_after - 20 * MINUTES)  {
+        new_start = a->trace_len;
+        for (int i = 0; i < a->trace_len; i++) {
+            struct state *state = &a->trace[i];
+            if (state->timestamp > keep_after) {
+                new_start = i;
+                break;
             }
         }
+    }
+
+    if (new_start != -1) {
 
         if (new_start == a->trace_len) {
             traceCleanup(a);
