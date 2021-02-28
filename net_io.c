@@ -181,7 +181,8 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     struct client *c;
     uint64_t now = mstime();
 
-    anetNonBlock(Modes.aneterr, fd);
+    if (anetNonBlock(Modes.aneterr, fd) == ANET_ERR)
+        fprintf(stderr, "%s fd %d: Failed to set non-block: %s\n", service->descr, fd, Modes.aneterr);
 
     if (!service || fd == -1) {
         fprintf(stderr, "<3> FATAL: createGenericClient called with invalid parameters!\n");
@@ -516,7 +517,8 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
         }
 
         for (i = 0; i < nfds; ++i) {
-            anetNonBlock(Modes.aneterr, newfds[i]);
+            if (anetNonBlock(Modes.aneterr, newfds[i]) == ANET_ERR)
+                fprintf(stderr, "%s port %s: Failed to set non-block: %s\n", service->descr, buf, Modes.aneterr);
             fds[n++] = newfds[i];
         }
     }

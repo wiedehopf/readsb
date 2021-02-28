@@ -1157,7 +1157,7 @@ void traceRealloc(struct aircraft *a, int len) {
         fprintf(stderr, "Quite a long trace: %06x (%d).\n", a->addr, a->trace_len);
 }
 
-static void tracePrune(struct aircraft *a, uint64_t now) {
+static void tracePrune(struct aircraft *a, uint64_t now, int full) {
 
     if (a->trace_alloc == 0) {
         return;
@@ -1170,8 +1170,9 @@ static void tracePrune(struct aircraft *a, uint64_t now) {
     uint64_t keep_after = now - Modes.keep_traces;
 
     int new_start = -1;
-    if (a->trace_len + TRACE_MARGIN >= TRACE_SIZE) {
-        new_start = TRACE_SIZE / 64 + TRACE_MARGIN;
+    // throw out oldest values if approaching max trace size
+    if (full) {
+        new_start = TRACE_SIZE / 64 + 2 * TRACE_MARGIN;
     } else if (a->trace->timestamp < keep_after - 20 * MINUTES)  {
         new_start = a->trace_len;
         for (int i = 0; i < a->trace_len; i++) {
@@ -1185,7 +1186,7 @@ static void tracePrune(struct aircraft *a, uint64_t now) {
 
     if (new_start != -1) {
 
-        if (new_start == a->trace_len) {
+        if (new_start >= a->trace_len) {
             traceCleanup(a);
             // if the trace length was reduced to zero, the trace is deleted from run
             // it is not written again until a new position is received
@@ -1251,13 +1252,13 @@ void traceMaintenance(struct aircraft *a, uint64_t now) {
 
     //fprintf(stderr, "%06x\n", a->addr);
 
-    // throw out oldest values if approachign max trace size
+    // throw out oldest values if approaching max trace size
     if (a->trace_len + TRACE_MARGIN >= TRACE_SIZE) {
-        tracePrune(a, now);
+        tracePrune(a, now, 1);
     }
 
     if (now > a->trace_next_fw) {
-        tracePrune(a, now);
+        tracePrune(a, now, 0);
         if (Modes.json_globe_index) {
             a->trace_write = 1;
         } else {
