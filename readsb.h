@@ -301,7 +301,7 @@ typedef enum {
 #define TRACE_MARGIN 32
 #define STATE_BLOBS 256 // change naming scheme if increasing this
 #define IO_THREADS 8
-#define TRACE_THREADS 8
+#define TRACE_THREADS 6
 #define PERIODIC_UPDATE 200 // don't use values larger than 200 ... some hard-coded stuff
 
 #define STALE_THREADS 1

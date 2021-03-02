@@ -396,7 +396,7 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
 
     int part = 0;
     int writeJson = 0;
-    int n_parts = 4; // power of 2
+    int n_parts = 8; // power of 2
 
     uint64_t sleep_ms = Modes.json_interval / n_parts / 2;
     // write globe binCraft at double speed, globe json at normal speed

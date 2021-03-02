@@ -2045,11 +2045,11 @@ void *staleThreadEntryPoint(void *arg) {
 
 static void lockThreads() {
     pthread_mutex_lock(&Modes.jsonMutex);
+    pthread_mutex_lock(&Modes.miscMutex);
     for (int i = 0; i < TRACE_THREADS; i++) {
         pthread_mutex_lock(&Modes.jsonTraceMutex[i]);
     }
     pthread_mutex_lock(&Modes.jsonGlobeMutex);
-    pthread_mutex_lock(&Modes.miscMutex);
     pthread_mutex_lock(&Modes.decodeMutex);
 }
 
@@ -2057,10 +2057,10 @@ static void unlockThreads() {
     pthread_mutex_unlock(&Modes.decodeMutex);
     pthread_mutex_unlock(&Modes.miscMutex);
     pthread_mutex_unlock(&Modes.jsonGlobeMutex);
+    pthread_mutex_unlock(&Modes.jsonMutex);
     for (int i = 0; i < TRACE_THREADS; i++) {
         pthread_mutex_unlock(&Modes.jsonTraceMutex[i]);
     }
-    pthread_mutex_unlock(&Modes.jsonMutex);
 }
 
 //

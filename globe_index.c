@@ -679,16 +679,19 @@ void *jsonTraceThreadEntryPoint(void *arg) {
     srandom(get_seed());
 
     int part = 0;
-    int n_parts = 256; // power of 2
+    int n_parts = 250;
 
-    int thread_section_len = (AIRCRAFT_BUCKETS / TRACE_THREADS);
+    // adding 1 means we handle divisions with remainder gracefully
+    // just need to check that we don't go out of bounds
+    int thread_section_len = AIRCRAFT_BUCKETS / TRACE_THREADS + 1;
     int thread_start = thread * thread_section_len;
-    //int thread_end = thread_start + thread_section_len;
+    int thread_end = thread_start + thread_section_len;
+    if (thread_end > AIRCRAFT_BUCKETS)
+        thread_end = AIRCRAFT_BUCKETS;
     //fprintf(stderr, "%d %d\n", thread_start, thread_end);
-    int section_len = thread_section_len / n_parts;
 
-    // write each part every 10 seconds
-    uint64_t sleep_ms = 10 * SECONDS / n_parts;
+    // write each part every 5 seconds
+    uint64_t sleep_ms = 5 * SECONDS / n_parts;
 
     pthread_mutex_lock(&Modes.jsonTraceMutex[thread]);
 
@@ -699,8 +702,13 @@ void *jsonTraceThreadEntryPoint(void *arg) {
         //fprintf(stderr, "%d %d %d\n", part, start, end);
         uint64_t now = mstime();
 
+        // adding 1 means we handle divisions with remainder gracefully
+        // just need to check that we don't go out of bounds
+        int section_len = thread_section_len / n_parts + 1;
         int start = thread_start + part * section_len;
         int end = start + section_len;
+        if (end > thread_end)
+            end = thread_end;
 
         struct timespec start_time;
         start_cpu_timing(&start_time);
