@@ -1721,7 +1721,7 @@ void save_blob(int blob) {
 
     uint64_t magic = 0x7ba09e63757913eeULL;
 
-    int alloc = 16 * 1024 * 1024;
+    int alloc = max(16 * 1024 * 1024, (stateBytes(TRACE_SIZE) + stateAllBytes(TRACE_SIZE)));
     unsigned char *buf = malloc(alloc);
     unsigned char *p = buf;
 
@@ -1736,22 +1736,9 @@ void save_blob(int blob) {
             int size_state = stateBytes(a->trace_len);
             int size_all = stateAllBytes(a->trace_len);
 
-            if (p + size_state + size_all + sizeof(struct aircraft) < buf + alloc) {
 
-                memcpy(p, a, sizeof(struct aircraft));
-                p += sizeof(struct aircraft);
-                if (a->trace_len > 0) {
-                    memcpy(p, a->trace, size_state);
-                    p += size_state;
-                    memcpy(p, a->trace_all, size_all);
-                    p += size_all;
-                }
-            } else {
-                fprintf(stderr, "%06x: too big for save_blob!\n", a->addr);
-            }
-
-            if ((p - buf) + 4 * 1024 * 1024 > alloc) {
-                fprintf(stderr, "buffer almost full: loop_write %d KB\n", (int) ((p - buf) / 1024));
+            if (p + size_state + size_all + sizeof(struct aircraft) >= buf + alloc) {
+                //fprintf(stderr, "save_blob writing %d KB (buffer)\n", (int) ((p - buf) / 1024));
                 if (gzip) {
                     writeGz(gzfp, buf, p - buf, tmppath);
                 } else {
@@ -1760,13 +1747,25 @@ void save_blob(int blob) {
 
                 p = buf;
             }
+            if (p + size_state + size_all + sizeof(struct aircraft) >= buf + alloc) {
+                fprintf(stderr, "%06x: Couldn't write internal state, check save_blob code!\n", a->addr);
+            } else {
+                memcpy(p, a, sizeof(struct aircraft));
+                p += sizeof(struct aircraft);
+                if (a->trace_len > 0) {
+                    memcpy(p, a->trace, size_state);
+                    p += size_state;
+                    memcpy(p, a->trace_all, size_all);
+                    p += size_all;
+                }
+            }
         }
     }
     magic--;
     memcpy(p, &magic, sizeof(magic));
     p += sizeof(magic);
 
-    //fprintf(stderr, "end_write %d KB\n", (int) ((p - buf) / 1024));
+    //fprintf(stderr, "save_blob writing %d KB (end)\n", (int) ((p - buf) / 1024));
     if (gzip) {
         writeGz(gzfp, buf, p - buf, tmppath);
     } else {
