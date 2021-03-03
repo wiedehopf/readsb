@@ -1655,7 +1655,7 @@ end_alt:
         }
     }
 
-    if (mm->sbs_in && mm->sbs_pos_valid && !Modes.debug_rough_receiver_location) {
+    if (mm->sbs_in && mm->sbs_pos_valid) {
         int old_jaero = 0;
         if (mm->source == SOURCE_JAERO && a->trace_len > 0) {
             for (int i = max(0, a->trace_len - 10); i < a->trace_len; i++) {
