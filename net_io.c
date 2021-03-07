@@ -2288,8 +2288,13 @@ static void modesReadFromClient(struct client *c) {
                         ++som;
                         continue;
                     } else {
-                        // Not a valid beast message, skip 0x1a and try again
-                        ++som;
+                        // Not a valid beast message, skip 0x1a
+                        // Skip following byte as well:
+                        // either: 0x1a (likely not a start of message but rather escaped 0x1a)
+                        // or: any other char is skipped anyhow when looking for the next 0x1a
+                        som += 2;
+                        Modes.stats_current.remote_malformed_beast += 2;
+                        c->garbage += 2;
                         continue;
                     }
 
@@ -2417,7 +2422,11 @@ static void modesReadFromClient(struct client *c) {
 
         if (som > c->buf) { // We processed something - so
             c->buflen = eod - som; //     Update the unprocessed buffer length
-            memmove(c->buf, som, c->buflen); //     Move what's remaining to the start of the buffer
+            if (c->buflen <= 0) {
+                c->buflen = 0;
+            } else {
+                memmove(c->buf, som, c->buflen); //     Move what's remaining to the start of the buffer
+            }
         } else { // If no message was decoded process the next client
             return;
         }
