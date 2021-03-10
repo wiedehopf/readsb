@@ -1373,11 +1373,11 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, stru
 
     // Find current system time
     clock_gettime(CLOCK_REALTIME, &now);
-    localtime_r(&now.tv_sec, &stTime_now);
+    gmtime_r(&now.tv_sec, &stTime_now);
 
     // Find message reception time
     time_t received = (time_t) (mm->sysTimestampMsg / 1000);
-    localtime_r(&received, &stTime_receive);
+    gmtime_r(&received, &stTime_receive);
 
     // Fields 7 & 8 are the message reception time and date
     p += sprintf(p, "%04d/%02d/%02d,", (stTime_receive.tm_year + 1900), (stTime_receive.tm_mon + 1), stTime_receive.tm_mday);
