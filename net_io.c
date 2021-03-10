@@ -1510,7 +1510,7 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, stru
 
     p += sprintf(p, "\r\n");
 
-    completeWrite(&Modes.sbs_out, p);
+    completeWrite(writer, p);
 }
 
 static void send_sbs_heartbeat(struct net_service *service) {
