@@ -554,7 +554,7 @@ static void *decodeThreadEntryPoint(void *arg) {
                 // Nothing to process this time around.
                 pthread_mutex_unlock(&Modes.data_mutex);
                 if (--watchdogCounter <= 0) {
-                    log_with_timestamp("No data received from the SDR for a long time, it may have wedged, exiting!");
+                    fprintf(stderr, "<3> FATAL! SDR wedged, exiting! (check power supply / avoid using an USB extension / SDR might be defective)");
                     Modes.exit = 1;
                     break;
                 }
