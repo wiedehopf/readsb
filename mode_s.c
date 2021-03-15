@@ -275,6 +275,36 @@ static int correct_aa_field(uint32_t *addr, struct errorinfo *ei) {
 
 static unsigned char all_zeros[14] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
+
+// fix possible 1 bit errors in the DF type for DF17 only
+// return orig first msg byte if we changed the msgtype / first byte
+static inline __attribute__((always_inline)) unsigned char fixDF17msgtype(unsigned char *msg, int *msgtype) {
+    if (!Modes.fixDF) {
+        return 0;
+    }
+    unsigned char origByte;
+    switch (*msgtype) {
+        // possible values for msgtype with a single bit error of DF17
+        case 1: case 25: case 21: case 19: case 16:
+
+            origByte = msg[0];
+            msg[0] &= 7; // keep last 3 bits, set first 5 bits to 0
+            msg[0] |= (17 << 3); // set first 5 bits to a value of 17
+
+            int res = modesChecksum(msg, MODES_LONG_MSG_BITS);
+            if (res == 0) {
+                *msgtype = 17;
+                return origByte;
+            }
+
+            msg[0] = origByte;
+            return 0;
+
+        default:
+            return 0;
+    }
+}
+
 int scoreModesMessage(unsigned char *msg, int validbits) {
     int msgtype, msgbits, crc, iid;
     uint32_t addr;
@@ -284,12 +314,26 @@ int scoreModesMessage(unsigned char *msg, int validbits) {
         return -2;
 
     msgtype = getbits(msg, 1, 5); // Downlink Format
+
+    if (validbits >= MODES_LONG_MSG_BITS) {
+        unsigned char origByte = fixDF17msgtype(msg, &msgtype);
+        if (origByte) {
+            msg[0] = origByte; // restore byte
+            // DF17 message with 1 bit error, return the correct score
+            if (icaoFilterTest(getbits(msg, 9, 32))) // check addr
+                return 1800 / 2;
+            else
+                return 1400 / 2;
+        }
+    }
+
     msgbits = modesMessageLenByType(msgtype);
 
     if (validbits < msgbits)
         return -2;
 
-    if (!memcmp(all_zeros, msg, msgbits / 8))
+    // discard messages which have only zeros in the first short msg bytes
+    if (!memcmp(all_zeros, msg, MODES_SHORT_MSG_BYTES))
         return -2;
 
     crc = modesChecksum(msg, msgbits);
@@ -408,15 +452,21 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
     }
     msg = mm->msg;
 
-    // don't accept all-zeros messages
-    if (!memcmp(all_zeros, msg, 7))
+    // discard messages which have only zeros in the first short msg bytes
+    if (!memcmp(all_zeros, msg, MODES_SHORT_MSG_BYTES))
         return -2;
 
     // Get the message type ASAP as other operations depend on this
     mm->msgtype = getbits(msg, 1, 5); // Downlink Format
+    mm->correctedbits = 0;
+
+    // try and fix possible bit errors in DF type that could be DF17
+    if (fixDF17msgtype(msg, &mm->msgtype)) {
+        mm->correctedbits = 1;
+    }
+
     mm->msgbits = modesMessageLenByType(mm->msgtype);
     mm->crc = modesChecksum(msg, mm->msgbits);
-    mm->correctedbits = 0;
     mm->addr = 0;
 
     mm->addrtype = ADDR_UNKNOWN;

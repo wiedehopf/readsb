@@ -107,10 +107,6 @@ static void modesInitConfig(void) {
     if (sched_getaffinity(getpid(), sizeof(mask), &mask) == 0)
         nprocs = CPU_COUNT(&mask);
 
-    Modes.preambleThreshold = PREAMBLE_THRESHOLD_DEFAULT;
-    if (nprocs < 2)
-        Modes.preambleThreshold = PREAMBLE_THRESHOLD_PIZERO;
-
     // Now initialise things that should not be 0/NULL to their defaults
     Modes.gain = MODES_MAX_GAIN;
     Modes.freq = MODES_DEFAULT_FREQ;
@@ -160,6 +156,14 @@ static void modesInitConfig(void) {
     //
     Modes.show_only = 0xc0ffeeba; // default to out of normal range value
     Modes.trackExpireJaero = TRACK_EXPIRE_JAERO;
+
+    Modes.preambleThreshold = PREAMBLE_THRESHOLD_DEFAULT;
+    Modes.fixDF = 1;
+    if (nprocs < 2) {
+        Modes.preambleThreshold = PREAMBLE_THRESHOLD_PIZERO;
+        Modes.fixDF = 0;
+    }
+
 
     sdrInitConfig();
 
@@ -842,6 +846,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptNoFix:
             Modes.nfix_crc = 0;
+            break;
+        case OptNoFixDf:
+            Modes.fixDF = 0;
             break;
         case OptRaw:
             Modes.raw = 1;

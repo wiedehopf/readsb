@@ -450,6 +450,7 @@ struct _Modes
 
     // Configuration
     int8_t nfix_crc; // Number of crc bit error(s) to correct
+    int8_t fixDF; // fix message type single bit errors that become DF17
     int8_t check_crc; // Only display messages with good CRC
     int8_t raw; // Raw output format
     int8_t mode_ac; // Enable decoding of SSR Modes A & C
@@ -837,6 +838,7 @@ enum {
     OptMaxRange,
     OptFix,
     OptNoFix,
+    OptNoFixDf,
     OptAggressive,
     OptMlat,
     OptStats,

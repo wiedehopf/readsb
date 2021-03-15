@@ -195,6 +195,10 @@ static void score_phase(int try_phase, uint16_t *m, int j, unsigned char **bestm
             bytelen = MODES_LONG_MSG_BYTES;
             break;
 
+        case 1: case 25: case 19: // allow DF values that are 1 bit errors of DF17, (16 and 21 are we already process)
+            bytelen = Modes.fixDF ? MODES_LONG_MSG_BYTES : 1;
+            break;
+
         default:
             bytelen = 1; // unknown DF, give up immediately
             break;
