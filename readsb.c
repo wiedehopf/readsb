@@ -102,11 +102,6 @@ static void modesInitConfig(void) {
         Modes.threadNumber[i] = i;
     }
 
-    cpu_set_t mask;
-    int nprocs = 1;
-    if (sched_getaffinity(getpid(), sizeof(mask), &mask) == 0)
-        nprocs = CPU_COUNT(&mask);
-
     // Now initialise things that should not be 0/NULL to their defaults
     Modes.gain = MODES_MAX_GAIN;
     Modes.freq = MODES_DEFAULT_FREQ;
@@ -159,11 +154,6 @@ static void modesInitConfig(void) {
 
     Modes.preambleThreshold = PREAMBLE_THRESHOLD_DEFAULT;
     Modes.fixDF = 1;
-    if (nprocs < 2) {
-        Modes.preambleThreshold = PREAMBLE_THRESHOLD_PIZERO;
-        Modes.fixDF = 0;
-    }
-
 
     sdrInitConfig();
 
@@ -1277,6 +1267,14 @@ int parseCommandLine(int argc, char **argv) {
 static void configAfterParse() {
     Modes.trackExpireMax = Modes.trackExpireJaero + TRACK_EXPIRE_LONG + 1 * MINUTES;
 
+    cpu_set_t mask;
+    if (sched_getaffinity(getpid(), sizeof(mask), &mask) == 0 && CPU_COUNT(&mask) < 2) {
+        if (Modes.preambleThreshold == PREAMBLE_THRESHOLD_DEFAULT && Modes.sdr_type != SDR_NONE) {
+            fprintf(stderr, "WARNING: Reducing preamble threshold / decoding performance as this system has only 1 core (explicitely set --preamble-threshold to disable this behaviour)!\n");
+            Modes.preambleThreshold = PREAMBLE_THRESHOLD_PIZERO;
+            Modes.fixDF = 0;
+        }
+    }
 
     if (Modes.mode_ac)
         Modes.mode_ac_auto = 0;
