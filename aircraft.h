@@ -11,7 +11,7 @@ void freeAircraft(struct aircraft *a);
 typedef struct dbEntry {
     struct dbEntry *next;
     uint32_t addr;
-    uint8_t dbFlags;
+    uint16_t dbFlags;
     char typeCode[4];
     char registration[12];
     char typeLong[64];
@@ -44,13 +44,13 @@ struct binCraft {
   uint16_t seen_pos;
   uint16_t seen;
   // 8
-  int32_t lat;
   int32_t lon;
+  int32_t lat;
   // 16
-  int16_t altitude_baro;
-  int16_t altitude_geom;
   int16_t baro_rate;
   int16_t geom_rate;
+  int16_t altitude_baro;
+  int16_t altitude_geom;
   // 24
   uint16_t nav_altitude_mcp; // FCU/MCP selected altitude
   uint16_t nav_altitude_fms; // FMS selected altitude
@@ -151,15 +151,15 @@ struct binCraft {
   // 78
   char callsign[8]; // Flight number
   // 86
-  uint8_t signal;
-  uint8_t dbFlags;
+  uint16_t dbFlags;
   // 88
   char typeCode[4];
   // 92
   char registration[12];
   // 104
   uint8_t receiverCount;
-  uint8_t reserved[3];
+  uint8_t signal;
+  uint8_t reserved[2];
   // 108
   // javascript sucks, this must be a multiple of 4 bytes for Int32Array to work correctly
 } __attribute__ ((__packed__));

@@ -559,7 +559,7 @@ int dbUpdate() {
         copyDetail(typeCode);
 
         if (!nextToken(';', &sot, &eot, &eol)) continue;
-        for (int j = 0; j < 16 && sot < eot; j++, sot++)
+        for (int j = 0; j < 8 * (int) sizeof(curr->dbFlags) && sot < eot; j++, sot++)
             curr->dbFlags |= ((*sot == '1') << j);
 
 
