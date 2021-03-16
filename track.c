@@ -602,7 +602,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         return;
     }
 
-    if (mm->source == SOURCE_MLAT) {
+    if (mm->source == SOURCE_MLAT && mm->receiverCountMlat) {
         a->receiverCountMlat = mm->receiverCountMlat;
     } else {
         uint16_t simpleHash = (uint16_t) mm->receiverId;
@@ -1669,6 +1669,11 @@ end_alt:
         } else if (!speed_check(a, mm->source, mm->decoded_lat, mm->decoded_lon, mm, CPR_NONE)) {
             mm->pos_bad = 1;
             // speed check failed, do nothing
+        } else if (mm->source == SOURCE_MLAT && mm->receiverCountMlat
+                && min(a->receiverCountMlat - mm->receiverCountMlat, 7) * (mm->receiverCountMlat > 12 ? 800 : 1200) > (int64_t) trackDataAge(mm->sysTimestampMsg, &a->position_valid)
+                ) {
+            // don't use MLAT positions that had less receivers used to calculate them unless some time has elapsed
+            // only works with SBS input MLAT data coming from some versions of mlat-server
         } else if (accept_data(&a->position_valid, mm->source, mm, 2)) {
 
             incrementReliable(a, mm, now, 2);
