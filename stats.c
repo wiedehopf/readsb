@@ -398,7 +398,7 @@ void statsUpdate(uint64_t now) {
     Modes.stats_current.end = now;
     int i;
 
-    Modes.next_stats_update += 10 * SECONDS;
+    Modes.next_stats_update = roundSeconds(10, 5, now + 10 * SECONDS);
     Modes.stats_10[Modes.stats_bucket] = Modes.stats_current;
 
     add_stats(&Modes.stats_current, &Modes.stats_alltime, &Modes.stats_alltime);

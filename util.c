@@ -301,3 +301,15 @@ void log_with_timestamp(const char *format, ...) {
     fprintf(stderr, "%s  %s\n", timebuf, msg);
 }
 
+uint64_t roundSeconds(int interval, int offset, uint64_t epoch_ms) {
+    if (offset >= interval)
+        fprintf(stderr, "roundSeconds was used wrong, interval must be greater than offset\n");
+    time_t epoch = epoch_ms / SECONDS + (epoch_ms % SECONDS >= SECONDS / 2);
+    struct tm utc;
+    gmtime_r(&epoch, &utc);
+    int sec = utc.tm_sec;
+    int step = nearbyint((sec - offset) / (float) interval);
+    int calc = offset + step * interval;
+    //fprintf(stderr, "%d %d\n", sec, calc);
+    return (epoch + (calc - sec)) * SECONDS;
+}

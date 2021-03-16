@@ -81,4 +81,10 @@ unsigned int get_seed();
 void incTimedwait(struct timespec *target, uint64_t increment);
 void log_with_timestamp(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
 
+// based on a give epoch time in ms, calculate the nearest offset interval step
+// offset must be smaller than interval, at offset seconds after the full minute
+// is the first possible value, all additional return values differ by a multiple
+// of interval
+uint64_t roundSeconds(int interval, int offset, uint64_t epoch_ms);
+
 #endif

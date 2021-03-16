@@ -192,7 +192,7 @@ static void modesInit(void) {
     Modes.filter_persistence += Modes.json_reliable - 1;
 
     uint64_t now = mstime();
-    Modes.next_stats_update = now + 10 * SECONDS;
+    Modes.next_stats_update = roundSeconds(10, 5, now + 10 * SECONDS);
     Modes.next_stats_display = now + Modes.stats;
 
     pthread_mutex_init(&Modes.mainMutex, NULL);
