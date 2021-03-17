@@ -1787,15 +1787,22 @@ static const char *esTypeName(unsigned metype, unsigned mesub) {
             return "Unknown";
     }
 }
-static void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm) {
+static struct char_buffer generateACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm) {
+    struct char_buffer cb;
+    cb.buffer = NULL;
+    cb.len = 0;
 
     bool ara = getbit(MV, 9);
     bool rat = getbit(MV, 27);
     bool mte = getbit(MV, 28);
 
     // we don't really care about the stuff that's not an actual RA or terminated RA
-    if (!ara && !rat && !mte)
-        return;
+    if (!ara && !rat && !mte) {
+        return cb;
+    }
+
+    size_t buflen = 512;
+    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
 
     char timebuf[128];
     time_t now;
@@ -1803,39 +1810,40 @@ static void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft
 
     now = time(NULL);
     gmtime_r(&now, &utc);
-    strftime(timebuf, 128, "%T", &utc);
+    strftime(timebuf, 128, "%F,%T", &utc);
     timebuf[127] = 0;
 
-    printf("%s %06x", timebuf, addr);
+    p = safe_snprintf(p, end, "%s,%06x,DF,", timebuf, addr);
     if (mm)
-        printf(" DF%u", mm->msgtype);
-    printf(" MV: ");
+        p = safe_snprintf(p, end, "%u", mm->msgtype);
+    p = safe_snprintf(p, end, ",MV,");
     print_hex_bytes(MV, 7);
-    if (a) {
-        if (altReliable(a))
-            printf(" %5dft", a->altitude_baro);
-
-        if (trackDataValid(&a->geom_rate_valid)) {
-            printf(" %5dfpm", a->geom_rate);
-        } else if (trackDataValid(&a->baro_rate_valid)) {
-            printf(" %5dfpm", a->baro_rate);
-        }
+    p = safe_snprintf(p, end, ",");
+    if (a && altReliable(a))
+        p = safe_snprintf(p, end, "%5dft", a->altitude_baro);
+    p = safe_snprintf(p, end, ",");
+    if (a && trackDataValid(&a->geom_rate_valid)) {
+        p = safe_snprintf(p, end, "%5dfpm", a->geom_rate);
+    } else if (a && trackDataValid(&a->baro_rate_valid)) {
+        p = safe_snprintf(p, end, "%5dfpm", a->baro_rate);
     }
-    printf(" ARA: ");
-    for (int i = 9; i <= 15; i++) printf("%u", getbit(MV, i));
-    printf(" RAT,MTE: %u,%u", getbit(MV, 27), getbit(MV, 28));
-    printf(" RAC: ");
-    for (int i = 23; i <= 26; i++) printf("%u", getbit(MV, i));
+    p = safe_snprintf(p, end, ",ARA,");
+    for (int i = 9; i <= 15; i++) p = safe_snprintf(p, end, "%u", getbit(MV, i));
+    p = safe_snprintf(p, end, ",RAT,%u", getbit(MV, 27));
+    p = safe_snprintf(p, end, ",MTE,%u", getbit(MV, 28));
+    p = safe_snprintf(p, end, "RAC,");
+    for (int i = 23; i <= 26; i++) p = safe_snprintf(p, end, "%u", getbit(MV, i));
     char *racs[4] = { "below", "above", " left", "right" };
     for (int i = 23; i <= 26; i++) {
         if (getbit(MV, i))
-            printf(" not %s", racs[i-23]);
+            p = safe_snprintf(p, end, " not %s", racs[i-23]);
     }
 
+    p = safe_snprintf(p, end, ",");
     if (rat) {
-        printf(" RA: Clear of Conflict");
+        p = safe_snprintf(p, end, "RA: Clear of Conflict");
     } else if (ara) {
-        printf(" RA:");
+        p = safe_snprintf(p, end, "RA:");
         bool corr = getbit(MV, 10);
         bool down = getbit(MV, 11);
         bool increase = getbit(MV, 12);
@@ -1843,67 +1851,82 @@ static void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft
         bool crossing = getbit(MV, 14);
         bool rateRequired = getbit(MV, 15); // also called positive RA
         if (!corr && !rateRequired) {
-            printf(" Do Not");
+            p = safe_snprintf(p, end, " Do Not");
             if (down)
-                printf(" Climb");
+                p = safe_snprintf(p, end, " Climb");
             else
-                printf(" Descend");
+                p = safe_snprintf(p, end, " Descend");
         } else if (corr) {
             if (rateRequired) {
                 if (!reversal) {
                     // reversal has priority and comes later
                 } else if (increase) {
                     // this should have priority over crossing modificator .. not sure
-                    printf(" Increase");
+                    p = safe_snprintf(p, end, " Increase");
                 } else if (crossing) {
-                    printf(" Crossing");
+                    p = safe_snprintf(p, end, " Crossing");
                 }
 
                 if (down)
-                    printf(" Descend");
+                    p = safe_snprintf(p, end, " Descend");
                 else
-                    printf(" Climb");
+                    p = safe_snprintf(p, end, " Climb");
 
                 if (reversal) {
                     if (down)
-                        printf(", Descend");
+                        p = safe_snprintf(p, end, ", Descend");
                     else
-                        printf(", Climb");
-                    printf(" NOW");
+                        p = safe_snprintf(p, end, ", Climb");
+                    p = safe_snprintf(p, end, " NOW");
                 }
             }
             if (!rateRequired) {
-                printf(" Reduce");
+                p = safe_snprintf(p, end, " Reduce");
                 if (down)
-                    printf(" Climb");
+                    p = safe_snprintf(p, end, " Climb");
                 else
-                    printf(" Descend");
+                    p = safe_snprintf(p, end, " Descend");
             }
         } else {
-                printf(" consult bitfield");
+                p = safe_snprintf(p, end, " consult bitfield");
         }
     } else if (mte) {
-        printf(" RA multithreat:");
+        p = safe_snprintf(p, end, "RA multithreat:");
         if (getbit(MV, 10))
-            printf(" correct upwards");
+            p = safe_snprintf(p, end, " correct upwards");
         if (getbit(MV, 11))
-            printf(" climb required");
+            p = safe_snprintf(p, end, " climb required");
         if (getbit(MV, 12))
-            printf(" correct downwards");
+            p = safe_snprintf(p, end, " correct downwards");
         if (getbit(MV, 13))
-            printf(" descent required");
+            p = safe_snprintf(p, end, " descent required");
         if (getbit(MV, 14))
-            printf(" [x] crossing");
+            p = safe_snprintf(p, end, " [x] crossing");
         else
-            printf(" [ ] crossing");
+            p = safe_snprintf(p, end, " [ ] crossing");
         if (getbit(MV, 15))
-            printf(" increase/maintain vertical rate");
+            p = safe_snprintf(p, end, " increase/maintain vertical rate");
         else
-            printf("      reduce/limit vertical rate");
+            p = safe_snprintf(p, end, "      reduce/limit vertical rate");
     }
-    printf("\n");
+    p = safe_snprintf(p, end, ",");
+
+    cb.len = p - buf;
+    cb.buffer = buf;
+    if (p >= end) {
+        fprintf(stderr, "buffer overrun generateACASInfoShort %zu %zu\n", cb.len, buflen);
+    }
+    return cb;
+}
+static void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm) {
+    struct char_buffer cb = generateACASInfoShort(addr, MV, a, mm);
+    if (!cb.buffer)
+        return;
+    printf("%s\n", cb.buffer);
+    free(cb.buffer);
     fflush(stdout); // FLUSH
 }
+
 static void printACASInfo(uint32_t addr, unsigned char *MV) {
 
     char timebuf[128];
