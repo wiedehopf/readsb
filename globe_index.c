@@ -5,15 +5,6 @@
 static void mark_legs(struct aircraft *a);
 static void load_blob(int blob);
 
-ssize_t check_write(int fd, const void *buf, size_t count, const char *error_context) {
-    ssize_t res = write(fd, buf, count);
-    if (res < 0)
-        perror(error_context);
-    else if (res != (ssize_t) count)
-        fprintf(stderr, "%s: Only %zd of %zd bytes written!\n", error_context, res, count);
-    return res;
-}
-
 void init_globe_index(struct tile *s_tiles) {
     int count = 0;
 
@@ -464,6 +455,7 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
         //fprintf(stderr, "%06x\n", a->addr);
 
         // prepare writing the permanent history
+        // until 20 min after midnight we only write permanent traces for the previous day
         if (write_perm && a->trace_len > 0 &&
                 Modes.globe_history_dir && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
 
@@ -1275,6 +1267,8 @@ void traceMaintenance(struct aircraft *a, uint64_t now) {
         }
     }
 
+    // on day change write out the traces for yesterday
+    // for which day and which time span is written is determined by traceday
     if (a->traceWrittenForDay != Modes.mday) {
         a->traceWrittenForDay = Modes.mday;
         if (now < a->seen_pos + 3 * HOURS) {
@@ -2064,11 +2058,11 @@ void checkNewDay(uint64_t now) {
         chmod(filename, 0755);
     }
 
-    // 2 seconds after midnight, start a permanent write of all traces
+    // at midnight, start a permanent write of all traces
     // create the new directory for writing traces
     // prevent the webserver from reading it until they are in a finished state
-    time_t nowish = (now - 2000)/1000;
-    gmtime_r(&nowish, &utc);
+    time_t time = now / 1000;
+    gmtime_r(&time, &utc);
 
     if (utc.tm_mday != Modes.mday) {
         Modes.mday = utc.tm_mday;
@@ -2083,6 +2077,17 @@ void checkNewDay(uint64_t now) {
             snprintf(filename, PATH_MAX, "%s/traces/%02x", dateDir, i);
             if (mkdir(filename, 0755) && errno != EEXIST)
                 perror(filename);
+        }
+
+        if (Modes.acasFD > -1)
+            close(Modes.acasFD);
+
+        char pathbuf[PATH_MAX];
+        snprintf(pathbuf, PATH_MAX, "%s/acas.csv", dateDir);
+        Modes.acasFD = open(pathbuf, O_WRONLY | O_CREAT | O_APPEND, 0644);
+        if (Modes.acasFD < 0) {
+            fprintf(stderr, "open failed:");
+            perror(pathbuf);
         }
     }
     return;

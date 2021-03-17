@@ -20,7 +20,6 @@ struct tile {
 };
 
 void checkNewDay(uint64_t now);
-ssize_t check_write(int fd, const void *buf, size_t count, const char *error_context);
 int globe_index(double lat_in, double lon_in);
 int globe_index_index(int index);
 void init_globe_index(struct tile *s_tiles);

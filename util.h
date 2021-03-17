@@ -86,5 +86,6 @@ void log_with_timestamp(const char *format, ...) __attribute__ ((format(printf, 
 // is the first possible value, all additional return values differ by a multiple
 // of interval
 uint64_t roundSeconds(int interval, int offset, uint64_t epoch_ms);
+ssize_t check_write(int fd, const void *buf, size_t count, const char *error_context);
 
 #endif

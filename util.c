@@ -313,3 +313,11 @@ uint64_t roundSeconds(int interval, int offset, uint64_t epoch_ms) {
     //fprintf(stderr, "%d %d\n", sec, calc);
     return (epoch + (calc - sec)) * SECONDS;
 }
+ssize_t check_write(int fd, const void *buf, size_t count, const char *error_context) {
+    ssize_t res = write(fd, buf, count);
+    if (res < 0)
+        perror(error_context);
+    else if (res != (ssize_t) count)
+        fprintf(stderr, "%s: Only %zd of %zd bytes written!\n", error_context, res, count);
+    return res;
+}

@@ -141,6 +141,7 @@ static void modesInitConfig(void) {
     Modes.heatmap_current_interval = -15;
     Modes.heatmap_interval = 60 * SECONDS;
     Modes.json_reliable = -13;
+    Modes.acasFD = -1; // set to -1 so it's clear we don't have that fd
 
     Modes.filterDF = -1; // don't filter when set to -1
     Modes.cpr_focus = 0xc0ffeeba;
@@ -683,6 +684,8 @@ static void backgroundTasks(void) {
 // Clean up memory prior to exit.
 static void cleanup_and_exit(int code) {
     Modes.exit = 1;
+    if (Modes.acasFD > -1)
+        close(Modes.acasFD);
     // Free any used memory
     geomag_destroy();
     interactiveCleanup();
