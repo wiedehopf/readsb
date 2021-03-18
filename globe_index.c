@@ -1443,10 +1443,6 @@ int traceAdd(struct aircraft *a, uint64_t now) {
         goto save_state;
     }
 
-    // don't record unnecessary many points
-    if (elapsed < min_elapsed)
-        goto no_save_state;
-
     // record non moving targets every 5 minutes
     if (elapsed > 10 * max_elapsed)
         goto save_state;
@@ -1455,6 +1451,14 @@ int traceAdd(struct aircraft *a, uint64_t now) {
     if (distance < 35)
         goto no_save_state;
 
+    // record trace precisely if we have a TCAS advisory
+    if (trackDataValid(&a->acas_ra_valid) && trackDataAge(now, &a->acas_ra_valid) < 15 * SECONDS) {
+        goto save_state;
+    }
+
+    // don't record unnecessary many points
+    if (elapsed < min_elapsed)
+        goto no_save_state;
 
     // even if the squawk gets invalid we continue to record more points
     if (a->squawk == 0x7700 && elapsed > 2 * min_elapsed) {
@@ -1469,11 +1473,6 @@ int traceAdd(struct aircraft *a, uint64_t now) {
 
     if (stale) {
         // save a point if reception is spotty so we can mark track as spotty on display
-        goto save_state;
-    }
-
-    // record trace precisely if we have a TCAS advisory
-    if (trackDataValid(&a->acas_ra_valid)) {
         goto save_state;
     }
 

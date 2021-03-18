@@ -160,10 +160,10 @@ int checkRA(unsigned char *MV) {
     bool rat = getbit(MV, 27);
     bool mte = getbit(MV, 28);
 
-    if (!ara && !rat && !mte)
-        return 0;
-    else
+    if (ara || rat || mte)
         return 1;
+
+    return 0;
 }
 
 char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, uint64_t now) {
