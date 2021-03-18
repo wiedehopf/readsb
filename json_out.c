@@ -302,7 +302,7 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now,
     // printMode == 2: jsonPositionOutput
     // printMode == 3: globe.json
 
-    p = safe_snprintf(p, end, "\n{");
+    p = safe_snprintf(p, end, "{");
     if (printMode == 2)
         p = safe_snprintf(p, end, "\"now\" : %.1f,", now / 1000.0);
     if (printMode != 1)
@@ -698,9 +698,9 @@ struct char_buffer generateGlobeJson(int globe_index){
                 end = buf + buflen;
             }
 
+            p = safe_snprintf(p, end, "\n");
             p = sprintAircraftObject(p, end, a, now, 3);
-
-            *p++ = ',';
+            p = safe_snprintf(p, end, ",");
 
             if (p >= end)
                 fprintf(stderr, "buffer overrun aircraft json\n");
@@ -762,9 +762,10 @@ struct char_buffer generateAircraftJson(){
             end = buf + buflen;
         }
 
+        p = safe_snprintf(p, end, "\n");
         p = sprintAircraftObject(p, end, a, now, 0);
+        p = safe_snprintf(p, end, ",");
 
-        *p++ = ',';
 
         if (p >= end)
             fprintf(stderr, "buffer overrun aircraft json\n");
