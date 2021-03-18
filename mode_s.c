@@ -2037,8 +2037,8 @@ void displayModesMessage(struct modesMessage *mm) {
         printf("  CPR odd flag:  %s\n",
                 mm->cpr_odd ? "odd" : "even");
 
-        printf("  CPR latitude:  %.5f (%u)\n"
-                "  CPR longitude: %.5f (%u)\n"
+        printf("  CPR latitude:  %.6f (%u)\n"
+                "  CPR longitude: %.6f (%u)\n"
                 "  CPR decoding:  %s\n",
                 mm->decoded_lat,
                 mm->cpr_lat,
@@ -2091,81 +2091,87 @@ void displayModesMessage(struct modesMessage *mm) {
 
     printf("systemTime: %.3fs\n", mm->sysTimestampMsg / 1000.0);
 
-    switch (mm->msgtype) {
-        case 0:
-            printf("DF:0 addr:%06X VS:%u CC:%u SL:%u RI:%u AC:%u\n",
-                    mm->addr, mm->VS, mm->CC, mm->SL, mm->RI, mm->AC);
-            break;
+    if (mm->sbs_in) {
+            printf("SBS  addr:%06X\n", mm->addr);
+    } else {
+        switch (mm->msgtype) {
+            case 0:
+                printf("DF:0 addr:%06X VS:%u CC:%u SL:%u RI:%u AC:%u\n",
+                        mm->addr, mm->VS, mm->CC, mm->SL, mm->RI, mm->AC);
+                break;
 
-        case 4:
-            printf("DF:4 addr:%06X FS:%u DR:%u UM:%u AC:%u\n",
-                    mm->addr, mm->FS, mm->DR, mm->UM, mm->AC);
-            break;
+            case 4:
+                printf("DF:4 addr:%06X FS:%u DR:%u UM:%u AC:%u\n",
+                        mm->addr, mm->FS, mm->DR, mm->UM, mm->AC);
+                break;
 
-        case 5:
-            printf("DF:5 addr:%06X FS:%u DR:%u UM:%u ID:%u\n",
-                    mm->addr, mm->FS, mm->DR, mm->UM, mm->ID);
-            break;
+            case 5:
+                printf("DF:5 addr:%06X FS:%u DR:%u UM:%u ID:%u\n",
+                        mm->addr, mm->FS, mm->DR, mm->UM, mm->ID);
+                break;
 
-        case 11:
-            printf("DF:11 AA:%06X IID:%u CA:%u\n",
-                    mm->AA, mm->IID, mm->CA);
-            break;
+            case 11:
+                printf("DF:11 AA:%06X IID:%u CA:%u\n",
+                        mm->AA, mm->IID, mm->CA);
+                break;
 
-        case 16:
-            printf("DF:16 addr:%06x VS:%u SL:%u RI:%u AC:%u MV:",
-                    mm->addr, mm->VS, mm->SL, mm->RI, mm->AC);
-            print_hex_bytes(mm->MV, sizeof (mm->MV));
-            printf("\n");
+            case 16:
+                printf("DF:16 addr:%06x VS:%u SL:%u RI:%u AC:%u MV:",
+                        mm->addr, mm->VS, mm->SL, mm->RI, mm->AC);
+                print_hex_bytes(mm->MV, sizeof (mm->MV));
+                printf("\n");
 
-            if (mm->acas_ra_valid)
-                printACASInfoShort(mm->addr, mm->MV, NULL, mm, mm->sysTimestampMsg);
-            break;
+                if (mm->acas_ra_valid)
+                    printACASInfoShort(mm->addr, mm->MV, NULL, mm, mm->sysTimestampMsg);
+                break;
 
-        case 17:
-            printf("DF:17 AA:%06X CA:%u ME:",
-                    mm->AA, mm->CA);
-            print_hex_bytes(mm->ME, sizeof (mm->ME));
-            printf("\n");
-            break;
+            case 17:
+                printf("DF:17 AA:%06X CA:%u ME:",
+                        mm->AA, mm->CA);
+                print_hex_bytes(mm->ME, sizeof (mm->ME));
+                printf("\n");
+                break;
 
-        case 18:
-            printf("DF:18 AA:%06X CF:%u ME:",
-                    mm->AA, mm->CF);
-            print_hex_bytes(mm->ME, sizeof (mm->ME));
-            printf("\n");
-            break;
+            case 18:
+                printf("DF:18 AA:%06X CF:%u ME:",
+                        mm->AA, mm->CF);
+                print_hex_bytes(mm->ME, sizeof (mm->ME));
+                printf("\n");
+                break;
 
-        case 20:
-            printf("DF:20 addr:%06X FS:%u DR:%u UM:%u AC:%u MB:",
-                    mm->addr, mm->FS, mm->DR, mm->UM, mm->AC);
-            print_hex_bytes(mm->MB, sizeof (mm->MB));
-            printf("\n");
-            break;
+            case 20:
+                printf("DF:20 addr:%06X FS:%u DR:%u UM:%u AC:%u MB:",
+                        mm->addr, mm->FS, mm->DR, mm->UM, mm->AC);
+                print_hex_bytes(mm->MB, sizeof (mm->MB));
+                printf("\n");
+                break;
 
-        case 21:
-            printf("DF:21 addr:%06x FS:%u DR:%u UM:%u ID:%u MB:",
-                    mm->addr, mm->FS, mm->DR, mm->UM, mm->ID);
-            print_hex_bytes(mm->MB, sizeof (mm->MB));
-            printf("\n");
-            break;
+            case 21:
+                printf("DF:21 addr:%06x FS:%u DR:%u UM:%u ID:%u MB:",
+                        mm->addr, mm->FS, mm->DR, mm->UM, mm->ID);
+                print_hex_bytes(mm->MB, sizeof (mm->MB));
+                printf("\n");
+                break;
 
-        case 24:
-        case 25:
-        case 26:
-        case 27:
-        case 28:
-        case 29:
-        case 30:
-        case 31:
-            printf("DF:24 addr:%06x KE:%u ND:%u MD:",
-                    mm->addr, mm->KE, mm->ND);
-            print_hex_bytes(mm->MD, sizeof (mm->MD));
-            printf("\n");
-            break;
+            case 24:
+            case 25:
+            case 26:
+            case 27:
+            case 28:
+            case 29:
+            case 30:
+            case 31:
+                printf("DF:24 addr:%06x KE:%u ND:%u MD:",
+                        mm->addr, mm->KE, mm->ND);
+                print_hex_bytes(mm->MD, sizeof (mm->MD));
+                printf("\n");
+                break;
+        }
     }
 
-    printf(" %s", df_to_string(mm->msgtype));
+    if (!mm->sbs_in)
+        printf(" %s", df_to_string(mm->msgtype));
+
     if (mm->msgtype == 17 || mm->msgtype == 18) {
         if (esTypeHasSubtype(mm->metype)) {
             printf(" %s (%u/%u)",
@@ -2178,7 +2184,8 @@ void displayModesMessage(struct modesMessage *mm) {
                     mm->metype);
         }
     }
-    printf("\n");
+    if (!mm->sbs_in)
+        printf("\n");
 
     if (mm->msgtype == 20 || mm->msgtype == 21) {
         printf("  Comm-B format: %s\n", commb_format_to_string(mm->commb_format));
@@ -2277,8 +2284,8 @@ void displayModesMessage(struct modesMessage *mm) {
                 mm->cpr_odd ? "odd" : "even");
 
         if (mm->cpr_decoded) {
-            printf("  CPR latitude:  %.5f (%u)\n"
-                    "  CPR longitude: %.5f (%u)\n"
+            printf("  CPR latitude:  %.6f (%u)\n"
+                    "  CPR longitude: %.6f (%u)\n"
                     "  CPR decoding:  %s\n"
                     "  NIC:           %u\n"
                     "  Rc:            %.3f km / %.1f NM\n",
@@ -2297,6 +2304,12 @@ void displayModesMessage(struct modesMessage *mm) {
                     mm->cpr_lat,
                     mm->cpr_lon);
         }
+    }
+    if (mm->sbs_pos_valid) {
+            printf("  Latitude:      %.6f\n"
+                    "  Longitude:     %.6f\n",
+                    mm->decoded_lat,
+                    mm->decoded_lon);
     }
 
     if (mm->accuracy.nic_a_valid) {
