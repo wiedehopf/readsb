@@ -1809,6 +1809,16 @@ static void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft
 static void logACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, uint64_t now) {
     if (Modes.acasFD < 0)
         return;
+
+    static int64_t lastLogTimestamp1, lastLogTimestamp2;
+    static uint32_t lastLogAddr1, lastLogAddr2;
+    static char lastLogMV1[7], lastLogMV2[7];
+
+    if (lastLogAddr1 == addr && (int64_t) now - lastLogTimestamp1 < 150 && !memcmp(lastLogMV1, MV, 7))
+        return;
+    if (lastLogAddr2 == addr && (int64_t) now - lastLogTimestamp2 < 150 && !memcmp(lastLogMV2, MV, 7))
+        return;
+
     char buf[512];
     char *p = buf;
     char *end = buf + sizeof(buf);
@@ -1816,6 +1826,17 @@ static void logACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *
 
     if (p == buf) // nothing written
         return;
+
+    if (addr == lastLogAddr1) {
+        lastLogAddr1 = addr;
+        lastLogTimestamp1 = now;
+        memcpy(lastLogMV1, MV, 7);
+    } else {
+        lastLogAddr2 = addr;
+        lastLogTimestamp2 = now;
+        memcpy(lastLogMV2, MV, 7);
+    }
+
     p = safe_snprintf(p, end, "\n");
     if (p - buf >= (int) sizeof(buf) - 1) {
         fprintf(stderr, "logACAS buffer insufficient!\n");
