@@ -26,7 +26,7 @@
 
 int checkRA(unsigned char *MV);
 char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, uint64_t now);
-char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now, int printMode);
+char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now, int printMode, struct modesMessage *mm);
 struct char_buffer generateAircraftJson();
 struct char_buffer generateGlobeBin(int globe_index, int mil);
 struct char_buffer generateGlobeJson(int globe_index);

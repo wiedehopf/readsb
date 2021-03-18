@@ -112,7 +112,7 @@ static inline void apiAdd(struct aircraft *a, uint64_t now) {
     char *p = entry.json;
     char *end = p + sizeof(entry.json);
 
-    p = sprintAircraftObject(p, end, a, now, 0);
+    p = sprintAircraftObject(p, end, a, now, 0, NULL);
 
     if (p >= end) {
         fprintf(stderr, "buffer full apiAdd %p %p\n", p, end);

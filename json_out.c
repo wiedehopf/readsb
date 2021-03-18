@@ -295,7 +295,7 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
     return p;
 }
 
-char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now, int printMode) {
+char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now, int printMode, struct modesMessage *mm) {
 
     // printMode == 0: aircraft.json
     // printMode == 1: trace.json
@@ -453,13 +453,15 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now,
 
     if (checkRA(a->acas_ra) && trackDataAge(now, &a->acas_ra_valid) < 5 * SECONDS) {
         p = safe_snprintf(p, end, ",\"acas_ra_timestamp\":%.2f", now / 1000.0);
-        p = safe_snprintf(p, end, ",\"acas_ra_bytes\":\"");
+        if (mm && mm->acas_ra_valid)
+            p = safe_snprintf(p, end, ",\"acas_ra_df_type\":%d", mm->msgtype);
+        p = safe_snprintf(p, end, ",\"acas_ra_mv_mb_bytes_hex\":\"");
         for (int i = 0; i < 7; ++i) {
             p = safe_snprintf(p, end, "%02X", (unsigned) a->acas_ra[i]);
         }
         p = safe_snprintf(p, end, "\"");
         p = safe_snprintf(p, end, ",\"acas_ra_csvline\":\"");
-        p = sprintACASInfoShort(p, end, a->addr, a->acas_ra, a, NULL, a->acas_ra_valid.updated);
+        p = sprintACASInfoShort(p, end, a->addr, a->acas_ra, a, (mm && mm->acas_ra_valid) ? mm : NULL, a->acas_ra_valid.updated);
         p = safe_snprintf(p, end, "\"");
     }
 
@@ -481,7 +483,7 @@ static void check_state_all(struct aircraft *test, uint64_t now) {
     buf = buffer1;
     p = buf;
     end = buf + buflen;
-    p = sprintAircraftObject(p, end, a, now, 1);
+    p = sprintAircraftObject(p, end, a, now, 1, NULL);
 
     buf = buffer2;
     p = buf;
@@ -499,7 +501,7 @@ static void check_state_all(struct aircraft *test, uint64_t now) {
 
     from_state_all(new_all, b, now);
 
-    p = sprintAircraftObject(p, end, b, now, 1);
+    p = sprintAircraftObject(p, end, b, now, 1, NULL);
 
     if (strncmp(buffer1, buffer2, buflen)) {
         fprintf(stderr, "%s\n%s\n", buffer1, buffer2);
@@ -699,7 +701,7 @@ struct char_buffer generateGlobeJson(int globe_index){
             }
 
             p = safe_snprintf(p, end, "\n");
-            p = sprintAircraftObject(p, end, a, now, 3);
+            p = sprintAircraftObject(p, end, a, now, 3, NULL);
             p = safe_snprintf(p, end, ",");
 
             if (p >= end)
@@ -763,7 +765,7 @@ struct char_buffer generateAircraftJson(){
         }
 
         p = safe_snprintf(p, end, "\n");
-        p = sprintAircraftObject(p, end, a, now, 0);
+        p = sprintAircraftObject(p, end, a, now, 0, NULL);
         p = safe_snprintf(p, end, ",");
 
 
@@ -879,7 +881,7 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
                     from_state_all(all, ac, now);
 
                     p = safe_snprintf(p, end, ",");
-                    p = sprintAircraftObject(p, end, ac, now, 1);
+                    p = sprintAircraftObject(p, end, ac, now, 1, NULL);
                 } else {
                     p = safe_snprintf(p, end, ",null");
                 }

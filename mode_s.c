@@ -1851,7 +1851,7 @@ static void logACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *
         char *p = buf;
         char *end = buf + sizeof(buf);
 
-        p = sprintAircraftObject(p, end, a, now, 0);
+        p = sprintAircraftObject(p, end, a, now, 0, mm);
         p = safe_snprintf(p, end, "\n");
 
         if (p - buf >= (int) sizeof(buf) - 1) {

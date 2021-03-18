@@ -1538,7 +1538,7 @@ void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a) {
         return;
     char *end = p + 1000;
 
-    p = sprintAircraftObject(p, end, a, mm->sysTimestampMsg, 2);
+    p = sprintAircraftObject(p, end, a, mm->sysTimestampMsg, 2, NULL);
     completeWrite(&Modes.json_out, p);
 }
 //
