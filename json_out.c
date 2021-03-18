@@ -177,19 +177,31 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
     if (mm)
         p = safe_snprintf(p, end, "%u", mm->msgtype);
     p = safe_snprintf(p, end, ",MV/MB:,");
+
     for (int i = 0; i < 7; ++i) {
         p = safe_snprintf(p, end, "%02X", (unsigned) MV[i]);
     }
     p = safe_snprintf(p, end, ",");
-    if (a && altReliable(a))
-        p = safe_snprintf(p, end, "%5dft", a->altitude_baro);
+
+    if (a && posReliable(a))
+        p = safe_snprintf(p, end, "%11.6f", a->lat);
     p = safe_snprintf(p, end, ",");
+    if (a && posReliable(a))
+        p = safe_snprintf(p, end, "%11.6f", a->lon);
+    p = safe_snprintf(p, end, ",");
+
+    if (a && altReliable(a))
+        p = safe_snprintf(p, end, "%5d", a->altitude_baro);
+    p = safe_snprintf(p, end, ",ft,");
+
     if (a && trackDataValid(&a->geom_rate_valid)) {
-        p = safe_snprintf(p, end, "%5dfpm", a->geom_rate);
+        p = safe_snprintf(p, end, "%5d", a->geom_rate);
     } else if (a && trackDataValid(&a->baro_rate_valid)) {
-        p = safe_snprintf(p, end, "%5dfpm", a->baro_rate);
+        p = safe_snprintf(p, end, "%5d", a->baro_rate);
     }
-    p = safe_snprintf(p, end, ",ARA:,");
+    p = safe_snprintf(p, end, ",fpm,");
+
+    p = safe_snprintf(p, end, "ARA:,");
     for (int i = 9; i <= 15; i++) p = safe_snprintf(p, end, "%u", getbit(MV, i));
     p = safe_snprintf(p, end, ",RAT:,%u", getbit(MV, 27));
     p = safe_snprintf(p, end, ",MTE:,%u", getbit(MV, 28));
