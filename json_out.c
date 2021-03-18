@@ -225,51 +225,79 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
         p = safe_snprintf(p, end, "RA: Clear of Conflict");
     } else if (ara) {
         p = safe_snprintf(p, end, "RA:");
-        bool corr = getbit(MV, 10);
-        bool down = getbit(MV, 11);
-        bool increase = getbit(MV, 12);
-        bool reversal = getbit(MV, 13);
-        bool crossing = getbit(MV, 14);
-        bool rateRequired = getbit(MV, 15); // also called positive RA
-        if (!corr && !rateRequired) {
+        // https://mode-s.org/decode/book-the_1090mhz_riddle-junzi_sun.pdf
+        //
+        // https://www.faa.gov/documentlibrary/media/advisory_circular/tcas%20ii%20v7.1%20intro%20booklet.pdf
+        /* RAs can be classified as positive (e.g.,
+           climb, descend) or negative (e.g., limit climb
+           to 0 fpm, limit descend to 500 fpm). The
+           term "Vertical Speed Limit" (VSL) is
+           equivalent to "negative." RAs can also be
+           classified as preventive or corrective,
+           depending on whether own aircraft is, or is
+           not, in conformance with the RA target
+           altitude rate. Corrective RAs require a
+           change in vertical speed; preventive RAs do
+           not require a change in vertical speed
+           */
+        bool corr = getbit(MV, 10); // corrective / preventive
+        bool down = getbit(MV, 11); // downward sense / upward sense
+        bool increase = getbit(MV, 12); // increase rate
+        bool reversal = getbit(MV, 13); // sense reversal
+        bool crossing = getbit(MV, 14); // altitude crossing
+        bool positive = getbit(MV, 15);
+        // positive: (Maintain climb / descent) / (Climb / descend): requires more than 1500 fpm vertical rate
+        // !positive: (Do not / reduce) (climb / descend): requires more than 1500 fpm vertical rate
+
+        if (corr && positive) {
+            if (!reversal) {
+                // reversal has priority and comes later
+            } else if (increase) {
+                // this should have priority over crossing modificator .. not sure
+                p = safe_snprintf(p, end, " Increase");
+            } else if (crossing) {
+                p = safe_snprintf(p, end, " Crossing");
+            }
+
+            if (down)
+                p = safe_snprintf(p, end, " Descend");
+            else
+                p = safe_snprintf(p, end, " Climb");
+
+            if (reversal) {
+                if (down)
+                    p = safe_snprintf(p, end, ", Descend");
+                else
+                    p = safe_snprintf(p, end, ", Climb");
+                p = safe_snprintf(p, end, " NOW");
+            }
+        }
+
+        if (corr && !positive) {
+            p = safe_snprintf(p, end, " Reduce");
+            if (down)
+                p = safe_snprintf(p, end, " Climb");
+            else
+                p = safe_snprintf(p, end, " Descend");
+        }
+
+        if (!corr && !positive) {
             p = safe_snprintf(p, end, " Do Not");
             if (down)
                 p = safe_snprintf(p, end, " Climb");
             else
                 p = safe_snprintf(p, end, " Descend");
-        } else if (corr) {
-            if (rateRequired) {
-                if (!reversal) {
-                    // reversal has priority and comes later
-                } else if (increase) {
-                    // this should have priority over crossing modificator .. not sure
-                    p = safe_snprintf(p, end, " Increase");
-                } else if (crossing) {
-                    p = safe_snprintf(p, end, " Crossing");
-                }
+        }
 
-                if (down)
-                    p = safe_snprintf(p, end, " Descend");
-                else
-                    p = safe_snprintf(p, end, " Climb");
-
-                if (reversal) {
-                    if (down)
-                        p = safe_snprintf(p, end, ", Descend");
-                    else
-                        p = safe_snprintf(p, end, ", Climb");
-                    p = safe_snprintf(p, end, " NOW");
-                }
+        if (!corr && positive) {
+            if (crossing) {
+                p = safe_snprintf(p, end, " Crossing");
             }
-            if (!rateRequired) {
-                p = safe_snprintf(p, end, " Reduce");
-                if (down)
-                    p = safe_snprintf(p, end, " Climb");
-                else
-                    p = safe_snprintf(p, end, " Descend");
-            }
-        } else {
-                p = safe_snprintf(p, end, " consult bitfield");
+            p = safe_snprintf(p, end, " Maintain");
+            if (down)
+                p = safe_snprintf(p, end, " Descent");
+            else
+                p = safe_snprintf(p, end, " Climb");
         }
     } else if (mte) {
         p = safe_snprintf(p, end, "RA multithreat:");
