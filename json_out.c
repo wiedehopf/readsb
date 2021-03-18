@@ -220,26 +220,26 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
             p = safe_snprintf(p, end, " not %s", racs[i-23]);
     }
 
+    // https://mode-s.org/decode/book-the_1090mhz_riddle-junzi_sun.pdf
+    //
+    // https://www.faa.gov/documentlibrary/media/advisory_circular/tcas%20ii%20v7.1%20intro%20booklet.pdf
+    /* RAs can be classified as positive (e.g.,
+       climb, descend) or negative (e.g., limit climb
+       to 0 fpm, limit descend to 500 fpm). The
+       term "Vertical Speed Limit" (VSL) is
+       equivalent to "negative." RAs can also be
+       classified as preventive or corrective,
+       depending on whether own aircraft is, or is
+       not, in conformance with the RA target
+       altitude rate. Corrective RAs require a
+       change in vertical speed; preventive RAs do
+       not require a change in vertical speed
+       */
     p = safe_snprintf(p, end, ",");
     if (rat) {
         p = safe_snprintf(p, end, "RA: Clear of Conflict");
     } else if (ara) {
         p = safe_snprintf(p, end, "RA:");
-        // https://mode-s.org/decode/book-the_1090mhz_riddle-junzi_sun.pdf
-        //
-        // https://www.faa.gov/documentlibrary/media/advisory_circular/tcas%20ii%20v7.1%20intro%20booklet.pdf
-        /* RAs can be classified as positive (e.g.,
-           climb, descend) or negative (e.g., limit climb
-           to 0 fpm, limit descend to 500 fpm). The
-           term "Vertical Speed Limit" (VSL) is
-           equivalent to "negative." RAs can also be
-           classified as preventive or corrective,
-           depending on whether own aircraft is, or is
-           not, in conformance with the RA target
-           altitude rate. Corrective RAs require a
-           change in vertical speed; preventive RAs do
-           not require a change in vertical speed
-           */
         bool corr = getbit(MV, 10); // corrective / preventive
         bool down = getbit(MV, 11); // downward sense / upward sense
         bool increase = getbit(MV, 12); // increase rate
@@ -278,28 +278,21 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
             if (down)
                 p = safe_snprintf(p, end, " Climb");
             else
-                p = safe_snprintf(p, end, " Descend");
+                p = safe_snprintf(p, end, " Descent");
         }
 
         if (!corr && !positive) {
-            p = safe_snprintf(p, end, " Do Not");
-            if (down)
-                p = safe_snprintf(p, end, " Climb");
-            else
-                p = safe_snprintf(p, end, " Descend");
+            p = safe_snprintf(p, end, " Monitor vertical Speed");
         }
 
         if (!corr && positive) {
             if (crossing) {
                 p = safe_snprintf(p, end, " Crossing");
             }
-            p = safe_snprintf(p, end, " Maintain");
-            if (down)
-                p = safe_snprintf(p, end, " Descent");
-            else
-                p = safe_snprintf(p, end, " Climb");
+            p = safe_snprintf(p, end, " Maintain vertical Speed");
         }
-    } else if (mte) {
+    }
+    if (!ara && mte) {
         p = safe_snprintf(p, end, "RA multithreat:");
         if (getbit(MV, 10))
             p = safe_snprintf(p, end, " correct upwards");
