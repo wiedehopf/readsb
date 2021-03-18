@@ -2111,6 +2111,8 @@ void trackPeriodicUpdate() {
     if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 4)
         netFreeClients();
 
+    checkNewDay(now);
+
     if (Modes.updateStats)
         statsUpdate(now); // needs to happen under lock
 
@@ -2163,8 +2165,6 @@ void miscStuff() {
 
     struct timespec start_time;
     start_cpu_timing(&start_time);
-
-    checkNewDay(now);
 
     // don't do everything at once ... this stuff isn't that time critical it'll get its turn
     int enough = 0;
