@@ -24,6 +24,7 @@
 #ifndef JSON_OUT_H
 #define JSON_OUT_H
 
+int checkRA(unsigned char *MV);
 char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, uint64_t now);
 char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now, int printMode);
 struct char_buffer generateAircraftJson();

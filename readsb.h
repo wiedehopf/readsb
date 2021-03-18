@@ -546,7 +546,8 @@ struct _Modes
     uint32_t keep_traces; // how long traces are saved in internal memory
     int json_globe_index; // Enable extra globe indexed json files.
     uint32_t json_trace_interval; // max time ignoring new positions for trace
-    int acasFD; // file descriptor to write acasFDs to
+    int acasFD1; // file descriptor to write acasFDs to
+    int acasFD2;
     struct tile *json_globe_special_tiles;
     int specialTileCount;
     int json_gzip; // Enable extra globe indexed json files.

@@ -155,15 +155,21 @@ const char *nav_modes_flags_string(nav_modes_t flags) {
 
 }
 
-char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, uint64_t now) {
+int checkRA(unsigned char *MV) {
     bool ara = getbit(MV, 9);
     bool rat = getbit(MV, 27);
     bool mte = getbit(MV, 28);
 
-    // we don't really care about the stuff that's not an actual RA or terminated RA
-    if (!ara && !rat && !mte) {
-        return p;
-    }
+    if (!ara && !rat && !mte)
+        return 0;
+    else
+        return 1;
+}
+
+char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, uint64_t now) {
+    bool ara = getbit(MV, 9);
+    bool rat = getbit(MV, 27);
+    bool mte = getbit(MV, 28);
 
     char timebuf[128];
     struct tm utc;
@@ -439,13 +445,25 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now,
         p = safe_snprintf(p, end, ",\"tisb\":");
         p = append_flags(p, end, a, SOURCE_TISB);
 
-        p = safe_snprintf(p, end, ",\"messages\":%u,\"seen\":%.1f,\"rssi\":%.1f}",
+        p = safe_snprintf(p, end, ",\"messages\":%u,\"seen\":%.1f,\"rssi\":%.1f",
                 a->messages, (now < a->seen) ? 0 : ((now - a->seen) / 1000.0),
                 10 * log10((a->signalLevel[0] + a->signalLevel[1] + a->signalLevel[2] + a->signalLevel[3] +
                         a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7]) / 8 + 1.125e-5));
-    } else {
-        p = safe_snprintf(p, end, "}");
     }
+
+    if (checkRA(a->acas_ra) && trackDataAge(now, &a->acas_ra_valid) < 5 * SECONDS) {
+        p = safe_snprintf(p, end, ",\"acas_ra_timestamp\":%.2f", now / 1000.0);
+        p = safe_snprintf(p, end, ",\"acas_ra_bytes\":\"");
+        for (int i = 0; i < 7; ++i) {
+            p = safe_snprintf(p, end, "%02X", (unsigned) a->acas_ra[i]);
+        }
+        p = safe_snprintf(p, end, "\"");
+        p = safe_snprintf(p, end, ",\"acas_ra_csvline\":\"");
+        p = sprintACASInfoShort(p, end, a->addr, a->acas_ra, a, NULL, a->acas_ra_valid.updated);
+        p = safe_snprintf(p, end, "\"");
+    }
+
+    p = safe_snprintf(p, end, "}");
 
     return p;
 }
@@ -672,7 +690,7 @@ struct char_buffer generateGlobeJson(int globe_index){
                 continue;
 
             // check if we have enough space
-            if ((p + 1000) >= end) {
+            if ((p + 2000) >= end) {
                 int used = p - buf;
                 buflen *= 2;
                 buf = (char *) realloc(buf, buflen);
@@ -736,7 +754,7 @@ struct char_buffer generateAircraftJson(){
             continue;
 
         // check if we have enough space
-        if ((p + 1000) >= end) {
+        if ((p + 2000) >= end) {
             int used = p - buf;
             buflen *= 2;
             buf = (char *) realloc(buf, buflen);
