@@ -2083,18 +2083,21 @@ void checkNewDay(uint64_t now) {
         if (Modes.acasFD2 > -1)
             close(Modes.acasFD2);
 
-        char pathbuf[PATH_MAX];
-        snprintf(pathbuf, PATH_MAX, "%s/acas.csv", dateDir);
-        Modes.acasFD1 = open(pathbuf, O_WRONLY | O_CREAT | O_APPEND, 0644);
+        snprintf(filename, PATH_MAX, "%s/acas", dateDir);
+        if (mkdir(filename, 0755) && errno != EEXIST)
+            perror(filename);
+
+        snprintf(filename, PATH_MAX, "%s/acas/acas.csv", dateDir);
+        Modes.acasFD1 = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0644);
         if (Modes.acasFD1 < 0) {
             fprintf(stderr, "open failed:");
-            perror(pathbuf);
+            perror(filename);
         }
-        snprintf(pathbuf, PATH_MAX, "%s/acas.json", dateDir);
-        Modes.acasFD2 = open(pathbuf, O_WRONLY | O_CREAT | O_APPEND, 0644);
+        snprintf(filename, PATH_MAX, "%s/acas/acas.json", dateDir);
+        Modes.acasFD2 = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0644);
         if (Modes.acasFD2 < 0) {
             fprintf(stderr, "open failed:");
-            perror(pathbuf);
+            perror(filename);
         }
     }
     return;
