@@ -1815,15 +1815,30 @@ static void logACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *
     static char lastLogMV1[7], lastLogMV2[7];
 
     int deduplicationInterval = 100; // in ms
-    if (lastLogAddr1 == addr && (int64_t) now - lastLogTimestamp1 < deduplicationInterval && !memcmp(lastLogMV1, MV, 7))
+    if (lastLogAddr1 == addr && (int64_t) now - lastLogTimestamp1 < deduplicationInterval && !memcmp(lastLogMV1, MV, 7)) {
+        //fprintf(stderr, "1");
         return;
-    if (lastLogAddr2 == addr && (int64_t) now - lastLogTimestamp2 < deduplicationInterval && !memcmp(lastLogMV2, MV, 7))
+    }
+    if (lastLogAddr2 == addr && (int64_t) now - lastLogTimestamp2 < deduplicationInterval && !memcmp(lastLogMV2, MV, 7)) {
+        //fprintf(stderr, "2");
         return;
+    }
 
     if (addr == lastLogAddr1) {
         lastLogAddr1 = addr;
         lastLogTimestamp1 = now;
         memcpy(lastLogMV1, MV, 7);
+
+    } else if (addr == lastLogAddr2) {
+        lastLogAddr2 = addr;
+        lastLogTimestamp2 = now;
+        memcpy(lastLogMV2, MV, 7);
+
+    } else if (lastLogTimestamp1 < lastLogTimestamp2) {
+        lastLogAddr1 = addr;
+        lastLogTimestamp1 = now;
+        memcpy(lastLogMV1, MV, 7);
+
     } else {
         lastLogAddr2 = addr;
         lastLogTimestamp2 = now;
