@@ -2051,13 +2051,18 @@ void checkNewDay(uint64_t now) {
         createDateDir(Modes.globe_history_dir, &utc, dateDir);
 
         snprintf(filename, PATH_MAX, "%s/traces", dateDir);
-        if (mkdir(filename, 0700) && errno != EEXIST)
+        int err = mkdir(filename, 0700);
+        if (err && errno != EEXIST)
             perror(filename);
 
-        for (int i = 0; i < 256; i++) {
-            snprintf(filename, PATH_MAX, "%s/traces/%02x", dateDir, i);
-            if (mkdir(filename, 0755) && errno != EEXIST)
-                perror(filename);
+        // if the directory exists we assume we already have created the subdirectories
+        // if the directory couldn't be created no need to try and create subdirectories it won't work.
+        if (!err) {
+            for (int i = 0; i < 256; i++) {
+                snprintf(filename, PATH_MAX, "%s/traces/%02x", dateDir, i);
+                if (mkdir(filename, 0755) && errno != EEXIST)
+                    perror(filename);
+            }
         }
 
         Modes.mday = utc.tm_mday;
