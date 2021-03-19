@@ -266,6 +266,11 @@ int checkAcasRaValid(unsigned char *MV, struct modesMessage *mm) {
        return 1;
     }
 
+    // some extra restrictions for DF != 16 below
+
+    if (getbit(MV, 25) || getbit(MV, 26))
+        return 0; // left / right isn't used, require zero
+
     // for COMMB messages let's check if the thread indicator makes sense
 
     int tti = getbits(MV, 29, 30);
@@ -274,11 +279,19 @@ int checkAcasRaValid(unsigned char *MV, struct modesMessage *mm) {
     if (tti == 0) {
         if (getbits(MV, 31, 56) != 0)
             return 0;
+
+        return 1;
     }
     // When the threat type indicator is 01 , MB bits 31-54 contain the 24-bit Mode S transponder address and the last two bits are set to zero.
     if (tti == 1) {
         if (getbits(MV, 55, 56) != 0)
             return 0;
+
+        uint32_t addr = getbits(MV, 31, 54);
+        if (icaoFilterTest(addr))
+            return 1;
+
+        return 0;
     }
 
     // 10 Threat identity data contains altitude, range, and bearing
@@ -290,10 +303,11 @@ int checkAcasRaValid(unsigned char *MV, struct modesMessage *mm) {
     }
 
     // 11 Not assigned
-    if (tti == 3)
+    if (tti == 3) {
         return 0;
+    }
 
-    return 1;
+    return 0;
 }
 
 // BDS3,0 ACAS RA
