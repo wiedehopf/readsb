@@ -276,11 +276,11 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
 
             if (crossing) {
                 p = safe_snprintf(p, end, "; Crossing");
+                if (down)
+                    p = safe_snprintf(p, end, " Descend");
+                else
+                    p = safe_snprintf(p, end, " Climb");
             }
-            if (down)
-                p = safe_snprintf(p, end, " Descend");
-            else
-                p = safe_snprintf(p, end, " Climb");
         }
 
         if (corr && !positive) {
