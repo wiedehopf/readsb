@@ -724,7 +724,7 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
     // MV (message, ACAS)
     if (mm->msgtype == 16) {
         memcpy(mm->MV, &msg[4], 7);
-        if (mm->MV[0] == 0x30 && checkAcasRaValid(mm->MV, mm->msgtype)) {
+        if (mm->MV[0] == 0x30 && checkAcasRaValid(mm->MV, mm)) {
             mm->acas_ra_valid = 1;
         }
     }
@@ -1780,7 +1780,7 @@ static const char *esTypeName(unsigned metype, unsigned mesub) {
     }
 }
 
-static void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, uint64_t now) {
+void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, uint64_t now) {
     char buf[512];
     char *p = buf;
     char *end = buf + sizeof(buf);
@@ -2445,14 +2445,15 @@ void useModesMessage(struct modesMessage *mm) {
             MSG = mm->MV;
         }
 
-        if (Modes.debug_printACAS) {
+        logACASInfoShort(mm->addr, MSG, a, mm, mm->sysTimestampMsg);
+
+        if (0 && Modes.debug_printACAS) {
             printACASInfoShort(mm->addr, MSG, a, mm, mm->sysTimestampMsg);
             if (0) {
                 printACASInfoAll(mm, a);
                 printACASInfo(mm->addr, MSG);
             }
         }
-        logACASInfoShort(mm->addr, MSG, a, mm, mm->sysTimestampMsg);
     }
 
     // In non-interactive non-quiet mode, display messages on standard output

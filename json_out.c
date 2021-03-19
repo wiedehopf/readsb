@@ -242,8 +242,9 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
        not require a change in vertical speed
        */
     if (rat) {
-        p = safe_snprintf(p, end, "RA: Clear of Conflict");
-    } else if (ara) {
+        p = safe_snprintf(p, end, "Clear of Conflict; ");
+    }
+    if (ara) {
         p = safe_snprintf(p, end, "RA:");
         bool corr = getbit(MV, 10); // corrective / preventive
         bool down = getbit(MV, 11); // downward sense / upward sense
@@ -268,9 +269,9 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
 
             if (reversal) {
                 if (down)
-                    p = safe_snprintf(p, end, ", Descend");
+                    p = safe_snprintf(p, end, "; Descend");
                 else
-                    p = safe_snprintf(p, end, ", Climb");
+                    p = safe_snprintf(p, end, "; Climb");
                 p = safe_snprintf(p, end, " NOW");
             }
 
