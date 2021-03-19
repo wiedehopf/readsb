@@ -26,5 +26,6 @@
 #define COMM_B_H
 
 void decodeCommB (struct modesMessage *mm);
+int checkAcasRaValid(unsigned char *MV, int msgtype);
 
 #endif

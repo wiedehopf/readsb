@@ -249,6 +249,55 @@ static int decodeBDS20(struct modesMessage *mm, bool store) {
     return score;
 }
 
+// check if the payload is a valid ACAS payload
+// https://mode-s.org/decode/book-the_1090mhz_riddle-junzi_sun.pdf
+int checkAcasRaValid(unsigned char *MV, int msgtype) {
+    if (getbits(MV, 9, 28) == 0)
+        return 0; // these are the bits that contain the info, all zero it's not an RA
+    if (getbit(MV, 23) && getbit(MV, 24))
+        return 0; // complementary bits, both set is invalid (above / below)
+    if (getbit(MV, 25) && getbit(MV, 26))
+        return 0; // complementary bits, both set is invalid (left / right)
+
+    if (msgtype == 16) {
+       if (getbits(MV, 29, 56) != 0)
+        return 0; // in DF16 messages MV bits 29 to 56 are reserved
+
+       return 1;
+    }
+
+    // for COMMB messages let's check if the thread indicator makes sense
+
+    int tti = getbits(MV, 29, 30);
+    // thread type indicator
+    // 00 No identity data in threat identity data
+    if (tti == 0) {
+        if (getbits(MV, 31, 56) != 0)
+            return 0;
+
+        return 1;
+    }
+    // When the threat type indicator is 01 , MB bits 31-54 contain the 24-bit Mode S transponder address and the last two bits are set to zero.
+    if (tti == 1) {
+        if (getbits(MV, 55, 56) != 0)
+            return 0;
+        if (getbits(MV, 31, 54) == 0)
+            return 0;
+    }
+
+    // 10 Threat identity data contains altitude, range, and bearing
+    if (tti == 2) {
+        if (getbits(MV, 31, 56) == 0)
+            return 0;
+    }
+
+    // 11 Not assigned
+    if (tti == 3)
+        return 0;
+
+    return 1;
+}
+
 // BDS3,0 ACAS RA
 
 static int decodeBDS30(struct modesMessage *mm, bool store) {
@@ -262,13 +311,7 @@ static int decodeBDS30(struct modesMessage *mm, bool store) {
     if (store) {
         mm->commb_format = COMMB_ACAS_RA;
 
-        if (
-                // checks to not get bogus messages or messages that have all zeros in the interesting part
-                getbits(msg, 9, 28) != 0
-                && !(getbit(msg, 23) && getbit(msg, 24))
-                && !(getbit(msg, 25) && getbit(msg, 26))
-                && getbits(msg, 42, 56) == 0 // 29-56 are currently reserved and should all be zero
-           ) {
+        if (checkAcasRaValid(mm->MB, mm->msgtype)) {
             mm->acas_ra_valid = 1;
         }
     }

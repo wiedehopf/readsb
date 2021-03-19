@@ -724,15 +724,7 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
     // MV (message, ACAS)
     if (mm->msgtype == 16) {
         memcpy(mm->MV, &msg[4], 7);
-        if (
-                getbits(mm->MV, 1, 4) == 3
-                && getbits(mm->MV, 5, 8) == 0
-                // checks to not get bogus messages or messages that have all zeros in the interesting part
-                && getbits(mm->MV, 9, 28) != 0
-                && !(getbit(mm->MV, 23) && getbit(mm->MV, 24)) // can't both be set in a valid message
-                && !(getbit(mm->MV, 25) && getbit(mm->MV, 26)) // can't both be set in a valid message
-                && getbits(mm->MV, 42, 56) == 0 // 29-56 are currently reserved and should all be zero
-           ) {
+        if (mm->MV[0] == 0x30 && checkAcasRaValid(mm->MV, mm->msgtype)) {
             mm->acas_ra_valid = 1;
         }
     }
