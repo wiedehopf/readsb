@@ -214,11 +214,17 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
     p = safe_snprintf(p, end, ",RAC:,");
     for (int i = 23; i <= 26; i++) p = safe_snprintf(p, end, "%u", getbit(MV, i));
     p = safe_snprintf(p, end, ",");
-    char *racs[4] = { "below", "above", " left", "right" };
-    for (int i = 23; i <= 26; i++) {
-        if (getbit(MV, i))
-            p = safe_snprintf(p, end, " not %s", racs[i-23]);
+
+    if (getbits(MV, 23, 26)) {
+        char *racs[4] = { "below", "above", " left", "right" };
+        for (int i = 23; i <= 26; i++) {
+            if (getbit(MV, i))
+                p = safe_snprintf(p, end, " not %s", racs[i-23]);
+        }
+    } else {
+        p = safe_snprintf(p, end, "          ");
     }
+    p = safe_snprintf(p, end, ",");
 
     // https://mode-s.org/decode/book-the_1090mhz_riddle-junzi_sun.pdf
     //
@@ -235,7 +241,6 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
        change in vertical speed; preventive RAs do
        not require a change in vertical speed
        */
-    p = safe_snprintf(p, end, ",");
     if (rat) {
         p = safe_snprintf(p, end, "RA: Clear of Conflict");
     } else if (ara) {
