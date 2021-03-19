@@ -247,16 +247,13 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
         bool crossing = getbit(MV, 14); // altitude crossing
         bool positive = getbit(MV, 15);
         // positive: (Maintain climb / descent) / (Climb / descend): requires more than 1500 fpm vertical rate
-        // !positive: (Do not / reduce) (climb / descend): requires more than 1500 fpm vertical rate
+        // !positive: (Do not / reduce) (climb / descend)
 
         if (corr && positive) {
             if (!reversal) {
                 // reversal has priority and comes later
             } else if (increase) {
-                // this should have priority over crossing modificator .. not sure
                 p = safe_snprintf(p, end, " Increase");
-            } else if (crossing) {
-                p = safe_snprintf(p, end, " Crossing");
             }
 
             if (down)
@@ -271,26 +268,31 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
                     p = safe_snprintf(p, end, ", Climb");
                 p = safe_snprintf(p, end, " NOW");
             }
+
+            if (crossing) {
+                p = safe_snprintf(p, end, "; Crossing");
+            }
+            if (down)
+                p = safe_snprintf(p, end, " Descend");
+            else
+                p = safe_snprintf(p, end, " Climb");
         }
 
         if (corr && !positive) {
-            p = safe_snprintf(p, end, " Reduce");
-            if (down)
-                p = safe_snprintf(p, end, " Climb");
-            else
-                p = safe_snprintf(p, end, " Descent");
+            p = safe_snprintf(p, end, " Level Off");
+        }
+
+        if (!corr && positive) {
+            p = safe_snprintf(p, end, " Maintain vertical Speed");
+            if (crossing) {
+                p = safe_snprintf(p, end, "; Crossing Maintain");
+            }
         }
 
         if (!corr && !positive) {
             p = safe_snprintf(p, end, " Monitor vertical Speed");
         }
 
-        if (!corr && positive) {
-            if (crossing) {
-                p = safe_snprintf(p, end, " Crossing");
-            }
-            p = safe_snprintf(p, end, " Maintain vertical Speed");
-        }
     }
     if (!ara && mte) {
         p = safe_snprintf(p, end, "RA multithreat:");
