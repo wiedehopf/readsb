@@ -391,7 +391,7 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
     static uint32_t count2, count3, count4;
 
     // nineteen_ago changes day 19 min after midnight: stop writing the previous days traces
-    // twenty_ago changes day 20 min after midnight: allow webserver to read the previous days traces
+    // twenty_ago changes day 20 min after midnight: allow webserver to read the previous days traces (see checkNewDay function)
     // this is in seconds, not milliseconds
     time_t nineteen_ago = now / 1000 - 19 * 60;
 
@@ -2031,31 +2031,14 @@ int handleHeatmap(uint64_t now) {
 }
 
 
+// this doesn't need to run under lock as the there should be no need for synchronisation
 void checkNewDay(uint64_t now) {
-    char filename[PATH_MAX];
-    char dateDir[PATH_MAX * 3/4];
-    struct tm utc;
-
     if (!Modes.globe_history_dir || !Modes.json_globe_index)
         return;
 
-    // nineteen_ago changes day 19 min after midnight: stop writing the previous days traces
-    // twenty_ago changes day 20 min after midnight: allow webserver to read the previous days traces
-    // this is in seconds, not milliseconds
-    time_t twenty_ago = now / 1000 - 20 * 60;
-    gmtime_r(&twenty_ago, &utc);
-
-    if (utc.tm_mday != Modes.traceDay) {
-        Modes.traceDay = utc.tm_mday;
-
-        time_t yesterday = now / 1000 - 24 * 3600;
-        gmtime_r(&yesterday, &utc);
-
-        createDateDir(Modes.globe_history_dir, &utc, dateDir); // doesn't usually create a directory ... but use the function anyhow worst that can happen is an empty directory for yesterday
-
-        snprintf(filename, PATH_MAX, "%s/traces", dateDir);
-        chmod(filename, 0755);
-    }
+    char filename[PATH_MAX];
+    char dateDir[PATH_MAX * 3/4];
+    struct tm utc;
 
     // at midnight, start a permanent write of all traces
     // create the new directory for writing traces
@@ -2064,7 +2047,6 @@ void checkNewDay(uint64_t now) {
     gmtime_r(&time, &utc);
 
     if (utc.tm_mday != Modes.mday) {
-        Modes.mday = utc.tm_mday;
 
         createDateDir(Modes.globe_history_dir, &utc, dateDir);
 
@@ -2078,14 +2060,55 @@ void checkNewDay(uint64_t now) {
                 perror(filename);
         }
 
-        if (Modes.acasFD1 > -1)
-            close(Modes.acasFD1);
-        if (Modes.acasFD2 > -1)
-            close(Modes.acasFD2);
+        Modes.mday = utc.tm_mday;
+    }
+
+    // nineteen_ago changes day 19 min after midnight: stop writing the previous days traces (see traceWrite function)
+    // twenty_ago changes day 20 min after midnight: allow webserver to read the previous days traces
+    // this is in seconds, not milliseconds
+    time_t twenty_ago = now / 1000 - 20 * 60;
+    gmtime_r(&twenty_ago, &utc);
+
+    if (utc.tm_mday != Modes.traceDay) {
+        time_t yesterday = now / 1000 - 24 * 3600;
+        gmtime_r(&yesterday, &utc);
+
+        createDateDir(Modes.globe_history_dir, &utc, dateDir); // doesn't usually create a directory ... but use the function anyhow worst that can happen is an empty directory for yesterday
+
+        snprintf(filename, PATH_MAX, "%s/traces", dateDir);
+        chmod(filename, 0755);
+
+        Modes.traceDay = utc.tm_mday;
+    }
+
+    return;
+}
+
+// do stuff which needs to happen when the other threads locked
+void checkNewDayLocked(uint64_t now) {
+    if (!Modes.globe_history_dir || !Modes.json_globe_index)
+        return;
+
+    struct tm utc;
+    time_t time = now / 1000;
+    gmtime_r(&time, &utc);
+
+    if (utc.tm_mday != Modes.acasDay) {
+
+        char filename[PATH_MAX];
+        char dateDir[PATH_MAX * 3/4];
+
+        createDateDir(Modes.globe_history_dir, &utc, dateDir);
 
         snprintf(filename, PATH_MAX, "%s/acas", dateDir);
         if (mkdir(filename, 0755) && errno != EEXIST)
             perror(filename);
+
+
+        if (Modes.acasFD1 > -1)
+            close(Modes.acasFD1);
+        if (Modes.acasFD2 > -1)
+            close(Modes.acasFD2);
 
         snprintf(filename, PATH_MAX, "%s/acas/acas.csv", dateDir);
         Modes.acasFD1 = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0644);
@@ -2093,14 +2116,16 @@ void checkNewDay(uint64_t now) {
             fprintf(stderr, "open failed:");
             perror(filename);
         }
+
         snprintf(filename, PATH_MAX, "%s/acas/acas.json", dateDir);
         Modes.acasFD2 = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0644);
         if (Modes.acasFD2 < 0) {
             fprintf(stderr, "open failed:");
             perror(filename);
         }
+
+        Modes.acasDay = utc.tm_mday;
     }
-    return;
 }
 
 /*
