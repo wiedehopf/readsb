@@ -196,9 +196,14 @@ void sdrRun() {
     return current_handler()->run();
 }
 
-static void *sdrCloseThreadEntry(void *arg) {
+static void *sdrCancelThreadEntry(void *arg) {
     MODES_NOTUSED(arg);
     current_handler()->cancel();
+    pthread_exit(NULL);
+}
+
+static void *sdrCloseThreadEntry(void *arg) {
+    MODES_NOTUSED(arg);
     current_handler()->close();
     pthread_exit(NULL);
 }
@@ -207,8 +212,14 @@ bool sdrClose() {
     bool fatal = false;
     pthread_t manageThread = current_handler()->manageThread;
 
-    // Call cancel() / close() asynchronously:
-    pthread_create(&manageThread, NULL, sdrCloseThreadEntry, NULL);
+    // Call cancel() asynchronously:
+    pthread_create(&manageThread, NULL, sdrCancelThreadEntry, NULL);
+    if (tryJoinThread(manageThread, SDR_TIMEOUT)) {
+        fprintf(stderr, "<3> FATAL: Clean closing of the SDR resource timed out, will raise SIGKILL!\n");
+        log_with_timestamp("Raising SIGKILL!");
+        raise(SIGKILL);
+    }
+
 
     // Wait on readerThread to finish
     if (tryJoinThread(Modes.reader_thread, SDR_TIMEOUT)) {
@@ -219,6 +230,9 @@ bool sdrClose() {
         pthread_mutex_destroy(&Modes.data_mutex);
     }
 
+
+    // Call close() asynchronously:
+    pthread_create(&manageThread, NULL, sdrCloseThreadEntry, NULL);
     if (tryJoinThread(manageThread, SDR_TIMEOUT)) {
         fprintf(stderr, "<3> FATAL: Clean closing of the SDR resource timed out, will raise SIGKILL!\n");
         fatal = true;
