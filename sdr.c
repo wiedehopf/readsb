@@ -204,7 +204,7 @@ static void *sdrCloseThreadEntry(void *arg) {
 }
 
 bool sdrClose() {
-    bool res = true;
+    bool fatal = false;
     pthread_t manageThread = current_handler()->manageThread;
 
     // Call cancel() / close() asynchronously:
@@ -212,17 +212,22 @@ bool sdrClose() {
 
     // Wait on readerThread to finish
     if (tryJoinThread(Modes.reader_thread, SDR_TIMEOUT)) {
-        log_with_timestamp("Receive thread termination timed out!");
-        res = false;
+        fprintf(stderr, "<3> FATAL: SDR receive thread termination timed out, will raise SIGKILL!\n");
+        fatal = true;
     } else {
         pthread_cond_destroy(&Modes.data_cond); // Thread cleanup - only after the reader thread is dead!
         pthread_mutex_destroy(&Modes.data_mutex);
     }
 
     if (tryJoinThread(manageThread, SDR_TIMEOUT)) {
-        log_with_timestamp("Clean closing of the SDR resource timed out!");
-        res = false;
+        fprintf(stderr, "<3> FATAL: Clean closing of the SDR resource timed out, will raise SIGKILL!\n");
+        fatal = true;
     }
 
-    return res;
+    if (fatal) {
+        log_with_timestamp("Raising SIGKILL!");
+        raise(SIGKILL);
+    }
+
+    return true;
 }

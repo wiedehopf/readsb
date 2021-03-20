@@ -593,11 +593,7 @@ static void *decodeThreadEntryPoint(void *arg) {
 
         pthread_mutex_unlock(&Modes.data_mutex);
 
-        if (!sdrClose()) {
-            fprintf(stderr, "<3> FATAL: sdrClose() failed, will raise SIGKILL, clean exit not possible!\n");
-            log_with_timestamp("Raising SIGKILL!");
-            raise(SIGKILL);
-        }
+        sdrClose();
     }
 
     pthread_mutex_unlock(&Modes.decodeMutex);
