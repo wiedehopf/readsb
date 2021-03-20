@@ -1365,6 +1365,7 @@ int main(int argc, char **argv) {
     }
 
     checkNewDay(mstime());
+    checkNewDayLocked(mstime());
 
     if (Modes.state_dir) {
         fprintf(stderr, "loading state .....\n");

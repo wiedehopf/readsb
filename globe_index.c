@@ -2075,6 +2075,7 @@ void checkNewDay(uint64_t now) {
     gmtime_r(&twenty_ago, &utc);
 
     if (utc.tm_mday != Modes.traceDay) {
+        Modes.traceDay = utc.tm_mday;
         time_t yesterday = now / 1000 - 24 * 3600;
         gmtime_r(&yesterday, &utc);
 
@@ -2082,8 +2083,6 @@ void checkNewDay(uint64_t now) {
 
         snprintf(filename, PATH_MAX, "%s/traces", dateDir);
         chmod(filename, 0755);
-
-        Modes.traceDay = utc.tm_mday;
     }
 
     return;
