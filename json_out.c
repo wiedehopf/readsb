@@ -181,29 +181,37 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
 
     p = safe_snprintf(p, end, "%s.%d,%06x,DF:,", timebuf, (int)((now % 1000) / 100), addr);
     if (mm)
-        p = safe_snprintf(p, end, "%u", mm->msgtype);
-    p = safe_snprintf(p, end, ",MV/MB:,");
+        p = safe_snprintf(p, end, "%2u", mm->msgtype);
+    else
+        p = safe_snprintf(p, end, "  ");
 
+    p = safe_snprintf(p, end, ",MV/MB:,");
     for (int i = 0; i < 7; ++i) {
         p = safe_snprintf(p, end, "%02X", (unsigned) MV[i]);
     }
     p = safe_snprintf(p, end, ",");
 
     if (a && posReliable(a))
-        p = safe_snprintf(p, end, "%11.6f", a->lat);
-    p = safe_snprintf(p, end, ",");
+        p = safe_snprintf(p, end, "%11.6f,", a->lat);
+    else
+        p = safe_snprintf(p, end, "           ,");
+
     if (a && posReliable(a))
-        p = safe_snprintf(p, end, "%11.6f", a->lon);
-    p = safe_snprintf(p, end, ",");
+        p = safe_snprintf(p, end, "%11.6f,", a->lon);
+    else
+        p = safe_snprintf(p, end, "           ,");
 
     if (a && altReliable(a))
-        p = safe_snprintf(p, end, "%5d", a->altitude_baro);
-    p = safe_snprintf(p, end, ",ft,");
+        p = safe_snprintf(p, end, "%5d,ft,", a->altitude_baro);
+    else
+        p = safe_snprintf(p, end, "     ,ft,");
 
     if (a && trackDataValid(&a->geom_rate_valid)) {
         p = safe_snprintf(p, end, "%5d", a->geom_rate);
     } else if (a && trackDataValid(&a->baro_rate_valid)) {
         p = safe_snprintf(p, end, "%5d", a->baro_rate);
+    } else {
+        p = safe_snprintf(p, end, "     ");
     }
     p = safe_snprintf(p, end, ",fpm,");
 
@@ -303,22 +311,21 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
     if (!ara && mte) {
         p = safe_snprintf(p, end, "RA multithreat:");
         if (getbit(MV, 10))
-            p = safe_snprintf(p, end, " correct upwards");
+            p = safe_snprintf(p, end, " correct upwards;");
         if (getbit(MV, 11))
-            p = safe_snprintf(p, end, " climb required");
+            p = safe_snprintf(p, end, " climb required;");
         if (getbit(MV, 12))
-            p = safe_snprintf(p, end, " correct downwards");
+            p = safe_snprintf(p, end, " correct downwards;");
         if (getbit(MV, 13))
-            p = safe_snprintf(p, end, " descent required");
+            p = safe_snprintf(p, end, " descent required;");
         if (getbit(MV, 14))
-            p = safe_snprintf(p, end, " [x] crossing");
-        else
-            p = safe_snprintf(p, end, " [ ] crossing");
+            p = safe_snprintf(p, end, " crossing;");
         if (getbit(MV, 15))
             p = safe_snprintf(p, end, " increase/maintain vertical rate");
         else
             p = safe_snprintf(p, end, "      reduce/limit vertical rate");
     }
+
     p = safe_snprintf(p, end, ",");
 
     return p;
