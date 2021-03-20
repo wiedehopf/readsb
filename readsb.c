@@ -593,7 +593,7 @@ static void *decodeThreadEntryPoint(void *arg) {
 
         pthread_mutex_unlock(&Modes.data_mutex);
 
-        sdrClose();
+        sdrCancel();
     }
 
     pthread_mutex_unlock(&Modes.decodeMutex);
@@ -1460,11 +1460,7 @@ int main(int argc, char **argv) {
     pthread_cond_signal(&Modes.decodeCond);
     pthread_mutex_unlock(&Modes.decodeMutex);
 
-    pthread_mutex_lock(&Modes.data_mutex);
-    pthread_cond_signal(&Modes.data_cond);
-    pthread_mutex_unlock(&Modes.data_mutex);
-
-    pthread_join(Modes.decodeThread, NULL); // Wait on json writer thread exit
+    pthread_join(Modes.decodeThread, NULL);
 
     // force stats to be done, this must happen before network cleanup as it checks network stuff
     Modes.next_stats_update = 0;
@@ -1510,7 +1506,6 @@ int main(int argc, char **argv) {
         //fprintf(stderr, "%d\n", i);
     }
 
-
     pthread_mutex_destroy(&Modes.decodeMutex);
     pthread_mutex_destroy(&Modes.jsonMutex);
     pthread_mutex_destroy(&Modes.jsonGlobeMutex);
@@ -1522,7 +1517,6 @@ int main(int argc, char **argv) {
         pthread_cond_destroy(&Modes.jsonTraceCond[i]);
     }
 
-
     pthread_mutex_destroy(&Modes.mainMutex);
     pthread_cond_destroy(&Modes.mainCond);
 
@@ -1530,6 +1524,13 @@ int main(int argc, char **argv) {
     if (Modes.stats) {
         display_total_stats();
     }
+
+    // close the SDR, this can result in SIGKILL being raised if it doesn't work
+    // do all the cleanup we can before we attempt it so we cause less chaos
+    if (Modes.sdr_type != SDR_NONE) {
+        sdrClose();
+    }
+
     if (Modes.exit != 1) {
         log_with_timestamp("Abnormal exit.");
         cleanup_and_exit(1);

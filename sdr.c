@@ -208,14 +208,18 @@ static void *sdrCloseThreadEntry(void *arg) {
     pthread_exit(NULL);
 }
 
+void sdrCancel() {
+    // Call cancel() asynchronously:
+    pthread_create(&current_handler()->manageThread, NULL, sdrCancelThreadEntry, NULL);
+}
+
 bool sdrClose() {
     bool fatal = false;
     pthread_t manageThread = current_handler()->manageThread;
 
-    // Call cancel() asynchronously:
-    pthread_create(&manageThread, NULL, sdrCancelThreadEntry, NULL);
+    // wait on the thread started by sdrCancel to finish
     if (tryJoinThread(manageThread, SDR_TIMEOUT)) {
-        fprintf(stderr, "<3> FATAL: Clean closing of the SDR resource timed out, will raise SIGKILL!\n");
+        fprintf(stderr, "<3> FATAL: The SDR being stopped timed out, will raise SIGKILL!\n");
         log_with_timestamp("Raising SIGKILL!");
         raise(SIGKILL);
     }
