@@ -184,8 +184,6 @@ struct char_buffer readWholeFile(int fd, char *errorContext) {
         return cb;
     }
     size_t fsize = fileinfo.st_size;
-    if (fsize == 0)
-        return cb;
 
     cb.buffer = malloc(fsize + 1);
     if (!cb.buffer) {
