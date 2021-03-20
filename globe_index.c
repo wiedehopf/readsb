@@ -361,6 +361,11 @@ int globe_index_index(int index) {
     return globe_index(lat, lon);
 }
 
+static void sprintDateDir(char *base_dir, struct tm *utc, char *dateDir) {
+    char tstring[100];
+    strftime (tstring, 100, TDATE_FORMAT, utc);
+    snprintf(dateDir, PATH_MAX * 3/4, "%s/%s", base_dir, tstring);
+}
 static void createDateDir(char *base_dir, struct tm *utc, char *dateDir) {
     if (!strcmp(TDATE_FORMAT, "%Y/%m/%d")) {
         char yy[100];
@@ -376,9 +381,7 @@ static void createDateDir(char *base_dir, struct tm *utc, char *dateDir) {
         if (mkdir(pathbuf, 0755) && errno != EEXIST)
             perror(pathbuf);
     }
-    char tstring[100];
-    strftime (tstring, 100, TDATE_FORMAT, utc);
-    snprintf(dateDir, PATH_MAX * 3/4, "%s/%s", base_dir, tstring);
+    sprintDateDir(base_dir, utc, dateDir);
     if (mkdir(dateDir, 0755) && errno != EEXIST)
         perror(dateDir);
 }
@@ -2047,6 +2050,7 @@ void checkNewDay(uint64_t now) {
     gmtime_r(&time, &utc);
 
     if (utc.tm_mday != Modes.mday) {
+        Modes.mday = utc.tm_mday;
 
         createDateDir(Modes.globe_history_dir, &utc, dateDir);
 
@@ -2064,8 +2068,6 @@ void checkNewDay(uint64_t now) {
                     perror(filename);
             }
         }
-
-        Modes.mday = utc.tm_mday;
     }
 
     // nineteen_ago changes day 19 min after midnight: stop writing the previous days traces (see traceWrite function)
@@ -2098,6 +2100,7 @@ void checkNewDayLocked(uint64_t now) {
     gmtime_r(&time, &utc);
 
     if (utc.tm_mday != Modes.acasDay) {
+        Modes.acasDay = utc.tm_mday;
 
         char filename[PATH_MAX];
         char dateDir[PATH_MAX * 3/4];
@@ -2114,6 +2117,7 @@ void checkNewDayLocked(uint64_t now) {
         if (Modes.acasFD2 > -1)
             close(Modes.acasFD2);
 
+
         snprintf(filename, PATH_MAX, "%s/acas/acas.csv", dateDir);
         Modes.acasFD1 = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0644);
         if (Modes.acasFD1 < 0) {
@@ -2127,8 +2131,6 @@ void checkNewDayLocked(uint64_t now) {
             fprintf(stderr, "open failed:");
             perror(filename);
         }
-
-        Modes.acasDay = utc.tm_mday;
     }
 }
 
