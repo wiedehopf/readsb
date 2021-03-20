@@ -550,8 +550,8 @@ static void *decodeThreadEntryPoint(void *arg) {
                 // Nothing to process this time around.
                 pthread_mutex_unlock(&Modes.data_mutex);
                 if (--watchdogCounter <= 0) {
-                    fprintf(stderr, "<3> FATAL! SDR wedged, exiting! (check power supply / avoid using an USB extension / SDR might be defective)");
-                    Modes.exit = 1;
+                    fprintf(stderr, "<3> SDR wedged, exiting! (check power supply / avoid using an USB extension / SDR might be defective)");
+                    Modes.exit = 2;
                     break;
                 }
             }
@@ -593,39 +593,10 @@ static void *decodeThreadEntryPoint(void *arg) {
 
         pthread_mutex_unlock(&Modes.data_mutex);
 
-        {
-            // avoid synchronous call in particular of the rtl-sdr cancel call ... as apparently it can hang.
-            // no need to join this thread ... we don't want to wait for it.
-            pthread_create(&Modes.sdrCancelThread, NULL, sdrCancel, NULL);
-
-            log_with_timestamp("Waiting for receive thread termination");
-            int err = 0;
-            int count = 100;
-            // Wait on reader thread exit
-            while (count-- > 0 && (err = pthread_tryjoin_np(Modes.reader_thread, NULL))) {
-                msleep(100);
-            }
-            if (err) {
-                log_with_timestamp("Receive thread termination failed, will raise SIGKILL on exit!");
-                Modes.exit = SIGKILL;
-            } else {
-                pthread_cond_destroy(&Modes.data_cond); // Thread cleanup - only after the reader thread is dead!
-                pthread_mutex_destroy(&Modes.data_mutex);
-            }
-        }
-        {
-            // avoid calling sdrClose synchrous as well ... we don't trust those rtl-sdr lib calls to not hang
-            pthread_create(&Modes.sdrCloseThread, NULL, sdrClose, NULL);
-            // Wait on sdrClose
-            int err = 0;
-            int count = 100;
-            while (count-- > 0 && (err = pthread_tryjoin_np(Modes.sdrCloseThread, NULL))) {
-                msleep(100);
-            }
-            if (err) {
-                log_with_timestamp("sdrClose timed out, will raise SIGKILL on exit!");
-                Modes.exit = SIGKILL;
-            }
+        if (!sdrClose()) {
+            fprintf(stderr, "<3> FATAL: sdrClose() failed, will raise SIGKILL, clean exit not possible!\n");
+            log_with_timestamp("Raising SIGKILL!");
+            raise(SIGKILL);
         }
     }
 
@@ -684,7 +655,6 @@ static void backgroundTasks(void) {
 //=========================================================================
 // Clean up memory prior to exit.
 static void cleanup_and_exit(int code) {
-    Modes.exit = 1;
     if (Modes.acasFD1 > -1)
         close(Modes.acasFD1);
     if (Modes.acasFD2 > -1)
@@ -1340,6 +1310,7 @@ int main(int argc, char **argv) {
     modesInit();
 
     if (Modes.sdr_type != SDR_NONE && !sdrOpen()) {
+        log_with_timestamp("sdrOpen() failed, exiting!");
         cleanup_and_exit(1);
     }
 
@@ -1562,9 +1533,6 @@ int main(int argc, char **argv) {
     // If --stats were given, print statistics
     if (Modes.stats) {
         display_total_stats();
-    }
-    if (Modes.exit == SIGKILL) {
-        raise(SIGKILL);
     }
     if (Modes.exit != 1) {
         log_with_timestamp("Abnormal exit.");

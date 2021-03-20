@@ -38,6 +38,8 @@
 
 #include "sdr_beast.h"
 
+#define SDR_TIMEOUT 5000 // timeout for sdr open / cancel / close calls in milliseconds
+
 typedef struct {
     void (*initConfig)();
     bool(*handleOption)(int, char*);
@@ -47,7 +49,7 @@ typedef struct {
     void (*close)();
     const char *name;
     sdr_type_t sdr_type;
-    uint32_t padding;
+    pthread_t manageThread;
 } sdr_handler;
 
 static void noInitConfig() {
@@ -149,22 +151,78 @@ static sdr_handler *current_handler() {
     return &unsupported_handler;
 }
 
+// avoid synchronous calls for all SDR handlers
+// in particular rtlsdr_cancel_async() and rtlsdr_close() are suspect
+// of never returning in some cases
+//
+
+
+// if a thread fails to terminate within milliseconds timeout
+// return 0 on successful join, non-zero otherwise
+// 50 ms granularity
+static int tryJoinThread(pthread_t thread, int timeout) {
+    int err = 0;
+    int step = 50; // granularity
+    int countdown = timeout / step + 1;
+    while (countdown-- > 0 && (err = pthread_tryjoin_np(thread, NULL))) {
+        msleep(step);
+    }
+    return err;
+}
+
+
+static void *sdrOpenThreadEntry(void *arg) {
+    bool *res = (bool *) arg;
+    *res = current_handler()->open();
+    pthread_exit(NULL);
+}
+
 bool sdrOpen() {
-    return current_handler()->open();
+    pthread_t manageThread = current_handler()->manageThread;
+    bool res = false;
+
+    pthread_create(&manageThread, NULL, sdrOpenThreadEntry, &res);
+
+    // Wait on open handler to finish:
+    if (tryJoinThread(manageThread, SDR_TIMEOUT)) {
+        fprintf(stderr, "<3> FATAL: sdrOpen() timed out, will raise SIGKILL, clean exit not possible!\n");
+        log_with_timestamp("Raising SIGKILL!");
+        raise(SIGKILL);
+    }
+    return res;
 }
 
 void sdrRun() {
     return current_handler()->run();
 }
 
-void *sdrCancel(void *arg) {
+static void *sdrCloseThreadEntry(void *arg) {
     MODES_NOTUSED(arg);
     current_handler()->cancel();
+    current_handler()->close();
     pthread_exit(NULL);
 }
 
-void *sdrClose(void *arg) {
-    MODES_NOTUSED(arg);
-    current_handler()->close();
-    pthread_exit(NULL);
+bool sdrClose() {
+    bool res = true;
+    pthread_t manageThread = current_handler()->manageThread;
+
+    // Call cancel() / close() asynchronously:
+    pthread_create(&manageThread, NULL, sdrCloseThreadEntry, NULL);
+
+    // Wait on readerThread to finish
+    if (tryJoinThread(Modes.reader_thread, SDR_TIMEOUT)) {
+        log_with_timestamp("Receive thread termination timed out!");
+        res = false;
+    } else {
+        pthread_cond_destroy(&Modes.data_cond); // Thread cleanup - only after the reader thread is dead!
+        pthread_mutex_destroy(&Modes.data_mutex);
+    }
+
+    if (tryJoinThread(manageThread, SDR_TIMEOUT)) {
+        log_with_timestamp("Clean closing of the SDR resource timed out!");
+        res = false;
+    }
+
+    return res;
 }
