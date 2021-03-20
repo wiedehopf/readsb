@@ -2033,6 +2033,47 @@ int handleHeatmap(uint64_t now) {
     return 1;
 }
 
+static void gzip(char *file) {
+    int fd;
+    char fileGz[PATH_MAX];
+    gzFile gzfp;
+
+    // read uncompressed file into buffer
+    fd = open(file, O_RDONLY);
+    if (fd < 0)
+        return;
+    struct char_buffer cb = readWholeFile(fd, file);
+    close(fd);
+    if (!cb.buffer) {
+        fprintf(stderr, "compressACAS readWholeFile failed: %s\n", file);
+        return;
+    }
+
+    snprintf(fileGz, PATH_MAX, "%s.gz", file);
+    gzfp = gzopen(fileGz, "wb");
+    if (!gzfp) {
+        fprintf(stderr, "gzopen failed:");
+        perror(fileGz);
+        return;
+    }
+    writeGz(gzfp, cb.buffer, cb.len, fileGz);
+    if (gzclose(gzfp) != Z_OK) {
+        fprintf(stderr, "compressACAS gzclose failed: %s\n", fileGz);
+        unlink(fileGz);
+        return;
+    }
+    // delete uncompressed file
+    unlink(file);
+}
+
+static void compressACAS(char *dateDir) {
+    char filename[PATH_MAX];
+    snprintf(filename, PATH_MAX, "%s/acas/acas.csv", dateDir);
+    gzip(filename);
+
+    snprintf(filename, PATH_MAX, "%s/acas/acas.json", dateDir);
+    gzip(filename);
+}
 
 // this doesn't need to run under lock as the there should be no need for synchronisation
 void checkNewDay(uint64_t now) {
@@ -2085,6 +2126,8 @@ void checkNewDay(uint64_t now) {
 
         snprintf(filename, PATH_MAX, "%s/traces", dateDir);
         chmod(filename, 0755);
+
+        compressACAS(dateDir);
     }
 
     return;
