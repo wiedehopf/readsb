@@ -1,8 +1,9 @@
 #include "readsb.h"
 
 #define LEG_FOCUS (0xc0ffeeba)
+#define TRACE_FOCUS (0xc0ffeeba)
 
-static void mark_legs(struct aircraft *a);
+static void mark_legs(struct aircraft *a, int start);
 static void load_blob(int blob);
 
 void init_globe_index(struct tile *s_tiles) {
@@ -391,7 +392,7 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
     struct char_buffer full;
     struct char_buffer hist;
     char filename[PATH_MAX];
-    static uint32_t count2, count3, count4;
+    //static uint32_t count2, count3, count4;
 
     // nineteen_ago changes day 19 min after midnight: stop writing the previous days traces
     // twenty_ago changes day 20 min after midnight: allow webserver to read the previous days traces (see checkNewDay function)
@@ -402,17 +403,13 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
     full.len = 0;
     hist.len = 0;
 
-    if (Modes.debug_traceCount && ++count2 % 1000 == 0)
-        fprintf(stderr, "recent trace write: %u\n", count2);
+    //if (Modes.debug_traceCount && ++count2 % 1000 == 0)
+    //    fprintf(stderr, "recent trace write: %u\n", count2);
 
     a->trace_write = 0;
 
     if (!a->trace_alloc)
         return;
-
-    if (!init) {
-        mark_legs(a);
-    }
 
     int start24 = 0;
     for (int i = 0; i < a->trace_len; i++) {
@@ -422,67 +419,79 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
         }
     }
 
-    int recent_points = init ? 42 : 142;
+    int recent_points = 54;
     int start_recent = a->trace_len - recent_points;
     if (start_recent < start24)
         start_recent = start24;
 
-    // write recent trace to /run
+    if (!init && a->trace_len % 4 == 0) {
+        mark_legs(a, max(0, start_recent - 300));
+    }
+
+    // prepare the data for the trace_recent file in /run
     recent = generateTraceJson(a, start_recent, -1);
 
-    if (now > a->trace_next_mw || a->trace_full_write > 35 || now > a->trace_next_fw) {
-        int write_perm = 0;
+    if (a->addr == TRACE_FOCUS)
+        fprintf(stderr, "mw: %.0f, fw: %.0f, count: %d\n",
+                ((int64_t) a->trace_next_mw - (int64_t) now) / 1000.0,
+                ((int64_t) a->trace_next_perm - (int64_t) now) / 1000.0,
+                a->trace_writeCounter);
 
-        if (Modes.debug_traceCount && ++count3 % 1000 == 0)
-            fprintf(stderr, "memory trace writes: %u\n", count3);
+    // prepare the data for the trace_full file in /run
+    if (now > a->trace_next_mw || a->trace_writeCounter >= recent_points - 2) {
+        //if (Modes.debug_traceCount && ++count3 % 1000 == 0)
+        //    fprintf(stderr, "memory trace writes: %u\n", count3);
+        if (a->addr == TRACE_FOCUS)
+            fprintf(stderr, "full\n");
 
-        // write full trace to /run
+        mark_legs(a, 0);
+
         full = generateTraceJson(a, start24, -1);
 
-        if (a->trace_full_write == 0xc0ffee)
-            a->trace_next_mw = now + random() % (20 * MINUTES);
+        if (a->trace_writeCounter >= 0xc0ffee)
+            a->trace_next_mw = now + 5 * MINUTES + random() % (60 * MINUTES);
         else
-            a->trace_next_mw = now + 20 * MINUTES + random() % (2 * MINUTES);
+            a->trace_next_mw = now + 60 * MINUTES + random() % (10 * MINUTES);
 
-        if (now > a->trace_next_fw || a->trace_full_write == 0xc0ffee) {
-            write_perm = 1;
+        a->trace_writeCounter = 0;
+    }
 
-            if (a->trace_full_write == 0xc0ffee) {
-                a->trace_next_fw = now + random() % (2 * HOURS);
-            } else {
-                a->trace_next_fw = now + 2 * HOURS + random() % (30 * MINUTES);
+    // prepare writing the permanent history
+    // until 20 min after midnight we only write permanent traces for the previous day
+    if (now > a->trace_next_perm && Modes.globe_history_dir && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
+        if (a->addr == TRACE_FOCUS)
+            fprintf(stderr, "perm\n");
+
+        mark_legs(a, 0);
+
+
+        struct tm utc;
+        gmtime_r(&nineteen_ago, &utc);
+
+        if (utc.tm_hour == 0 && utc.tm_min < 20) {
+            a->trace_next_perm = now + 20 * MINUTES + random() % (3 * HOURS);
+        } else {
+            a->trace_next_perm = now + 2 * HOURS + random() % (60 * MINUTES);
+        }
+
+        utc.tm_sec = 0;
+        utc.tm_min = 0;
+        utc.tm_hour = 0;
+        uint64_t start_of_day = 1000 * (uint64_t) (timegm(&utc));
+        uint64_t end_of_day = 1000 * (uint64_t) (timegm(&utc) + 86400);
+
+        int start = -1;
+        int end = -1;
+        for (int i = 0; i < a->trace_len; i++) {
+            if (start == -1 && a->trace[i].timestamp > start_of_day) {
+                start = i;
+            }
+            if (a->trace[i].timestamp < end_of_day) {
+                end = i;
             }
         }
-        a->trace_full_write = 0;
-
-        //fprintf(stderr, "%06x\n", a->addr);
-
-        // prepare writing the permanent history
-        // until 20 min after midnight we only write permanent traces for the previous day
-        if (write_perm && a->trace_len > 0 &&
-                Modes.globe_history_dir && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
-
-            struct tm utc;
-            gmtime_r(&nineteen_ago, &utc);
-            utc.tm_sec = 0;
-            utc.tm_min = 0;
-            utc.tm_hour = 0;
-            uint64_t start_of_day = 1000 * (uint64_t) (timegm(&utc));
-            uint64_t end_of_day = 1000 * (uint64_t) (timegm(&utc) + 86400);
-
-            int start = -1;
-            int end = -1;
-            for (int i = 0; i < a->trace_len; i++) {
-                if (start == -1 && a->trace[i].timestamp > start_of_day) {
-                    start = i;
-                }
-                if (a->trace[i].timestamp < end_of_day) {
-                    end = i;
-                }
-            }
-            if (start >= 0 && end >= 0 && end >= start)
-                hist = generateTraceJson(a, start, end);
-        }
+        if (start >= 0 && end >= 0 && end >= start)
+            hist = generateTraceJson(a, start, end);
     }
 
 
@@ -513,9 +522,14 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
         writeJsonToGzip(Modes.globe_history_dir, filename, hist, 9);
         free(hist.buffer);
 
-        if (Modes.debug_traceCount && ++count4 % 100 == 0)
-            fprintf(stderr, "perm trace writes: %u\n", count4);
+        //if (Modes.debug_traceCount && ++count4 % 100 == 0)
+        //    fprintf(stderr, "perm trace writes: %u\n", count4);
     }
+    if (a->addr == TRACE_FOCUS)
+        fprintf(stderr, "mw: %.0f, fw: %.0f, count: %d\n",
+                ((int64_t) a->trace_next_mw - (int64_t) now) / 1000.0,
+                ((int64_t) a->trace_next_perm - (int64_t) now) / 1000.0,
+                a->trace_writeCounter);
 }
 
 void *save_blobs(void *arg) {
@@ -602,7 +616,7 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
             *p += size_all;
 
             if (a->addr == LEG_FOCUS) {
-                a->trace_next_fw = now;
+                a->trace_next_perm = now;
                 fprintf(stderr, "%06x trace len: %d\n", a->addr, a->trace_len);
             }
         }
@@ -644,20 +658,30 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
         Modes.aircraft[hash] = a;
     }
 
+    if (a->trace_next_perm < now || a->trace_next_perm > now + 3 * HOURS) {
+        a->trace_next_perm = now + random() % (60 * MINUTES);
+    }
+
+    // avoid triggering full writes here
+    a->trace_writeCounter = 0;
+    a->trace_next_mw = now + 60 * MINUTES;
     if (a->trace_alloc && Modes.json_dir && Modes.json_globe_index && a->position_valid.source != SOURCE_INVALID) {
         // the value below is again overwritten in track.c when a fullWrite is done on startup
-        a->trace_next_mw = a->trace_next_fw = now + 1 * MINUTES + random() % (2 * MINUTES);
-        a->trace_full_write = 0;
-        // setting mw, fw and full_write ensures only the recent trace is written, full trace would take too long
+        // setting mw, fw and writeCounter ensures only the recent trace is written, full trace would take too long
         traceWrite(a, now, 1);
     }
+
+    if (now < a->seen_pos + 3 * HOURS) {
+        a->trace_next_mw = now + random() % (1 * MINUTES); // spread over 1 min
+    } else {
+        a->trace_next_mw = now + 1 * MINUTES + random() % (1 * MINUTES); // spread over 1 min
+    }
+    a->trace_writeCounter = 0xc0ffee;
 
     int new_index = a->globe_index;
     a->globe_index = -5;
     set_globe_index(a, new_index);
     updateValidities(a, now);
-
-    a->traceWrittenForDay = 0;
 
     if (a->onActiveList) {
         a->onActiveList = 1;
@@ -732,9 +756,11 @@ void *jsonTraceThreadEntryPoint(void *arg) {
     pthread_exit(NULL);
 }
 
-static void mark_legs(struct aircraft *a) {
+static void mark_legs(struct aircraft *a, int start) {
     if (a->trace_len < 20)
         return;
+    if (start < 1)
+        start = 1;
 
     int high = 0;
     int low = 100000;
@@ -747,7 +773,7 @@ static void mark_legs(struct aircraft *a) {
     struct state *last_leg = NULL;
     struct state *new_leg = NULL;
 
-    for (int i = 0; i < a->trace_len; i++) {
+    for (int i = start; i < a->trace_len; i++) {
         int32_t altitude = a->trace[i].altitude * 25;
         int on_ground = a->trace[i].flags.on_ground;
         int altitude_valid = a->trace[i].flags.altitude_valid;
@@ -814,7 +840,7 @@ static void mark_legs(struct aircraft *a) {
     five_pos = 0;
 
     int prev_tmp = 0;
-    for (int i = 1; i < a->trace_len; i++) {
+    for (int i = start; i < a->trace_len; i++) {
         struct state *state = &a->trace[i];
         int prev_index = prev_tmp;
         struct state *prev = &a->trace[prev_index];
@@ -1020,7 +1046,7 @@ static void mark_legs(struct aircraft *a) {
         was_ground = on_ground;
     }
     if (last_leg != new_leg) {
-        a->trace_full_write = 9999;
+    //    a->trace_writeCounter = 9999;
         //fprintf(stderr, "%06x\n", a->addr);
     }
 }
@@ -1215,10 +1241,6 @@ static void tracePrune(struct aircraft *a, uint64_t now, int full) {
         // remove buffered position from part of trace that's final
         if (a->tracePosBuffered)
             a->trace_len--;
-
-        //a->trace_write = 1;
-        //a->trace_full_write = 9999; // rewrite full history file
-
     }
 }
 
@@ -1228,7 +1250,7 @@ int traceUsePosBuffered(struct aircraft *a) {
         // bookkeeping:
         a->trace_len++;
         a->trace_write = 1;
-        a->trace_full_write++;
+        a->trace_writeCounter++;
         return 1;
     } else {
         return 0;
@@ -1260,26 +1282,26 @@ void traceMaintenance(struct aircraft *a, uint64_t now) {
         tracePrune(a, now, 1);
     }
 
-    if (now > a->trace_next_fw) {
+    if (now > a->trace_next_perm || now > a->trace_next_mw) {
         tracePrune(a, now, 0);
         if (Modes.json_globe_index) {
             a->trace_write = 1;
         } else {
             // without globe_index don't write trace but make sure we still call tracePrune now and then.
-            a->trace_next_fw = now + Modes.keep_traces + random() % (30 * MINUTES);
+            a->trace_next_mw = a->trace_next_perm = now + Modes.keep_traces + random() % (30 * MINUTES);
         }
     }
 
     // on day change write out the traces for yesterday
     // for which day and which time span is written is determined by traceday
-    if (a->traceWrittenForDay != Modes.mday) {
-        a->traceWrittenForDay = Modes.mday;
+    if (a->traceWrittenForYesterday != Modes.mday) {
+        a->traceWrittenForYesterday = Modes.mday;
+        if (a->addr == TRACE_FOCUS)
+            fprintf(stderr, "schedule_perm\n");
         if (now < a->seen_pos + 3 * HOURS) {
-            a->trace_next_fw = now + random() % (2 * MINUTES); // spread over 2 mins
-            a->trace_full_write = 0xc0ffee;
+            a->trace_next_perm = now + random() % (2 * MINUTES); // spread over 2 min
         } else {
-            a->trace_next_fw = now + 3 * MINUTES + random() % (2 * MINUTES); // spread over 2 mins
-            a->trace_full_write = 0xc0ffee;
+            a->trace_next_perm = now + 2 * MINUTES + random() % (3 * MINUTES); // spread over 3 min
         }
     }
 
@@ -1564,7 +1586,7 @@ no_save_state:
         // allocate trace memory
         traceRealloc(a, 2 * TRACE_MARGIN);
         a->trace->timestamp = now;
-        a->trace_full_write = 9999; // rewrite full history file
+        a->trace_writeCounter = 9999; // rewrite full history file
 
         //fprintf(stderr, "%06x: new trace\n", a->addr);
     }
@@ -1650,7 +1672,7 @@ no_save_state:
         // bookkeeping:
         a->trace_len++;
         a->trace_write = 1;
-        a->trace_full_write++;
+        a->trace_writeCounter++;
     } else {
         a->tracePosBuffered = 1;
     }

@@ -235,7 +235,7 @@ struct aircraft
   uint32_t messages; // Number of Mode S messages received
   int trace_len; // current number of points in the trace
   int trace_write; // signal for writing the trace
-  int trace_full_write; // signal for writing the complete trace
+  int trace_writeCounter; // how many points where added since the complete trace was written to memory
   int trace_alloc; // current number of allocated points
   int destroy; // aircraft is being deleted
   int signalNext; // next index of signalLevel to use
@@ -250,7 +250,7 @@ struct aircraft
   int geom_delta; // Difference between Geometric and Baro altitudes
 
   uint64_t trace_next_mw; // timestamp for next full trace write to /run (tmpfs)
-  uint64_t trace_next_fw; // timestamp for next full trace write to history_dir (disk)
+  uint64_t trace_next_perm; // timestamp for next trace write to history_dir (disk)
   double unused_trace_llat; // last saved lat
   double unused_trace_llon; // last saved lon
 
@@ -286,7 +286,7 @@ struct aircraft
   double lon; // Coordinates obtained from CPR encoded data
   int pos_reliable_odd; // Number of good global CPRs, indicates position reliability
   int pos_reliable_even;
-  int16_t traceWrittenForDay; // the full trace has been written for this aircraft today
+  int16_t traceWrittenForYesterday; // the permanent trace has been written for the previous day
   int16_t padding1234; // unused
   float gs_last_pos; // Save a groundspeed associated with the last position
 
