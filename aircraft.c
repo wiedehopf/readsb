@@ -479,6 +479,7 @@ static inline int nextToken(char delim, char **sot, char **eot, char **eol) {
     return 1;
 }
 
+// meant to be used with this DB: https://raw.githubusercontent.com/wiedehopf/tar1090-db/csv/aircraft.csv.gz
 int dbUpdate() {
     gzFile gzfp = NULL;
     struct char_buffer cb = {0};
