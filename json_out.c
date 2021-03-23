@@ -506,6 +506,150 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now,
     return p;
 }
 
+char *sprintAircraftRecent(char *p, char *end, struct aircraft *a, uint64_t now, int printMode, struct modesMessage *mm, uint64_t recent) {
+    if (printMode == 1) {
+    }
+    char *start = p;
+
+    p = safe_snprintf(p, end, "{");
+    //p = safe_snprintf(p, end, "\"now\" : %.0f,", now / 1000.0);
+    p = safe_snprintf(p, end, "\"hex\":\"%s%06x\",", (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
+    p = safe_snprintf(p, end, "\"type\":\"%s\"", addrtype_enum_string(a->addrtype));
+
+    char *startRecent = p;
+
+    if (recent > trackDataAge(now, &a->callsign_valid)) {
+        char buf[128];
+        p = safe_snprintf(p, end, ",\"flight\":\"%s\"", jsonEscapeString(a->callsign, buf, sizeof(buf)));
+    }
+    if (recent > trackDataAge(now, &a->airground_valid)) {
+        if (a->airground == AG_GROUND) {
+            p = safe_snprintf(p, end, ",\"ground\":true");
+        } else if (a->airground == AG_AIRBORNE ) {
+            p = safe_snprintf(p, end, ",\"ground\":false");
+        }
+    }
+    if (recent > trackDataAge(now, &a->altitude_baro_valid))
+        p = safe_snprintf(p, end, ",\"alt_baro\":%d", a->altitude_baro);
+    if (recent > trackDataAge(now, &a->altitude_geom_valid))
+        p = safe_snprintf(p, end, ",\"alt_geom\":%d", a->altitude_geom);
+    if (recent > trackDataAge(now, &a->gs_valid))
+        p = safe_snprintf(p, end, ",\"gs\":%.1f", a->gs);
+    if (recent > trackDataAge(now, &a->ias_valid))
+        p = safe_snprintf(p, end, ",\"ias\":%u", a->ias);
+    if (recent > trackDataAge(now, &a->tas_valid))
+        p = safe_snprintf(p, end, ",\"tas\":%u", a->tas);
+    if (recent > trackDataAge(now, &a->mach_valid))
+        p = safe_snprintf(p, end, ",\"mach\":%.3f", a->mach);
+    if (now < a->wind_updated + recent && abs(a->wind_altitude - a->altitude_baro) < 500) {
+        p = safe_snprintf(p, end, ",\"wd\":%.0f", a->wind_direction);
+        p = safe_snprintf(p, end, ",\"ws\":%.0f", a->wind_speed);
+    }
+    if (now < a->oat_updated + recent) {
+        p = safe_snprintf(p, end, ",\"oat\":%.0f", a->oat);
+        p = safe_snprintf(p, end, ",\"tat\":%.0f", a->tat);
+    }
+
+    if (recent > trackDataAge(now, &a->track_valid))
+        p = safe_snprintf(p, end, ",\"track\":%.2f", a->track);
+    if (recent > trackDataAge(now, &a->track_rate_valid))
+        p = safe_snprintf(p, end, ",\"track_rate\":%.2f", a->track_rate);
+    if (recent > trackDataAge(now, &a->roll_valid))
+        p = safe_snprintf(p, end, ",\"roll\":%.2f", a->roll);
+    if (recent > trackDataAge(now, &a->mag_heading_valid))
+        p = safe_snprintf(p, end, ",\"mag_heading\":%.2f", a->mag_heading);
+    if (recent > trackDataAge(now, &a->true_heading_valid))
+        p = safe_snprintf(p, end, ",\"true_heading\":%.2f", a->true_heading);
+    if (recent > trackDataAge(now, &a->baro_rate_valid))
+        p = safe_snprintf(p, end, ",\"baro_rate\":%d", a->baro_rate);
+    if (recent > trackDataAge(now, &a->geom_rate_valid))
+        p = safe_snprintf(p, end, ",\"geom_rate\":%d", a->geom_rate);
+    if (recent > trackDataAge(now, &a->squawk_valid))
+        p = safe_snprintf(p, end, ",\"squawk\":\"%04x\"", a->squawk);
+    if (recent > trackDataAge(now, &a->emergency_valid))
+        p = safe_snprintf(p, end, ",\"emergency\":\"%s\"", emergency_enum_string(a->emergency));
+    if (recent > trackDataAge(now, &a->nav_qnh_valid))
+        p = safe_snprintf(p, end, ",\"nav_qnh\":%.1f", a->nav_qnh);
+    if (recent > trackDataAge(now, &a->nav_altitude_mcp_valid))
+        p = safe_snprintf(p, end, ",\"nav_altitude_mcp\":%d", a->nav_altitude_mcp);
+    if (recent > trackDataAge(now, &a->nav_altitude_fms_valid))
+        p = safe_snprintf(p, end, ",\"nav_altitude_fms\":%d", a->nav_altitude_fms);
+    if (recent > trackDataAge(now, &a->nav_heading_valid))
+        p = safe_snprintf(p, end, ",\"nav_heading\":%.2f", a->nav_heading);
+    if (recent > trackDataAge(now, &a->nav_modes_valid)) {
+        p = safe_snprintf(p, end, ",\"nav_modes\":[");
+        p = append_nav_modes(p, end, a->nav_modes, "\"", ",");
+        p = safe_snprintf(p, end, "]");
+    }
+    if (recent > trackDataAge(now, &a->position_valid)) {
+        p = safe_snprintf(p, end, ",\"lat\":%f,\"lon\":%f,\"nic\":%u,\"rc\":%u,\"seen_pos\":%.1f",
+                a->lat, a->lon, a->pos_nic, a->pos_rc,
+                (now < a->position_valid.updated) ? 0 : ((now - a->position_valid.updated) / 1000.0));
+        if (a->adsb_version >= 0)
+            p = safe_snprintf(p, end, ",\"version\":%d", a->adsb_version);
+        if (a->category != 0)
+            p = safe_snprintf(p, end, ",\"category\":\"%02X\"", a->category);
+        if (Modes.netReceiverIdPrint) {
+            p = safe_snprintf(p, end, ",\"rId\":%016"PRIx64"", a->lastPosReceiverId);
+        }
+    }
+
+    if (recent > trackDataAge(now, &a->nic_baro_valid))
+        p = safe_snprintf(p, end, ",\"nic_baro\":%u", a->nic_baro);
+    if (recent > trackDataAge(now, &a->nac_p_valid))
+        p = safe_snprintf(p, end, ",\"nac_p\":%u", a->nac_p);
+    if (recent > trackDataAge(now, &a->nac_v_valid))
+        p = safe_snprintf(p, end, ",\"nac_v\":%u", a->nac_v);
+    if (recent > trackDataAge(now, &a->sil_valid)) {
+        p = safe_snprintf(p, end, ",\"sil\":%u", a->sil);
+        if (a->sil_type != SIL_INVALID)
+            p = safe_snprintf(p, end, ",\"sil_type\":\"%s\"", sil_type_enum_string(a->sil_type));
+    }
+    if (recent > trackDataAge(now, &a->gva_valid))
+        p = safe_snprintf(p, end, ",\"gva\":%u", a->gva);
+    if (recent > trackDataAge(now, &a->sda_valid))
+        p = safe_snprintf(p, end, ",\"sda\":%u", a->sda);
+    if (recent > trackDataAge(now, &a->alert_valid))
+        p = safe_snprintf(p, end, ",\"alert\":%u", a->alert);
+    if (recent > trackDataAge(now, &a->spi_valid))
+        p = safe_snprintf(p, end, ",\"spi\":%u", a->spi);
+
+    // nothing recent, print nothing
+    if (startRecent == p) {
+        return start;
+    }
+
+    /*
+    p = safe_snprintf(p, end, ",\"mlat\":");
+    p = append_flags(p, end, a, SOURCE_MLAT);
+    p = safe_snprintf(p, end, ",\"tisb\":");
+    p = append_flags(p, end, a, SOURCE_TISB);
+
+    p = safe_snprintf(p, end, ",\"messages\":%u,\"seen\":%.1f,\"rssi\":%.1f",
+            a->messages, (now < a->seen) ? 0 : ((now - a->seen) / 1000.0),
+            10 * log10((a->signalLevel[0] + a->signalLevel[1] + a->signalLevel[2] + a->signalLevel[3] +
+                    a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7]) / 8 + 1.125e-5));
+    */
+
+    if (checkRA(a->acas_ra) && trackDataAge(now, &a->acas_ra_valid) < recent) {
+        p = safe_snprintf(p, end, ",\"acas_ra_timestamp\":%.2f", now / 1000.0);
+        if (mm && mm->acas_ra_valid)
+            p = safe_snprintf(p, end, ",\"acas_ra_df_type\":%d", mm->msgtype);
+        p = safe_snprintf(p, end, ",\"acas_ra_mv_mb_bytes_hex\":\"");
+        for (int i = 0; i < 7; ++i) {
+            p = safe_snprintf(p, end, "%02X", (unsigned) a->acas_ra[i]);
+        }
+        p = safe_snprintf(p, end, "\"");
+        p = safe_snprintf(p, end, ",\"acas_ra_csvline\":\"");
+        p = sprintACASInfoShort(p, end, a->addr, a->acas_ra, a, (mm && mm->acas_ra_valid) ? mm : NULL, a->acas_ra_valid.updated);
+        p = safe_snprintf(p, end, "\"");
+    }
+
+    p = safe_snprintf(p, end, "}");
+
+    return p;
+}
+
 /*
 static void check_state_all(struct aircraft *test, uint64_t now) {
     size_t buflen = 4096;
@@ -754,7 +898,7 @@ struct char_buffer generateGlobeJson(int globe_index){
     return cb;
 }
 
-struct char_buffer generateAircraftJson(){
+struct char_buffer generateAircraftJson(uint64_t onlyRecent){
     struct char_buffer cb;
     uint64_t now = mstime();
     struct aircraft *a;
@@ -800,9 +944,20 @@ struct char_buffer generateAircraftJson(){
             end = buf + buflen;
         }
 
+        char *beforeSprint = p;
+
         p = safe_snprintf(p, end, "\n");
-        p = sprintAircraftObject(p, end, a, now, 0, NULL);
-        p = safe_snprintf(p, end, ",");
+        if (onlyRecent) {
+            p = sprintAircraftRecent(p, end, a, now, 0, NULL, onlyRecent);
+        } else {
+            p = sprintAircraftObject(p, end, a, now, 0, NULL);
+        }
+
+        if (p - beforeSprint < 5) {
+            p = beforeSprint;
+        } else {
+            p = safe_snprintf(p, end, ",");
+        }
 
 
         if (p >= end)

@@ -228,7 +228,7 @@ struct aircraft
   struct aircraft *next; // Next aircraft in our linked list
   uint32_t addr; // ICAO address
   addrtype_t addrtype; // highest priority address type seen for this aircraft
-  uint64_t seen; // Time (millis) at which the last packet was received
+  uint64_t seen; // Time (millis) at which the last packet with reliable address was received
   uint64_t seen_pos; // Time (millis) at which the last position was received
 
   uint32_t size_struct_aircraft; // size of this struct

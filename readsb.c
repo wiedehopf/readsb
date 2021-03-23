@@ -347,10 +347,15 @@ static void *jsonThreadEntryPoint(void *arg) {
 
         uint64_t now = mstime();
 
-        struct char_buffer cb = generateAircraftJson();
+        struct char_buffer cb = generateAircraftJson(0);
         if (Modes.json_gzip)
             writeJsonToGzip(Modes.json_dir, "aircraft.json.gz", cb, 5);
         writeJsonToFile(Modes.json_dir, "aircraft.json", cb);
+
+        if (Modes.debug_recent) {
+            struct char_buffer cb = generateAircraftJson(1 * SECONDS);
+            writeJsonToFile(Modes.json_dir, "aircraft_recent.json", cb);
+        }
 
         struct char_buffer cb2 = generateGlobeBin(-1, 1);
         writeJsonToGzip(Modes.json_dir, "globeMil_42777.binCraft", cb2, 5);
@@ -360,7 +365,7 @@ static void *jsonThreadEntryPoint(void *arg) {
             char filebuf[PATH_MAX];
 
             snprintf(filebuf, PATH_MAX, "history_%d.json", Modes.json_aircraft_history_next);
-            writeJsonToFile(Modes.json_dir, filebuf, generateAircraftJson());
+            writeJsonToFile(Modes.json_dir, filebuf, generateAircraftJson(0));
 
             if (!Modes.json_aircraft_history_full) {
                 writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson()); // number of history entries changed
@@ -1117,6 +1122,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                     case 'A': Modes.debug_printACAS = 1;
                         fprintf(stderr, "printACAS enabled!\n");
                         break;
+                    case 'C': Modes.debug_recent = 1;
+                          break;
                     default:
                         fprintf(stderr, "Unknown debugging flag: %c\n", *arg);
                         break;
