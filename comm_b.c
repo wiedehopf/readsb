@@ -296,9 +296,7 @@ int checkAcasRaValid(unsigned char *msg, struct modesMessage *mm) {
 
     // 10 Threat identity data contains altitude, range, and bearing
     if (tti == 2) {
-        if (Modes.debug_ACAS) {
-            return 1;
-        }
+        // hard to tell if used and separate from garbage, don't mark valid for the moment
         return 0;
     }
 

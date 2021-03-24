@@ -1569,22 +1569,17 @@ end_alt:
     }
     if (mm->acas_ra_valid) {
         mm->reduce_forward = 1;
-        int log = 0;
+
         unsigned char *bytes = NULL;
         if (mm->msgtype == 16) {
             bytes = mm->MV;
-            log = 1;
         } else if (mm->metype == 28 && mm->mesub == 2) {
             bytes = mm->ME;
-            if (Modes.debug_ACAS) {
-                log = 1;
-            }
         } else {
             bytes = mm->MB;
-            log = 1;
         }
 
-        if (log && checkAcasRaValid(bytes, mm)) {
+        if (bytes && (checkAcasRaValid(bytes, mm) || (Modes.debug_ACAS && mm->msgtype != 16))) {
             if (accept_data(&a->acas_ra_valid, mm->source, mm, 0)) {
                 memcpy(a->acas_ra, bytes, sizeof(a->acas_ra));
                 logACASInfoShort(mm->addr, bytes, a, mm, mm->sysTimestampMsg);

@@ -243,10 +243,10 @@ void logACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, stru
 }
 
 
-char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, uint64_t now) {
-    bool ara = getbit(MV, 9);
-    bool rat = getbit(MV, 27);
-    bool mte = getbit(MV, 28);
+char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *bytes, struct aircraft *a, struct modesMessage *mm, uint64_t now) {
+    bool ara = getbit(bytes, 9);
+    bool rat = getbit(bytes, 27);
+    bool mte = getbit(bytes, 28);
 
     char timebuf[128];
     struct tm utc;
@@ -264,7 +264,7 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
 
     p = safe_snprintf(p, end, ",bytes:,");
     for (int i = 0; i < 7; ++i) {
-        p = safe_snprintf(p, end, "%02X", (unsigned) MV[i]);
+        p = safe_snprintf(p, end, "%02X", (unsigned) bytes[i]);
     }
     p = safe_snprintf(p, end, ",");
 
@@ -293,17 +293,17 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
     p = safe_snprintf(p, end, ",fpm,");
 
     p = safe_snprintf(p, end, "ARA:,");
-    for (int i = 9; i <= 15; i++) p = safe_snprintf(p, end, "%u", getbit(MV, i));
-    p = safe_snprintf(p, end, ",RAT:,%u", getbit(MV, 27));
-    p = safe_snprintf(p, end, ",MTE:,%u", getbit(MV, 28));
+    for (int i = 9; i <= 15; i++) p = safe_snprintf(p, end, "%u", getbit(bytes, i));
+    p = safe_snprintf(p, end, ",RAT:,%u", getbit(bytes, 27));
+    p = safe_snprintf(p, end, ",MTE:,%u", getbit(bytes, 28));
     p = safe_snprintf(p, end, ",RAC:,");
-    for (int i = 23; i <= 26; i++) p = safe_snprintf(p, end, "%u", getbit(MV, i));
+    for (int i = 23; i <= 26; i++) p = safe_snprintf(p, end, "%u", getbit(bytes, i));
     p = safe_snprintf(p, end, ",");
 
-    if (getbits(MV, 23, 26)) {
+    if (getbits(bytes, 23, 26)) {
         char *racs[4] = { "below", "above", " left", "right" };
         for (int i = 23; i <= 26; i++) {
-            if (getbit(MV, i))
+            if (getbit(bytes, i))
                 p = safe_snprintf(p, end, " not %s", racs[i-23]);
         }
     } else {
@@ -331,12 +331,12 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
     }
     if (ara) {
         p = safe_snprintf(p, end, "RA:");
-        bool corr = getbit(MV, 10); // corrective / preventive
-        bool down = getbit(MV, 11); // downward sense / upward sense
-        bool increase = getbit(MV, 12); // increase rate
-        bool reversal = getbit(MV, 13); // sense reversal
-        bool crossing = getbit(MV, 14); // altitude crossing
-        bool positive = getbit(MV, 15);
+        bool corr = getbit(bytes, 10); // corrective / preventive
+        bool down = getbit(bytes, 11); // downward sense / upward sense
+        bool increase = getbit(bytes, 12); // increase rate
+        bool reversal = getbit(bytes, 13); // sense reversal
+        bool crossing = getbit(bytes, 14); // altitude crossing
+        bool positive = getbit(bytes, 15);
         // positive: (Maintain climb / descent) / (Climb / descend): requires more than 1500 fpm vertical rate
         // !positive: (Do not / reduce) (climb / descend)
 
@@ -387,23 +387,25 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
     }
     if (!ara && mte) {
         p = safe_snprintf(p, end, "RA multithreat:");
-        if (getbit(MV, 10))
+        if (getbit(bytes, 10))
             p = safe_snprintf(p, end, " correct upwards;");
-        if (getbit(MV, 11))
+        if (getbit(bytes, 11))
             p = safe_snprintf(p, end, " climb required;");
-        if (getbit(MV, 12))
+        if (getbit(bytes, 12))
             p = safe_snprintf(p, end, " correct downwards;");
-        if (getbit(MV, 13))
+        if (getbit(bytes, 13))
             p = safe_snprintf(p, end, " descent required;");
-        if (getbit(MV, 14))
+        if (getbit(bytes, 14))
             p = safe_snprintf(p, end, " crossing;");
-        if (getbit(MV, 15))
+        if (getbit(bytes, 15))
             p = safe_snprintf(p, end, " increase/maintain vertical rate");
         else
             p = safe_snprintf(p, end, "      reduce/limit vertical rate");
     }
 
     p = safe_snprintf(p, end, ",");
+    if (Modes.debug_ACAS && mm && !checkAcasRaValid(bytes, mm))
+        p = safe_snprintf(p, end, "DEBUG");
 
     return p;
 }
