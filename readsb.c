@@ -1123,7 +1123,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         fprintf(stderr, "debug_ACAS enabled!\n");
                         break;
                     case 'C': Modes.debug_recent = 1;
-                          break;
+                        break;
                     default:
                         fprintf(stderr, "Unknown debugging flag: %c\n", *arg);
                         break;

@@ -1575,13 +1575,16 @@ end_alt:
             bytes = mm->MB;
         }
 
-        if (bytes && (checkAcasRaValid(bytes, mm) || (Modes.debug_ACAS && mm->msgtype != 16))) {
+        if (bytes && (checkAcasRaValid(bytes, mm))) {
             if (accept_data(&a->acas_ra_valid, mm->source, mm, 0)) {
                 memcpy(a->acas_ra, bytes, sizeof(a->acas_ra));
                 logACASInfoShort(mm->addr, bytes, a, mm, mm->sysTimestampMsg);
             }
+        } else if (bytes && Modes.debug_ACAS && mm->msgtype != 16
+                && (getbit(bytes, 9) || getbit(bytes, 27) || getbit(bytes, 28))) {
+            // getbit checks for ARA/RAT/MTE, at least one must be set
+            logACASInfoShort(mm->addr, bytes, a, mm, mm->sysTimestampMsg);
         }
-
     }
 
     if (mm->accuracy.sda_valid && accept_data(&a->sda_valid, mm->source, mm, 0)) {

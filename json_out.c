@@ -155,17 +155,6 @@ const char *nav_modes_flags_string(nav_modes_t flags) {
 
 }
 
-static int checkRA(unsigned char *MV) {
-    bool ara = getbit(MV, 9);
-    bool rat = getbit(MV, 27);
-    bool mte = getbit(MV, 28);
-
-    if (ara || rat || mte)
-        return 1;
-
-    return 0;
-}
-
 void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, uint64_t now) {
     char buf[512];
     char *p = buf;
@@ -185,8 +174,6 @@ void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, st
 }
 
 void logACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, uint64_t now) {
-    if (!checkRA(MV))
-        return;
 
     static int64_t lastLogTimestamp1, lastLogTimestamp2;
     static uint32_t lastLogAddr1, lastLogAddr2;
@@ -582,7 +569,7 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now,
                         a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7]) / 8 + 1.125e-5));
     }
 
-    if (checkRA(a->acas_ra) && trackDataAge(now, &a->acas_ra_valid) < 5 * SECONDS) {
+    if (trackDataAge(now, &a->acas_ra_valid) < 5 * SECONDS) {
         p = safe_snprintf(p, end, ",\"acas_ra_timestamp\":%.2f", now / 1000.0);
         if (mm && mm->acas_ra_valid)
             p = safe_snprintf(p, end, ",\"acas_ra_df_type\":%d", mm->msgtype);
@@ -726,7 +713,7 @@ char *sprintAircraftRecent(char *p, char *end, struct aircraft *a, uint64_t now,
                     a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7]) / 8 + 1.125e-5));
     */
 
-    if (checkRA(a->acas_ra) && trackDataAge(now, &a->acas_ra_valid) < recent) {
+    if (trackDataAge(now, &a->acas_ra_valid) < recent) {
         p = safe_snprintf(p, end, ",\"acas_ra_timestamp\":%.2f", now / 1000.0);
         if (mm && mm->acas_ra_valid)
             p = safe_snprintf(p, end, ",\"acas_ra_df_type\":%d", mm->msgtype);

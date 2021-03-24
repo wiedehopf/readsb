@@ -252,6 +252,15 @@ static int decodeBDS20(struct modesMessage *mm, bool store) {
 // check if the payload is a valid ACAS payload
 // https://mode-s.org/decode/book-the_1090mhz_riddle-junzi_sun.pdf
 int checkAcasRaValid(unsigned char *msg, struct modesMessage *mm) {
+
+    bool ara = getbit(msg, 9);
+    bool rat = getbit(msg, 27);
+    bool mte = getbit(msg, 28);
+
+    // not a valid RA if none of the bits are set
+    if (!ara && !rat && !mte)
+        return 0;
+
     if (getbits(msg, 9, 28) == 0)
         return 0; // these are the bits that contain the info, all zero it's not an RA
     if (getbit(msg, 23) && getbit(msg, 24))
@@ -296,6 +305,8 @@ int checkAcasRaValid(unsigned char *msg, struct modesMessage *mm) {
 
     // 10 Threat identity data contains altitude, range, and bearing
     if (tti == 2) {
+        if (mm->metype == 28)// allow for DF17
+            return 1;
         // hard to tell if used and separate from garbage, don't mark valid for the moment
         return 0;
     }
