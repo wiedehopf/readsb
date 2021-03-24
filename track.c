@@ -1563,10 +1563,6 @@ end_alt:
     }
 
 
-    if ((mm->msgtype == 21 ||  mm->msgtype == 20 || mm->msgtype == 16) && mm->msg[4] == 0x30) {
-        // BDS 3,0 could be interesting / have unanticipated ACAS RA formats, let's forward
-        mm->reduce_forward = 1;
-    }
     if (mm->acas_ra_valid) {
         mm->reduce_forward = 1;
 

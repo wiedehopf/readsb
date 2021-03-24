@@ -253,9 +253,18 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *byte
 
     time_t time = now / 1000;
     gmtime_r(&time, &utc);
-    strftime(timebuf, 128, "%F,%T", &utc);
+    strftime(timebuf, 128, "%F", &utc);
     timebuf[127] = 0;
 
+    if (Modes.debug_ACAS && mm && !checkAcasRaValid(bytes, mm))
+        p = safe_snprintf(p, end, "DEBUG     ");
+    else
+        p = safe_snprintf(p, end, "%s", timebuf);
+
+    p = safe_snprintf(p, end, ",");
+
+    strftime(timebuf, 128, "%T", &utc);
+    timebuf[127] = 0;
     p = safe_snprintf(p, end, "%s.%d,%06x,DF:,", timebuf, (int)((now % 1000) / 100), addr);
     if (mm)
         p = safe_snprintf(p, end, "%2u", mm->msgtype);
@@ -298,6 +307,10 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *byte
     p = safe_snprintf(p, end, ",MTE:,%u", getbit(bytes, 28));
     p = safe_snprintf(p, end, ",RAC:,");
     for (int i = 23; i <= 26; i++) p = safe_snprintf(p, end, "%u", getbit(bytes, i));
+    p = safe_snprintf(p, end, ",");
+
+    p = safe_snprintf(p, end, "TTI:,");
+    for (int i = 29; i <= 30; i++) p = safe_snprintf(p, end, "%u", getbit(bytes, i));
     p = safe_snprintf(p, end, ",");
 
     if (getbits(bytes, 23, 26)) {
@@ -403,9 +416,12 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *byte
             p = safe_snprintf(p, end, "      reduce/limit vertical rate");
     }
 
+    int tti = getbits(bytes, 29, 30);
+    uint32_t threatAddr = getbits(bytes, 31, 54);
+    if (tti == 1)
+        p = safe_snprintf(p, end, "; TIDh: %06x", threatAddr);
+
     p = safe_snprintf(p, end, ",");
-    if (Modes.debug_ACAS && mm && !checkAcasRaValid(bytes, mm))
-        p = safe_snprintf(p, end, "DEBUG");
 
     return p;
 }
