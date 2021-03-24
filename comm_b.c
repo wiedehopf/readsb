@@ -296,8 +296,8 @@ int checkAcasRaValid(unsigned char *msg, struct modesMessage *mm) {
 
     // 10 Threat identity data contains altitude, range, and bearing
     if (tti == 2) {
-        if (Modes.debug_printACAS) {
-            printACASInfoShort(mm->addr, msg, NULL, mm, mm->sysTimestampMsg);
+        if (Modes.debug_ACAS) {
+            return 1;
         }
         return 0;
     }

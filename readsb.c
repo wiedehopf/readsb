@@ -1119,8 +1119,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         break;
                     case 'U': Modes.debug_dbJson = 1;
                         break;
-                    case 'A': Modes.debug_printACAS = 1;
-                        fprintf(stderr, "printACAS enabled!\n");
+                    case 'A': Modes.debug_ACAS = 1;
+                        fprintf(stderr, "debug_ACAS enabled!\n");
                         break;
                     case 'C': Modes.debug_recent = 1;
                           break;

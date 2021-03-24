@@ -1576,7 +1576,7 @@ end_alt:
             log = 1;
         } else if (mm->metype == 28 && mm->mesub == 2) {
             bytes = mm->ME;
-            if (Modes.debug_printACAS) {
+            if (Modes.debug_ACAS) {
                 log = 1;
             }
         } else {

@@ -462,7 +462,7 @@ struct _Modes
     int8_t debug_traceAlloc;
     int8_t debug_sampleCounter;
     int8_t debug_dbJson;
-    int8_t debug_printACAS;
+    int8_t debug_ACAS;
     int8_t debug_recent;
     int8_t filter_persistence; // Maximum number of consecutive implausible positions from global CPR to invalidate a known position.
 
