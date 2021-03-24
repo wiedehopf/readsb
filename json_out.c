@@ -173,28 +173,28 @@ void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, st
     fflush(stdout); // FLUSH
 }
 
-void logACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, uint64_t now) {
+void logACASInfoShort(uint32_t addr, unsigned char *bytes, struct aircraft *a, struct modesMessage *mm, uint64_t now) {
 
     static int64_t lastLogTimestamp1, lastLogTimestamp2;
     static uint32_t lastLogAddr1, lastLogAddr2;
-    static char lastLogMV1[7], lastLogMV2[7];
-
-    int deduplicationInterval = 200; // in ms
-    if (lastLogAddr1 == addr && (int64_t) now - lastLogTimestamp1 < deduplicationInterval && !memcmp(lastLogMV1, MV, 7)) {
+    static char lastLogBytes1[7], lastLogBytes2[7];
+    bool rat = getbit(bytes, 27); // clear of conflict / RA terminated
+    int deduplicationInterval = rat ? 5000 : 200; // in ms
+    if (lastLogAddr1 == addr && (int64_t) now - lastLogTimestamp1 < deduplicationInterval && !memcmp(lastLogBytes1, bytes, 7)) {
         return;
     }
-    if (lastLogAddr2 == addr && (int64_t) now - lastLogTimestamp2 < deduplicationInterval && !memcmp(lastLogMV2, MV, 7)) {
+    if (lastLogAddr2 == addr && (int64_t) now - lastLogTimestamp2 < deduplicationInterval && !memcmp(lastLogBytes2, bytes, 7)) {
         return;
     }
 
     if (addr == lastLogAddr1 || (addr != lastLogAddr2 && lastLogTimestamp2 > lastLogTimestamp1)) {
         lastLogAddr1 = addr;
         lastLogTimestamp1 = now;
-        memcpy(lastLogMV1, MV, 7);
+        memcpy(lastLogBytes1, bytes, 7);
     } else {
         lastLogAddr2 = addr;
         lastLogTimestamp2 = now;
-        memcpy(lastLogMV2, MV, 7);
+        memcpy(lastLogBytes2, bytes, 7);
     }
 
 
@@ -203,7 +203,7 @@ void logACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, stru
         char buf[512];
         char *p = buf;
         char *end = buf + sizeof(buf);
-        p = sprintACASInfoShort(p, end, addr, MV, a, mm, now);
+        p = sprintACASInfoShort(p, end, addr, bytes, a, mm, now);
 
         p = safe_snprintf(p, end, "\n");
         if (p - buf >= (int) sizeof(buf) - 1) {
