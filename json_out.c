@@ -155,7 +155,7 @@ const char *nav_modes_flags_string(nav_modes_t flags) {
 
 }
 
-int checkRA(unsigned char *MV) {
+static int checkRA(unsigned char *MV) {
     bool ara = getbit(MV, 9);
     bool rat = getbit(MV, 27);
     bool mte = getbit(MV, 28);
@@ -165,6 +165,83 @@ int checkRA(unsigned char *MV) {
 
     return 0;
 }
+
+void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, uint64_t now) {
+    char buf[512];
+    char *p = buf;
+    char *end = buf + sizeof(buf);
+
+    p = sprintACASInfoShort(p, end, addr, MV, a, mm, now);
+
+    if (p == buf) // nothing written
+        return;
+    if (p - buf >= (int) sizeof(buf)) {
+        fprintf(stderr, "printACAS buffer insufficient!\n");
+        return;
+    }
+
+    printf("%s\n", buf);
+    fflush(stdout); // FLUSH
+}
+
+void logACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, uint64_t now) {
+    if (!checkRA(MV))
+        return;
+
+    static int64_t lastLogTimestamp1, lastLogTimestamp2;
+    static uint32_t lastLogAddr1, lastLogAddr2;
+    static char lastLogMV1[7], lastLogMV2[7];
+
+    int deduplicationInterval = 100; // in ms
+    if (lastLogAddr1 == addr && (int64_t) now - lastLogTimestamp1 < deduplicationInterval && !memcmp(lastLogMV1, MV, 7)) {
+        return;
+    }
+    if (lastLogAddr2 == addr && (int64_t) now - lastLogTimestamp2 < deduplicationInterval && !memcmp(lastLogMV2, MV, 7)) {
+        return;
+    }
+
+    if (addr == lastLogAddr1 || (addr != lastLogAddr2 && lastLogTimestamp2 > lastLogTimestamp1)) {
+        lastLogAddr1 = addr;
+        lastLogTimestamp1 = now;
+        memcpy(lastLogMV1, MV, 7);
+    } else {
+        lastLogAddr2 = addr;
+        lastLogTimestamp2 = now;
+        memcpy(lastLogMV2, MV, 7);
+    }
+
+
+    if (Modes.acasFD1 > 0) {
+
+        char buf[512];
+        char *p = buf;
+        char *end = buf + sizeof(buf);
+        p = sprintACASInfoShort(p, end, addr, MV, a, mm, now);
+
+        p = safe_snprintf(p, end, "\n");
+        if (p - buf >= (int) sizeof(buf) - 1) {
+            fprintf(stderr, "logACAS csv buffer insufficient!\n");
+        } else {
+            check_write(Modes.acasFD1, buf, p - buf, "acas.csv");
+        }
+    }
+    if (Modes.acasFD2 > 0) {
+
+        char buf[2048];
+        char *p = buf;
+        char *end = buf + sizeof(buf);
+
+        p = sprintAircraftObject(p, end, a, now, 0, mm);
+        p = safe_snprintf(p, end, "\n");
+
+        if (p - buf >= (int) sizeof(buf) - 1) {
+            fprintf(stderr, "logACAS json buffer insufficient!\n");
+        } else {
+            check_write(Modes.acasFD2, buf, p - buf, "acas.csv");
+        }
+    }
+}
+
 
 char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, uint64_t now) {
     bool ara = getbit(MV, 9);
