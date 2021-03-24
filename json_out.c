@@ -232,7 +232,7 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
     } else {
         p = safe_snprintf(p, end, "          ");
     }
-    p = safe_snprintf(p, end, ",");
+    p = safe_snprintf(p, end, ", ");
 
     // https://mode-s.org/decode/book-the_1090mhz_riddle-junzi_sun.pdf
     //
