@@ -127,5 +127,6 @@ static inline int modesMessageLenByType(int type) {
 }
 
 void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, uint64_t now);
+void logACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, uint64_t now);
 
 #endif

@@ -1569,11 +1569,26 @@ end_alt:
     }
     if (mm->acas_ra_valid && accept_data(&a->acas_ra_valid, mm->source, mm, 0)) {
         mm->reduce_forward = 1;
+        int log = 0;
+
         if (mm->msgtype == 16) {
             memcpy(a->acas_ra, mm->MV, sizeof(a->acas_ra));
+            log = 1;
+        } else if (mm->metype == 28 && mm->mesub == 2) {
+            memcpy(a->acas_ra, mm->ME, sizeof(a->acas_ra));
+            if (Modes.debug_printACAS) {
+                log = 1;
+                printACASInfoShort(mm->addr, a->acas_ra, a, mm, mm->sysTimestampMsg);
+            }
         } else {
             memcpy(a->acas_ra, mm->MB, sizeof(a->acas_ra));
+            log = 1;
         }
+
+        if (log) {
+            logACASInfoShort(mm->addr, a->acas_ra, a, mm, mm->sysTimestampMsg);
+        }
+
     }
 
     if (mm->accuracy.sda_valid && accept_data(&a->sda_valid, mm->source, mm, 0)) {

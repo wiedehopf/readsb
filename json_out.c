@@ -185,7 +185,7 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
     else
         p = safe_snprintf(p, end, "  ");
 
-    p = safe_snprintf(p, end, ",MV/MB:,");
+    p = safe_snprintf(p, end, ",bytes:,");
     for (int i = 0; i < 7; ++i) {
         p = safe_snprintf(p, end, "%02X", (unsigned) MV[i]);
     }
