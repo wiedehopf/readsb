@@ -179,7 +179,7 @@ void logACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, stru
     static uint32_t lastLogAddr1, lastLogAddr2;
     static char lastLogMV1[7], lastLogMV2[7];
 
-    int deduplicationInterval = 100; // in ms
+    int deduplicationInterval = 200; // in ms
     if (lastLogAddr1 == addr && (int64_t) now - lastLogTimestamp1 < deduplicationInterval && !memcmp(lastLogMV1, MV, 7)) {
         return;
     }
@@ -243,10 +243,14 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *byte
     strftime(timebuf, 128, "%F", &utc);
     timebuf[127] = 0;
 
-    if (Modes.debug_ACAS && mm && !checkAcasRaValid(bytes, mm))
+    int debug = 0;
+
+    if (Modes.debug_ACAS && mm && !checkAcasRaValid(bytes, mm)) {
+        debug = 1;
         p = safe_snprintf(p, end, "DEBUG     ");
-    else
+    } else {
         p = safe_snprintf(p, end, "%s", timebuf);
+    }
 
     p = safe_snprintf(p, end, ",");
 
@@ -294,21 +298,18 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *byte
     p = safe_snprintf(p, end, ",MTE:,%u", getbit(bytes, 28));
     p = safe_snprintf(p, end, ",RAC:,");
     for (int i = 23; i <= 26; i++) p = safe_snprintf(p, end, "%u", getbit(bytes, i));
-    p = safe_snprintf(p, end, ",");
 
-    p = safe_snprintf(p, end, "TTI:,");
-    for (int i = 29; i <= 30; i++) p = safe_snprintf(p, end, "%u", getbit(bytes, i));
     p = safe_snprintf(p, end, ",");
-
     if (getbits(bytes, 23, 26)) {
-        char *racs[4] = { "below", "above", " left", "right" };
+        char *racs[4] = { "not below", "not above", "not left ", "not right" };
         for (int i = 23; i <= 26; i++) {
             if (getbit(bytes, i))
-                p = safe_snprintf(p, end, " not %s", racs[i-23]);
+                p = safe_snprintf(p, end, "%s", racs[i-23]);
         }
     } else {
-        p = safe_snprintf(p, end, "          ");
+        p = safe_snprintf(p, end, "         ");
     }
+
     p = safe_snprintf(p, end, ", ");
 
     // https://mode-s.org/decode/book-the_1090mhz_riddle-junzi_sun.pdf
@@ -327,9 +328,8 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *byte
        not require a change in vertical speed
        */
     if (rat) {
-        p = safe_snprintf(p, end, "Clear of Conflict; ");
-    }
-    if (ara) {
+        p = safe_snprintf(p, end, "Clear of Conflict");
+    } else if (ara) {
         p = safe_snprintf(p, end, "RA:");
         bool corr = getbit(bytes, 10); // corrective / preventive
         bool down = getbit(bytes, 11); // downward sense / upward sense
@@ -384,8 +384,7 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *byte
             p = safe_snprintf(p, end, " Monitor vertical Speed");
         }
 
-    }
-    if (!ara && mte) {
+    } else if (!ara && mte) {
         p = safe_snprintf(p, end, "RA multithreat:");
         if (getbit(bytes, 10))
             p = safe_snprintf(p, end, " correct upwards;");
@@ -407,6 +406,11 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *byte
     uint32_t threatAddr = getbits(bytes, 31, 54);
     if (tti == 1)
         p = safe_snprintf(p, end, "; TIDh: %06x", threatAddr);
+
+    if (debug) {
+        p = safe_snprintf(p, end, "; TTI:,");
+        for (int i = 29; i <= 30; i++) p = safe_snprintf(p, end, "%u", getbit(bytes, i));
+    }
 
     p = safe_snprintf(p, end, ",");
 
