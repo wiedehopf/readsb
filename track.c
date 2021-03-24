@@ -1567,26 +1567,28 @@ end_alt:
         // BDS 3,0 could be interesting / have unanticipated ACAS RA formats, let's forward
         mm->reduce_forward = 1;
     }
-    if (mm->acas_ra_valid && accept_data(&a->acas_ra_valid, mm->source, mm, 0)) {
+    if (mm->acas_ra_valid) {
         mm->reduce_forward = 1;
         int log = 0;
-
+        unsigned char *bytes = NULL;
         if (mm->msgtype == 16) {
-            memcpy(a->acas_ra, mm->MV, sizeof(a->acas_ra));
+            bytes = mm->MV;
             log = 1;
         } else if (mm->metype == 28 && mm->mesub == 2) {
-            memcpy(a->acas_ra, mm->ME, sizeof(a->acas_ra));
+            bytes = mm->ME;
             if (Modes.debug_printACAS) {
                 log = 1;
-                printACASInfoShort(mm->addr, a->acas_ra, a, mm, mm->sysTimestampMsg);
             }
         } else {
-            memcpy(a->acas_ra, mm->MB, sizeof(a->acas_ra));
+            bytes = mm->MB;
             log = 1;
         }
 
-        if (log) {
-            logACASInfoShort(mm->addr, a->acas_ra, a, mm, mm->sysTimestampMsg);
+        if (log && checkAcasRaValid(bytes, mm)) {
+            if (accept_data(&a->acas_ra_valid, mm->source, mm, 0)) {
+                memcpy(a->acas_ra, bytes, sizeof(a->acas_ra));
+                logACASInfoShort(mm->addr, bytes, a, mm, mm->sysTimestampMsg);
+            }
         }
 
     }

@@ -724,7 +724,7 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
     // MV (message, ACAS)
     if (mm->msgtype == 16) {
         memcpy(mm->MV, &msg[4], 7);
-        if (mm->MV[0] == 0x30 && checkAcasRaValid(mm->MV, mm)) {
+        if (mm->MV[0] == 0x30) {
             mm->acas_ra_valid = 1;
         }
     }

@@ -251,43 +251,43 @@ static int decodeBDS20(struct modesMessage *mm, bool store) {
 
 // check if the payload is a valid ACAS payload
 // https://mode-s.org/decode/book-the_1090mhz_riddle-junzi_sun.pdf
-int checkAcasRaValid(unsigned char *MV, struct modesMessage *mm) {
-    if (getbits(MV, 9, 28) == 0)
+int checkAcasRaValid(unsigned char *msg, struct modesMessage *mm) {
+    if (getbits(msg, 9, 28) == 0)
         return 0; // these are the bits that contain the info, all zero it's not an RA
-    if (getbit(MV, 23) && getbit(MV, 24))
+    if (getbit(msg, 23) && getbit(msg, 24))
         return 0; // complementary bits, both set is invalid (above / below)
-    if (getbit(MV, 25) && getbit(MV, 26))
+    if (getbit(msg, 25) && getbit(msg, 26))
         return 0; // complementary bits, both set is invalid (left / right)
 
     if (mm->msgtype == 16) {
-       if (getbits(MV, 29, 56) != 0)
-        return 0; // in DF16 messages MV bits 29 to 56 are reserved
+       if (getbits(msg, 29, 56) != 0)
+        return 0; // in DF16 messages msg bits 29 to 56 are reserved
 
        return 1;
     }
 
     // some extra restrictions for DF != 16 below
 
-    if (getbit(MV, 25) || getbit(MV, 26))
+    if (getbit(msg, 25) || getbit(msg, 26))
         return 0; // left / right isn't used, require zero
 
     // for COMMB messages let's check if the thread indicator makes sense
 
-    int tti = getbits(MV, 29, 30);
+    int tti = getbits(msg, 29, 30);
     // thread type indicator
     // 00 No identity data in threat identity data
     if (tti == 0) {
-        if (getbits(MV, 31, 56) != 0)
+        if (getbits(msg, 31, 56) != 0)
             return 0;
 
         return 1;
     }
     // When the threat type indicator is 01 , MB bits 31-54 contain the 24-bit Mode S transponder address and the last two bits are set to zero.
     if (tti == 1) {
-        if (getbits(MV, 55, 56) != 0)
+        if (getbits(msg, 55, 56) != 0)
             return 0;
 
-        uint32_t addr = getbits(MV, 31, 54);
+        uint32_t addr = getbits(msg, 31, 54);
         if (icaoFilterTest(addr))
             return 1;
 
@@ -297,7 +297,7 @@ int checkAcasRaValid(unsigned char *MV, struct modesMessage *mm) {
     // 10 Threat identity data contains altitude, range, and bearing
     if (tti == 2) {
         if (Modes.debug_printACAS) {
-            printACASInfoShort(mm->addr, MV, NULL, mm, mm->sysTimestampMsg);
+            printACASInfoShort(mm->addr, msg, NULL, mm, mm->sysTimestampMsg);
         }
         return 0;
     }
@@ -322,10 +322,7 @@ static int decodeBDS30(struct modesMessage *mm, bool store) {
 
     if (store) {
         mm->commb_format = COMMB_ACAS_RA;
-
-        if (checkAcasRaValid(mm->MB, mm)) {
-            mm->acas_ra_valid = 1;
-        }
+        mm->acas_ra_valid = 1;
     }
 
     // just accept it.
