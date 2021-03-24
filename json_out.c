@@ -245,7 +245,7 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *byte
 
     int debug = 0;
 
-    if (Modes.debug_ACAS && mm && !checkAcasRaValid(bytes, mm)) {
+    if (Modes.debug_ACAS && mm && !checkAcasRaValid(bytes, mm, 0)) {
         debug = 1;
         p = safe_snprintf(p, end, "DEBUG     ");
     } else {
@@ -408,7 +408,7 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *byte
         p = safe_snprintf(p, end, "; TIDh: %06x", threatAddr);
 
     if (debug) {
-        p = safe_snprintf(p, end, "; TTI:,");
+        p = safe_snprintf(p, end, "; TTI: ");
         for (int i = 29; i <= 30; i++) p = safe_snprintf(p, end, "%u", getbit(bytes, i));
     }
 

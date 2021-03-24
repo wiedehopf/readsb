@@ -251,7 +251,7 @@ static int decodeBDS20(struct modesMessage *mm, bool store) {
 
 // check if the payload is a valid ACAS payload
 // https://mode-s.org/decode/book-the_1090mhz_riddle-junzi_sun.pdf
-int checkAcasRaValid(unsigned char *msg, struct modesMessage *mm) {
+int checkAcasRaValid(unsigned char *msg, struct modesMessage *mm, int debug) {
 
     bool ara = getbit(msg, 9);
     bool rat = getbit(msg, 27);
@@ -300,7 +300,7 @@ int checkAcasRaValid(unsigned char *msg, struct modesMessage *mm) {
         if (icaoFilterTest(addr))
             return 1;
 
-        return 0;
+        return debug; // zero unless debug
     }
 
     // 10 Threat identity data contains altitude, range, and bearing
@@ -308,7 +308,7 @@ int checkAcasRaValid(unsigned char *msg, struct modesMessage *mm) {
         if (mm->metype == 28)// allow for DF17
             return 1;
         // hard to tell if used and separate from garbage, don't mark valid for the moment
-        return 0;
+        return debug; // zero unless debug
     }
 
     // 11 Not assigned
