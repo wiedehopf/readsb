@@ -256,7 +256,7 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *byte
 
     strftime(timebuf, 128, "%T", &utc);
     timebuf[127] = 0;
-    p = safe_snprintf(p, end, "%s.%d,%06x,DF:,", timebuf, (int)((now % 1000) / 100), addr);
+    p = safe_snprintf(p, end, "%s.%d, %06x,DF:,", timebuf, (int)((now % 1000) / 100), addr);
     if (mm)
         p = safe_snprintf(p, end, "%2u", mm->msgtype);
     else
@@ -299,7 +299,8 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *byte
     p = safe_snprintf(p, end, ",RAC:,");
     for (int i = 23; i <= 26; i++) p = safe_snprintf(p, end, "%u", getbit(bytes, i));
 
-    p = safe_snprintf(p, end, ",");
+    p = safe_snprintf(p, end, ", ");
+
     if (getbits(bytes, 23, 26)) {
         char *racs[4] = { "not below", "not above", "not left ", "not right" };
         for (int i = 23; i <= 26; i++) {
