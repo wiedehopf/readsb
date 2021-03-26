@@ -276,6 +276,7 @@ typedef enum {
 } nav_altitude_source_t;
 
 #define MODES_NON_ICAO_ADDRESS       (1<<24) // Set on addresses to indicate they are not ICAO addresses
+#define BADDR (0xff123456) // invalid address used to set stuff like cpr_focus and show_only default value
 
 #define MODES_INTERACTIVE_REFRESH_TIME 250      // Milliseconds
 #define MODES_INTERACTIVE_DISPLAY_TTL 60000     // Delete from display after 60 seconds

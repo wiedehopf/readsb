@@ -145,13 +145,12 @@ static void modesInitConfig(void) {
     Modes.acasFD2 = -1; // set to -1 so it's clear we don't have that fd
 
     Modes.filterDF = -1; // don't filter when set to -1
-    Modes.cpr_focus = 0xc0ffeeba;
-    Modes.trace_focus = 0xc0ffeeba;
-    //Modes.cpr_focus = 0x43BF95;
+    Modes.cpr_focus = BADDR;
+    Modes.trace_focus = BADDR;
+    Modes.show_only = BADDR;
+
+    //Modes.receiver_focus = 0x123456;
     //
-    //Modes.receiver_focus = 0x1aa14156975948af;
-    //
-    Modes.show_only = 0xc0ffeeba; // default to out of normal range value
     Modes.trackExpireJaero = TRACK_EXPIRE_JAERO;
 
     Modes.preambleThreshold = PREAMBLE_THRESHOLD_DEFAULT;
@@ -1082,13 +1081,11 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptTraceFocus:
             Modes.trace_focus = strtol(arg, NULL, 16);
             Modes.interactive = 0;
-            Modes.keep_traces = 2 * HOURS;
             fprintf(stderr, "trace_focus = %06x\n", Modes.trace_focus);
             break;
         case OptCprFocus:
             Modes.cpr_focus = strtol(arg, NULL, 16);
             Modes.interactive = 0;
-            Modes.keep_traces = 2 * HOURS;
             fprintf(stderr, "cpr_focus = %06x\n", Modes.cpr_focus);
             break;
         case OptReceiverFocus:
@@ -1272,7 +1269,7 @@ static void configAfterParse() {
 
     if (Modes.json_globe_index) {
         Modes.keep_traces = 24 * HOURS + 40 * MINUTES; // include 40 minutes overlap, tar1090 needs at least 30 minutes currently
-    } else if (Modes.heatmap) {
+    } else if (Modes.heatmap || Modes.trace_focus != BADDR) {
         Modes.keep_traces = 35 * MINUTES; // heatmap is written every 30 minutes
     }
 }
