@@ -23,9 +23,6 @@
 
 #include "readsb.h"
 
-// Millis between filter expiry flips:
-#define MODES_ICAO_FILTER_TTL 60000
-
 // Open-addressed hash table with linear probing.
 // We store each address twice to handle Data/Parity
 // which need to match on a partial address (top 16 bits only).
@@ -122,17 +119,12 @@ uint32_t icaoFilterTestFuzzy(uint32_t partial) {
 }
 
 // call this periodically:
-void icaoFilterExpire(uint64_t now) {
-    static uint64_t next_flip = 0;
-
-    if (now >= next_flip) {
-        if (icao_filter_active == icao_filter_a) {
-            memset(icao_filter_b, 0xFF, sizeof(icao_filter_b));
-            icao_filter_active = icao_filter_b;
-        } else {
-            memset(icao_filter_a, 0xFF, sizeof(icao_filter_a));
-            icao_filter_active = icao_filter_a;
-        }
-        next_flip = now + MODES_ICAO_FILTER_TTL;
+void icaoFilterExpire() {
+    if (icao_filter_active == icao_filter_a) {
+        memset(icao_filter_b, 0xFF, sizeof(icao_filter_b));
+        icao_filter_active = icao_filter_b;
+    } else {
+        memset(icao_filter_a, 0xFF, sizeof(icao_filter_a));
+        icao_filter_active = icao_filter_a;
     }
 }

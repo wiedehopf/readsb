@@ -95,6 +95,7 @@
 #include <zlib.h>
 #include <inttypes.h>
 #include <sched.h>
+#include <sys/epoll.h>
 
 #include "compat/compat.h"
 
@@ -295,6 +296,8 @@ typedef enum {
 #endif
 #define AIRCRAFT_BUCKETS (1 << AIRCRAFT_HASH_BITS) // this is critical for hashing purposes
 
+#define MODES_ICAO_FILTER_TTL 60000
+
 #define DB_HASH_BITS 20
 #define DB_BUCKETS (1 << DB_HASH_BITS) // this is critical for hashing purposes
 
@@ -417,6 +420,11 @@ struct _Modes
     char aneterr[ANET_ERR_LEN];
     int beast_fd; // Local Modes-S Beast handler
     struct net_service *services; // Active services
+    int net_epfd; // epoll fd used for most network stuff
+    int net_maxEvents;
+    struct epoll_event *net_events;
+
+    int api_epfd; // epoll fd used for the integrate api service (maybe in the future)
     struct aircraft * aircraft[AIRCRAFT_BUCKETS];
     struct craftArray globeLists[GLOBE_MAX_INDEX+1];
     struct craftArray aircraftActive;

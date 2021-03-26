@@ -60,6 +60,7 @@
 #include <netdb.h>
 #include <poll.h>
 #include <sys/sendfile.h>
+
 //#include <brotli/encode.h>
 
 
@@ -194,7 +195,6 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     }
 
     c->service = service;
-    c->next = service->clients;
     c->fd = fd;
     c->buflen = 0;
     c->modeac_requested = 0;
@@ -232,12 +232,20 @@ struct client *createGenericClient(struct net_service *service, int fd) {
         c->sendq_max = MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size;
         service->writer->lastReceiverId = 0; // make sure to resend receiverId
     }
+    c->next = service->clients;
     service->clients = c;
 
     ++service->connections;
     if (service->writer && service->connections == 1) {
         service->writer->lastWrite = now; // suppress heartbeat initially
     }
+
+    epoll_data_t data;
+    data.ptr = c;
+    c->epollEvent.events = EPOLLIN | EPOLLRDHUP;
+    c->epollEvent.data = data;
+    if (epoll_ctl(Modes.net_epfd, EPOLL_CTL_ADD, c->fd, &c->epollEvent))
+        perror("epoll_ctl fail:");
 
     return c;
 }
@@ -554,6 +562,12 @@ void modesInitNet(void) {
     Modes.services = NULL;
 
 
+    Modes.net_epfd = epoll_create(32);
+    if (Modes.net_epfd == -1) {
+        perror("FATAL: epoll_create() failed:");
+        exit(1);
+    }
+
     // set up listeners
     api_out = serviceInit("API output", &Modes.api_out, NULL, READ_MODE_ASCII, "\n", handleApiRequest);
     serviceListen(api_out, Modes.net_bind_address, Modes.net_output_api_ports);
@@ -765,6 +779,7 @@ static void modesCloseClient(struct client *c) {
         return;
     }
 
+    epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, c->fd, &c->epollEvent);
     anetCloseSocket(c->fd);
     c->service->connections--;
     if (c->con) {
@@ -818,6 +833,18 @@ static inline void flushClient(struct client *c, uint64_t now) {
             c->sendq_len -= bytesWritten;
             memmove((void*)c->sendq, c->sendq + bytesWritten, toWrite);
         }
+    }
+    if (c->last_flush != now && !(c->epollEvent.events & EPOLLOUT)) {
+        // if we couldn't flush our buffer, make epoll tell us when we can write again
+        c->epollEvent.events |= EPOLLOUT;
+        if (epoll_ctl(Modes.net_epfd, EPOLL_CTL_MOD, c->fd, &c->epollEvent))
+            perror("epoll_ctl fail:");
+    }
+    if ((c->epollEvent.events & EPOLLOUT) && c->last_flush == now) {
+        // if set, remove EPOLLOUT from epoll if flush was successful
+        c->epollEvent.events ^= EPOLLOUT;
+        if (epoll_ctl(Modes.net_epfd, EPOLL_CTL_MOD, c->fd, &c->epollEvent))
+            perror("epoll_ctl fail:");
     }
 
     // If writing has failed for longer than 3 * flush_interval, disconnect.
@@ -2048,13 +2075,12 @@ static const char *hexEscapeString(const char *str, char *buf, int len) {
 // The handler returns 0 on success, or 1 to signal this function we should
 // close the connection with the client in case of non-recoverable errors.
 //
-static void modesReadFromClient(struct client *c) {
+static void modesReadFromClient(struct client *c, uint64_t start) {
     int left;
     int nread;
     int bContinue = 1;
     int discard = 0;
 
-    uint64_t start = mstime();
     uint64_t now = start;
 
     for (int loop = 0; bContinue && loop < 32; loop++, now = mstime()) {
@@ -2456,31 +2482,24 @@ const char *airground_enum_string(airground_t ag) {
 }
 
 void modesNetSecondWork(void) {
-    struct client *c;
     struct net_service *s;
     uint64_t now = mstime();
 
     for (s = Modes.services; s; s = s->next) {
-        if (s->read_handler)
-            continue;
+        /*
+        struct client *c;
         for (c = s->clients; c; c = c->next) {
-            if (!c->service)
-                continue;
-            // This is called if there is no read handler - we just read and discard to try to trigger socket errors
-            modesReadFromClient(c);
-        }
-    }
-
-    // If we have generated no messages for a while, send
-    // a heartbeat
-    if (Modes.net_heartbeat_interval) {
-        for (s = Modes.services; s; s = s->next) {
-            if (s->writer &&
-                    s->connections &&
-                    s->writer->send_heartbeat &&
-                    (s->writer->lastWrite + Modes.net_heartbeat_interval) <= now) {
-                s->writer->send_heartbeat(s);
+            if (c->service && !s->read_handler) {
+                // This is called if there is no read handler - we just read and discard to try to trigger socket errors
+                modesReadFromClient(c, now);
             }
+        }
+        */
+        if (Modes.net_heartbeat_interval && s->writer
+                && s->connections && s->writer->send_heartbeat
+                && (s->writer->lastWrite + Modes.net_heartbeat_interval) <= now) {
+            // If we have generated no messages for a while, send a heartbeat
+            s->writer->send_heartbeat(s);
         }
     }
 }
@@ -2503,20 +2522,35 @@ void netFreeClients() {
         }
     }
 }
-static void readWriteClients() {
+static void allocNetEvents() {
+    if (!Modes.net_events) {
+        Modes.net_maxEvents = 128;
+    } else if (Modes.net_maxEvents > 10000) {
+        return;
+    } else {
+        Modes.net_maxEvents *= 2;
+    }
+    free(Modes.net_events);
+    Modes.net_events = malloc(Modes.net_maxEvents * sizeof(struct epoll_event));
+    if (!Modes.net_events) {
+        fprintf(stderr, "Fatal: net_events malloc\n");
+        exit(1);
+    }
+}
+static void readWriteClients(int count) {
     uint64_t now = mstime();
-    for (struct net_service *s = Modes.services; s; s = s->next) {
-        for (struct client *c = s->clients; c; c = c->next) {
-            if (!c->service)
-                continue;
 
-            if (s->read_handler) {
-                modesReadFromClient(c);
-            }
-            // If there is a sendq, try to flush it
-            if (s->writer) {
-                flushClient(c, now);
-            }
+    for (int i = 0; i < count; i++) {
+        struct epoll_event event = Modes.net_events[i];
+        struct client *c = (struct client *) event.data.ptr;
+        if (!c->service)
+            continue;
+        if (event.events & (EPOLLIN | EPOLLRDHUP)) {
+            modesReadFromClient(c, now);
+        }
+        if (event.events & EPOLLOUT) {
+            // check if we need to flush a client because the send buffer was full previously
+            flushClient(c, now);
         }
     }
 }
@@ -2527,15 +2561,30 @@ void modesNetPeriodicWork(void) {
     static uint64_t next_tcp_json;
     static uint64_t next_second;
     static struct timespec watch;
-    uint64_t now;
+
+    if (!Modes.net_events) {
+        allocNetEvents();
+    }
+
+    pthread_mutex_unlock(&Modes.decodeMutex);
+
+    // we only wait here in net-only mode
+    int count = epoll_wait(Modes.net_epfd, Modes.net_events, Modes.net_maxEvents,
+            Modes.net_only ? Modes.net_output_flush_interval / 2 : 0);
+
+    pthread_mutex_lock(&Modes.decodeMutex);
 
     int64_t interval = stopWatch(&watch);
 
-    readWriteClients();
+    readWriteClients(count);
+
+    if (count == Modes.net_maxEvents) {
+        allocNetEvents();
+    }
 
     int64_t elapsed1 = stopWatch(&watch);
 
-    now = mstime();
+    uint64_t now = mstime();
 
     if (now > next_second) {
         next_second = now + 1000;
@@ -2546,17 +2595,20 @@ void modesNetPeriodicWork(void) {
 
     int64_t elapsed2 = stopWatch(&watch);
 
-    // If we have data that has been waiting to be written for a while,
-    // write it now.
-    for (struct net_service *s = Modes.services; s; s = s->next) {
-        if (s->writer &&
-                s->writer->dataUsed &&
-                ((s->writer->lastWrite + Modes.net_output_flush_interval) <= now)) {
-            flushWrites(s->writer);
+    static uint64_t next_flush_interval;
+    if (now > next_flush_interval) {
+        next_flush_interval = now + Modes.net_output_flush_interval / 2;
+        serviceReconnectCallback(now);
+        // If we have data that has been waiting to be written for a while,
+        // write it now.
+        for (struct net_service *s = Modes.services; s; s = s->next) {
+            if (!s->writer)
+                continue;
+            if (s->writer->dataUsed && ((s->writer->lastWrite + Modes.net_output_flush_interval) <= now)) {
+                flushWrites(s->writer);
+            }
         }
     }
-
-    serviceReconnectCallback(now);
 
     int64_t elapsed3 = stopWatch(&watch);
 
@@ -2593,6 +2645,7 @@ void modesNetPeriodicWork(void) {
 void modesReadSerialClient(void) {
     struct net_service *s;
     struct client *c;
+    uint64_t now = mstime();
 
     // Search and read from marked serial client only
     for (s = Modes.services; s; s = s->next) {
@@ -2600,7 +2653,7 @@ void modesReadSerialClient(void) {
             for (c = s->clients; c; c = c->next) {
                 if (!c->service)
                     continue;
-                modesReadFromClient(c);
+                modesReadFromClient(c, now);
             }
         }
     }
@@ -2720,6 +2773,7 @@ void cleanupNetwork(void) {
         free(con);
     }
     free(Modes.net_connectors);
+    free(Modes.net_events);
 
     Modes.net_connectors_count = 0;
 

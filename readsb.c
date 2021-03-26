@@ -484,23 +484,15 @@ static void *decodeThreadEntryPoint(void *arg) {
     interactiveInit();
 
     if (Modes.net_only) {
-        uint32_t maxSleep = Modes.net_output_flush_interval / 4; // in ms
-        struct timespec ts;
-        clock_gettime(CLOCK_REALTIME, &ts);
         while (!Modes.exit) {
             struct timespec start_time;
 
             start_cpu_timing(&start_time);
 
+            // sleep via epoll_wait in net_periodic_work
             backgroundTasks();
 
             end_cpu_timing(&start_time, &Modes.stats_current.background_cpu);
-
-            incTimedwait(&ts, maxSleep);
-
-            int err = pthread_cond_timedwait(&Modes.decodeCond, &Modes.decodeMutex, &ts);
-            if (err && err != ETIMEDOUT)
-                fprintf(stderr, "decode: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
         }
     } else {
         int watchdogCounter = 50; // about 5 seconds
@@ -640,16 +632,23 @@ static void display_total_stats(void) {
 // from the net, refreshing the screen in interactive mode, and so forth
 //
 static void backgroundTasks(void) {
+    uint64_t now = mstime();
+    // Refresh screen when in interactive mode
+    static uint64_t next_interactive;
+    if (Modes.interactive && now > next_interactive) {
+        interactiveShowData();
+        next_interactive = now + 42;
+    }
+
+    static uint64_t next_flip = 0;
+    if (now >= next_flip) {
+        icaoFilterExpire(now);
+        next_flip = now + MODES_ICAO_FILTER_TTL;
+    }
     if (Modes.net) {
         modesNetPeriodicWork();
     }
 
-    // Refresh screen when in interactive mode
-    if (Modes.interactive) {
-        interactiveShowData();
-    }
-
-    icaoFilterExpire(mstime());
 }
 
 //=========================================================================

@@ -115,12 +115,13 @@ struct client
     uint64_t connectedSince;
     uint64_t messageCounter; // counter for incoming data
     uint64_t positionCounter; // counter for incoming data
-    char modeac_requested; // 1 if this Beast output connection has asked for A/C
-    char receiverIdLocked; // receiverId has been transmitted by other side.
+    int8_t modeac_requested; // 1 if this Beast output connection has asked for A/C
+    int8_t receiverIdLocked; // receiverId has been transmitted by other side.
     void *sendq;  // Write buffer - allocated later
     int sendq_len; // Amount of data in SendQ
     int sendq_max; // Max size of SendQ
     uint32_t garbage; // amount of garbage we have received from this client
+    struct epoll_event epollEvent;
     struct net_connector *con;
     char buf[MODES_CLIENT_BUF_SIZE + 4]; // Read buffer+padding
     char proxy_string[256]; // store string received from PROXY protocol v1 (v2 not supported currently)
