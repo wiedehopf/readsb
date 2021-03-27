@@ -1708,7 +1708,7 @@ void save_blob(int blob) {
         unlink(filename);
         snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
     }
-    snprintf(tmppath, PATH_MAX, "%s/tmp.%lx_%lx", Modes.state_dir, random(), random());
+    snprintf(tmppath, PATH_MAX, "%s.tmp", filename);
 
     int fd = open(tmppath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
@@ -2197,6 +2197,26 @@ void checkNewDayLocked(uint64_t now) {
             perror(filename);
         }
     }
+}
+
+void writeInternalState() {
+    pthread_t threads[IO_THREADS];
+    int numbers[IO_THREADS];
+
+    fprintf(stderr, "saving state .....\n");
+    struct timespec watch;
+    startWatch(&watch);
+
+    for (int i = 0; i < IO_THREADS; i++) {
+        numbers[i] = i;
+        pthread_create(&threads[i], NULL, save_blobs, &numbers[i]);
+    }
+    for (int i = 0; i < IO_THREADS; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    double elapsed = stopWatch(&watch) / 1000.0;
+    fprintf(stderr, " .......... done, saved %llu aircraft in %.3f seconds!\n", (unsigned long long) Modes.aircraftCount, elapsed);
 }
 
 /*

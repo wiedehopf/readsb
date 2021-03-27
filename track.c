@@ -2191,13 +2191,26 @@ void miscStuff() {
     if (handleHeatmap(now)) {
         enough = 1;
     }
+    if (Modes.state_dir) {
+        static uint32_t blob; // current blob
+        static uint64_t next_blob;
 
-    static uint32_t blob; // current blob
-    static uint64_t next_blob;
-    if (Modes.state_dir && !enough && now > next_blob) {
-        enough = 1;
-        save_blob(blob++ % STATE_BLOBS);
-        next_blob = now + 60 * MINUTES / STATE_BLOBS;
+        char filename[PATH_MAX];
+        snprintf(filename, PATH_MAX, "%s/writeState", Modes.state_dir);
+        int fd = open(filename, O_RDONLY);
+        if (fd > -1) {
+            // write complete state if triggered by file writeState existing
+            writeInternalState();
+            close(fd);
+            unlink(filename);
+            next_blob = now + 45 * SECONDS;
+        }
+
+        if (!enough && now > next_blob) {
+            enough = 1;
+            save_blob(blob++ % STATE_BLOBS);
+            next_blob = now + 60 * MINUTES / STATE_BLOBS;
+        }
     }
 
     if (!enough && Modes.api && now > Modes.next_api_update) {

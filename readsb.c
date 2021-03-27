@@ -1474,22 +1474,7 @@ int main(int argc, char **argv) {
     cleanupNetwork();
 
     if (Modes.state_dir) {
-        fprintf(stderr, "saving state .....\n");
-        struct timespec watch;
-        startWatch(&watch);
-
-        pthread_t threads[IO_THREADS];
-        int numbers[IO_THREADS];
-        for (int i = 0; i < IO_THREADS; i++) {
-            numbers[i] = i;
-            pthread_create(&threads[i], NULL, save_blobs, &numbers[i]);
-        }
-        for (int i = 0; i < IO_THREADS; i++) {
-            pthread_join(threads[i], NULL);
-        }
-
-        double elapsed = stopWatch(&watch) / 1000.0;
-        fprintf(stderr, " .......... done, saved %llu aircraft in %.3f seconds!\n", (unsigned long long) Modes.aircraftCount, elapsed);
+        writeInternalState();
     }
 
     // stop stale threads and be careful about it
