@@ -2533,7 +2533,7 @@ static void readWriteClients(int count) {
         struct client *c = (struct client *) event.data.ptr;
         if (!c->service)
             continue;
-        if (event.events & (EPOLLIN | EPOLLRDHUP)) {
+        if (event.events & (EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP)) {
             modesReadFromClient(c, now);
         }
         if (event.events & EPOLLOUT) {
