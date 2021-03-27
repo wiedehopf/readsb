@@ -182,9 +182,6 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     struct client *c;
     uint64_t now = mstime();
 
-    if (anetNonBlock(Modes.aneterr, fd) == ANET_ERR)
-        fprintf(stderr, "%s fd %d: Failed to set non-block: %s\n", service->descr, fd, Modes.aneterr);
-
     if (!service || fd == -1) {
         fprintf(stderr, "<3> FATAL: createGenericClient called with invalid parameters!\n");
         exit(1);
@@ -510,7 +507,7 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
             p = end + 1;
         }
 
-        nfds = anetTcpServer(Modes.aneterr, buf, bind_addr, newfds, sizeof (newfds));
+        nfds = anetTcpServer(Modes.aneterr, buf, bind_addr, newfds, sizeof (newfds), SOCK_NONBLOCK);
         if (nfds == ANET_ERR) {
             fprintf(stderr, "Error opening the listening port %s (%s): %s\n",
                     buf, service->descr, Modes.aneterr);
@@ -525,8 +522,6 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
         }
 
         for (i = 0; i < nfds; ++i) {
-            if (anetNonBlock(Modes.aneterr, newfds[i]) == ANET_ERR)
-                fprintf(stderr, "%s port %s: Failed to set non-block: %s\n", service->descr, buf, Modes.aneterr);
             fds[n++] = newfds[i];
         }
     }
@@ -730,7 +725,7 @@ void modesAcceptClients(uint64_t now) {
             struct sockaddr *saddr = (struct sockaddr *) &storage;
             socklen_t slen = sizeof(storage);
 
-            while ((fd = anetGenericAccept(Modes.aneterr, s->listener_fds[i], saddr, &slen)) >= 0) {
+            while ((fd = anetGenericAccept(Modes.aneterr, s->listener_fds[i], saddr, &slen, SOCK_NONBLOCK)) >= 0) {
                 c = createSocketClient(s, fd);
                 if (c) {
                     // We created the client, save the sockaddr info and 'hostport'
@@ -2486,15 +2481,6 @@ void modesNetSecondWork(void) {
     uint64_t now = mstime();
 
     for (s = Modes.services; s; s = s->next) {
-        /*
-        struct client *c;
-        for (c = s->clients; c; c = c->next) {
-            if (c->service && !s->read_handler) {
-                // This is called if there is no read handler - we just read and discard to try to trigger socket errors
-                modesReadFromClient(c, now);
-            }
-        }
-        */
         if (Modes.net_heartbeat_interval && s->writer
                 && s->connections && s->writer->send_heartbeat
                 && (s->writer->lastWrite + Modes.net_heartbeat_interval) <= now) {
@@ -2530,8 +2516,10 @@ static void allocNetEvents() {
     } else {
         Modes.net_maxEvents *= 2;
     }
+
     free(Modes.net_events);
     Modes.net_events = malloc(Modes.net_maxEvents * sizeof(struct epoll_event));
+
     if (!Modes.net_events) {
         fprintf(stderr, "Fatal: net_events malloc\n");
         exit(1);

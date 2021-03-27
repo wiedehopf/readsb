@@ -144,7 +144,7 @@ int anetTcpKeepAlive(char *err, int fd)
     return ANET_OK;
 }
 
-static int anetCreateSocket(char *err, int domain)
+static int anetCreateSocket(char *err, int domain, int typeFlags)
 {
     int s, on = 1;
     if (!max_fds) {
@@ -158,7 +158,7 @@ static int anetCreateSocket(char *err, int domain)
         anetSetError(err, "approaching RLIMIT: %s", strerror(errno));
         return ANET_ERR;
     }
-    if ((s = socket(domain, SOCK_STREAM, 0)) == -1) {
+    if ((s = socket(domain, SOCK_STREAM | typeFlags, 0)) == -1) {
         anetSetError(err, "creating socket: %s", strerror(errno));
         return ANET_ERR;
     }
@@ -200,13 +200,9 @@ static int anetTcpGenericConnect(char *err, char *addr, char *service, int flags
     }
 
     for (p = gai_result; p != NULL; p = p->ai_next) {
-        if ((s = anetCreateSocket(err, p->ai_family)) == ANET_ERR)
+        int nonBlock = (flags & ANET_CONNECT_NONBLOCK) ? SOCK_NONBLOCK : 0;
+        if ((s = anetCreateSocket(err, p->ai_family, nonBlock)) == ANET_ERR)
             continue;
-
-        if (flags & ANET_CONNECT_NONBLOCK) {
-            if (anetNonBlock(err,s) != ANET_OK)
-                return ANET_ERR;
-        }
 
         if (connect(s, p->ai_addr, p->ai_addrlen) >= 0 || (errno == EINPROGRESS && (flags & ANET_CONNECT_NONBLOCK))
            ) {
@@ -268,13 +264,8 @@ int anetTcpNonBlockConnectAddr(char *err, struct addrinfo *p)
 {
     int s;
 
-    if ((s = anetCreateSocket(err, p->ai_family)) == ANET_ERR)
+    if ((s = anetCreateSocket(err, p->ai_family, SOCK_NONBLOCK)) == ANET_ERR)
         return ANET_ERR;
-
-    if (anetNonBlock(err,s) != ANET_OK) {
-        anetCloseSocket(s);
-        return ANET_ERR;
-    }
 
     if (connect(s, p->ai_addr, p->ai_addrlen) >= 0) {
         return s;
@@ -342,7 +333,7 @@ static int anetListen(char *err, int s, struct sockaddr *sa, socklen_t len) {
     return ANET_OK;
 }
 
-int anetTcpServer(char *err, char *service, char *bindaddr, int *fds, int nfds)
+int anetTcpServer(char *err, char *service, char *bindaddr, int *fds, int nfds, int flags)
 {
     int s;
     int i = 0;
@@ -366,7 +357,7 @@ int anetTcpServer(char *err, char *service, char *bindaddr, int *fds, int nfds)
     }
 
     for (p = gai_result; p != NULL && i < nfds; p = p->ai_next) {
-        if ((s = anetCreateSocket(err, p->ai_family)) == ANET_ERR)
+        if ((s = anetCreateSocket(err, p->ai_family, flags)) == ANET_ERR)
             continue;
 
         if (anetListen(err, s, p->ai_addr, p->ai_addrlen) == ANET_ERR) {
@@ -383,7 +374,7 @@ int anetTcpServer(char *err, char *service, char *bindaddr, int *fds, int nfds)
     return (i > 0 ? i : ANET_ERR);
 }
 
-int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *len)
+int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *len, int flags)
 {
     int fd;
 
@@ -395,7 +386,7 @@ int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *len)
     }
     if (open_fds >= max_fds) {
         // accept and immediately close all pending connections
-        while ((fd = accept(s,sa,len)) >= 0) {
+        while ((fd = accept4(s, sa, len, SOCK_NONBLOCK)) >= 0) {
             open_fds++;
             anetCloseSocket(fd);
         }
@@ -404,7 +395,7 @@ int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *len)
         return ANET_ERR;
     }
 
-    fd = accept(s,sa,len);
+    fd = accept4(s, sa, len, flags);
 
     if (fd == -1) {
         if (errno != EINTR) {

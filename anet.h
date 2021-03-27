@@ -71,8 +71,8 @@ int anetTcpNonBlockConnect(char *err, char *addr, char *service, struct sockaddr
 int anetTcpNonBlockConnectAddr(char *err, struct addrinfo *p);
 int anetGetaddrinfo(char *err, char *addr, char *service, struct addrinfo **gai_result);
 int anetRead(int fd, char *buf, int count);
-int anetTcpServer(char *err, char *service, char *bindaddr, int *fds, int nfds);
-int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *len);
+int anetTcpServer(char *err, char *service, char *bindaddr, int *fds, int nfds, int flags);
+int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *len, int flags);
 int anetWrite(int fd, char *buf, int count);
 int anetNonBlock(char *err, int fd);
 int anetTcpNoDelay(char *err, int fd);
