@@ -233,6 +233,11 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     service->clients = c;
 
     ++service->connections;
+
+    if (Modes.debug_net && service->connections % 50 == 0) {
+        fprintf(stderr, "%s connection count: %d\n", service->descr, service->connections);
+    }
+
     if (service->writer && service->connections == 1) {
         service->writer->lastWrite = now; // suppress heartbeat initially
     }
@@ -2511,7 +2516,7 @@ void netFreeClients() {
 static void allocNetEvents() {
     if (!Modes.net_events) {
         Modes.net_maxEvents = 128;
-    } else if (Modes.net_maxEvents > 10000) {
+    } else if (Modes.net_maxEvents > 9000) {
         return;
     } else {
         Modes.net_maxEvents *= 2;
