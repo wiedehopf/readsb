@@ -196,11 +196,13 @@ int apiUpdate(struct craftArray *ca) {
     return buffer->len;
 }
 
-static void apiCloseConn(int fd, struct apiThread *thread) {
+static void apiCloseConn(struct apiCon *con, struct apiThread *thread) {
+    int fd = con->fd;
     epoll_ctl(thread->epfd, EPOLL_CTL_DEL, fd, NULL);
     anetCloseSocket(fd);
     if (Modes.debug_api)
         fprintf(stderr, "%d: clo c: %d\n", thread->index, fd);
+    free(con);
 }
 
 static void send400(int fd) {
@@ -249,8 +251,60 @@ static struct char_buffer parseFetch(char *req, struct apiBuffer *buffer) {
     return cb;
 }
 
-static void readRequest(int fd, struct apiBuffer *buffer, struct apiThread *thread) {
-    int nread, nwritten, err;
+static void apiSendData(struct apiCon *con, struct apiThread *thread) {
+    struct char_buffer *cb = &con->cb;
+    int len = cb->len - con->cbOffset;
+    char *dataStart = cb->buffer + con->cbOffset;
+
+    int nwritten = write(con->fd, dataStart, len);
+    int err = errno;
+
+    if (nwritten < len || (nwritten < 0 && (err == EAGAIN || err == EWOULDBLOCK))) {
+        //fprintf(stderr, "wrote only %d of %d\n", nwritten, len);
+
+        con->cbOffset += nwritten;
+
+        if (!(con->events & EPOLLOUT)) {
+            // notify if fd is available for writing
+            con->events ^= EPOLLOUT; // toggle xor
+            struct epoll_event epollEvent = { .events = con->events };
+            epollEvent.data.ptr = con;
+
+            if (epoll_ctl(thread->epfd, EPOLL_CTL_MOD, con->fd, &epollEvent))
+                perror("epoll_ctl MOD fail:");
+        }
+
+        return;
+        // free stuff some other time
+    }
+
+    free(cb->buffer);
+    cb->len = 0;
+    cb->buffer = NULL;
+
+    if (nwritten < 0) {
+        fprintf(stderr, "%s\n", strerror(err));
+        apiCloseConn(con, thread);
+        return;
+    }
+
+
+    if (con->events & EPOLLOUT) {
+        // no more writing necessary for the moment, no longer get notified for EPOLLOUT
+        con->events ^= EPOLLOUT; // toggle xor
+        struct epoll_event epollEvent = { .events = con->events };
+        epollEvent.data.ptr = con;
+
+        if (epoll_ctl(thread->epfd, EPOLL_CTL_MOD, con->fd, &epollEvent))
+            perror("epoll_ctl MOD fail:");
+    }
+
+    return;
+}
+
+static void apiReadRequest(struct apiCon *con, struct apiBuffer *buffer, struct apiThread *thread) {
+    int nread, err;
+    int fd = con->fd;
 
     char req[1024];
     nread = read(fd, req, 1023);
@@ -260,7 +314,7 @@ static void readRequest(int fd, struct apiBuffer *buffer, struct apiThread *thre
         return;
     }
     if (nread <= 0) {
-        apiCloseConn(fd, thread);
+        apiCloseConn(con, thread);
         return;
     }
 
@@ -291,42 +345,37 @@ static void readRequest(int fd, struct apiBuffer *buffer, struct apiThread *thre
     if (hlen == API_REQ_PADSTART)
         fprintf(stderr, "API_REQ_PADSTART insufficient\n");
 
-    int unusedPad = API_REQ_PADSTART - hlen;
-    char *dataStart = cb.buffer + unusedPad;
-    memcpy(dataStart, header, hlen);
+    con->cbOffset = API_REQ_PADSTART - hlen;
+    memcpy(cb.buffer + con->cbOffset, header, hlen);
 
-    int len = hlen + plen;
-
-    nwritten = write(fd, dataStart, len);
-    err = errno;
-
-    if (nwritten < len) {
-        fprintf(stderr, "wrote only %d of %d\n", nwritten, len);
-    }
-    if (nwritten < 0) {
-        fprintf(stderr, "%s\n", strerror(err));
-    }
-
-    free(cb.buffer);
+    con->cb = cb;
+    apiSendData(con, thread);
 }
-static void acceptConn(int listen_fd, struct apiThread *thread) {
+static void acceptConn(struct apiCon *con, struct apiBuffer *buffer, struct apiThread *thread) {
+    int listen_fd = con->fd;
     struct sockaddr_storage storage;
     struct sockaddr *saddr = (struct sockaddr *) &storage;
     socklen_t slen = sizeof(storage);
     int fd = -1;
 
     while ((fd = anetGenericAccept(Modes.aneterr, listen_fd, saddr, &slen, SOCK_NONBLOCK)) >= 0) {
-        struct epoll_event epollEvent = { 0 };
-        epollEvent.events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
-        struct twofds t = { .read = fd };
+        struct apiCon *con = calloc(sizeof(struct apiCon), 1);
+        if (!con) fprintf(stderr, "EMEM, how much is the fish?\n"), exit(1);
 
-        memcpy(&epollEvent.data, &t, sizeof(uint64_t));
+        con->fd = fd;
+        con->events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
+        struct epoll_event epollEvent = { .events = con->events };
+        epollEvent.data.ptr = con;
+
 
         if (Modes.debug_api)
             fprintf(stderr, "%d: new c: %d\n", thread->index, fd);
 
         if (epoll_ctl(thread->epfd, EPOLL_CTL_ADD, fd, &epollEvent))
             perror("epoll_ctl fail:");
+
+        if (0)
+            apiReadRequest(con, buffer, thread);
     }
 }
 
@@ -337,15 +386,19 @@ static void *apiThreadEntryPoint(void *arg) {
     thread->epfd = my_epoll_create();
 
     for (int i = 0; i < Modes.apiService.listener_count; ++i) {
-        struct epoll_event epollEvent = { 0 };
-        epollEvent.events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
-        struct twofds t = { 0 };
-        t.accept = Modes.apiService.listener_fds[i];
-        t.read = INT32_MIN;
+        struct apiCon *con = calloc(sizeof(struct apiCon), 1);
+        if (!con) fprintf(stderr, "EMEM, how much is the fish?\n"), exit(1);
 
-        memcpy(&epollEvent.data, &t, sizeof(uint64_t));
 
-        if (epoll_ctl(thread->epfd, EPOLL_CTL_ADD, t.accept, &epollEvent))
+        Modes.apiService.read_sep = (void*) con; // ugly .... park it there so we can free
+
+        con->fd = Modes.apiService.listener_fds[i];
+        con->accept = 1;
+        con->events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
+        struct epoll_event epollEvent = { .events = con->events };
+        epollEvent.data.ptr = con;
+
+        if (epoll_ctl(thread->epfd, EPOLL_CTL_ADD, con->fd, &epollEvent))
             perror("epoll_ctl fail:");
     }
 
@@ -370,14 +423,17 @@ static void *apiThreadEntryPoint(void *arg) {
 
         for (int i = 0; i < count; i++) {
             struct epoll_event event = events[i];
-            if (event.data.fd == Modes.exitEventfd)
+            if (event.data.ptr == &Modes.exitEventfd)
                 break;
-            struct twofds t;
-            memcpy(&t, &event.data.u64, sizeof(uint64_t));
-            if (t.read == INT32_MIN) {
-                acceptConn(t.accept, thread);
+
+            struct apiCon *con = event.data.ptr;
+            if (con->accept) {
+                acceptConn(con, buffer, thread);
             } else {
-                readRequest(t.read, buffer, thread);
+                if (event.events & EPOLLOUT)
+                    apiSendData(con, thread);
+                else
+                    apiReadRequest(con, buffer, thread);
             }
         }
     }
@@ -423,6 +479,7 @@ void apiInit() {
     }
 
     pthread_mutex_init(&Modes.apiUpdateMutex, NULL);
+    pthread_cond_init(&Modes.apiUpdateCond, NULL);
     pthread_create(&Modes.apiUpdateThread, NULL, apiUpdateEntryPoint, NULL);
     for (int i = 0; i < API_THREADS; i++) {
         Modes.apiThread[i].index = i;
@@ -430,9 +487,18 @@ void apiInit() {
     }
 }
 void apiCleanup() {
+    pthread_join(Modes.apiUpdateThread, NULL);
+    pthread_mutex_destroy(&Modes.apiUpdateMutex);
+    pthread_cond_destroy(&Modes.apiUpdateCond);
+
     for (int i = 0; i < API_THREADS; i++) {
         pthread_join(Modes.apiThread[i].thread, NULL);
     }
+    for (int i = 0; i < Modes.apiService.listener_count; ++i) {
+        anetCloseSocket(Modes.apiService.listener_fds[i]);
+    }
+    free((void *) Modes.apiService.read_sep);
+    free(Modes.apiService.listener_fds);
     free(Modes.apiBuffer[0].list);
     free(Modes.apiBuffer[1].list);
     free((void *) Modes.apiService.descr);

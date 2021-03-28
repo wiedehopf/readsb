@@ -3,6 +3,14 @@
 
 #define API_REQ_PADSTART (192)
 
+struct apiCon {
+    int fd;
+    int accept;
+    struct char_buffer cb;
+    int cbOffset;
+    uint32_t events;
+};
+
 struct apiEntry {
     uint32_t addr;
     int32_t lat;
@@ -18,11 +26,6 @@ struct apiThread {
     int epfd;
     int eventfd;
 };
-
-struct twofds {
-    int32_t read;
-    int32_t accept;
-} __attribute__ ((__packed__));
 
 struct apiBuffer {
     int len;

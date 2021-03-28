@@ -327,7 +327,7 @@ int my_epoll_create() {
         exit(1);
     }
     // add exit signaling eventfd, we want that for all our epoll fds
-    struct epoll_event epollEvent = { .events = EPOLLIN, .data = { .fd = Modes.exitEventfd }};
+    struct epoll_event epollEvent = { .events = EPOLLIN, .data = { .ptr = &Modes.exitEventfd }};
     if (epoll_ctl(fd, EPOLL_CTL_ADD, Modes.exitEventfd, &epollEvent)) {
         perror("epoll_ctl fail:");
         exit(1);

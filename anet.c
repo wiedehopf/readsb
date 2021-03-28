@@ -409,6 +409,7 @@ int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *len, int
     return fd;
 }
 
+/*
 static int get_socket_error(int fd) {
     int err = 1;
     socklen_t len = sizeof err;
@@ -420,9 +421,11 @@ static int get_socket_error(int fd) {
     }
     return err;
 }
+*/
 
 void anetCloseSocket(int fd) {
     if (fd >= 0) {
+        /*
         get_socket_error(fd); // First clear any errors, which can cause close to fail
         if (shutdown(fd, SHUT_RDWR) < 0) { // Secondly, terminate the reliable delivery
             if (errno != ENOTCONN && errno != EINVAL) { // SGI causes EINVAL
@@ -430,6 +433,9 @@ void anetCloseSocket(int fd) {
             }
         }
         close(fd); // Finally call anetCloseSocket() socket
+        */
+        // the above seems like overhead we don't need.
+        close(fd);
         open_fds--;
     }
 }

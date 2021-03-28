@@ -171,7 +171,8 @@ static void setProxyString(struct client *c) {
 
 // Create a client attached to the given service using the provided socket FD
 struct client *createSocketClient(struct net_service *service, int fd) {
-    anetSetSendBuffer(Modes.aneterr, fd, (MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size));
+    //if (anetSetSendBuffer(Modes.aneterr, fd, (MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size)) == ANET_ERR)
+    //    fprintf(stderr, "anetSetSendBuffer failed: %s\n", Modes.aneterr);
     return createGenericClient(service, fd);
 }
 
@@ -2496,7 +2497,7 @@ static void readWriteClients(int count) {
 
     for (int i = 0; i < count; i++) {
         struct epoll_event event = Modes.net_events[i];
-        if (event.data.fd == Modes.exitEventfd)
+        if (event.data.ptr == &Modes.exitEventfd)
             break;
         struct client *c = (struct client *) event.data.ptr;
         if (!c || !c->service)
@@ -2708,6 +2709,9 @@ void cleanupNetwork(void) {
     struct net_service *s = Modes.services, *ns;
     while (s) {
         ns = s->next;
+        for (int i = 0; i < s->listener_count; ++i) {
+            anetCloseSocket(s->listener_fds[i]);
+        }
         free(s->listener_fds);
         if (s->writer && s->writer->data) {
             free(s->writer->data);
