@@ -64,9 +64,14 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state);
 //
 static void cleanup_and_exit(int code);
 
+static void setExit() {
+    Modes.exit = 1; // Signal to threads that we are done
+    uint64_t one = 1;
+    write(Modes.exitEventfd, &one, sizeof(one));
+}
 static void sigintHandler(int dummy) {
     MODES_NOTUSED(dummy);
-    Modes.exit = 1; // Signal to threads that we are done
+    setExit();
 
     pthread_cond_signal(&Modes.mainCond);
 
@@ -76,7 +81,7 @@ static void sigintHandler(int dummy) {
 
 static void sigtermHandler(int dummy) {
     MODES_NOTUSED(dummy);
-    Modes.exit = 1; // Signal to threads that we are done
+    setExit();
 
     pthread_cond_signal(&Modes.mainCond);
 
@@ -300,6 +305,117 @@ static void modesInit(void) {
 
     Modes.json_globe_special_tiles = calloc(GLOBE_SPECIAL_INDEX, sizeof(struct tile));
     init_globe_index(Modes.json_globe_special_tiles);
+}
+
+static void lockThreads() {
+    pthread_mutex_lock(&Modes.jsonMutex);
+    pthread_mutex_lock(&Modes.miscMutex);
+    pthread_mutex_lock(&Modes.apiUpdateMutex);
+    for (int i = 0; i < TRACE_THREADS; i++) {
+        pthread_mutex_lock(&Modes.jsonTraceMutex[i]);
+    }
+    pthread_mutex_lock(&Modes.jsonGlobeMutex);
+    pthread_mutex_lock(&Modes.decodeMutex);
+}
+
+static void unlockThreads() {
+    pthread_mutex_unlock(&Modes.decodeMutex);
+    pthread_mutex_unlock(&Modes.apiUpdateMutex);
+    pthread_mutex_unlock(&Modes.miscMutex);
+    pthread_mutex_unlock(&Modes.jsonGlobeMutex);
+    pthread_mutex_unlock(&Modes.jsonMutex);
+    for (int i = 0; i < TRACE_THREADS; i++) {
+        pthread_mutex_unlock(&Modes.jsonTraceMutex[i]);
+    }
+}
+
+//
+// Entry point for periodic updates
+//
+
+static void trackPeriodicUpdate() {
+    static uint32_t upcount;
+    upcount++; // free running counter, first iteration is with 1
+
+    // stop all threads so we can remove aircraft from the list.
+    // also serves as memory barrier so json threads get new aircraft in the list
+    // adding aircraft does not need to be done with locking:
+    // the worst case is that the newly added aircraft is skipped as it's not yet
+    // in the cache used by the json threads.
+    lockThreads();
+
+    uint64_t now = mstime();
+
+    if (now > Modes.next_stats_update)
+        Modes.updateStats = 1;
+
+    struct timespec watch;
+    startWatch(&watch);
+    struct timespec start_time;
+    start_monotonic_timing(&start_time);
+
+    if (!Modes.miscThreadRunning && now > Modes.next_remove_stale) {
+        trackRemoveStale(now);
+        if (now > Modes.next_remove_stale + 10 * SECONDS && Modes.next_remove_stale) {
+            fprintf(stderr, "removeStale delayed by %.1f seconds\n", (now - Modes.next_remove_stale) / 1000.0);
+        }
+        Modes.next_remove_stale = now + 1 * SECONDS;
+    }
+    int64_t elapsed1 = stopWatch(&watch);
+
+    if (Modes.mode_ac && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 2)
+        trackMatchAC(now);
+
+    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 3)
+        checkDisplayStats(now);
+
+    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 4)
+        netFreeClients();
+
+    if (Modes.updateStats)
+        statsUpdate(now); // needs to happen under lock
+
+    checkNewDayLocked(now);
+
+    int nParts = 5 * MINUTES / PERIODIC_UPDATE;
+    receiverTimeout((upcount % nParts), nParts, now);
+
+    end_monotonic_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
+    int64_t elapsed2 = stopWatch(&watch);
+
+    unlockThreads();
+
+    static uint64_t antiSpam;
+    if (elapsed1 + elapsed2 > 60 && now > antiSpam + 30 * SECONDS) {
+        fprintf(stderr, "<3>High load: removeStale took %"PRIi64"/%"PRIi64" ms! upcount: %d stats: %d (suppressing for 30 seconds)\n", elapsed1, elapsed2, (int) (upcount % (1 * SECONDS / PERIODIC_UPDATE)), Modes.updateStats);
+        antiSpam = now;
+    }
+
+    //fprintf(stderr, "running for %ld ms\n", mstime() - Modes.startup_time);
+    //fprintf(stderr, "removeStale took %"PRIu64" ms, running for %ld ms\n", elapsed, now - Modes.startup_time);
+
+    if (Modes.updateStats) {
+        statsResetCount();
+        uint32_t aircraftCount = 0;
+        for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+            for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
+                aircraftCount++;
+                if (Modes.updateStats && a->messages >= 2 && (now < a->seen + TRACK_EXPIRE || trackDataValid(&a->position_valid)))
+                    statsCountAircraft(a);
+            }
+        }
+
+        statsWrite();
+        Modes.updateStats = 0;
+
+        Modes.aircraftCount = aircraftCount;
+
+        static uint64_t antiSpam2;
+        if (Modes.aircraftCount > 2 * AIRCRAFT_BUCKETS && now > antiSpam2 + 12 * HOURS) {
+            fprintf(stderr, "<3>increase AIRCRAFT_HASH_BITS, aircraft hash table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFT_BUCKETS);
+            antiSpam2 = now;
+        }
+    }
 }
 
 //
@@ -664,7 +780,6 @@ static void cleanup_and_exit(int code) {
     free(Modes.scratch);
     free(Modes.dev_name);
     free(Modes.filename);
-    free(Modes.apiList);
     free(Modes.prom_file);
     free(Modes.json_dir);
     free(Modes.globe_history_dir);
@@ -1118,6 +1233,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                     case 'A': Modes.debug_ACAS = 1;
                         fprintf(stderr, "debug_ACAS enabled!\n");
                         break;
+                    case 'a': Modes.debug_api = 1;
+                        break;
                     case 'C': Modes.debug_recent = 1;
                         break;
                     default:
@@ -1379,6 +1496,8 @@ int main(int argc, char **argv) {
     if (!Modes.exit)
         dbFinishUpdate();
 
+    Modes.exitEventfd = eventfd(0, EFD_NONBLOCK);
+
     for (int thread = 0; thread < STALE_THREADS; thread++) {
         Modes.staleRun[thread] = 1;
         pthread_mutex_lock(&Modes.staleDoneMutex[thread]);
@@ -1391,6 +1510,10 @@ int main(int argc, char **argv) {
     pthread_create(&Modes.decodeThread, NULL, decodeThreadEntryPoint, NULL);
 
     pthread_create(&Modes.miscThread, NULL, miscThreadEntryPoint, NULL);
+
+    if (Modes.api) {
+        apiInit();
+    }
 
     if (Modes.json_dir && Modes.json_globe_index) {
         for (int i = 0; i < TRACE_THREADS; i++) {
@@ -1458,6 +1581,11 @@ int main(int argc, char **argv) {
     pthread_mutex_unlock(&Modes.miscMutex);
     pthread_join(Modes.miscThread, NULL);
     pthread_mutex_destroy(&Modes.miscMutex);
+
+    // after miscThread for the moment
+    if (Modes.api) {
+        apiCleanup();
+    }
 
     pthread_mutex_lock(&Modes.decodeMutex);
     pthread_cond_signal(&Modes.decodeCond);

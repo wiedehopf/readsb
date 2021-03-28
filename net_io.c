@@ -77,7 +77,6 @@
 //    handled via non-blocking I/O and manually polling clients to see if
 //    they have something new to share with us when reading is needed.
 
-static int handleApiRequest(struct client *c, char *p, int remote, uint64_t now);
 static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t now);
 static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now);
 static int decodeHexMessage(struct client *c, char *hex, int remote, uint64_t now);
@@ -556,22 +555,13 @@ void modesInitNet(void) {
     struct net_service *sbs_in_mlat;
     struct net_service *sbs_in_jaero;
     struct net_service *sbs_in_prio;
-    struct net_service *api_out;
 
     signal(SIGPIPE, SIG_IGN);
     Modes.services = NULL;
 
-
-    Modes.net_epfd = epoll_create(32);
-    if (Modes.net_epfd == -1) {
-        perror("FATAL: epoll_create() failed:");
-        exit(1);
-    }
+    Modes.net_epfd = my_epoll_create();
 
     // set up listeners
-    api_out = serviceInit("API output", &Modes.api_out, NULL, READ_MODE_ASCII, "\n", handleApiRequest);
-    serviceListen(api_out, Modes.net_bind_address, Modes.net_output_api_ports);
-
     raw_out = serviceInit("Raw TCP output", &Modes.raw_out, send_raw_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(raw_out, Modes.net_bind_address, Modes.net_output_raw_ports);
 
@@ -1686,19 +1676,6 @@ void sendBeastSettings(int fd, const char *settings) {
 
     anetWrite(fd, buf, len);
 }
-static int handleApiRequest(struct client *c, char *p, int remote, uint64_t now) {
-    MODES_NOTUSED(now);
-    MODES_NOTUSED(p);
-    MODES_NOTUSED(remote);
-    MODES_NOTUSED(c);
-
-    //static uint32_t scratch[3 * API_INDEX_MAX];
-
-    //writeJsonToNet(&Modes.api_out, generateAircraftJson(-1));
-    //apiReq(50, 51, 10, 11, scratch);
-
-    return 0;
-}
 
 //
 // Handle a Beast command message.
@@ -2513,30 +2490,16 @@ void netFreeClients() {
         }
     }
 }
-static void allocNetEvents() {
-    if (!Modes.net_events) {
-        Modes.net_maxEvents = 128;
-    } else if (Modes.net_maxEvents > 9000) {
-        return;
-    } else {
-        Modes.net_maxEvents *= 2;
-    }
 
-    free(Modes.net_events);
-    Modes.net_events = malloc(Modes.net_maxEvents * sizeof(struct epoll_event));
-
-    if (!Modes.net_events) {
-        fprintf(stderr, "Fatal: net_events malloc\n");
-        exit(1);
-    }
-}
 static void readWriteClients(int count) {
     uint64_t now = mstime();
 
     for (int i = 0; i < count; i++) {
         struct epoll_event event = Modes.net_events[i];
+        if (event.data.fd == Modes.exitEventfd)
+            break;
         struct client *c = (struct client *) event.data.ptr;
-        if (!c->service)
+        if (!c || !c->service)
             continue;
         if (event.events & (EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP)) {
             modesReadFromClient(c, now);
@@ -2556,7 +2519,7 @@ void modesNetPeriodicWork(void) {
     static struct timespec watch;
 
     if (!Modes.net_events) {
-        allocNetEvents();
+        epollAllocEvents(&Modes.net_events, &Modes.net_maxEvents);
     }
 
     pthread_mutex_unlock(&Modes.decodeMutex);
@@ -2572,7 +2535,7 @@ void modesNetPeriodicWork(void) {
     readWriteClients(count);
 
     if (count == Modes.net_maxEvents) {
-        allocNetEvents();
+        epollAllocEvents(&Modes.net_events, &Modes.net_maxEvents);
     }
 
     int64_t elapsed1 = stopWatch(&watch);
@@ -2739,6 +2702,8 @@ void cleanupNetwork(void) {
             c = nc;
         }
     }
+
+    close(Modes.net_epfd);
 
     struct net_service *s = Modes.services, *ns;
     while (s) {

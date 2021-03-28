@@ -521,11 +521,10 @@ void to_state_all(struct aircraft *a, struct state_all *new, uint64_t now);
 struct modesMessage;
 struct aircraft *trackUpdateFromMessage (struct modesMessage *mm);
 
-/* Call periodically */
-void trackPeriodicUpdate ();
-void miscStuff();
 void *miscThreadEntryPoint(void *arg);
 void *staleThreadEntryPoint(void *arg);
+void trackMatchAC(uint64_t now);
+void trackRemoveStale(uint64_t now);
 
 void updateValidities(struct aircraft *a, uint64_t now);
 

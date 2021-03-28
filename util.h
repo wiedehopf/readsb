@@ -88,4 +88,7 @@ void log_with_timestamp(const char *format, ...) __attribute__ ((format(printf, 
 uint64_t roundSeconds(int interval, int offset, uint64_t epoch_ms);
 ssize_t check_write(int fd, const void *buf, size_t count, const char *error_context);
 
+int my_epoll_create();
+void epollAllocEvents(struct epoll_event **events, int *maxEvents);
+
 #endif

@@ -1790,7 +1790,7 @@ end_alt:
 
 // Periodically match up mode A/C results with mode S results
 
-static void trackMatchAC(uint64_t now) {
+void trackMatchAC(uint64_t now) {
     // clear match flags
     for (unsigned i = 0; i < 4096; ++i) {
         modeAC_match[i] = 0;
@@ -1990,7 +1990,7 @@ static void activeUpdate(uint64_t now) {
 }
 
 // run activeUpdate and remove stale aircraft for a fraction of the entire hashtable
-static void removeStale(uint64_t now) {
+void trackRemoveStale(uint64_t now) {
     //fprintf(stderr, "removeStale()\n");
     //fprintf(stderr, "removeStale start: running for %ld ms\n", mstime() - Modes.startup_time);
 
@@ -2064,117 +2064,7 @@ void *staleThreadEntryPoint(void *arg) {
     pthread_exit(NULL);
 }
 
-
-static void lockThreads() {
-    pthread_mutex_lock(&Modes.jsonMutex);
-    pthread_mutex_lock(&Modes.miscMutex);
-    for (int i = 0; i < TRACE_THREADS; i++) {
-        pthread_mutex_lock(&Modes.jsonTraceMutex[i]);
-    }
-    pthread_mutex_lock(&Modes.jsonGlobeMutex);
-    pthread_mutex_lock(&Modes.decodeMutex);
-}
-
-static void unlockThreads() {
-    pthread_mutex_unlock(&Modes.decodeMutex);
-    pthread_mutex_unlock(&Modes.miscMutex);
-    pthread_mutex_unlock(&Modes.jsonGlobeMutex);
-    pthread_mutex_unlock(&Modes.jsonMutex);
-    for (int i = 0; i < TRACE_THREADS; i++) {
-        pthread_mutex_unlock(&Modes.jsonTraceMutex[i]);
-    }
-}
-
-//
-// Entry point for periodic updates
-//
-
-void trackPeriodicUpdate() {
-    static uint32_t upcount;
-    upcount++; // free running counter, first iteration is with 1
-
-    // stop all threads so we can remove aircraft from the list.
-    // also serves as memory barrier so json threads get new aircraft in the list
-    // adding aircraft does not need to be done with locking:
-    // the worst case is that the newly added aircraft is skipped as it's not yet
-    // in the cache used by the json threads.
-    lockThreads();
-
-    uint64_t now = mstime();
-
-    if (now > Modes.next_stats_update)
-        Modes.updateStats = 1;
-
-    struct timespec watch;
-    startWatch(&watch);
-    struct timespec start_time;
-    start_monotonic_timing(&start_time);
-
-    if (!Modes.miscThreadRunning && now > Modes.next_remove_stale) {
-        removeStale(now);
-        if (now > Modes.next_remove_stale + 10 * SECONDS && Modes.next_remove_stale) {
-            fprintf(stderr, "removeStale delayed by %.1f seconds\n", (now - Modes.next_remove_stale) / 1000.0);
-        }
-        Modes.next_remove_stale = now + 1 * SECONDS;
-    }
-    int64_t elapsed1 = stopWatch(&watch);
-
-    if (Modes.mode_ac && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 2)
-        trackMatchAC(now);
-
-    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 3)
-        checkDisplayStats(now);
-
-    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 4)
-        netFreeClients();
-
-    if (Modes.updateStats)
-        statsUpdate(now); // needs to happen under lock
-
-    checkNewDayLocked(now);
-
-    int nParts = 5 * MINUTES / PERIODIC_UPDATE;
-    receiverTimeout((upcount % nParts), nParts, now);
-
-    end_monotonic_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
-    int64_t elapsed2 = stopWatch(&watch);
-
-    unlockThreads();
-
-    static uint64_t antiSpam;
-    if (elapsed1 + elapsed2 > 60 && now > antiSpam + 30 * SECONDS) {
-        fprintf(stderr, "<3>High load: removeStale took %"PRIi64"/%"PRIi64" ms! upcount: %d stats: %d (suppressing for 30 seconds)\n", elapsed1, elapsed2, (int) (upcount % (1 * SECONDS / PERIODIC_UPDATE)), Modes.updateStats);
-        antiSpam = now;
-    }
-
-    //fprintf(stderr, "running for %ld ms\n", mstime() - Modes.startup_time);
-    //fprintf(stderr, "removeStale took %"PRIu64" ms, running for %ld ms\n", elapsed, now - Modes.startup_time);
-
-    if (Modes.updateStats) {
-        statsResetCount();
-        uint32_t aircraftCount = 0;
-        for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
-            for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
-                aircraftCount++;
-                if (Modes.updateStats && a->messages >= 2 && (now < a->seen + TRACK_EXPIRE || trackDataValid(&a->position_valid)))
-                    statsCountAircraft(a);
-            }
-        }
-
-        statsWrite();
-        Modes.updateStats = 0;
-
-        Modes.aircraftCount = aircraftCount;
-
-        static uint64_t antiSpam2;
-        if (Modes.aircraftCount > 2 * AIRCRAFT_BUCKETS && now > antiSpam2 + 12 * HOURS) {
-            fprintf(stderr, "<3>increase AIRCRAFT_HASH_BITS, aircraft hash table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFT_BUCKETS);
-            antiSpam2 = now;
-        }
-    }
-}
-
-void miscStuff() {
+static void miscStuff() {
     uint64_t now = mstime();
 
     struct timespec watch;
@@ -2211,22 +2101,6 @@ void miscStuff() {
             save_blob(blob++ % STATE_BLOBS);
             next_blob = now + 60 * MINUTES / STATE_BLOBS;
         }
-    }
-
-    if (!enough && Modes.api && now > Modes.next_api_update) {
-        // this will probably get its own thread at some point
-        enough = 1;
-        Modes.next_api_update = now + 1 * SECONDS;
-        struct timespec watch;
-        startWatch(&watch);
-
-        int n = 0;
-        for (int i = 0; i < 1; i++) {
-            n = apiUpdate(&Modes.aircraftActive);
-        }
-
-        uint64_t elapsed = stopWatch(&watch);
-        fprintf(stderr, "api req took: %.5f s, got %d aircraft!\n", elapsed / 1000.0, n);
     }
 
     static uint64_t next_clients_json;

@@ -96,6 +96,8 @@
 #include <inttypes.h>
 #include <sched.h>
 #include <sys/epoll.h>
+#include <sys/eventfd.h>
+
 
 #include "compat/compat.h"
 
@@ -307,6 +309,7 @@ typedef enum {
 #define IO_THREADS 8
 #define TRACE_THREADS 6
 #define PERIODIC_UPDATE 200 // don't use values larger than 200 ... some hard-coded stuff
+#define API_THREADS 4
 
 #define STALE_THREADS 1
 #define STALE_BUCKETS (AIRCRAFT_BUCKETS / STALE_THREADS)
@@ -339,6 +342,7 @@ typedef enum {
 #include "aircraft.h"
 #include "geomag.h"
 #include "json_out.h"
+#include "api.h"
 
 //======================== structure declarations =========================
 
@@ -420,11 +424,11 @@ struct _Modes
     char aneterr[ANET_ERR_LEN];
     int beast_fd; // Local Modes-S Beast handler
     struct net_service *services; // Active services
+    int exitEventfd;
     int net_epfd; // epoll fd used for most network stuff
     int net_maxEvents;
     struct epoll_event *net_events;
 
-    int api_epfd; // epoll fd used for the integrate api service (maybe in the future)
     struct aircraft * aircraft[AIRCRAFT_BUCKETS];
     struct craftArray globeLists[GLOBE_MAX_INDEX+1];
     struct craftArray aircraftActive;
@@ -448,11 +452,17 @@ struct _Modes
     struct net_writer json_out; // SBS-format output
     struct net_writer vrs_out; // SBS-format output
     struct net_writer fatsv_out; // FATSV-format output
-    struct net_writer api_out; // some sort of api, who knows really?
+
     int api; // enable api output
-    int apiLen;
-    int apiAlloc;
-    struct apiEntry *apiList;
+    int apiFlip;
+    struct net_service apiService;
+
+    pthread_mutex_t apiFlipMutex;
+    struct apiBuffer apiBuffer[2];
+    struct apiThread apiThread[API_THREADS];
+    pthread_t apiUpdateThread;
+    pthread_mutex_t apiUpdateMutex;
+    pthread_cond_t apiUpdateCond;
 
     // Configuration
     int8_t nfix_crc; // Number of crc bit error(s) to correct
@@ -472,6 +482,7 @@ struct _Modes
     int8_t debug_sampleCounter;
     int8_t debug_dbJson;
     int8_t debug_ACAS;
+    int8_t debug_api;
     int8_t debug_recent;
     int8_t filter_persistence; // Maximum number of consecutive implausible positions from global CPR to invalidate a known position.
 

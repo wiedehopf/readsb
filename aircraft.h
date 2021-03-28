@@ -1,8 +1,6 @@
 #ifndef AIRCRAFT_H
 #define AIRCRAFT_H
 
-#define API_INDEX_MAX 32000
-
 uint32_t aircraftHash(uint32_t addr);
 struct aircraft *aircraftGet(uint32_t addr);
 struct aircraft *aircraftCreate(struct modesMessage *mm);
@@ -22,22 +20,6 @@ typedef struct dbEntry {
 uint32_t dbHash(uint32_t addr);
 dbEntry *dbGet(uint32_t addr, dbEntry **index);
 void dbPut(uint32_t addr, dbEntry **index, dbEntry *d);
-
-int apiUpdate(struct craftArray *ca);
-struct char_buffer apiReq(double latMin, double latMax, double lonMin, double lonMax, int maxLen);
-
-struct apiEntry {
-    uint32_t addr;
-    int32_t lat;
-    int32_t lon;
-    int jsonLen;
-    char json[1024];
-};
-
-struct range {
-    int from; // inclusive
-    int to; // exclusive
-};
 
 struct binCraft {
   uint32_t hex;

@@ -319,3 +319,35 @@ ssize_t check_write(int fd, const void *buf, size_t count, const char *error_con
         fprintf(stderr, "%s: Only %zd of %zd bytes written!\n", error_context, res, count);
     return res;
 }
+
+int my_epoll_create() {
+    int fd = epoll_create(32); // argument positive, ignored
+    if (fd == -1) {
+        perror("FATAL: epoll_create() failed:");
+        exit(1);
+    }
+    // add exit signaling eventfd, we want that for all our epoll fds
+    struct epoll_event epollEvent = { .events = EPOLLIN, .data = { .fd = Modes.exitEventfd }};
+    if (epoll_ctl(fd, EPOLL_CTL_ADD, Modes.exitEventfd, &epollEvent)) {
+        perror("epoll_ctl fail:");
+        exit(1);
+    }
+    return fd;
+}
+void epollAllocEvents(struct epoll_event **events, int *maxEvents) {
+    if (!*events) {
+        *maxEvents = 32;
+    } else if (*maxEvents > 9000) {
+        return;
+    } else {
+        *maxEvents *= 2;
+    }
+
+    free(*events);
+    *events = malloc(*maxEvents * sizeof(struct epoll_event));
+
+    if (!*events) {
+        fprintf(stderr, "Fatal: epollAllocEvents malloc\n");
+        exit(1);
+    }
+}
