@@ -67,7 +67,8 @@ static void cleanup_and_exit(int code);
 static void setExit() {
     Modes.exit = 1; // Signal to threads that we are done
     uint64_t one = 1;
-    write(Modes.exitEventfd, &one, sizeof(one));
+    int res = write(Modes.exitEventfd, &one, sizeof(one));
+    res = res;
 }
 static void sigintHandler(int dummy) {
     MODES_NOTUSED(dummy);

@@ -225,7 +225,8 @@ static void send400(int fd) {
     "Connection: close\r\n"
     "Content-Length: 0\r\n\r\n");
 
-    write(fd, buf, strlen(buf));
+    int res = write(fd, buf, strlen(buf));
+    res = res;
 }
 
 static struct char_buffer parseFetch(char *req, struct apiBuffer *buffer) {

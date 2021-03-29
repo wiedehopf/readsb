@@ -7,11 +7,14 @@ PLUTOSDR ?= no
 AGGRESSIVE ?= no
 HAVE_BIASTEE ?= no
 
-CPPFLAGS += -DMODES_READSB_VERSION=\"$(READSB_VERSION)\" -D_GNU_SOURCE
+CPPFLAGS += -DMODES_READSB_VERSION=\"$(READSB_VERSION)\"
+CPPFLAGS += -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE
+CPPFLAGS += -fstack-protector-strong -Wformat -Werror=format-security -Wno-format-truncation
 
 #OPTIMIZE ?= -march=native
 
 DIALECT = -std=c11
+
 CFLAGS := $(DIALECT) -g -W -D_DEFAULT_SOURCE -Wall -Werror -fno-common -O2 $(OPTIMIZE) $(CFLAGS)
 LIBS = -pthread -lpthread -lm -lz -lrt
 
