@@ -101,7 +101,7 @@ struct char_buffer apiReq(struct apiBuffer *buffer, double latMin, double latMax
     } else if (lon1 > lon2) {
         r1 = findLonRange(lon1, 180E6, buffer->list, buffer->len);
         r2 = findLonRange(-180E6, lon2, buffer->list, buffer->len);
-        fprintf(stderr, "%.1f to 180 and -180 to %1.f\n", lon1 / 1E6, lon2 / 1E6);
+        //fprintf(stderr, "%.1f to 180 and -180 to %1.f\n", lon1 / 1E6, lon2 / 1E6);
     }
 
     struct char_buffer cb = { 0 };

@@ -792,6 +792,8 @@ static void modesCloseClient(struct client *c) {
 }
 
 static inline void flushClient(struct client *c, uint64_t now) {
+    if (!c->service) { fprintf(stderr, "report error: Ahlu8pie\n"); return; }
+
     int toWrite = c->sendq_len;
     char *psendq = c->sendq;
 
@@ -2054,6 +2056,8 @@ static const char *hexEscapeString(const char *str, char *buf, int len) {
 // close the connection with the client in case of non-recoverable errors.
 //
 static void modesReadFromClient(struct client *c, uint64_t start) {
+    if (!c->service) { fprintf(stderr, "report error: aeGei5An\n"); return; }
+
     int left;
     int nread;
     int bContinue = 1;
@@ -2500,11 +2504,14 @@ static void readWriteClients(int count) {
         if (event.data.ptr == &Modes.exitEventfd)
             break;
         struct client *c = (struct client *) event.data.ptr;
-        if (!c || !c->service)
+        if (!c) { fprintf(stderr, "report error: eeKoh5ee\n"); continue; }
+        if (!c->service)
             continue;
         if (event.events & (EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP)) {
             modesReadFromClient(c, now);
         }
+        if (!c->service)
+            continue;
         if (event.events & EPOLLOUT) {
             // check if we need to flush a client because the send buffer was full previously
             flushClient(c, now);

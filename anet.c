@@ -435,6 +435,7 @@ void anetCloseSocket(int fd) {
         close(fd); // Finally call anetCloseSocket() socket
         */
         // the above seems like overhead we don't need.
+        shutdown(fd, SHUT_RDWR);
         close(fd);
         open_fds--;
     }
