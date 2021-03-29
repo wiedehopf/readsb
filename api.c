@@ -213,6 +213,7 @@ static void send400(int fd) {
     p = safe_snprintf(p, end,
     "HTTP/1.1 400 Bad Request\r\n"
     "Server: readsb/3.1442\r\n"
+    "Connection: close\r\n"
     "Content-Length: 0\r\n\r\n");
 
     write(fd, buf, strlen(buf));
@@ -288,7 +289,10 @@ static void apiSendData(struct apiCon *con, struct apiThread *thread) {
         return;
     }
 
+    apiCloseConn(con, thread);
+    return;
 
+    // doing one request per connection for the moment, keep-alive maybe later
     if (con->events & EPOLLOUT) {
         // no more writing necessary for the moment, no longer get notified for EPOLLOUT
         con->events ^= EPOLLOUT; // toggle xor
@@ -318,6 +322,10 @@ static void apiReadRequest(struct apiCon *con, struct apiBuffer *buffer, struct 
         return;
     }
 
+    // we already have a response that hasn't been sent yet, discard request.
+    if (con->cb.buffer)
+        return;
+
     req[nread] = 0;
     //fprintf(stderr, "%s\n", req);
 
@@ -337,6 +345,7 @@ static void apiReadRequest(struct apiCon *con, struct apiBuffer *buffer, struct 
     p = safe_snprintf(p, end,
             "HTTP/1.1 200 OK\r\n"
             "Server: readsb/3.1442\r\n"
+            "Connection: close\r\n"
             "Content-Type: application/json\r\n"
             "Content-Length: %d\r\n\r\n",
             plen);
@@ -351,7 +360,7 @@ static void apiReadRequest(struct apiCon *con, struct apiBuffer *buffer, struct 
     con->cb = cb;
     apiSendData(con, thread);
 }
-static void acceptConn(struct apiCon *con, struct apiBuffer *buffer, struct apiThread *thread) {
+static void acceptConn(struct apiCon *con, struct apiThread *thread) {
     int listen_fd = con->fd;
     struct sockaddr_storage storage;
     struct sockaddr *saddr = (struct sockaddr *) &storage;
@@ -373,9 +382,6 @@ static void acceptConn(struct apiCon *con, struct apiBuffer *buffer, struct apiT
 
         if (epoll_ctl(thread->epfd, EPOLL_CTL_ADD, fd, &epollEvent))
             perror("epoll_ctl fail:");
-
-        if (0)
-            apiReadRequest(con, buffer, thread);
     }
 }
 
@@ -428,7 +434,7 @@ static void *apiThreadEntryPoint(void *arg) {
 
             struct apiCon *con = event.data.ptr;
             if (con->accept) {
-                acceptConn(con, buffer, thread);
+                acceptConn(con, thread);
             } else {
                 if (event.events & EPOLLOUT)
                     apiSendData(con, thread);
