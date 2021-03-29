@@ -53,27 +53,35 @@ static struct range findLonRange(int32_t ref_from, int32_t ref_to, struct apiEnt
         else
             j = pivot;
     }
-    if (list[j].lon < ref_from)
-        res.from = j;
-    else
+
+    if (list[j].lon < ref_from) {
+        res.from = j + 1;
+    } else if (list[i].lon < ref_from) {
+        res.from = i + 1;
+    } else {
         res.from = i;
+    }
+
 
     // get upper bound (exclusive)
-    i = res.from;
+    i = min(res.from, len - 1);
     j = len - 1;
     while (j > i + 1) {
 
         int pivot = (i + j) / 2;
-
         if (list[pivot].lon <= ref_to)
             i = pivot;
         else
             j = pivot;
     }
-    if (list[j].lon > ref_to)
+
+    if (list[j].lon <= ref_to) {
         res.to = j + 1;
-    else
+    } else if (list[i].lon <= ref_to) {
         res.to = i + 1;
+    } else {
+        res.to = i;
+    }
 
     return res;
 }
@@ -91,8 +99,9 @@ struct char_buffer apiReq(struct apiBuffer *buffer, double latMin, double latMax
     if (lon1 <= lon2) {
         r1 = findLonRange(lon1, lon2, buffer->list, buffer->len);
     } else if (lon1 > lon2) {
-        r1 = findLonRange(lon1, 180, buffer->list, buffer->len);
-        r2 = findLonRange(-180, lon2, buffer->list, buffer->len);
+        r1 = findLonRange(lon1, 180E6, buffer->list, buffer->len);
+        r2 = findLonRange(-180E6, lon2, buffer->list, buffer->len);
+        fprintf(stderr, "%.1f to 180 and -180 to %1.f\n", lon1 / 1E6, lon2 / 1E6);
     }
 
     struct char_buffer cb = { 0 };
@@ -140,8 +149,8 @@ struct char_buffer apiReq(struct apiBuffer *buffer, double latMin, double latMax
         }
     }
 
-    if (p > cb.buffer + 1)
-        p--; // remove last comma
+    if (*(p - 1) == ',')
+        p--; // remove trailing comma if necessary
     p = safe_snprintf(p, end, "\n]}\n");
 
     cb.len = p - cb.buffer;
