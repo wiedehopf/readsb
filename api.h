@@ -11,12 +11,29 @@ struct apiCon {
     uint32_t events;
 };
 
+struct offset {
+    int offset;
+    int len;
+};
+
 struct apiEntry {
     uint32_t addr;
     int32_t lat;
     int32_t lon;
-    int jsonLen;
-    char json[1024];
+
+    struct offset jsonOffset;
+
+    int32_t alt;
+    char typeCode[4];
+    uint16_t dbFlags;
+};
+
+struct apiBuffer {
+    int len;
+    int alloc;
+    struct apiEntry *list;
+    uint64_t timestamp;
+    char *json;
 };
 
 struct apiThread {
@@ -25,13 +42,6 @@ struct apiThread {
     int index;
     int epfd;
     int eventfd;
-};
-
-struct apiBuffer {
-    int len;
-    int alloc;
-    struct apiEntry *list;
-    uint64_t timestamp;
 };
 
 struct range {

@@ -1,30 +1,5 @@
 #include "readsb.h"
 
-static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, uint64_t now) {
-    if (!trackDataValid(&a->position_valid))
-        return;
-
-    struct apiEntry entry;
-
-    entry.addr = a->addr;
-    entry.lat = (int32_t) (a->lat * 1E6);
-    entry.lon = (int32_t) (a->lon * 1E6);
-
-    char *p = entry.json;
-    char *end = p + sizeof(entry.json);
-
-    p = sprintAircraftObject(p, end, a, now, 0, NULL);
-
-    if (p >= end) {
-        fprintf(stderr, "buffer full apiAdd %p %p\n", p, end);
-        entry.jsonLen = 0;
-    } else {
-        entry.jsonLen = p - entry.json;
-    }
-
-    buffer->list[buffer->len] = entry;
-    buffer->len++;
-}
 
 static int compareLon(const void *p1, const void *p2) {
     struct apiEntry *a1 = (struct apiEntry*) p1;
@@ -93,14 +68,14 @@ struct char_buffer apiReq(struct apiBuffer *buffer, double latMin, double latMax
     int32_t lon1 = (int32_t) (lonMin * 1E6);
     int32_t lon2 = (int32_t) (lonMax * 1E6);
 
-    struct range r1 = { 0 };
-    struct range r2 = { 0 };
+    struct range r[2];
+    memset(&r, 0, sizeof(r));
 
     if (lon1 <= lon2) {
-        r1 = findLonRange(lon1, lon2, buffer->list, buffer->len);
+        r[0] = findLonRange(lon1, lon2, buffer->list, buffer->len);
     } else if (lon1 > lon2) {
-        r1 = findLonRange(lon1, 180E6, buffer->list, buffer->len);
-        r2 = findLonRange(-180E6, lon2, buffer->list, buffer->len);
+        r[0] = findLonRange(lon1, 180E6, buffer->list, buffer->len);
+        r[1] = findLonRange(-180E6, lon2, buffer->list, buffer->len);
         //fprintf(stderr, "%.1f to 180 and -180 to %1.f\n", lon1 / 1E6, lon2 / 1E6);
     }
 
@@ -108,16 +83,16 @@ struct char_buffer apiReq(struct apiBuffer *buffer, double latMin, double latMax
 
     size_t alloc = API_REQ_PADSTART + 128;
 
-    for (int j = r1.from; j < r1.to; j++) {
-        struct apiEntry e = buffer->list[j];
-        if (e.lat >= lat1 && e.lat <= lat2) {
-            alloc += sizeof(struct apiEntry);
-        }
-    }
-    for (int j = r2.from; j < r2.to; j++) {
-        struct apiEntry e = buffer->list[j];
-        if (e.lat >= lat1 && e.lat <= lat2) {
-            alloc += sizeof(struct apiEntry);
+    struct offset *offsets = malloc(buffer->len * sizeof(struct offset));
+    int count = 0;
+
+    for (int k = 0; k < 2; k++) {
+        for (int j = r[k].from; j < r[k].to; j++) {
+            struct apiEntry *e = &buffer->list[j];
+            if (e->lat >= lat1 && e->lat <= lat2) {
+                offsets[count++] = e->jsonOffset;
+                alloc += e->jsonOffset.len + 10;
+            }
         }
     }
 
@@ -130,24 +105,21 @@ struct char_buffer apiReq(struct apiBuffer *buffer, double latMin, double latMax
     char *end = cb.buffer + alloc;
     p = safe_snprintf(p, end, "{\"aircraft\":[");
 
-    for (int j = r1.from; j < r1.to; j++) {
-        struct apiEntry e = buffer->list[j];
-        if (e.lat >= lat1 && e.lat <= lat2) {
-            *p++ = '\n';
-            memcpy(p, e.json, e.jsonLen);
-            p += e.jsonLen;
-            *p++ = ',';
+    char *json = buffer->json;
+
+    for (int i = 0; i < count; i++) {
+        *p++ = '\n';
+        struct offset *off = &offsets[i];
+        if (p + off->len + 100 >= end) {
+            fprintf(stderr, "need: %d alloc: %d\n", (int) ((p + off->len + 100) - cb.buffer), (int) alloc);
+            break;
         }
+        memcpy(p, json + off->offset, off->len);
+        p += off->len;
+        *p++ = ',';
     }
-    for (int j = r2.from; j < r2.to; j++) {
-        struct apiEntry e = buffer->list[j];
-        if (e.lat >= lat1 && e.lat <= lat2) {
-            *p++ = '\n';
-            memcpy(p, e.json, e.jsonLen);
-            p += e.jsonLen;
-            *p++ = ',';
-        }
-    }
+
+    free(offsets);
 
     if (*(p - 1) == ',')
         p--; // remove trailing comma if necessary
@@ -160,6 +132,69 @@ struct char_buffer apiReq(struct apiBuffer *buffer, double latMin, double latMax
 
     return cb;
 }
+
+static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, uint64_t now) {
+    if (trackDataAge(now, &a->position_valid) > 5 * MINUTES)
+        return;
+
+    struct apiEntry entry;
+
+    entry.addr = a->addr;
+    entry.lat = (int32_t) (a->lat * 1E6);
+    entry.lon = (int32_t) (a->lon * 1E6);
+    if (trackDataValid(&a->altitude_baro_valid)) {
+        entry.alt = a->altitude_baro;
+    } else if (trackDataValid(&a->altitude_geom_valid)) {
+        entry.alt = a->altitude_geom;
+    } else {
+        entry.alt = INT32_MIN;
+    }
+    memcpy(entry.typeCode, a->typeCode, sizeof(entry.typeCode));
+    entry.dbFlags = a->dbFlags;
+
+    buffer->list[buffer->len] = entry;
+    buffer->len++;
+}
+
+static inline void apiGenerateJson(struct apiBuffer *buffer, uint64_t now) {
+    free(buffer->json);
+    buffer->json = NULL;
+
+    size_t alloc = buffer->len * 1024 + 2048; // The initial buffer is resized as needed
+    buffer->json = (char *) malloc(alloc);
+    char *p = buffer->json;
+    char *end = buffer->json + alloc;
+
+    for (int i = 0; i < buffer->len; i++) {
+        if ((p + 2000) >= end) {
+            int used = p - buffer->json;
+            alloc *= 2;
+            buffer->json = (char *) realloc(buffer->json, alloc);
+            p = buffer->json + used;
+            end = buffer->json + alloc;
+        }
+
+        struct apiEntry *entry = &buffer->list[i];
+        struct aircraft *a = aircraftGet(entry->addr);
+        struct offset *off = &entry->jsonOffset;
+        if (!a) {
+            off->offset = 0;
+            off->len = 0;
+            continue;
+        }
+
+        char *start = p;
+        p = sprintAircraftObject(p, end, a, now, 0, NULL);
+
+        off->offset = start - buffer->json;
+        off->len = p - start;
+    }
+
+    if (p >= end) {
+        fprintf(stderr, "buffer full apiAdd\n");
+    }
+}
+
 
 int apiUpdate(struct craftArray *ca) {
 
@@ -190,10 +225,13 @@ int apiUpdate(struct craftArray *ca) {
 
         if (a == NULL)
             continue;
+
         apiAdd(buffer, a, now);
     }
 
     apiSort(buffer);
+
+    apiGenerateJson(buffer, now);
 
     buffer->timestamp = now;
 
@@ -517,6 +555,8 @@ void apiCleanup() {
     free(Modes.apiService.listener_fds);
     free(Modes.apiBuffer[0].list);
     free(Modes.apiBuffer[1].list);
+    free(Modes.apiBuffer[0].json);
+    free(Modes.apiBuffer[1].json);
     free((void *) Modes.apiService.descr);
 }
 
