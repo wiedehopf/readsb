@@ -81,7 +81,7 @@ struct char_buffer apiReq(struct apiBuffer *buffer, double latMin, double latMax
 
     struct char_buffer cb = { 0 };
 
-    size_t alloc = API_REQ_PADSTART + 128;
+    size_t alloc = API_REQ_PADSTART + 1024;
 
     struct offset *offsets = malloc(buffer->len * sizeof(struct offset));
     int count = 0;
@@ -103,7 +103,9 @@ struct char_buffer apiReq(struct apiBuffer *buffer, double latMin, double latMax
     char *p = cb.buffer + API_REQ_PADSTART;
 
     char *end = cb.buffer + alloc;
-    p = safe_snprintf(p, end, "{\"aircraft\":[");
+    p = safe_snprintf(p, end, "{\"now\": %.1f,\n", buffer->timestamp / 1000.0);
+    p = safe_snprintf(p, end, "\"resultCount\": %d,\n", count);
+    p = safe_snprintf(p, end, "\"aircraft\":[");
 
     char *json = buffer->json;
 
@@ -111,7 +113,7 @@ struct char_buffer apiReq(struct apiBuffer *buffer, double latMin, double latMax
         *p++ = '\n';
         struct offset *off = &offsets[i];
         if (p + off->len + 100 >= end) {
-            fprintf(stderr, "need: %d alloc: %d\n", (int) ((p + off->len + 100) - cb.buffer), (int) alloc);
+            fprintf(stderr, "search code ieva2aeV: need: %d alloc: %d\n", (int) ((p + off->len + 100) - cb.buffer), (int) alloc);
             break;
         }
         memcpy(p, json + off->offset, off->len);
