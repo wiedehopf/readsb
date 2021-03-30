@@ -1,5 +1,22 @@
 #include "readsb.h"
 
+#define API_HASH_BITS (16)
+#define API_BUCKETS (1 << API_HASH_BITS)
+
+static uint32_t apiHash(uint32_t addr) {
+    uint64_t h = 0x30732349f7810465ULL ^ (4 * 0x2127599bf4325c37ULL);
+    uint64_t in = addr;
+    uint64_t v = in << 48;
+    v ^= in << 24;
+    v ^= in;
+    h ^= mix_fasthash(v);
+
+    h -= (h >> 32);
+    h &= (1ULL << 32) - 1;
+    h -= (h >> API_HASH_BITS);
+
+    return h & (API_BUCKETS - 1);
+}
 
 static int compareLon(const void *p1, const void *p2) {
     struct apiEntry *a1 = (struct apiEntry*) p1;
@@ -94,13 +111,17 @@ static struct char_buffer apiReq(struct apiBuffer *buffer, double *box, uint32_t
             }
         }
     } else if (hexList) {
-        for (int j = 0; j < buffer->len; j++) {
-            struct apiEntry *e = &buffer->list[j];
-            for (int k = 0; k < hexCount; k++) {
-                if (hexList[k] == e->addr) {
+        for (int k = 0; k < hexCount; k++) {
+            uint32_t addr = hexList[k];
+            uint32_t hash = apiHash(addr);
+            struct apiEntry *e = buffer->hashList[hash];
+            while (e) {
+                if (e->addr == addr) {
                     offsets[count++] = e->jsonOffset;
                     alloc += e->jsonOffset.len + 10;
+                    break;
                 }
+                e = e->next;
             }
         }
     } else if (circle) {
@@ -188,22 +209,22 @@ static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, uint64_t
     if (trackDataAge(now, &a->position_valid) > 5 * MINUTES && !trackDataValid(&a->position_valid))
         return;
 
-    struct apiEntry entry;
+    struct apiEntry *entry = &(buffer->list[buffer->len]);
+    memset(entry, 0, sizeof(struct apiEntry));
+    entry->addr = a->addr;
 
-    entry.addr = a->addr;
-    entry.lat = (int32_t) (a->lat * 1E6);
-    entry.lon = (int32_t) (a->lon * 1E6);
+    entry->lat = (int32_t) (a->lat * 1E6);
+    entry->lon = (int32_t) (a->lon * 1E6);
     if (trackDataValid(&a->altitude_baro_valid)) {
-        entry.alt = a->altitude_baro;
+        entry->alt = a->altitude_baro;
     } else if (trackDataValid(&a->altitude_geom_valid)) {
-        entry.alt = a->altitude_geom;
+        entry->alt = a->altitude_geom;
     } else {
-        entry.alt = INT32_MIN;
+        entry->alt = INT32_MIN;
     }
-    memcpy(entry.typeCode, a->typeCode, sizeof(entry.typeCode));
-    entry.dbFlags = a->dbFlags;
+    memcpy(entry->typeCode, a->typeCode, sizeof(entry->typeCode));
+    entry->dbFlags = a->dbFlags;
 
-    buffer->list[buffer->len] = entry;
     buffer->len++;
 }
 
@@ -229,10 +250,15 @@ static inline void apiGenerateJson(struct apiBuffer *buffer, uint64_t now) {
         struct aircraft *a = aircraftGet(entry->addr);
         struct offset *off = &entry->jsonOffset;
         if (!a) {
+            fprintf(stderr, "apiGenerateJson: aircraft missing, this shouldn't happen.");
             off->offset = 0;
             off->len = 0;
             continue;
         }
+
+        uint32_t hash = apiHash(entry->addr);
+        entry->next = buffer->hashList[hash];
+        buffer->hashList[hash] = entry;
 
         char *start = p;
         p = sprintAircraftObject(p, end, a, now, 0, NULL);
@@ -269,6 +295,9 @@ int apiUpdate(struct craftArray *ca) {
             exit(1);
         }
     }
+
+    // reset hashList to NULL
+    memset(buffer->hashList, 0, API_BUCKETS * sizeof(struct apiEntry*));
 
     uint64_t now = mstime();
     for (int i = 0; i < ca->len; i++) {
@@ -647,6 +676,10 @@ void apiInit() {
         return;
     }
 
+    for (int i = 0; i < 2; i++) {
+        Modes.apiBuffer[i].hashList = malloc(API_BUCKETS * sizeof(struct apiEntry*));
+    }
+
     pthread_mutex_init(&Modes.apiUpdateMutex, NULL);
     pthread_cond_init(&Modes.apiUpdateCond, NULL);
     pthread_create(&Modes.apiUpdateThread, NULL, apiUpdateEntryPoint, NULL);
@@ -666,12 +699,14 @@ void apiCleanup() {
     for (int i = 0; i < Modes.apiService.listener_count; ++i) {
         anetCloseSocket(Modes.apiService.listener_fds[i]);
     }
+
     free((void *) Modes.apiService.read_sep);
     free(Modes.apiService.listener_fds);
-    free(Modes.apiBuffer[0].list);
-    free(Modes.apiBuffer[1].list);
-    free(Modes.apiBuffer[0].json);
-    free(Modes.apiBuffer[1].json);
+    for (int i = 0; i < 2; i++) {
+        free(Modes.apiBuffer[i].list);
+        free(Modes.apiBuffer[i].json);
+        free(Modes.apiBuffer[i].hashList);
+    }
     free((void *) Modes.apiService.descr);
 }
 

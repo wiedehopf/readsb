@@ -26,6 +26,7 @@ struct apiEntry {
     int32_t alt;
     char typeCode[4];
     uint16_t dbFlags;
+    struct apiEntry *next;
 };
 
 struct apiBuffer {
@@ -34,6 +35,8 @@ struct apiBuffer {
     struct apiEntry *list;
     uint64_t timestamp;
     char *json;
+    struct apiEntry **hashList;
+    uint32_t focus;
 };
 
 struct apiThread {
