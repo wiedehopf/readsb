@@ -53,6 +53,5 @@ void apiInit();
 void apiCleanup();
 
 int apiUpdate(struct craftArray *ca);
-struct char_buffer apiReq(struct apiBuffer *buffer, double latMin, double latMax, double lonMin, double lonMax);
 
 #endif

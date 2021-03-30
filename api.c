@@ -61,35 +61,56 @@ static struct range findLonRange(int32_t ref_from, int32_t ref_to, struct apiEnt
     return res;
 }
 
-struct char_buffer apiReq(struct apiBuffer *buffer, double latMin, double latMax, double lonMin, double lonMax) {
-
-    int32_t lat1 = (int32_t) (latMin * 1E6);
-    int32_t lat2 = (int32_t) (latMax * 1E6);
-    int32_t lon1 = (int32_t) (lonMin * 1E6);
-    int32_t lon2 = (int32_t) (lonMax * 1E6);
-
+static struct char_buffer apiReq(struct apiBuffer *buffer, double *box, uint32_t *hexList, int hexCount, double *circle) {
     struct range r[2];
     memset(&r, 0, sizeof(r));
 
-    if (lon1 <= lon2) {
-        r[0] = findLonRange(lon1, lon2, buffer->list, buffer->len);
-    } else if (lon1 > lon2) {
-        r[0] = findLonRange(lon1, 180E6, buffer->list, buffer->len);
-        r[1] = findLonRange(-180E6, lon2, buffer->list, buffer->len);
-        //fprintf(stderr, "%.1f to 180 and -180 to %1.f\n", lon1 / 1E6, lon2 / 1E6);
-    }
-
     struct char_buffer cb = { 0 };
-
     size_t alloc = API_REQ_PADSTART + 1024;
 
     struct offset *offsets = malloc(buffer->len * sizeof(struct offset));
     int count = 0;
 
-    for (int k = 0; k < 2; k++) {
-        for (int j = r[k].from; j < r[k].to; j++) {
+    if (box) {
+        int32_t lat1 = (int32_t) (box[0] * 1E6);
+        int32_t lat2 = (int32_t) (box[1] * 1E6);
+        int32_t lon1 = (int32_t) (box[2] * 1E6);
+        int32_t lon2 = (int32_t) (box[3] * 1E6);
+
+        if (lon1 <= lon2) {
+            r[0] = findLonRange(lon1, lon2, buffer->list, buffer->len);
+        } else if (lon1 > lon2) {
+            r[0] = findLonRange(lon1, 180E6, buffer->list, buffer->len);
+            r[1] = findLonRange(-180E6, lon2, buffer->list, buffer->len);
+            //fprintf(stderr, "%.1f to 180 and -180 to %1.f\n", lon1 / 1E6, lon2 / 1E6);
+        }
+        for (int k = 0; k < 2; k++) {
+            for (int j = r[k].from; j < r[k].to; j++) {
+                struct apiEntry *e = &buffer->list[j];
+                if (e->lat >= lat1 && e->lat <= lat2) {
+                    offsets[count++] = e->jsonOffset;
+                    alloc += e->jsonOffset.len + 10;
+                }
+            }
+        }
+    } else if (hexList) {
+        for (int j = 0; j < buffer->len; j++) {
             struct apiEntry *e = &buffer->list[j];
-            if (e->lat >= lat1 && e->lat <= lat2) {
+            for (int k = 0; k < hexCount; k++) {
+                if (hexList[k] == e->addr) {
+                    offsets[count++] = e->jsonOffset;
+                    alloc += e->jsonOffset.len + 10;
+                }
+            }
+        }
+    } else if (circle) {
+        double lat = circle[0];
+        double lon = circle[1];
+        double radius = circle[2] * 1852; // assume nmi
+        //fprintf(stderr, "%.1f %.1f %.1f\n", lat, lon, radius);
+        for (int j = 0; j < buffer->len; j++) {
+            struct apiEntry *e = &buffer->list[j];
+            if (greatcircle(lat, lon, e->lat / 1E6, e->lon / 1E6) < radius) {
                 offsets[count++] = e->jsonOffset;
                 alloc += e->jsonOffset.len + 10;
             }
@@ -136,7 +157,7 @@ struct char_buffer apiReq(struct apiBuffer *buffer, double latMin, double latMax
 }
 
 static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, uint64_t now) {
-    if (trackDataAge(now, &a->position_valid) > 5 * MINUTES)
+    if (trackDataAge(now, &a->position_valid) > 5 * MINUTES && !trackDataValid(&a->position_valid))
         return;
 
     struct apiEntry entry;
@@ -271,34 +292,85 @@ static void send400(int fd) {
 
 static struct char_buffer parseFetch(char *req, struct apiBuffer *buffer) {
     struct char_buffer cb = { 0 };
-    char *p, *needle, *saveptr;
+    char *p, *needle;
+    char *saveptr;
 
     needle = "box=";
     p = strcasestr(req, needle);
-    if (!p)
-        return cb;
-    p += strlen(needle);
-    double box[4];
-    char *boxcar[4];
-    boxcar[0] = strtok_r(p, ",", &saveptr);
-    boxcar[1] = strtok_r(NULL, ",", &saveptr);
-    boxcar[2] = strtok_r(NULL, ",", &saveptr);
-    boxcar[3] = strtok_r(NULL, ",", &saveptr);
+    if (p) {
+        p += strlen(needle);
+        double box[4];
+        char *strings[4];
+        saveptr = NULL;
+        strings[0] = strtok_r(p, ",", &saveptr);
+        strings[1] = strtok_r(NULL, ",", &saveptr);
+        strings[2] = strtok_r(NULL, ",", &saveptr);
+        strings[3] = strtok_r(NULL, ",", &saveptr);
 
-    for (int i = 0; i < 4; i++) {
-        if (!boxcar[i])
+        for (int i = 0; i < 4; i++) {
+            if (!strings[i])
+                return cb;
+            errno = 0;
+            box[i] = strtod(strings[i], NULL);
+            if (errno)
+                return cb;
+            if (box[i] > 180 || box[i] < -180)
+                return cb;
+        }
+        if (box[0] > box[1])
             return cb;
-        errno = 0;
-        box[i] = strtod(boxcar[i], NULL);
-        if (errno)
-            return cb;
-        if (box[i] > 180 || box[i] < -180)
-            return cb;
+
+        cb = apiReq(buffer, box, NULL, 0, NULL);
+        return cb;
     }
-    if (box[0] > box[1])
-        return cb;
+    needle = "hexlist=";
+    p = strcasestr(req, needle);
+    if (p) {
+        p += strlen(needle);
+        int hexCount = 0;
+        uint32_t hexList[1000];
 
-    cb = apiReq(buffer, box[0], box[1], box[2], box[3]);
+        saveptr = NULL;
+        char *endptr = NULL;
+        char *tok = strtok_r(p, ",", &saveptr);
+        while (tok) {
+            hexList[hexCount] = (uint32_t) strtol(tok, &endptr, 16);
+            if (tok != endptr)
+                hexCount++;
+            tok = strtok_r(NULL, ",", &saveptr);
+        }
+        if (hexCount == 0)
+            return cb;
+        cb = apiReq(buffer, NULL, hexList, hexCount, NULL);
+        return cb;
+    }
+    needle = "circle=";
+    p = strcasestr(req, needle);
+    if (p) {
+        p += strlen(needle);
+        double circle[3];
+        char *strings[3];
+        saveptr = NULL;
+        strings[0] = strtok_r(p, ",", &saveptr);
+        strings[1] = strtok_r(NULL, ",", &saveptr);
+        strings[2] = strtok_r(NULL, ",", &saveptr);
+
+        for (int i = 0; i < 3; i++) {
+            if (!strings[i])
+                return cb;
+            errno = 0;
+            circle[i] = strtod(strings[i], NULL);
+            if (errno)
+                return cb;
+        }
+        if (circle[0] > 90 || circle[0] < -90)
+            return cb;
+        if (circle[1] > 180 || circle[1] < -180)
+            return cb;
+
+        cb = apiReq(buffer, NULL, NULL, 0, circle);
+        return cb;
+    }
     return cb;
 }
 
