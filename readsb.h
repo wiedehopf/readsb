@@ -457,7 +457,7 @@ struct _Modes
     int apiFlip;
     struct net_service apiService;
 
-    pthread_mutex_t apiFlipMutex;
+    pthread_mutex_t apiMutex;
     struct apiBuffer apiBuffer[2];
     struct apiThread apiThread[API_THREADS];
     pthread_t apiUpdateThread;

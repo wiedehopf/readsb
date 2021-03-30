@@ -299,6 +299,8 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
     add_timespecs(&st1->globe_json_cpu, &st2->globe_json_cpu, &target->globe_json_cpu);
     add_timespecs(&st1->heatmap_and_state_cpu, &st2->heatmap_and_state_cpu, &target->heatmap_and_state_cpu);
     add_timespecs(&st1->remove_stale_cpu, &st2->remove_stale_cpu, &target->remove_stale_cpu);
+    add_timespecs(&st1->api_update_cpu, &st2->api_update_cpu, &target->api_update_cpu);
+    add_timespecs(&st1->api_worker_cpu, &st2->api_worker_cpu, &target->api_worker_cpu);
     for (i = 0; i < TRACE_THREADS; i ++) {
         add_timespecs(&st1->trace_json_cpu[i], &st2->trace_json_cpu[i], &target->trace_json_cpu[i]);
     }
@@ -522,17 +524,7 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
     }
 
     {
-        //uint64_t demod_cpu_millis = (uint64_t) st->demod_cpu.tv_sec * 1000UL + st->demod_cpu.tv_nsec / 1000000UL;
-#define CPU_MILLIS(x) uint64_t x##_cpu_millis = (uint64_t) st->x##_cpu.tv_sec * 1000UL + st->x##_cpu.tv_nsec / 1000000UL
-        CPU_MILLIS(demod);
-        CPU_MILLIS(reader);
-        CPU_MILLIS(background);
-        CPU_MILLIS(aircraft_json);
-        CPU_MILLIS(globe_json);
-        CPU_MILLIS(heatmap_and_state);
-        CPU_MILLIS(remove_stale);
-#undef CPU_MILLIS
-        uint64_t trace_json_cpu_millis_sum = 0;
+        unsigned long long trace_json_cpu_millis_sum = 0;
         for (i = 0; i < TRACE_THREADS; i ++) {
             trace_json_cpu_millis_sum += (uint64_t) st->trace_json_cpu[i].tv_sec * 1000UL + st->trace_json_cpu[i].tv_nsec / 1000000UL;
         }
@@ -558,6 +550,8 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
                 ",\"globe_json\":%llu"
                 ",\"trace_json\":%llu"
                 ",\"heatmap_and_state\":%llu"
+                ",\"api_worker\":%llu"
+                ",\"api_update\":%llu"
                 ",\"remove_stale\":%llu}"
                 ",\"tracks\":{\"all\":%u"
                 ",\"single_message\":%u}"
@@ -579,14 +573,18 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
             st->cpr_local_speed_checks,
             st->cpr_filtered,
             st->suppressed_altitude_messages,
-            (unsigned long long) demod_cpu_millis,
-            (unsigned long long) reader_cpu_millis,
-            (unsigned long long) background_cpu_millis,
-            (unsigned long long) aircraft_json_cpu_millis,
-            (unsigned long long) globe_json_cpu_millis,
-            (unsigned long long) trace_json_cpu_millis_sum,
-            (unsigned long long) heatmap_and_state_cpu_millis,
-            (unsigned long long) remove_stale_cpu_millis,
+#define CPU_MILLIS(x) ((unsigned long long) st->x##_cpu.tv_sec * 1000UL + st->x##_cpu.tv_nsec / 1000000UL)
+            CPU_MILLIS(demod),
+            CPU_MILLIS(reader),
+            CPU_MILLIS(background),
+            CPU_MILLIS(aircraft_json),
+            CPU_MILLIS(globe_json),
+            trace_json_cpu_millis_sum,
+            CPU_MILLIS(heatmap_and_state),
+            CPU_MILLIS(api_worker),
+            CPU_MILLIS(api_update),
+            CPU_MILLIS(remove_stale),
+#undef CPU_MILLIS
             st->unique_aircraft,
             st->single_message_aircraft,
             st->messages_total,
@@ -691,6 +689,8 @@ struct char_buffer generatePromFile() {
     p = safe_snprintf(p, end, "readsb_cpu_heatmap_and_state %llu\n", CPU_MILLIS(heatmap_and_state));
     p = safe_snprintf(p, end, "readsb_cpu_remove_stale %llu\n", CPU_MILLIS(remove_stale));
     p = safe_snprintf(p, end, "readsb_cpu_trace_json %llu\n", trace_json_cpu_millis_sum);
+    p = safe_snprintf(p, end, "readsb_cpu_api_update %llu\n", CPU_MILLIS(api_update));
+    p = safe_snprintf(p, end, "readsb_cpu_api_worker %llu\n", CPU_MILLIS(api_worker));
 #undef CPU_MILLIS
     p = safe_snprintf(p, end, "readsb_distance_max %u\n", (uint32_t) st->distance_max);
     if (st->distance_min < 1E42)

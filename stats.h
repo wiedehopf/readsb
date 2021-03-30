@@ -88,6 +88,8 @@ struct stats
   struct timespec globe_json_cpu;
   struct timespec heatmap_and_state_cpu;
   struct timespec remove_stale_cpu;
+  struct timespec api_worker_cpu;
+  struct timespec api_update_cpu;
   // remote messages:
   uint32_t remote_received_modeac;
   uint32_t remote_received_modes;

@@ -238,9 +238,9 @@ int apiUpdate(struct craftArray *ca) {
     buffer->timestamp = now;
 
     // doesn't matter which of the 2 buffers the api req will use they are both pretty current
-    pthread_mutex_lock(&Modes.apiFlipMutex);
+    pthread_mutex_lock(&Modes.apiMutex);
     Modes.apiFlip = flip;
-    pthread_mutex_unlock(&Modes.apiFlipMutex);
+    pthread_mutex_unlock(&Modes.apiMutex);
 
     return buffer->len;
 }
@@ -464,6 +464,8 @@ static void *apiThreadEntryPoint(void *arg) {
     struct epoll_event *events = NULL;
     int maxEvents = 0;
 
+    struct timespec cpu_timer;
+    start_cpu_timing(&cpu_timer);
     while (!Modes.exit) {
         int flip;
 
@@ -472,10 +474,15 @@ static void *apiThreadEntryPoint(void *arg) {
         }
         count = epoll_wait(thread->epfd, events, maxEvents, 1000);
 
-        pthread_mutex_lock(&Modes.apiFlipMutex);
+        pthread_mutex_lock(&Modes.apiMutex);
+
         flip = Modes.apiFlip;
-        pthread_mutex_unlock(&Modes.apiFlipMutex);
+        end_cpu_timing(&cpu_timer, &Modes.stats_current.api_worker_cpu);
+
+        pthread_mutex_unlock(&Modes.apiMutex);
+
         struct apiBuffer *buffer = &Modes.apiBuffer[flip];
+        start_cpu_timing(&cpu_timer);
 
         for (int i = 0; i < count; i++) {
             struct epoll_event event = events[i];
@@ -486,10 +493,11 @@ static void *apiThreadEntryPoint(void *arg) {
             if (con->accept) {
                 acceptConn(con, thread);
             } else {
-                if (event.events & EPOLLOUT)
+                if (event.events & EPOLLOUT) {
                     apiSendData(con, thread);
-                else
+                } else {
                     apiReadRequest(con, buffer, thread);
+                }
             }
         }
     }
@@ -507,13 +515,18 @@ static void *apiUpdateEntryPoint(void *arg) {
 
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
+    struct timespec cpu_timer;
     while (!Modes.exit) {
         incTimedwait(&ts, 500);
 
         //struct timespec watch;
         //startWatch(&watch);
 
+        start_cpu_timing(&cpu_timer);
+
         apiUpdate(&Modes.aircraftActive);
+
+        end_cpu_timing(&cpu_timer, &Modes.stats_current.api_update_cpu);
 
         //uint64_t elapsed = stopWatch(&watch);
         //fprintf(stderr, "api req took: %.5f s, got %d aircraft!\n", elapsed / 1000.0, n);
