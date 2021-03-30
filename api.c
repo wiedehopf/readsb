@@ -107,12 +107,40 @@ static struct char_buffer apiReq(struct apiBuffer *buffer, double *box, uint32_t
         double lat = circle[0];
         double lon = circle[1];
         double radius = circle[2] * 1852; // assume nmi
-        //fprintf(stderr, "%.1f %.1f %.1f\n", lat, lon, radius);
-        for (int j = 0; j < buffer->len; j++) {
-            struct apiEntry *e = &buffer->list[j];
-            if (greatcircle(lat, lon, e->lat / 1E6, e->lon / 1E6) < radius) {
-                offsets[count++] = e->jsonOffset;
-                alloc += e->jsonOffset.len + 10;
+        // 1.1 fudge factor, meridians are 6400 km (equi longitude lines), multiply by 180 degrees
+        double latdiff = 1.1 * radius / (6400E3) * 180.0;
+        double a1 = fmax(-90, lat - latdiff);
+        double a2 = fmin(90, lat + latdiff);
+        int32_t lat1 = (int32_t) (a1 * 1E6);
+        int32_t lat2 = (int32_t) (a2 * 1E6);
+        // 1.1 fudge factor, equator is 40005 km long, equi latitude lines vary with cosine of latitude
+        // multiply by 360 degrees, avoid div by zero
+        double londiff = 1.1 * (radius / (cos(lat) * 40005E3 + 1)) * 360;
+        londiff = fmin(londiff, 179.9999);
+        double o1 = lon - londiff;
+        double o2 = lon + londiff;
+        o1 = o1 < -180 ? o1 + 360: o1;
+        o2 = o2 > 180 ? o2 - 360 : o2;
+        int32_t lon1 = (int32_t) (o1 * 1E6);
+        int32_t lon2 = (int32_t) (o2 * 1E6);
+        //fprintf(stderr, "box: %.3f %.3f %.3f %.3f\n", lat1/1e6, lat2/1e6, lon1/1e6, lon2/1e6);
+        //fprintf(stderr, "box: %.3f %.3f %.3f %.3f\n", a1, a2, o1, o2);
+        if (lon1 <= lon2) {
+            r[0] = findLonRange(lon1, lon2, buffer->list, buffer->len);
+        } else if (lon1 > lon2) {
+            r[0] = findLonRange(lon1, 180E6, buffer->list, buffer->len);
+            r[1] = findLonRange(-180E6, lon2, buffer->list, buffer->len);
+            //fprintf(stderr, "%.1f to 180 and -180 to %1.f\n", lon1 / 1E6, lon2 / 1E6);
+        }
+        for (int k = 0; k < 2; k++) {
+            for (int j = r[k].from; j < r[k].to; j++) {
+                struct apiEntry *e = &buffer->list[j];
+                if (e->lat >= lat1 && e->lat <= lat2) {
+                    if (greatcircle(lat, lon, e->lat / 1E6, e->lon / 1E6) < radius) {
+                        offsets[count++] = e->jsonOffset;
+                        alloc += e->jsonOffset.len + 10;
+                    }
+                }
             }
         }
     }
