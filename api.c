@@ -352,9 +352,12 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiBuff
     char *p, *needle;
     char *saveptr;
 
-    // just to be extra certain terminate string
-    request->buffer[min(request->len, request->alloc - 1)] = '\0';
     char *req = request->buffer;
+    char *eol = memchr(req, '\n', request->len);
+    if (!eol)
+        return cb;
+    // we only want the first line
+    *eol = '\0';
 
     needle = "box=";
     p = strcasestr(req, needle);
