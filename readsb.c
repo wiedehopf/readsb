@@ -1042,7 +1042,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptStateDir:
             if (Modes.state_dir)
                 free(Modes.state_dir);
-            Modes.state_dir = strdup(arg);
+            Modes.state_dir = malloc(PATH_MAX);
+            snprintf(Modes.state_dir, PATH_MAX, "%s/internal_state", arg);
             break;
         case OptJsonTime:
             Modes.json_interval = (uint64_t) (1000 * atof(arg));
@@ -1136,7 +1137,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptNetJsonPorts:
             free(Modes.net_output_json_ports);
             Modes.net_output_json_ports = strdup(arg);
-            Modes.keep_traces = 2 * HOURS;
+            Modes.keep_traces = 35 * MINUTES;
             break;
         case OptNetApiPorts:
             free(Modes.net_output_api_ports);
