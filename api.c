@@ -348,21 +348,23 @@ static void send400(int fd) {
 }
 
 static struct char_buffer parseFetch(struct char_buffer *request, struct apiBuffer *buffer) {
-    struct char_buffer cb = { 0 };
-    char *p, *needle;
+    struct char_buffer invalid = { 0 };
+    char *p, *needle, *eot;
     char *saveptr;
 
     char *req = request->buffer;
     char *eol = memchr(req, '\n', request->len);
     if (!eol)
-        return cb;
+        return invalid;
     // we only want the first line
     *eol = '\0';
 
-    needle = "box=";
+    needle = "?box=";
     p = strcasestr(req, needle);
     if (p) {
         p += strlen(needle);
+        if ((eot = strchr(p, '&')))
+            *eot = '\0';
         double box[4];
         char *strings[4];
         saveptr = NULL;
@@ -373,24 +375,25 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiBuff
 
         for (int i = 0; i < 4; i++) {
             if (!strings[i])
-                return cb;
+                return invalid;
             errno = 0;
             box[i] = strtod(strings[i], NULL);
             if (errno)
-                return cb;
+                return invalid;
             if (box[i] > 180 || box[i] < -180)
-                return cb;
+                return invalid;
         }
         if (box[0] > box[1])
-            return cb;
+            return invalid;
 
-        cb = apiReq(buffer, box, NULL, 0, NULL);
-        return cb;
+        return apiReq(buffer, box, NULL, 0, NULL);
     }
-    needle = "hexlist=";
+    needle = "?hexlist=";
     p = strcasestr(req, needle);
     if (p) {
         p += strlen(needle);
+        if ((eot = strchr(p, '&')))
+            *eot = '\0';
         int hexCount = 0;
         int maxLen = 8192;
         uint32_t hexList[maxLen];
@@ -405,14 +408,15 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiBuff
             tok = strtok_r(NULL, ",", &saveptr);
         }
         if (hexCount == 0)
-            return cb;
-        cb = apiReq(buffer, NULL, hexList, hexCount, NULL);
-        return cb;
+            return invalid;
+        return apiReq(buffer, NULL, hexList, hexCount, NULL);
     }
-    needle = "circle=";
+    needle = "?circle=";
     p = strcasestr(req, needle);
     if (p) {
         p += strlen(needle);
+        if ((eot = strchr(p, '&')))
+            *eot = '\0';
         double circle[3];
         char *strings[3];
         saveptr = NULL;
@@ -422,21 +426,20 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiBuff
 
         for (int i = 0; i < 3; i++) {
             if (!strings[i])
-                return cb;
+                return invalid;
             errno = 0;
             circle[i] = strtod(strings[i], NULL);
             if (errno)
-                return cb;
+                return invalid;
         }
         if (circle[0] > 90 || circle[0] < -90)
-            return cb;
+            return invalid;
         if (circle[1] > 180 || circle[1] < -180)
-            return cb;
+            return invalid;
 
-        cb = apiReq(buffer, NULL, NULL, 0, circle);
-        return cb;
+        return apiReq(buffer, NULL, NULL, 0, circle);
     }
-    return cb;
+    return invalid;
 }
 
 static void apiSendData(struct apiCon *con, struct apiThread *thread) {
@@ -499,6 +502,11 @@ static void apiReadRequest(struct apiCon *con, struct apiBuffer *buffer, struct 
 
     struct char_buffer *request = &con->request;
     do {
+        if (request->len > 60000) {
+            send400(fd);
+            apiCloseConn(con, thread);
+            return;
+        }
         if (request->len + 2048 > request->alloc) {
             request->alloc += 4096;
             request->buffer = realloc(request->buffer, request->alloc);
@@ -533,6 +541,7 @@ static void apiReadRequest(struct apiCon *con, struct apiBuffer *buffer, struct 
     struct char_buffer cb = parseFetch(request, buffer);
     if (cb.len == 0) {
         send400(fd);
+        apiCloseConn(con, thread);
         return;
     }
 
