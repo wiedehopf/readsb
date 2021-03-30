@@ -347,10 +347,14 @@ static void send400(int fd) {
     res = res;
 }
 
-static struct char_buffer parseFetch(char *req, struct apiBuffer *buffer) {
+static struct char_buffer parseFetch(struct char_buffer *request, struct apiBuffer *buffer) {
     struct char_buffer cb = { 0 };
     char *p, *needle;
     char *saveptr;
+
+    // just to be extra certain terminate string
+    request->buffer[min(request->len, request->alloc - 1)] = '\0';
+    char *req = request->buffer;
 
     needle = "box=";
     p = strcasestr(req, needle);
@@ -385,12 +389,13 @@ static struct char_buffer parseFetch(char *req, struct apiBuffer *buffer) {
     if (p) {
         p += strlen(needle);
         int hexCount = 0;
-        uint32_t hexList[1000];
+        int maxLen = 8192;
+        uint32_t hexList[maxLen];
 
         saveptr = NULL;
         char *endptr = NULL;
         char *tok = strtok_r(p, ",", &saveptr);
-        while (tok) {
+        while (tok && hexCount < maxLen) {
             hexList[hexCount] = (uint32_t) strtol(tok, &endptr, 16);
             if (tok != endptr)
                 hexCount++;
@@ -486,17 +491,27 @@ static void apiSendData(struct apiCon *con, struct apiThread *thread) {
 }
 
 static void apiReadRequest(struct apiCon *con, struct apiBuffer *buffer, struct apiThread *thread) {
-    int nread, err;
+    int nread, err, toRead;
     int fd = con->fd;
 
-    char req[1024];
-    nread = read(fd, req, 1023);
-    err = errno;
+    struct char_buffer *request = &con->request;
+    do {
+        if (request->len + 2048 > request->alloc) {
+            request->alloc += 4096;
+            request->buffer = realloc(request->buffer, request->alloc);
+        }
+        toRead = request->alloc - request->len - 1; // leave an extra byte we can set \0
+        nread = read(fd, request->buffer + request->len, toRead);
+        err = errno;
 
-    if (nread < 0 && (err == EAGAIN || err == EWOULDBLOCK)) {
-        return;
-    }
-    if (nread <= 0) {
+        if (nread > 0) {
+            request->len += nread;
+            // terminate string
+            request->buffer[request->len] = '\0';
+        }
+    } while (nread == toRead);
+
+    if (nread == 0 || (nread < 0 && (err != EAGAIN && err != EWOULDBLOCK))) {
         apiCloseConn(con, thread);
         return;
     }
@@ -505,10 +520,14 @@ static void apiReadRequest(struct apiCon *con, struct apiBuffer *buffer, struct 
     if (con->cb.buffer)
         return;
 
-    req[nread] = 0;
+    if (!memchr(request->buffer, '\n', request->len)) {
+        // no newline, wait for more data
+        return;
+    }
+
     //fprintf(stderr, "%s\n", req);
 
-    struct char_buffer cb = parseFetch(req, buffer);
+    struct char_buffer cb = parseFetch(request, buffer);
     if (cb.len == 0) {
         send400(fd);
         return;

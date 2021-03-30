@@ -9,6 +9,7 @@ struct apiCon {
     struct char_buffer cb;
     int cbOffset;
     uint32_t events;
+    struct char_buffer request;
 };
 
 struct offset {
