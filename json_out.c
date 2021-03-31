@@ -229,6 +229,161 @@ void logACASInfoShort(uint32_t addr, unsigned char *bytes, struct aircraft *a, s
     }
 }
 
+static char *sprintACASJson(char *p, char *end, unsigned char *bytes, struct modesMessage *mm, uint64_t now) {
+    bool ara = getbit(bytes, 9);
+    bool rat = getbit(bytes, 27);
+    bool mte = getbit(bytes, 28);
+
+    char timebuf[128];
+    struct tm utc;
+
+    time_t time = now / 1000;
+    gmtime_r(&time, &utc);
+    strftime(timebuf, 128, "%F %T", &utc);
+    timebuf[127] = 0;
+
+    p = safe_snprintf(p, end, "{\"utc\":\"%s.%d\"", timebuf, (int)((now % 1000) / 100));
+
+    p = safe_snprintf(p, end, ",\"unix_timestamp\":%.2f", now / 1000.0);
+
+    if (mm && mm->acas_ra_valid)
+        p = safe_snprintf(p, end, ",\"df_type\":%d", mm->msgtype);
+
+    p = safe_snprintf(p, end, ",\"bytes\":\"");
+    for (int i = 0; i < 7; ++i) {
+        p = safe_snprintf(p, end, "%02X", (unsigned) bytes[i]);
+    }
+    p = safe_snprintf(p, end, "\"");
+
+    p = safe_snprintf(p, end, ",\"ARA\":\"");
+    for (int i = 9; i <= 15; i++) p = safe_snprintf(p, end, "%u", getbit(bytes, i));
+    p = safe_snprintf(p, end, "\"");
+    p = safe_snprintf(p, end, ",\"RAT\":\"%u\"", getbit(bytes, 27));
+    p = safe_snprintf(p, end, ",\"MTE\":\"%u\"", getbit(bytes, 28));
+    p = safe_snprintf(p, end, ",\"RAC\":\"");
+    for (int i = 23; i <= 26; i++) p = safe_snprintf(p, end, "%u", getbit(bytes, i));
+    p = safe_snprintf(p, end, "\"");
+
+
+    p = safe_snprintf(p, end, ",\"advisory_complement\":\"");
+    if (getbits(bytes, 23, 26)) {
+        bool notfirst = false;
+        char *racs[4] = { "Do not pass below", "Do not pass above", "Do not turn left", "Do not turn right" };
+        for (int i = 23; i <= 26; i++) {
+            if (getbit(bytes, i)) {
+                if (notfirst)
+                    p = safe_snprintf(p, end, "; ");
+                p = safe_snprintf(p, end, "%s", racs[i-23]);
+                notfirst = true;
+            }
+        }
+    }
+    p = safe_snprintf(p, end, "\"");
+
+
+    // https://mode-s.org/decode/book-the_1090mhz_riddle-junzi_sun.pdf
+    //
+    // https://www.faa.gov/documentlibrary/media/advisory_circular/tcas%20ii%20v7.1%20intro%20booklet.pdf
+    /* RAs can be classified as positive (e.g.,
+       climb, descend) or negative (e.g., limit climb
+       to 0 fpm, limit descend to 500 fpm). The
+       term "Vertical Speed Limit" (VSL) is
+       equivalent to "negative." RAs can also be
+       classified as preventive or corrective,
+       depending on whether own aircraft is, or is
+       not, in conformance with the RA target
+       altitude rate. Corrective RAs require a
+       change in vertical speed; preventive RAs do
+       not require a change in vertical speed
+       */
+    p = safe_snprintf(p, end, ",\"advisory\":\"");
+    if (rat) {
+        p = safe_snprintf(p, end, "Clear of Conflict");
+    } else if (ara) {
+        bool corr = getbit(bytes, 10); // corrective / preventive
+        bool down = getbit(bytes, 11); // downward sense / upward sense
+        bool increase = getbit(bytes, 12); // increase rate
+        bool reversal = getbit(bytes, 13); // sense reversal
+        bool crossing = getbit(bytes, 14); // altitude crossing
+        bool positive = getbit(bytes, 15);
+        // positive: (Maintain climb / descent) / (Climb / descend): requires more than 1500 fpm vertical rate
+        // !positive: (Do not / reduce) (climb / descend)
+
+        if (corr && positive) {
+            if (!reversal) {
+                // reversal has priority and comes later
+            } else if (increase) {
+                p = safe_snprintf(p, end, "Increase ");
+            }
+
+            if (down)
+                p = safe_snprintf(p, end, "Descend");
+            else
+                p = safe_snprintf(p, end, "Climb");
+
+            if (reversal) {
+                if (down)
+                    p = safe_snprintf(p, end, "; Descend");
+                else
+                    p = safe_snprintf(p, end, "; Climb");
+                p = safe_snprintf(p, end, " NOW");
+            }
+
+            if (crossing) {
+                p = safe_snprintf(p, end, "; Crossing");
+                if (down)
+                    p = safe_snprintf(p, end, " Descend");
+                else
+                    p = safe_snprintf(p, end, " Climb");
+            }
+        }
+
+        if (corr && !positive) {
+            p = safe_snprintf(p, end, "Level Off");
+        }
+
+        if (!corr && positive) {
+            p = safe_snprintf(p, end, "Maintain vertical Speed");
+            if (crossing) {
+                p = safe_snprintf(p, end, "; Crossing Maintain");
+            }
+        }
+
+        if (!corr && !positive) {
+            p = safe_snprintf(p, end, "Monitor vertical Speed");
+        }
+
+    } else if (!ara && mte) {
+        if (getbit(bytes, 10))
+            p = safe_snprintf(p, end, " Correct upwards;");
+        if (getbit(bytes, 11))
+            p = safe_snprintf(p, end, " Climb required;");
+        if (getbit(bytes, 12))
+            p = safe_snprintf(p, end, " Correct downwards;");
+        if (getbit(bytes, 13))
+            p = safe_snprintf(p, end, " Descent required;");
+        if (getbit(bytes, 14))
+            p = safe_snprintf(p, end, " Crossing;");
+        if (getbit(bytes, 15))
+            p = safe_snprintf(p, end, " Increase / Maintain vertical rate");
+        else
+            p = safe_snprintf(p, end, " Reduce / Limit vertical rate");
+    }
+    p = safe_snprintf(p, end, "\"");
+
+    int tti = getbits(bytes, 29, 30);
+    p = safe_snprintf(p, end, ",\"TTI\":\"");
+    for (int i = 29; i <= 30; i++) p = safe_snprintf(p, end, "%u", getbit(bytes, i));
+    p = safe_snprintf(p, end, "\"");
+    if (tti == 1) {
+        uint32_t threatAddr = getbits(bytes, 31, 54);
+        p = safe_snprintf(p, end, ",\"threat_id_hex\":\"%06x\"", threatAddr);
+    }
+
+    p = safe_snprintf(p, end, "}");
+
+    return p;
+}
 
 char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *bytes, struct aircraft *a, struct modesMessage *mm, uint64_t now) {
     bool ara = getbit(bytes, 9);
@@ -574,18 +729,9 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now,
                         a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7]) / 8 + 1.125e-5));
     }
 
-    if (trackDataAge(now, &a->acas_ra_valid) < 5 * SECONDS) {
-        p = safe_snprintf(p, end, ",\"acas_ra_timestamp\":%.2f", now / 1000.0);
-        if (mm && mm->acas_ra_valid)
-            p = safe_snprintf(p, end, ",\"acas_ra_df_type\":%d", mm->msgtype);
-        p = safe_snprintf(p, end, ",\"acas_ra_mv_mb_bytes_hex\":\"");
-        for (int i = 0; i < 7; ++i) {
-            p = safe_snprintf(p, end, "%02X", (unsigned) a->acas_ra[i]);
-        }
-        p = safe_snprintf(p, end, "\"");
-        p = safe_snprintf(p, end, ",\"acas_ra_csvline\":\"");
-        p = sprintACASInfoShort(p, end, a->addr, a->acas_ra, a, (mm && mm->acas_ra_valid) ? mm : NULL, a->acas_ra_valid.updated);
-        p = safe_snprintf(p, end, "\"");
+    if (trackDataAge(now, &a->acas_ra_valid) < 15 * SECONDS) {
+        p = safe_snprintf(p, end, ",\"acas_ra\":");
+        p = sprintACASJson(p, end, a->acas_ra, (mm && mm->acas_ra_valid) ? mm : NULL, a->acas_ra_valid.updated);
     }
 
     p = safe_snprintf(p, end, "}");
