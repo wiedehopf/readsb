@@ -129,15 +129,17 @@ static int findInCircle(struct apiBuffer *buffer, struct apiCircle *circle, stru
     double lon = circle->lon;
     double radius = circle->radius; // in meters
     bool onlyClosest = circle->onlyClosest;
-    // 1.1 fudge factor, meridians are 6400 km (equi longitude lines), multiply by 180 degrees
-    double latdiff = 1.1 * radius / (6400E3) * 180.0;
+
+    double circum = 40075e3; // earth circumference is 40075km
+    double fudge = 1.002; // make the box we check a little bigger
+
+    double latdiff = fudge * radius / (circum / 2) * 180.0;
     double a1 = fmax(-90, lat - latdiff);
     double a2 = fmin(90, lat + latdiff);
     int32_t lat1 = (int32_t) (a1 * 1E6);
     int32_t lat2 = (int32_t) (a2 * 1E6);
-    // 1.1 fudge factor, equator is 40005 km long, equi latitude lines vary with cosine of latitude
-    // multiply by 360 degrees, avoid div by zero
-    double londiff = 1.1 * (radius / (cos(lat) * 40005E3 + 1)) * 360;
+
+    double londiff = fudge * radius / (cos(lat * M_PI / 180.0) * circum + 1) * 360;
     londiff = fmin(londiff, 179.9999);
     double o1 = lon - londiff;
     double o2 = lon + londiff;
@@ -145,8 +147,8 @@ static int findInCircle(struct apiBuffer *buffer, struct apiCircle *circle, stru
     o2 = o2 > 180 ? o2 - 360 : o2;
     int32_t lon1 = (int32_t) (o1 * 1E6);
     int32_t lon2 = (int32_t) (o2 * 1E6);
-    //fprintf(stderr, "box: %.3f %.3f %.3f %.3f\n", lat1/1e6, lat2/1e6, lon1/1e6, lon2/1e6);
-    //fprintf(stderr, "box: %.3f %.3f %.3f %.3f\n", a1, a2, o1, o2);
+
+    //fprintf(stderr, "radius:%8.0f latdiff: %8.0f londiff: %8.0f\n", radius, greatcircle(a1, lon, lat, lon), greatcircle(lat, o1, lat, lon));
     if (lon1 <= lon2) {
         r[0] = findLonRange(lon1, lon2, buffer->list, buffer->len);
     } else if (lon1 > lon2) {
@@ -208,18 +210,19 @@ static struct char_buffer apiReq(struct apiBuffer *buffer, double *box, uint32_t
         count = findHexList(buffer, hexList, hexCount, matches, &alloc);
     } else if (circle) {
         count = findInCircle(buffer, circle, matches, &alloc);
+        alloc += count * 20; // adding 16 characters per entry: ,"dist":1000.000
     }
 
     // add for comma and new line for each entry
-    alloc += 2 * count;
+    alloc += count * 2;
 
     cb.buffer = malloc(alloc);
     if (!cb.buffer)
         return cb;
 
     char *p = cb.buffer + API_REQ_PADSTART;
-
     char *end = cb.buffer + alloc;
+
     p = safe_snprintf(p, end, "{\"now\": %.1f,\n", buffer->timestamp / 1000.0);
     p = safe_snprintf(p, end, "\"resultCount\": %d,\n", count);
     p = safe_snprintf(p, end, "\"aircraft\":[");
@@ -236,6 +239,10 @@ static struct char_buffer apiReq(struct apiBuffer *buffer, double *box, uint32_t
         }
         memcpy(p, json + off->offset, off->len);
         p += off->len;
+        if (circle) {
+            p--;
+            p = safe_snprintf(p, end, ",\"dist\":%.3f}", e->distance / 1852.0);
+        }
         *p++ = ',';
     }
 
