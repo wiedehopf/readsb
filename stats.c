@@ -550,7 +550,7 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
                 ",\"globe_json\":%llu"
                 ",\"trace_json\":%llu"
                 ",\"heatmap_and_state\":%llu"
-                ",\"api_worker\":%llu"
+                ",\"api_workers\":%llu"
                 ",\"api_update\":%llu"
                 ",\"remove_stale\":%llu}"
                 ",\"tracks\":{\"all\":%u"
@@ -690,7 +690,7 @@ struct char_buffer generatePromFile() {
     p = safe_snprintf(p, end, "readsb_cpu_remove_stale %llu\n", CPU_MILLIS(remove_stale));
     p = safe_snprintf(p, end, "readsb_cpu_trace_json %llu\n", trace_json_cpu_millis_sum);
     p = safe_snprintf(p, end, "readsb_cpu_api_update %llu\n", CPU_MILLIS(api_update));
-    p = safe_snprintf(p, end, "readsb_cpu_api_worker %llu\n", CPU_MILLIS(api_worker));
+    p = safe_snprintf(p, end, "readsb_cpu_api_workers %llu\n", CPU_MILLIS(api_worker));
 #undef CPU_MILLIS
     p = safe_snprintf(p, end, "readsb_distance_max %u\n", (uint32_t) st->distance_max);
     if (st->distance_min < 1E42)
