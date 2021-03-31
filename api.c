@@ -78,93 +78,140 @@ static struct range findLonRange(int32_t ref_from, int32_t ref_to, struct apiEnt
     return res;
 }
 
-static struct char_buffer apiReq(struct apiBuffer *buffer, double *box, uint32_t *hexList, int hexCount, double *circle) {
-    struct range r[2];
-    memset(&r, 0, sizeof(r));
-
-    struct char_buffer cb = { 0 };
-    size_t alloc = API_REQ_PADSTART + 1024;
-
-    struct offset *offsets = malloc(buffer->len * sizeof(struct offset));
+static int findInBox(struct apiBuffer *buffer, double *box, struct apiEntry *matches, size_t *alloc) {
+    struct range r[2] = { 0 };
     int count = 0;
 
-    if (box) {
-        int32_t lat1 = (int32_t) (box[0] * 1E6);
-        int32_t lat2 = (int32_t) (box[1] * 1E6);
-        int32_t lon1 = (int32_t) (box[2] * 1E6);
-        int32_t lon2 = (int32_t) (box[3] * 1E6);
+    int32_t lat1 = (int32_t) (box[0] * 1E6);
+    int32_t lat2 = (int32_t) (box[1] * 1E6);
+    int32_t lon1 = (int32_t) (box[2] * 1E6);
+    int32_t lon2 = (int32_t) (box[3] * 1E6);
 
-        if (lon1 <= lon2) {
-            r[0] = findLonRange(lon1, lon2, buffer->list, buffer->len);
-        } else if (lon1 > lon2) {
-            r[0] = findLonRange(lon1, 180E6, buffer->list, buffer->len);
-            r[1] = findLonRange(-180E6, lon2, buffer->list, buffer->len);
-            //fprintf(stderr, "%.1f to 180 and -180 to %1.f\n", lon1 / 1E6, lon2 / 1E6);
+    if (lon1 <= lon2) {
+        r[0] = findLonRange(lon1, lon2, buffer->list, buffer->len);
+    } else if (lon1 > lon2) {
+        r[0] = findLonRange(lon1, 180E6, buffer->list, buffer->len);
+        r[1] = findLonRange(-180E6, lon2, buffer->list, buffer->len);
+        //fprintf(stderr, "%.1f to 180 and -180 to %1.f\n", lon1 / 1E6, lon2 / 1E6);
+    }
+    for (int k = 0; k < 2; k++) {
+        for (int j = r[k].from; j < r[k].to; j++) {
+            struct apiEntry *e = &buffer->list[j];
+            if (e->lat >= lat1 && e->lat <= lat2) {
+                matches[count++] = *e;
+                *alloc += e->jsonOffset.len;
+            }
         }
+    }
+    return count;
+}
+static int findHexList(struct apiBuffer *buffer, uint32_t *hexList, int hexCount, struct apiEntry *matches, size_t *alloc) {
+    int count = 0;
+    for (int k = 0; k < hexCount; k++) {
+        uint32_t addr = hexList[k];
+        uint32_t hash = apiHash(addr);
+        struct apiEntry *e = buffer->hashList[hash];
+        while (e) {
+            if (e->addr == addr) {
+                matches[count++] = *e;
+                *alloc += e->jsonOffset.len;
+                break;
+            }
+            e = e->next;
+        }
+    }
+    return count;
+}
+static int findInCircle(struct apiBuffer *buffer, struct apiCircle *circle, struct apiEntry *matches, size_t *alloc) {
+    struct range r[2] = { 0 };
+    int count = 0;
+    double lat = circle->lat;
+    double lon = circle->lon;
+    double radius = circle->radius; // in meters
+    bool onlyClosest = circle->onlyClosest;
+    // 1.1 fudge factor, meridians are 6400 km (equi longitude lines), multiply by 180 degrees
+    double latdiff = 1.1 * radius / (6400E3) * 180.0;
+    double a1 = fmax(-90, lat - latdiff);
+    double a2 = fmin(90, lat + latdiff);
+    int32_t lat1 = (int32_t) (a1 * 1E6);
+    int32_t lat2 = (int32_t) (a2 * 1E6);
+    // 1.1 fudge factor, equator is 40005 km long, equi latitude lines vary with cosine of latitude
+    // multiply by 360 degrees, avoid div by zero
+    double londiff = 1.1 * (radius / (cos(lat) * 40005E3 + 1)) * 360;
+    londiff = fmin(londiff, 179.9999);
+    double o1 = lon - londiff;
+    double o2 = lon + londiff;
+    o1 = o1 < -180 ? o1 + 360: o1;
+    o2 = o2 > 180 ? o2 - 360 : o2;
+    int32_t lon1 = (int32_t) (o1 * 1E6);
+    int32_t lon2 = (int32_t) (o2 * 1E6);
+    //fprintf(stderr, "box: %.3f %.3f %.3f %.3f\n", lat1/1e6, lat2/1e6, lon1/1e6, lon2/1e6);
+    //fprintf(stderr, "box: %.3f %.3f %.3f %.3f\n", a1, a2, o1, o2);
+    if (lon1 <= lon2) {
+        r[0] = findLonRange(lon1, lon2, buffer->list, buffer->len);
+    } else if (lon1 > lon2) {
+        r[0] = findLonRange(lon1, 180E6, buffer->list, buffer->len);
+        r[1] = findLonRange(-180E6, lon2, buffer->list, buffer->len);
+        //fprintf(stderr, "%.1f to 180 and -180 to %1.f\n", lon1 / 1E6, lon2 / 1E6);
+    }
+    if (onlyClosest) {
+        bool found = false;
+        double minDistance = 300E6; // larger than any distances we encounter, also how far light travels in a second
         for (int k = 0; k < 2; k++) {
             for (int j = r[k].from; j < r[k].to; j++) {
                 struct apiEntry *e = &buffer->list[j];
                 if (e->lat >= lat1 && e->lat <= lat2) {
-                    offsets[count++] = e->jsonOffset;
-                    alloc += e->jsonOffset.len + 10;
+                    double dist = greatcircle(lat, lon, e->lat / 1E6, e->lon / 1E6);
+                    if (dist < radius && dist < minDistance) {
+                        // first match is overwritten repeatedly
+                        matches[count] = *e;
+                        *alloc += e->jsonOffset.len;
+                        matches[count].distance = (float) dist;
+                        minDistance = dist;
+                        found = true;
+                    }
                 }
             }
         }
-    } else if (hexList) {
-        for (int k = 0; k < hexCount; k++) {
-            uint32_t addr = hexList[k];
-            uint32_t hash = apiHash(addr);
-            struct apiEntry *e = buffer->hashList[hash];
-            while (e) {
-                if (e->addr == addr) {
-                    offsets[count++] = e->jsonOffset;
-                    alloc += e->jsonOffset.len + 10;
-                    break;
-                }
-                e = e->next;
-            }
-        }
-    } else if (circle) {
-        double lat = circle[0];
-        double lon = circle[1];
-        double radius = circle[2] * 1852; // assume nmi
-        // 1.1 fudge factor, meridians are 6400 km (equi longitude lines), multiply by 180 degrees
-        double latdiff = 1.1 * radius / (6400E3) * 180.0;
-        double a1 = fmax(-90, lat - latdiff);
-        double a2 = fmin(90, lat + latdiff);
-        int32_t lat1 = (int32_t) (a1 * 1E6);
-        int32_t lat2 = (int32_t) (a2 * 1E6);
-        // 1.1 fudge factor, equator is 40005 km long, equi latitude lines vary with cosine of latitude
-        // multiply by 360 degrees, avoid div by zero
-        double londiff = 1.1 * (radius / (cos(lat) * 40005E3 + 1)) * 360;
-        londiff = fmin(londiff, 179.9999);
-        double o1 = lon - londiff;
-        double o2 = lon + londiff;
-        o1 = o1 < -180 ? o1 + 360: o1;
-        o2 = o2 > 180 ? o2 - 360 : o2;
-        int32_t lon1 = (int32_t) (o1 * 1E6);
-        int32_t lon2 = (int32_t) (o2 * 1E6);
-        //fprintf(stderr, "box: %.3f %.3f %.3f %.3f\n", lat1/1e6, lat2/1e6, lon1/1e6, lon2/1e6);
-        //fprintf(stderr, "box: %.3f %.3f %.3f %.3f\n", a1, a2, o1, o2);
-        if (lon1 <= lon2) {
-            r[0] = findLonRange(lon1, lon2, buffer->list, buffer->len);
-        } else if (lon1 > lon2) {
-            r[0] = findLonRange(lon1, 180E6, buffer->list, buffer->len);
-            r[1] = findLonRange(-180E6, lon2, buffer->list, buffer->len);
-            //fprintf(stderr, "%.1f to 180 and -180 to %1.f\n", lon1 / 1E6, lon2 / 1E6);
-        }
+        if (found)
+            count = 1;
+    }
+    if (!onlyClosest) {
         for (int k = 0; k < 2; k++) {
             for (int j = r[k].from; j < r[k].to; j++) {
                 struct apiEntry *e = &buffer->list[j];
                 if (e->lat >= lat1 && e->lat <= lat2) {
-                    if (greatcircle(lat, lon, e->lat / 1E6, e->lon / 1E6) < radius) {
-                        offsets[count++] = e->jsonOffset;
-                        alloc += e->jsonOffset.len + 10;
+                    double dist = greatcircle(lat, lon, e->lat / 1E6, e->lon / 1E6);
+                    if (dist < radius) {
+                        matches[count] = *e;
+                        matches[count].distance = (float) dist;
+                        *alloc += e->jsonOffset.len;
+                        count++;
                     }
                 }
             }
         }
     }
+    return count;
+}
+
+static struct char_buffer apiReq(struct apiBuffer *buffer, double *box, uint32_t *hexList, int hexCount, struct apiCircle *circle) {
+    struct char_buffer cb = { 0 };
+    struct apiEntry *matches = malloc(buffer->len * sizeof(struct apiEntry));
+
+    size_t alloc = API_REQ_PADSTART + 1024;
+    int count = 0;
+
+    if (box) {
+        count = findInBox(buffer, box, matches, &alloc);
+    } else if (hexList) {
+        count = findHexList(buffer, hexList, hexCount, matches, &alloc);
+    } else if (circle) {
+        count = findInCircle(buffer, circle, matches, &alloc);
+    }
+
+    // add for comma and new line for each entry
+    alloc += 2 * count;
 
     cb.buffer = malloc(alloc);
     if (!cb.buffer)
@@ -181,7 +228,8 @@ static struct char_buffer apiReq(struct apiBuffer *buffer, double *box, uint32_t
 
     for (int i = 0; i < count; i++) {
         *p++ = '\n';
-        struct offset *off = &offsets[i];
+        struct apiEntry *e = &matches[i];
+        struct offset *off = &e->jsonOffset;
         if (p + off->len + 100 >= end) {
             fprintf(stderr, "search code ieva2aeV: need: %d alloc: %d\n", (int) ((p + off->len + 100) - cb.buffer), (int) alloc);
             break;
@@ -191,7 +239,7 @@ static struct char_buffer apiReq(struct apiBuffer *buffer, double *box, uint32_t
         *p++ = ',';
     }
 
-    free(offsets);
+    free(matches);
 
     if (*(p - 1) == ',')
         p--; // remove trailing comma if necessary
@@ -347,6 +395,20 @@ static void send400(int fd) {
     res = res;
 }
 
+static int parseDoubles(char *p, double *results, int max) {
+    char *saveptr = NULL;
+    char *endptr = NULL;
+    int count = 0;
+    char *tok = strtok_r(p, ",", &saveptr);
+    while (tok && count < max) {
+        results[count] = strtod(tok, &endptr);
+        if (tok != endptr)
+            count++;
+        tok = strtok_r(NULL, ",", &saveptr);
+    }
+    return count;
+}
+
 static struct char_buffer parseFetch(struct char_buffer *request, struct apiBuffer *buffer) {
     struct char_buffer invalid = { 0 };
     char *p, *needle, *eot;
@@ -363,23 +425,16 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiBuff
     p = strcasestr(req, needle);
     if (p) {
         p += strlen(needle);
-        if ((eot = strchr(p, '&')))
-            *eot = '\0';
+
+        eot = strchr(p, '&');
+        if (eot) *eot = '\0';
+
         double box[4];
-        char *strings[4];
-        saveptr = NULL;
-        strings[0] = strtok_r(p, ",", &saveptr);
-        strings[1] = strtok_r(NULL, ",", &saveptr);
-        strings[2] = strtok_r(NULL, ",", &saveptr);
-        strings[3] = strtok_r(NULL, ",", &saveptr);
+        int count = parseDoubles(p, box, 4);
+        if (count < 4)
+            return invalid;
 
         for (int i = 0; i < 4; i++) {
-            if (!strings[i])
-                return invalid;
-            errno = 0;
-            box[i] = strtod(strings[i], NULL);
-            if (errno)
-                return invalid;
             if (box[i] > 180 || box[i] < -180)
                 return invalid;
         }
@@ -392,8 +447,10 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiBuff
     p = strcasestr(req, needle);
     if (p) {
         p += strlen(needle);
-        if ((eot = strchr(p, '&')))
-            *eot = '\0';
+
+        eot = strchr(p, '&');
+        if (eot) *eot = '\0';
+
         int hexCount = 0;
         int maxLen = 8192;
         uint32_t hexList[maxLen];
@@ -413,31 +470,38 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiBuff
     }
     needle = "?circle=";
     p = strcasestr(req, needle);
+    bool onlyClosest = false;
+    if (!p) {
+        needle = "?closest=";
+        p = strcasestr(req, needle);
+        if (p)
+            onlyClosest = true;
+    }
     if (p) {
         p += strlen(needle);
-        if ((eot = strchr(p, '&')))
-            *eot = '\0';
-        double circle[3];
-        char *strings[3];
-        saveptr = NULL;
-        strings[0] = strtok_r(p, ",", &saveptr);
-        strings[1] = strtok_r(NULL, ",", &saveptr);
-        strings[2] = strtok_r(NULL, ",", &saveptr);
 
-        for (int i = 0; i < 3; i++) {
-            if (!strings[i])
-                return invalid;
-            errno = 0;
-            circle[i] = strtod(strings[i], NULL);
-            if (errno)
-                return invalid;
-        }
-        if (circle[0] > 90 || circle[0] < -90)
-            return invalid;
-        if (circle[1] > 180 || circle[1] < -180)
+        eot = strchr(p, '&');
+        if (eot) *eot = '\0';
+
+        struct apiCircle circle;
+        double numbers[3];
+        int count = parseDoubles(p, numbers, 3);
+        if (count < 3)
             return invalid;
 
-        return apiReq(buffer, NULL, NULL, 0, circle);
+        circle.lat = numbers[0];
+        circle.lon = numbers[1];
+        // user input in nmi, internally we use meters
+        circle.radius = numbers[2] * 1852;
+
+        if (circle.lat > 90 || circle.lat < -90)
+            return invalid;
+        if (circle.lon > 180 || circle.lon < -180)
+            return invalid;
+
+        circle.onlyClosest = onlyClosest;
+
+        return apiReq(buffer, NULL, NULL, 0, &circle);
     }
     return invalid;
 }

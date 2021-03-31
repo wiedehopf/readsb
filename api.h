@@ -18,16 +18,22 @@ struct offset {
 };
 
 struct apiEntry {
+    struct apiEntry *next;
     uint32_t addr;
     int32_t lat;
     int32_t lon;
-
-    struct offset jsonOffset;
-
     int32_t alt;
+    struct offset jsonOffset;
+    float distance;
     char typeCode[4];
     uint16_t dbFlags;
-    struct apiEntry *next;
+};
+
+struct apiCircle {
+    double lat;
+    double lon;
+    double radius; // in meters
+    bool onlyClosest;
 };
 
 struct apiBuffer {
