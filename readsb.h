@@ -456,6 +456,7 @@ struct _Modes
     int api; // enable api output
     int apiFlip;
     struct net_service apiService;
+    struct apiCon **apiListeners;
 
     pthread_mutex_t apiMutex;
     struct apiBuffer apiBuffer[2];

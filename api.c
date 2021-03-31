@@ -377,6 +377,7 @@ static void apiCloseConn(struct apiCon *con, struct apiThread *thread) {
     anetCloseSocket(fd);
     if (Modes.debug_api)
         fprintf(stderr, "%d: clo c: %d\n", thread->index, fd);
+    free(con->request.buffer);
     free(con);
 }
 
@@ -666,15 +667,7 @@ static void *apiThreadEntryPoint(void *arg) {
     thread->epfd = my_epoll_create();
 
     for (int i = 0; i < Modes.apiService.listener_count; ++i) {
-        struct apiCon *con = calloc(sizeof(struct apiCon), 1);
-        if (!con) fprintf(stderr, "EMEM, how much is the fish?\n"), exit(1);
-
-
-        Modes.apiService.read_sep = (void*) con; // ugly .... park it there so we can free
-
-        con->fd = Modes.apiService.listener_fds[i];
-        con->accept = 1;
-        con->events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
+        struct apiCon *con = Modes.apiListeners[i];
         struct epoll_event epollEvent = { .events = con->events };
         epollEvent.data.ptr = con;
 
@@ -770,6 +763,16 @@ void apiInit() {
         Modes.api = 0;
         return;
     }
+    Modes.apiListeners = malloc(sizeof(struct apiCon*) * Modes.apiService.listener_count);
+    for (int i = 0; i < Modes.apiService.listener_count; ++i) {
+        struct apiCon *con = calloc(sizeof(struct apiCon), 1);
+        if (!con) fprintf(stderr, "EMEM, how much is the fish?\n"), exit(1);
+
+        Modes.apiListeners[i] = con;
+        con->fd = Modes.apiService.listener_fds[i];
+        con->accept = 1;
+        con->events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
+    }
 
     for (int i = 0; i < 2; i++) {
         Modes.apiBuffer[i].hashList = malloc(API_BUCKETS * sizeof(struct apiEntry*));
@@ -793,7 +796,10 @@ void apiCleanup() {
     }
     for (int i = 0; i < Modes.apiService.listener_count; ++i) {
         anetCloseSocket(Modes.apiService.listener_fds[i]);
+        free(Modes.apiListeners[i]);
+        fprintf(stderr, "%d\n", i);
     }
+    free(Modes.apiListeners);
 
     free((void *) Modes.apiService.read_sep);
     free(Modes.apiService.listener_fds);
