@@ -61,6 +61,8 @@ struct range {
 
 void apiInit();
 void apiCleanup();
+void apiLockMutex();
+void apiUnlockMutex();
 
 int apiUpdate(struct craftArray *ca);
 

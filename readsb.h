@@ -458,9 +458,9 @@ struct _Modes
     struct net_service apiService;
     struct apiCon **apiListeners;
 
-    pthread_mutex_t apiMutex;
     struct apiBuffer apiBuffer[2];
     struct apiThread apiThread[API_THREADS];
+    pthread_mutex_t apiMutex[API_THREADS];
     pthread_t apiUpdateThread;
     pthread_mutex_t apiUpdateMutex;
     pthread_cond_t apiUpdateCond;

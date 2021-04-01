@@ -367,11 +367,11 @@ static void trackPeriodicUpdate() {
     if (Modes.mode_ac && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 2)
         trackMatchAC(now);
 
-    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 3)
-        checkDisplayStats(now);
-
     if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 4)
         netFreeClients();
+
+    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 3)
+        checkDisplayStats(now);
 
     if (Modes.updateStats)
         statsUpdate(now); // needs to happen under lock

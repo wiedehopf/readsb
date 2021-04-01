@@ -376,9 +376,11 @@ int apiUpdate(struct craftArray *ca) {
     buffer->timestamp = now;
 
     // doesn't matter which of the 2 buffers the api req will use they are both pretty current
-    pthread_mutex_lock(&Modes.apiMutex);
+    apiLockMutex();
+
     Modes.apiFlip = flip;
-    pthread_mutex_unlock(&Modes.apiMutex);
+
+    apiUnlockMutex();
 
     return buffer->len;
 }
@@ -703,12 +705,12 @@ static void *apiThreadEntryPoint(void *arg) {
         }
         count = epoll_wait(thread->epfd, events, maxEvents, 1000);
 
-        pthread_mutex_lock(&Modes.apiMutex);
+        pthread_mutex_lock(&Modes.apiMutex[thread->index]);
 
         flip = Modes.apiFlip;
         end_cpu_timing(&cpu_timer, &Modes.stats_current.api_worker_cpu);
 
-        pthread_mutex_unlock(&Modes.apiMutex);
+        pthread_mutex_unlock(&Modes.apiMutex[thread->index]);
 
         struct apiBuffer *buffer = &Modes.apiBuffer[flip];
         start_cpu_timing(&cpu_timer);
@@ -790,8 +792,12 @@ void apiInit() {
         Modes.apiBuffer[i].hashList = malloc(API_BUCKETS * sizeof(struct apiEntry*));
     }
 
+    for (int i = 0; i < API_THREADS; i++) {
+        pthread_mutex_init(&Modes.apiMutex[i], NULL);
+    }
     pthread_mutex_init(&Modes.apiUpdateMutex, NULL);
     pthread_cond_init(&Modes.apiUpdateCond, NULL);
+    apiUpdate(&Modes.aircraftActive); // run an initial apiUpdate
     pthread_create(&Modes.apiUpdateThread, NULL, apiUpdateEntryPoint, NULL);
     for (int i = 0; i < API_THREADS; i++) {
         Modes.apiThread[i].index = i;
@@ -809,7 +815,6 @@ void apiCleanup() {
     for (int i = 0; i < Modes.apiService.listener_count; ++i) {
         anetCloseSocket(Modes.apiService.listener_fds[i]);
         free(Modes.apiListeners[i]);
-        fprintf(stderr, "%d\n", i);
     }
     free(Modes.apiListeners);
 
@@ -821,5 +826,21 @@ void apiCleanup() {
         free(Modes.apiBuffer[i].hashList);
     }
     free((void *) Modes.apiService.descr);
+
+    for (int i = 0; i < API_THREADS; i++) {
+        pthread_mutex_destroy(&Modes.apiMutex[i]);
+    }
+}
+
+void apiLockMutex() {
+    for (int i = 0; i < API_THREADS; i++) {
+        pthread_mutex_lock(&Modes.apiMutex[i]);
+    }
+}
+
+void apiUnlockMutex() {
+    for (int i = 0; i < API_THREADS; i++) {
+        pthread_mutex_unlock(&Modes.apiMutex[i]);
+    }
 }
 

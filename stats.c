@@ -380,11 +380,20 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
         target->distance_min = st2->distance_min;
 }
 
+static void lockCurrent() {
+    apiLockMutex();
+}
+static void unlockCurrent() {
+    apiUnlockMutex();
+}
+
 void checkDisplayStats(uint64_t now) {
     Modes.stats_current.end = now;
 
     if (Modes.stats && now >= Modes.next_stats_display) {
+        lockCurrent();
         add_stats(&Modes.stats_periodic, &Modes.stats_current, &Modes.stats_periodic);
+        unlockCurrent();
         display_stats(&Modes.stats_periodic);
         reset_stats(&Modes.stats_periodic);
 
@@ -401,10 +410,12 @@ void statsUpdate(uint64_t now) {
     int i;
 
     Modes.next_stats_update = roundSeconds(10, 5, now + 10 * SECONDS);
-    Modes.stats_10[Modes.stats_bucket] = Modes.stats_current;
 
+    lockCurrent();
+    Modes.stats_10[Modes.stats_bucket] = Modes.stats_current;
     add_stats(&Modes.stats_current, &Modes.stats_alltime, &Modes.stats_alltime);
     add_stats(&Modes.stats_current, &Modes.stats_periodic, &Modes.stats_periodic);
+    unlockCurrent();
 
     reset_stats(&Modes.stats_1min);
     for (i = 0; i < 6; ++i) {
@@ -424,8 +435,10 @@ void statsUpdate(uint64_t now) {
         add_stats(&Modes.stats_10[index], &Modes.stats_15min, &Modes.stats_15min);
     }
 
+    lockCurrent();
     reset_stats(&Modes.stats_current);
     Modes.stats_current.start = Modes.stats_current.end = now;
+    unlockCurrent();
 
     Modes.stats_bucket = (Modes.stats_bucket + 1) % STAT_BUCKETS;
 }
