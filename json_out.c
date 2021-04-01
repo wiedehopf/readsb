@@ -246,8 +246,13 @@ static char *sprintACASJson(char *p, char *end, unsigned char *bytes, struct mod
 
     p = safe_snprintf(p, end, ",\"unix_timestamp\":%.2f", now / 1000.0);
 
-    if (mm && mm->acas_ra_valid)
+
+    if (mm && mm->acas_ra_valid) {
+        if (Modes.debug_ACAS && !checkAcasRaValid(bytes, mm, 0)) {
+            p = safe_snprintf(p, end, ",\"debug\":true");
+        }
         p = safe_snprintf(p, end, ",\"df_type\":%d", mm->msgtype);
+    }
 
     p = safe_snprintf(p, end, ",\"bytes\":\"");
     for (int i = 0; i < 7; ++i) {
@@ -677,8 +682,14 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now,
             p = safe_snprintf(p, end, ",\"lat\":%f,\"lon\":%f,\"nic\":%u,\"rc\":%u,\"seen_pos\":%.1f",
                     a->lat, a->lon, a->pos_nic, a->pos_rc,
                     (now < a->position_valid.updated) ? 0 : ((now - a->position_valid.updated) / 1000.0));
-        } else if (now < a->rr_seen + 2 * MINUTES) {
-            p = safe_snprintf(p, end, ",\"rr_lat\":%.1f,\"rr_lon\":%.1f", a->rr_lat, a->rr_lon);
+        } else {
+            if (now < a->rr_seen + 2 * MINUTES) {
+                p = safe_snprintf(p, end, ",\"rr_lat\":%.1f,\"rr_lon\":%.1f", a->rr_lat, a->rr_lon);
+            }
+            if (trackDataAge(now, &a->position_valid) < TRACK_EXPIRE_LONG) {
+                p = safe_snprintf(p, end, ",\"lastPosition\":{\"lat\":%f,\"lon\":%f,\"age\":%.1f}",
+                        a->lat, a->lon, trackDataAge(now, &a->position_valid) / 1000.0);
+            }
         }
     }
 
@@ -729,7 +740,7 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now,
                         a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7]) / 8 + 1.125e-5));
     }
 
-    if (trackDataAge(now, &a->acas_ra_valid) < 15 * SECONDS) {
+    if (trackDataAge(now, &a->acas_ra_valid) < 15 * SECONDS || (mm && mm->acas_ra_valid)) {
         p = safe_snprintf(p, end, ",\"acas_ra\":");
         p = sprintACASJson(p, end, a->acas_ra, (mm && mm->acas_ra_valid) ? mm : NULL, a->acas_ra_valid.updated);
     }

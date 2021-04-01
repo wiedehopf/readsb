@@ -107,10 +107,25 @@ This file contains readsb list of recently seen aircraft. The keys are:
       PIA = dbFlags & 4;
       LADD = dbFlags & 8;
   ```
+   * lastPosition: {lat, lon, age} when the regular lat and lon are older than 60 seconds they are no longer considered valid, this will provide the last position and show the age for the last position. aircraft will only be in the aircraft json if a position has been received in the last 60 seconds or if any message has been received in the last 30 seconds.
 
   If used with multiple receivers / as an aggregation server with --net-ingest --net-receiver-id
   * rr_lat, rr_lon: If no ADS-B or MLAT position available, a rough estimated position for the aircraft based on the receiver’s estimated coordinates.
 
+## --net-api-port query formats
+  * opens a builtin webserver that can handle a couple query formats:
+  ```
+  --net-api-port 8042
+  curl -sS 'http://localhost:8042/?hexlist=3CD6E3'  | jq
+  /?hexList=<hex1>,<hex2>,....
+  /?circle=<lat>,<lon>,<radius in nmi>
+  /?closest=<lat>,<lon>,<radius in nmi>
+  /?box=<lat south>,<lat north>,<lon west>,<lon east>
+  ```
+  * circle returns all aircraft within radius nautical miles of lat, lon
+  * closest is the same as circle but only returning the closest aircraft
+  * hexList will return all specified aircraft if there is data on them
+  * box is will give you all aircraft within a rectangle delimited by 2 latitudes and longitudes
 
 Section references (2.2.xyz) refer to DO-260B.
 

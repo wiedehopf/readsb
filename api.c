@@ -261,15 +261,20 @@ static struct char_buffer apiReq(struct apiBuffer *buffer, double *box, uint32_t
 }
 
 static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, uint64_t now) {
-    if (trackDataAge(now, &a->position_valid) > 5 * MINUTES && !trackDataValid(&a->position_valid))
+    if (now > a->seen + TRACK_EXPIRE_LONG)
         return;
 
     struct apiEntry *entry = &(buffer->list[buffer->len]);
     memset(entry, 0, sizeof(struct apiEntry));
     entry->addr = a->addr;
 
-    entry->lat = (int32_t) (a->lat * 1E6);
-    entry->lon = (int32_t) (a->lon * 1E6);
+    if (trackDataValid(&a->position_valid)) {
+        entry->lat = (int32_t) (a->lat * 1E6);
+        entry->lon = (int32_t) (a->lon * 1E6);
+    } else {
+        entry->lat = INT32_MIN;
+        entry->lon = INT32_MIN;
+    }
     if (trackDataValid(&a->altitude_baro_valid)) {
         entry->alt = a->altitude_baro;
     } else if (trackDataValid(&a->altitude_geom_valid)) {
