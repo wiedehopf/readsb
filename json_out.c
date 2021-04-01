@@ -742,7 +742,9 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now,
 
     if (trackDataAge(now, &a->acas_ra_valid) < 15 * SECONDS || (mm && mm->acas_ra_valid)) {
         p = safe_snprintf(p, end, ",\"acas_ra\":");
-        p = sprintACASJson(p, end, a->acas_ra, (mm && mm->acas_ra_valid) ? mm : NULL, a->acas_ra_valid.updated);
+        p = sprintACASJson(p, end, a->acas_ra,
+                (mm && mm->acas_ra_valid) ? mm : NULL,
+                (mm && mm->acas_ra_valid) ? now : a->acas_ra_valid.updated);
     }
 
     p = safe_snprintf(p, end, "}");
