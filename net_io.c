@@ -2124,6 +2124,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
 
         // Other errors
         if (nread < 0) {
+            if (Modes.debug_net) {
                 if (Modes.netIngest && c->service->read_mode != READ_MODE_IGNORE && c->proxy_string[0] != '\0') {
                     double elapsed = (now - c->connectedSince) / 1000.0;
                     fprintf(stderr, "disc: %56s rId %016"PRIx64"%016"PRIx64" %6.2f kbit/s for %6.1f s\n",
@@ -2134,6 +2135,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                             c->service->descr, strerror(err), c->host, c->port,
                             c->fd, c->sendq_len, c->buflen);
                 }
+            }
             modesCloseClient(c);
             return;
         }
