@@ -9,7 +9,7 @@ HAVE_BIASTEE ?= no
 
 CPPFLAGS += -DMODES_READSB_VERSION=\"$(READSB_VERSION)\"
 CPPFLAGS += -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE
-CPPFLAGS += -fstack-protector-strong -Wformat -Werror=format-security -Wno-format-truncation
+CPPFLAGS += -fstack-protector-strong -Wformat -Werror=format-security
 
 #OPTIMIZE ?= -march=native
 
