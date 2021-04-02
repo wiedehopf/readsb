@@ -479,7 +479,7 @@ int dbFinishUpdate() {
                 updateTypeReg(a);
             }
         }
-        fprintf(stderr, "db update done!\n");
+        fprintf(stderr, "Database update done!\n");
         return 1;
     }
     return 0;

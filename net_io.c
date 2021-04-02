@@ -518,7 +518,14 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
                     buf, service->descr, Modes.aneterr);
             exit(1);
         }
-        fprintf(stderr, "%s: Listening on port %s\n", service->descr, buf);
+        static int listenerCount;
+        if (listenerCount && listenerCount++ % 3 == 0)
+            fprintf(stderr, "\n");
+        if (!listenerCount)
+            listenerCount++;
+        char descr[1024];
+        snprintf(descr, 1023, "%s port:", service->descr);
+        fprintf(stderr, "%-30s %5s%5s", descr, buf, "");
 
         fds = realloc(fds, (n + nfds) * sizeof (int));
         if (!fds) {
@@ -581,10 +588,10 @@ void modesInitNet(void) {
     json_out = serviceInit("Position json output", &Modes.json_out, NULL, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(json_out, Modes.net_bind_address, Modes.net_output_json_ports);
 
-    sbs_out = serviceInit("SBS TCP output", &Modes.sbs_out, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    sbs_out = serviceInit("SBS TCP output ALL", &Modes.sbs_out, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(sbs_out, Modes.net_bind_address, Modes.net_output_sbs_ports);
 
-    sbs_out_replay = serviceInit("SBS TCP output replay SBS IN", &Modes.sbs_out_replay, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    sbs_out_replay = serviceInit("SBS TCP output MAIN", &Modes.sbs_out_replay, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     sbs_out_prio = serviceInit("SBS TCP output PRIO", &Modes.sbs_out_prio, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     sbs_out_mlat = serviceInit("SBS TCP output MLAT", &Modes.sbs_out_mlat, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     sbs_out_jaero = serviceInit("SBS TCP output JAERO", &Modes.sbs_out_jaero, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
@@ -616,7 +623,7 @@ void modesInitNet(void) {
         free(jaero);
     }
 
-    sbs_in = serviceInit("SBS TCP input", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLine);
+    sbs_in = serviceInit("SBS TCP input MAIN", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLine);
     serviceListen(sbs_in, Modes.net_bind_address, Modes.net_input_sbs_ports);
 
     sbs_in_mlat = serviceInit("SBS TCP input MLAT", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLineMlat);
@@ -651,6 +658,9 @@ void modesInitNet(void) {
     /* Beast input via network */
     beast_in = serviceInit("Beast TCP input", NULL, NULL, READ_MODE_BEAST, NULL, decodeBinMessage);
     serviceListen(beast_in, Modes.net_bind_address, Modes.net_input_beast_ports);
+
+    // print newline after all the listen announcements in serviceListen
+    fprintf(stderr, "\n");
 
     /* Beast input from local Modes-S Beast via USB */
     if (Modes.sdr_type == SDR_MODESBEAST) {

@@ -184,7 +184,7 @@ static void modesInit(void) {
         else
             Modes.json_reliable = 2;
     }
-    fprintf(stderr, "json_reliable: %d\n", Modes.json_reliable);
+    //fprintf(stderr, "json_reliable: %d\n", Modes.json_reliable);
 
     Modes.filter_persistence += Modes.json_reliable - 1;
 
@@ -596,7 +596,7 @@ static void *decodeThreadEntryPoint(void *arg) {
      * This rules also in case a local Mode-S Beast is connected via USB.
      */
 
-    fprintf(stderr, "startup complete after %.3f seconds.\n", (mstime() - Modes.startup_time) / 1000.0);
+    //fprintf(stderr, "startup complete after %.3f seconds.\n", (mstime() - Modes.startup_time) / 1000.0);
 
     interactiveInit();
 
@@ -1415,13 +1415,15 @@ int main(int argc, char **argv) {
     configAfterParse();
 
     // Initialization
-    log_with_timestamp("%s starting up.", MODES_READSB_VARIANT);
+    //log_with_timestamp("%s starting up.", MODES_READSB_VARIANT);
     fprintf(stderr, VERSION_STRING"\n");
     //fprintf(stderr, "%zu\n", sizeof(struct state_flags));
-    fprintf(stderr, "struct sizes: %zu, ", sizeof(struct aircraft));
-    fprintf(stderr, "%zu, ", sizeof(struct state));
-    fprintf(stderr, "%zu, ", sizeof(struct state_all));
-    fprintf(stderr, "%zu\n", sizeof(struct binCraft));
+    if (0) {
+        fprintf(stderr, "struct sizes: %zu, ", sizeof(struct aircraft));
+        fprintf(stderr, "%zu, ", sizeof(struct state));
+        fprintf(stderr, "%zu, ", sizeof(struct state_all));
+        fprintf(stderr, "%zu\n", sizeof(struct binCraft));
+    }
     //fprintf(stderr, "%zu\n", sizeof(struct modesMessage));
     //fprintf(stderr, "%zu\n", sizeof(pthread_mutex_t));
     //fprintf(stderr, "%zu\n", 10000 * sizeof(struct aircraft));
