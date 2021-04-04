@@ -519,13 +519,12 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
             exit(1);
         }
         static int listenerCount;
-        if (listenerCount && listenerCount++ % 3 == 0)
+        if (listenerCount && listenerCount % 2 == 0)
             fprintf(stderr, "\n");
-        if (!listenerCount)
-            listenerCount++;
-        char descr[1024];
-        snprintf(descr, 1023, "%s port:", service->descr);
-        fprintf(stderr, "%-30s %5s%5s", descr, buf, "");
+        listenerCount++;
+        char listenString[1024];
+        snprintf(listenString, 1023, "%5s: %s port", buf, service->descr);
+        fprintf(stderr, "%-38s", listenString);
 
         fds = realloc(fds, (n + nfds) * sizeof (int));
         if (!fds) {
