@@ -279,7 +279,7 @@ static unsigned char all_zeros[14] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 // fix possible 1 bit errors in the DF type for DF17 only
 // return orig first msg byte if we changed the msgtype / first byte
 static inline __attribute__((always_inline)) unsigned char fixDF17msgtype(unsigned char *msg, int *msgtype) {
-    if (!Modes.fixDF) {
+    if (!Modes.fixDF || !Modes.nfix_crc) {
         return 0;
     }
     unsigned char origByte;
@@ -343,6 +343,9 @@ int scoreModesMessage(unsigned char *msg, int validbits) {
         case 4: // surveillance, altitude reply
         case 5: // surveillance, altitude reply
         case 16: // long air-air surveillance
+        case 20: // Comm-B, altitude reply
+        case 21: // Comm-B, identity reply
+#ifdef ENABLE_DF24
         case 24: // Comm-D (ELM)
         case 25: // Comm-D (ELM)
         case 26: // Comm-D (ELM)
@@ -351,6 +354,7 @@ int scoreModesMessage(unsigned char *msg, int validbits) {
         case 29: // Comm-D (ELM)
         case 30: // Comm-D (ELM)
         case 31: // Comm-D (ELM)
+#endif
             return icaoFilterTest(crc) ? 1000 : -1;
 
         case 11: // All-call reply
@@ -407,21 +411,6 @@ int scoreModesMessage(unsigned char *msg, int validbits) {
                 return 1800 / (ei->errors + 1);
             else
                 return 1400 / (ei->errors + 1);
-
-        case 20: // Comm-B, altitude reply
-        case 21: // Comm-B, identity reply
-            if (icaoFilterTest(crc))
-                return 1000; // Address/Parity
-
-#if 0
-            // This doesn't seem useful, as we mistake a lot of CRC errors
-            // for overlay control
-            if (icaoFilterTestFuzzy(crc))
-                return 500; // Data/Parity
-#endif
-
-            return -2;
-
         default:
             // unknown message type
             return -2;

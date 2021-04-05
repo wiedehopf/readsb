@@ -93,31 +93,6 @@ int icaoFilterTest(uint32_t addr) {
     return 0;
 }
 
-uint32_t icaoFilterTestFuzzy(uint32_t partial) {
-    uint32_t h, h0;
-
-    partial &= 0x00ffff;
-    h0 = h = aircraftHash(partial);
-    while (icao_filter_a[h] != EMPTY && (icao_filter_a[h] & 0x00ffff) != partial) {
-        h = (h + 1) & (AIRCRAFT_BUCKETS - 1);
-        if (h == h0)
-            break;
-    }
-    if (icao_filter_a[h] != EMPTY && (icao_filter_a[h] & 0x00ffff) == partial)
-        return icao_filter_a[h];
-
-    h = h0;
-    while (icao_filter_b[h] != EMPTY && (icao_filter_b[h] & 0x00ffff) != partial) {
-        h = (h + 1) & (AIRCRAFT_BUCKETS - 1);
-        if (h == h0)
-            break;
-    }
-    if (icao_filter_b[h] != EMPTY && (icao_filter_b[h] & 0x00ffff) == partial)
-        return icao_filter_b[h];
-
-    return 0;
-}
-
 // call this periodically:
 void icaoFilterExpire() {
     if (icao_filter_active == icao_filter_a) {

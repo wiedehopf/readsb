@@ -92,6 +92,42 @@ static inline __attribute__((always_inline)) int slice_phase4(uint16_t *m) {
     return 4 * m[0] + 15 * m[1] - 20 * m[2] + 1 * m[3];
 }
 
+static uint32_t valid_df_short_bitset;        // set of acceptable DF values for short messages
+static uint32_t valid_df_long_bitset;         // set of acceptable DF values for long messages
+
+static uint32_t generate_damage_set(uint8_t df, unsigned damage_bits)
+{
+    uint32_t result = (1 << df);
+    if (!damage_bits)
+        return result;
+
+    for (unsigned bit = 0; bit < 5; ++bit) {
+        unsigned damaged_df = df ^ (1 << bit);
+        result |= generate_damage_set(damaged_df, damage_bits - 1);
+    }
+
+    return result;
+}
+
+static void init_bitsets()
+{
+    // DFs that we directly understand without correction
+    valid_df_short_bitset = (1 << 0) | (1 << 4) | (1 << 5) | (1 << 11);
+    valid_df_long_bitset = (1 << 16) | (1 << 17) | (1 << 18) | (1 << 20) | (1 << 21);
+
+#ifdef ENABLE_DF24
+    if (1)
+        valid_df_long_bitset |= (1 << 24) | (1 << 25) | (1 << 26) | (1 << 27) | (1 << 28) | (1 << 29) | (1 << 30) | (1 << 31);
+#endif
+
+    // if we can also repair DF damage, include those corrections
+    if (Modes.fixDF && Modes.nfix_crc) {
+        // only correct for possible DF17, other types are less useful usually (DF11/18 would also be possible)
+        valid_df_long_bitset |= generate_damage_set(17, 1);
+    }
+}
+
+
 // extract one byte from the mag buffers using slice_phase functions
 // advance pPtr and phase
 static inline __attribute__((always_inline)) uint8_t slice_byte(uint16_t **pPtr, int *phase) {
@@ -179,37 +215,35 @@ static inline __attribute__((always_inline)) uint8_t slice_byte(uint16_t **pPtr,
 static void score_phase(int try_phase, uint16_t *m, int j, unsigned char **bestmsg, int *bestscore, int *bestphase, unsigned char **msg, unsigned char *msg1, unsigned char *msg2) {
     Modes.stats_current.demod_preamblePhase[try_phase - 4]++;
     uint16_t *pPtr;
-    int phase, i, score, bytelen;
+    int phase, score, bytelen;
 
     pPtr = &m[j + 19] + (try_phase / 5);
     phase = try_phase % 5;
 
     (*msg)[0] = slice_byte(&pPtr, &phase);
 
-    switch ((*msg)[0] >> 3) {
-        case 0: case 4: case 5: case 11:
-            bytelen = MODES_SHORT_MSG_BYTES;
-            break;
-
-        case 16: case 17: case 18: case 20: case 21: case 24:
-            bytelen = MODES_LONG_MSG_BYTES;
-            break;
-
-        case 1: case 25: case 19: // allow DF values that are 1 bit errors of DF17, (16 and 21 are we already process)
-            bytelen = Modes.fixDF ? MODES_LONG_MSG_BYTES : 1;
-            break;
-
-        default:
-            bytelen = 1; // unknown DF, give up immediately
-            break;
+    // inspect DF field early, only continue processing
+    // messages where the DF appears valid
+    uint32_t df = ((uint8_t) (*msg)[0]) >> 3;
+    if (valid_df_long_bitset & (1 << df)) {
+        bytelen = MODES_LONG_MSG_BYTES;
+    } else if (valid_df_short_bitset & (1 << df)) {
+        bytelen = MODES_SHORT_MSG_BYTES;
+    } else {
+        score = -2;
+        if (score > *bestscore) {
+            // this is only for preamble stats
+            *bestscore = score;
+        }
+        return;
     }
 
-    for (i = 1; i < bytelen; ++i) {
+    for (int i = 1; i < bytelen; ++i) {
         (*msg)[i] = slice_byte(&pPtr, &phase);
     }
 
     // Score the mode S message and see if it's any good.
-    score = bytelen > 1 ? scoreModesMessage(*msg, i * 8) : -2;
+    score = scoreModesMessage(*msg, bytelen * 8);
     if (score > *bestscore) {
         // new high score!
         *bestmsg = *msg;
@@ -240,6 +274,10 @@ void demodulate2400(struct mag_buf *mag) {
     uint32_t mlen = mag->length;
 
     uint64_t sum_scaled_signal_power = 0;
+
+    // initialize bitsets on first call
+    if (!valid_df_short_bitset)
+        init_bitsets();
 
     msg = msg1;
 

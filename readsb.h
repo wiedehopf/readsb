@@ -288,6 +288,8 @@ typedef enum {
 
 #define NET_MAX_CONNECTORS 256
 
+//#define ENABLE_DF24
+
 #define HISTORY_SIZE 120
 #define HISTORY_INTERVAL 30000
 
