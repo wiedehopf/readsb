@@ -247,6 +247,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         override = 1;
     } else if (bogus_lat_lon(lat, lon) ||
             (mm->cpr_valid && mm->cpr_lat == 0 && mm->cpr_lon == 0)
+            || (mm->cpr_valid && (mm->cpr_lat == 0 || mm->cpr_lon == 0)
+                && (a->position_valid.source < SOURCE_TISB || !posReliable(a)))
        ) {
         mm->pos_ignore = 1; // don't decrement pos_reliable
         override = 0;
