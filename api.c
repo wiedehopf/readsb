@@ -210,7 +210,7 @@ static struct char_buffer apiReq(struct apiBuffer *buffer, double *box, uint32_t
         count = findHexList(buffer, hexList, hexCount, matches, &alloc);
     } else if (circle) {
         count = findInCircle(buffer, circle, matches, &alloc);
-        alloc += count * 20; // adding 16 characters per entry: ,"dist":1000.000
+        alloc += count * 20; // adding 15 characters per entry: ,"dst":1000.000
     }
 
     // add for comma and new line for each entry
@@ -241,7 +241,7 @@ static struct char_buffer apiReq(struct apiBuffer *buffer, double *box, uint32_t
         p += off->len;
         if (circle) {
             p--;
-            p = safe_snprintf(p, end, ",\"dist\":%.3f}", e->distance / 1852.0);
+            p = safe_snprintf(p, end, ",\"dst\":%.3f}", e->distance / 1852.0);
         }
         *p++ = ',';
     }

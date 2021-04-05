@@ -126,6 +126,7 @@ This file contains readsb list of recently seen aircraft. The keys are:
   * closest is the same as circle but only returning the closest aircraft
   * hexList will return all specified aircraft if there is data on them
   * box is will give you all aircraft within a rectangle delimited by 2 latitudes and longitudes
+  * closest and circle will supply an extra field named "dst" which will have the distance in nautical miles from the supplied location
 
 Section references (2.2.xyz) refer to DO-260B.
 
