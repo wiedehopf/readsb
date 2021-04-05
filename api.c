@@ -407,7 +407,7 @@ static void send400(int fd) {
     "Content-Length: 0\r\n\r\n");
 
     int res = write(fd, buf, strlen(buf));
-    res = res;
+    MODES_NOTUSED(res);
 }
 
 static int parseDoubles(char *p, double *results, int max) {
