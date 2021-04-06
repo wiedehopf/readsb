@@ -29,7 +29,8 @@ static void apiSort(struct apiBuffer *buffer) {
 }
 
 static struct range findLonRange(int32_t ref_from, int32_t ref_to, struct apiEntry *list, int len) {
-    struct range res = {0, 0};
+    struct range res;
+    memset(&res, 0, sizeof(res));
     if (len == 0 || ref_from > ref_to)
         return res;
 
@@ -79,7 +80,8 @@ static struct range findLonRange(int32_t ref_from, int32_t ref_to, struct apiEnt
 }
 
 static int findInBox(struct apiBuffer *buffer, double *box, struct apiEntry *matches, size_t *alloc) {
-    struct range r[2] = { 0 };
+    struct range r[2];
+    memset(r, 0, sizeof(r));
     int count = 0;
 
     int32_t lat1 = (int32_t) (box[0] * 1E6);
@@ -123,7 +125,8 @@ static int findHexList(struct apiBuffer *buffer, uint32_t *hexList, int hexCount
     return count;
 }
 static int findInCircle(struct apiBuffer *buffer, struct apiCircle *circle, struct apiEntry *matches, size_t *alloc) {
-    struct range r[2] = { 0 };
+    struct range r[2];
+    memset(r, 0, sizeof(r));
     int count = 0;
     double lat = circle->lat;
     double lon = circle->lon;
