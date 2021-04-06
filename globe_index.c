@@ -429,7 +429,7 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
     }
 
     // prepare the data for the trace_recent file in /run
-    recent = generateTraceJson(a, start_recent, -1);
+    recent = generateTraceJson(a, start_recent, a->trace_len - 1);
 
     if (a->addr == TRACE_FOCUS)
         fprintf(stderr, "mw: %.0f, fw: %.0f, count: %d\n",
@@ -446,7 +446,7 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
 
         mark_legs(a, 0);
 
-        full = generateTraceJson(a, start24, -1);
+        full = generateTraceJson(a, start24, a->trace_len -1);
 
         if (a->trace_writeCounter >= 0xc0ffee)
             a->trace_next_mw = now + 5 * MINUTES + random() % (60 * MINUTES);

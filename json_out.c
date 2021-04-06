@@ -1222,12 +1222,72 @@ struct char_buffer generateAircraftJson(uint64_t onlyRecent){
     return cb;
 }
 
+static char *sprintTracePoint(char *p, char *end, struct aircraft *a, int i, uint64_t startStamp) {
+    struct state *trace = &a->trace[i];
+
+    int32_t altitude = trace->altitude * 25;
+    int32_t rate = trace->rate * 32;
+    int rate_valid = trace->flags.rate_valid;
+    int rate_geom = trace->flags.rate_geom;
+    int stale = trace->flags.stale;
+    int on_ground = trace->flags.on_ground;
+    int altitude_valid = trace->flags.altitude_valid;
+    int gs_valid = trace->flags.gs_valid;
+    int track_valid = trace->flags.track_valid;
+    int leg_marker = trace->flags.leg_marker;
+    int altitude_geom = trace->flags.altitude_geom;
+
+    // in the air
+    p = safe_snprintf(p, end, "\n[%.1f,%f,%f",
+            (trace->timestamp - startStamp) / 1000.0, trace->lat / 1E6, trace->lon / 1E6);
+
+    if (on_ground)
+        p = safe_snprintf(p, end, ",\"ground\"");
+    else if (altitude_valid)
+        p = safe_snprintf(p, end, ",%d", altitude);
+    else
+        p = safe_snprintf(p, end, ",null");
+
+    if (gs_valid)
+        p = safe_snprintf(p, end, ",%.1f", trace->gs / 10.0);
+    else
+        p = safe_snprintf(p, end, ",null");
+
+    if (track_valid)
+        p = safe_snprintf(p, end, ",%.1f", trace->track / 10.0);
+    else
+        p = safe_snprintf(p, end, ",null");
+
+    int bitfield = (altitude_geom << 3) | (rate_geom << 2) | (leg_marker << 1) | (stale << 0);
+    p = safe_snprintf(p, end, ",%d", bitfield);
+
+    if (rate_valid)
+        p = safe_snprintf(p, end, ",%d", rate);
+    else
+        p = safe_snprintf(p, end, ",null");
+
+    if (i % 4 == 0) {
+        uint64_t now = trace->timestamp;
+        struct state_all *all = &(a->trace_all[i/4]);
+        struct aircraft b;
+        memset(&b, 0, sizeof(struct aircraft));
+        struct aircraft *ac = &b;
+        from_state_all(all, ac, now);
+
+        p = safe_snprintf(p, end, ",");
+        p = sprintAircraftObject(p, end, ac, now, 1, NULL);
+    } else {
+        p = safe_snprintf(p, end, ",null");
+    }
+    p = safe_snprintf(p, end, "]");
+
+    return p;
+}
+
 struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
     struct char_buffer cb;
-    size_t buflen = a->trace_len * 300 + 1024;
-
-    if (last < 0)
-        last = a->trace_len - 1;
+    int alloc = 4 + max(last - start, 0);
+    size_t buflen = alloc * 300 + 1024;
 
     if (!Modes.json_globe_index) {
         cb.len = 0;
@@ -1260,75 +1320,20 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
             p = safe_snprintf(p, end, ",\n\"noRegData\":true");
     }
 
-    if (start <= last && last < a->trace_len) {
-        p = safe_snprintf(p, end, ",\n\"timestamp\": %.3f", (a->trace + start)->timestamp / 1000.0);
+    uint64_t startStamp = (a->trace + start)->timestamp;
+    p = safe_snprintf(p, end, ",\n\"timestamp\": %.3f", startStamp / 1000.0);
 
-        p = safe_snprintf(p, end, ",\n\"trace\":[ ");
+    p = safe_snprintf(p, end, ",\n\"trace\":[ ");
 
-        for (int i = start; i <= last; i++) {
-            struct state *trace = &a->trace[i];
+    for (int i = start; i <= last && i < a->trace_len; i++) {
+        p = sprintTracePoint(p, end, a, i, startStamp);
+        *p++ = ',';
+    }
 
-            int32_t altitude = trace->altitude * 25;
-            int32_t rate = trace->rate * 32;
-            int rate_valid = trace->flags.rate_valid;
-            int rate_geom = trace->flags.rate_geom;
-            int stale = trace->flags.stale;
-            int on_ground = trace->flags.on_ground;
-            int altitude_valid = trace->flags.altitude_valid;
-            int gs_valid = trace->flags.gs_valid;
-            int track_valid = trace->flags.track_valid;
-            int leg_marker = trace->flags.leg_marker;
-            int altitude_geom = trace->flags.altitude_geom;
-
-                // in the air
-                p = safe_snprintf(p, end, "\n[%.1f,%f,%f",
-                        (trace->timestamp - (a->trace + start)->timestamp) / 1000.0, trace->lat / 1E6, trace->lon / 1E6);
-
-                if (on_ground)
-                    p = safe_snprintf(p, end, ",\"ground\"");
-                else if (altitude_valid)
-                    p = safe_snprintf(p, end, ",%d", altitude);
-                else
-                    p = safe_snprintf(p, end, ",null");
-
-                if (gs_valid)
-                    p = safe_snprintf(p, end, ",%.1f", trace->gs / 10.0);
-                else
-                    p = safe_snprintf(p, end, ",null");
-
-                if (track_valid)
-                    p = safe_snprintf(p, end, ",%.1f", trace->track / 10.0);
-                else
-                    p = safe_snprintf(p, end, ",null");
-
-                int bitfield = (altitude_geom << 3) | (rate_geom << 2) | (leg_marker << 1) | (stale << 0);
-                p = safe_snprintf(p, end, ",%d", bitfield);
-
-                if (rate_valid)
-                    p = safe_snprintf(p, end, ",%d", rate);
-                else
-                    p = safe_snprintf(p, end, ",null");
-
-                if (i % 4 == 0) {
-                    uint64_t now = trace->timestamp;
-                    struct state_all *all = &(a->trace_all[i/4]);
-                    struct aircraft b;
-                    memset(&b, 0, sizeof(struct aircraft));
-                    struct aircraft *ac = &b;
-                    from_state_all(all, ac, now);
-
-                    p = safe_snprintf(p, end, ",");
-                    p = sprintAircraftObject(p, end, ac, now, 1, NULL);
-                } else {
-                    p = safe_snprintf(p, end, ",null");
-                }
-                p = safe_snprintf(p, end, "],");
-        }
-
+    if (*(p-1) == ',')
         p--; // remove last comma
 
-        p = safe_snprintf(p, end, " ]\n");
-    }
+    p = safe_snprintf(p, end, " ]\n");
 
     p = safe_snprintf(p, end, " }\n");
 
