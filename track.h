@@ -222,6 +222,24 @@ struct state_all
   unsigned padding:22;
 } __attribute__ ((__packed__));
 
+#define TRACE_RECENT_POINTS (128)
+#define TRACE_CACHE_EXTRA (16)
+#define TRACE_CACHE_POINTS (TRACE_RECENT_POINTS + TRACE_CACHE_EXTRA)
+struct traceCacheEntry {
+    int32_t stateIndex;
+    int32_t offset;
+    int32_t len;
+    struct state_flags flags;
+    unsigned padding:16;
+} __attribute__ ((__packed__));
+
+struct traceCache {
+    int32_t entriesLen;
+    uint64_t startStamp;
+    struct traceCacheEntry entries[TRACE_CACHE_POINTS];
+    char json[TRACE_CACHE_POINTS * 256];
+};
+
 /* Structure used to describe the state of one tracked aircraft */
 struct aircraft
 {
@@ -432,6 +450,7 @@ struct aircraft
   uint64_t next_reduce_forward_DF16;
   uint64_t next_reduce_forward_DF20;
   uint64_t next_reduce_forward_DF21;
+  struct traceCache *traceCache;
 };
 
 /* Mode A/C tracking is done separately, not via the aircraft list,

@@ -419,17 +419,17 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
         }
     }
 
-    int recent_points = 54;
+    int recent_points = TRACE_RECENT_POINTS;
     int start_recent = a->trace_len - recent_points;
     if (start_recent < start24)
         start_recent = start24;
 
     if (!init && a->trace_len % 4 == 0) {
-        mark_legs(a, max(0, start_recent - 300));
+        mark_legs(a, max(0, start_recent - 256 - recent_points));
     }
 
     // prepare the data for the trace_recent file in /run
-    recent = generateTraceJson(a, start_recent, -1);
+    recent = generateTraceJson(a, start_recent, -2);
 
     if (a->addr == TRACE_FOCUS)
         fprintf(stderr, "mw: %.0f, fw: %.0f, count: %d\n",
@@ -574,6 +574,7 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
 
     a->trace = NULL;
     a->trace_all = NULL;
+    a->traceCache = NULL;
 
     if (!Modes.keep_traces) {
         a->trace_alloc = 0;
@@ -1236,6 +1237,10 @@ static void tracePrune(struct aircraft *a, uint64_t now, int full) {
 
         memmove(a->trace, a->trace + new_start, stateBytes(len));
         memmove(a->trace_all, a->trace_all + stateAllBytes(new_start) / sizeof(struct state_all), stateAllBytes(len));
+
+        // invalidate traceCache
+        free(a->traceCache);
+        a->traceCache = NULL;
     }
 }
 
@@ -1257,10 +1262,13 @@ void traceCleanup(struct aircraft *a) {
     free(a->trace_all);
 
     a->tracePosBuffered = 0;
+    a->trace_len = 0;
     a->trace_alloc = 0;
     a->trace = NULL;
     a->trace_all = NULL;
-    a->trace_len = 0;
+
+    free(a->traceCache);
+    a->traceCache = NULL;
 
     traceUnlink(a);
 }
@@ -1285,6 +1293,12 @@ void traceMaintenance(struct aircraft *a, uint64_t now) {
             // without globe_index don't write trace but make sure we still call tracePrune now and then.
             a->trace_next_mw = a->trace_next_perm = now + Modes.keep_traces + random() % (30 * MINUTES);
         }
+    }
+
+    // free trace cache for inactive aircraft
+    if (now > a->seen_pos + 15 * MINUTES) {
+        free(a->traceCache);
+        a->traceCache = NULL;
     }
 
     // on day change write out the traces for yesterday

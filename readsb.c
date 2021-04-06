@@ -812,12 +812,11 @@ static void cleanup_and_exit(int code) {
         while (a) {
             na = a->next;
             if (a) {
-
                 if (a->trace) {
                     free(a->trace);
                     free(a->trace_all);
+                    free(a->traceCache);
                 }
-
                 free(a);
             }
             a = na;
@@ -1409,6 +1408,20 @@ int main(int argc, char **argv) {
     signal(SIGTERM, sigtermHandler);
     signal(SIGUSR1, SIG_IGN);
 
+    fprintf(stderr, VERSION_STRING"\n");
+
+    if (argc >= 2 && !strcmp(argv[1], "--structs")) {
+        fprintf(stderr, "struct sizes: %zu, ", sizeof(struct aircraft));
+        fprintf(stderr, "%zu, ", sizeof(struct state));
+        fprintf(stderr, "%zu, ", sizeof(struct state_all));
+        fprintf(stderr, "%zu\n", sizeof(struct binCraft));
+        //fprintf(stderr, "%zu\n", sizeof(struct state_flags));
+        //fprintf(stderr, "%zu\n", sizeof(struct modesMessage));
+        //fprintf(stderr, "%zu\n", sizeof(pthread_mutex_t));
+        //fprintf(stderr, "%zu\n", 10000 * sizeof(struct aircraft));
+        exit(0);
+    }
+
     // Parse the command line options
     parseCommandLine(argc, argv);
 
@@ -1416,17 +1429,7 @@ int main(int argc, char **argv) {
 
     // Initialization
     //log_with_timestamp("%s starting up.", MODES_READSB_VARIANT);
-    fprintf(stderr, VERSION_STRING"\n");
-    //fprintf(stderr, "%zu\n", sizeof(struct state_flags));
-    if (0) {
-        fprintf(stderr, "struct sizes: %zu, ", sizeof(struct aircraft));
-        fprintf(stderr, "%zu, ", sizeof(struct state));
-        fprintf(stderr, "%zu, ", sizeof(struct state_all));
-        fprintf(stderr, "%zu\n", sizeof(struct binCraft));
-    }
-    //fprintf(stderr, "%zu\n", sizeof(struct modesMessage));
-    //fprintf(stderr, "%zu\n", sizeof(pthread_mutex_t));
-    //fprintf(stderr, "%zu\n", 10000 * sizeof(struct aircraft));
+
     modesInit();
 
     if (Modes.sdr_type != SDR_NONE && !sdrOpen()) {
