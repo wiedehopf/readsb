@@ -1286,14 +1286,17 @@ static char *sprintTracePoint(char *p, char *end, struct aircraft *a, int i, uin
 
 struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
     struct char_buffer cb;
-    int alloc = 4 + max(last - start, 0);
-    size_t buflen = alloc * 300 + 1024;
-
     if (!Modes.json_globe_index) {
         cb.len = 0;
         cb.buffer = NULL;
         return cb;
     }
+    int limit = a->trace_len + (a->tracePosBuffered ? 1 : 0);
+    if (last == -1)
+        last = limit - 1;
+
+    int alloc = max(last - start + 1, 0);
+    size_t buflen = alloc * 300 + 1024;
 
     char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
 
@@ -1325,7 +1328,7 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
 
     p = safe_snprintf(p, end, ",\n\"trace\":[ ");
 
-    for (int i = start; i <= last && i < a->trace_len; i++) {
+    for (int i = start; i <= last && i < limit; i++) {
         p = sprintTracePoint(p, end, a, i, startStamp);
         *p++ = ',';
     }

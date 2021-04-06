@@ -429,7 +429,7 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
     }
 
     // prepare the data for the trace_recent file in /run
-    recent = generateTraceJson(a, start_recent, a->trace_len - 1);
+    recent = generateTraceJson(a, start_recent, -1);
 
     if (a->addr == TRACE_FOCUS)
         fprintf(stderr, "mw: %.0f, fw: %.0f, count: %d\n",
@@ -446,7 +446,7 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
 
         mark_legs(a, 0);
 
-        full = generateTraceJson(a, start24, a->trace_len -1);
+        full = generateTraceJson(a, start24, -1);
 
         if (a->trace_writeCounter >= 0xc0ffee)
             a->trace_next_mw = now + 5 * MINUTES + random() % (60 * MINUTES);
@@ -1231,16 +1231,11 @@ static void tracePrune(struct aircraft *a, uint64_t now, int full) {
 
         a->trace_len -= new_start;
 
-        // carry over buffered position
-        if (a->tracePosBuffered)
-            a->trace_len++;
+        // carry over buffered position as well if present
+        int len = a->trace_len + (a->tracePosBuffered ? 1 : 0);
 
-        memmove(a->trace, a->trace + new_start, stateBytes(a->trace_len));
-        memmove(a->trace_all, a->trace_all + stateAllBytes(new_start) / sizeof(struct state_all), stateAllBytes(a->trace_len));
-
-        // remove buffered position from part of trace that's final
-        if (a->tracePosBuffered)
-            a->trace_len--;
+        memmove(a->trace, a->trace + new_start, stateBytes(len));
+        memmove(a->trace_all, a->trace_all + stateAllBytes(new_start) / sizeof(struct state_all), stateAllBytes(len));
     }
 }
 
