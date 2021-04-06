@@ -1404,7 +1404,9 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
         return cb;
     }
 
-    checkTraceCache(a, now);
+    if (recent) {
+        checkTraceCache(a, now);
+    }
 
     p = safe_snprintf(p, end, "{\"icao\":\"%s%06x\"", (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
 
@@ -1429,7 +1431,9 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
             p = safe_snprintf(p, end, ",\n\"noRegData\":true");
     }
 
-    uint64_t startStamp = a->trace[0].timestamp;
+    uint64_t startStamp = a->trace[start].timestamp;
+    if (recent)
+            startStamp = a->trace[0].timestamp;
     p = safe_snprintf(p, end, ",\n\"timestamp\": %.3f", startStamp / 1000.0);
 
     p = safe_snprintf(p, end, ",\n\"trace\":[ ");
