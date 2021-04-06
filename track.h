@@ -222,7 +222,7 @@ struct state_all
   unsigned padding:22;
 } __attribute__ ((__packed__));
 
-#define TRACE_RECENT_POINTS (128)
+#define TRACE_RECENT_POINTS (92)
 #define TRACE_CACHE_EXTRA (16)
 #define TRACE_CACHE_POINTS (TRACE_RECENT_POINTS + TRACE_CACHE_EXTRA)
 struct traceCacheEntry {

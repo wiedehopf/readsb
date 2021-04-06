@@ -1438,10 +1438,17 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
     struct traceCacheEntry *e = NULL;
     int k = 0;
     if (c) {
+        int found = 0;
         e = c->entries;
-        while (k < c->entriesLen && e[k].stateIndex < start) {
+        while (k < c->entriesLen) {
+            if (e[k].stateIndex == start) {
+                found = 1;
+                break;
+            }
             k++;
         }
+        if (!found)
+            c = NULL;
     }
     int sprintCount = 0;
     for (int i = start; i <= last && i < limit; i++) {
