@@ -18,7 +18,7 @@ DIALECT = -std=c11
 CFLAGS := $(DIALECT) -g -W -D_DEFAULT_SOURCE -Wall -Werror -fno-common -O2 $(OPTIMIZE) $(CFLAGS)
 LIBS = -pthread -lpthread -lm -lz -lrt
 
-FT_TEST := $(shell $(CC) -c test.c -o test.o -Wno-format-truncation -Werror >/dev/null 2>&1 && echo 1 || echo 0)
+FT_TEST := $(shell $(CC) -c feature_test.c -o feature_test.o -Wno-format-truncation -Werror >/dev/null 2>&1 && echo 1 || echo 0)
 ifeq ($(FT_TEST), 1)
 	CFLAGS += -Wno-format-truncation
 endif
