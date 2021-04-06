@@ -18,9 +18,9 @@ DIALECT = -std=c11
 CFLAGS := $(DIALECT) -g -W -D_DEFAULT_SOURCE -Wall -Werror -fno-common -O2 $(OPTIMIZE) $(CFLAGS)
 LIBS = -pthread -lpthread -lm -lz -lrt
 
-CLANG_TEST := $(shell $(CC) --version 2>&1 | grep clang -q >/dev/null 2>&1; echo $$?)
-ifneq ($(CLANG_TEST), 0)
-  CFLAGS += -Wno-format-truncation
+FT_TEST := $(shell $(CC) -c test.c -o test.o -Wno-format-truncation -Werror >/dev/null 2>&1 && echo 1 || echo 0)
+ifeq ($(FT_TEST), 1)
+	CFLAGS += -Wno-format-truncation
 endif
 
 ifeq ($(HISTORY), yes)
