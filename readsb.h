@@ -395,6 +395,8 @@ struct _Modes
     pthread_mutex_t jsonTraceMutex[TRACE_THREADS];
     pthread_cond_t jsonTraceCond[TRACE_THREADS];
 
+    pthread_mutex_t traceDebugMutex;
+
     // stale removal
     pthread_t staleThread[STALE_THREADS];
     pthread_mutex_t staleMutex[STALE_THREADS];

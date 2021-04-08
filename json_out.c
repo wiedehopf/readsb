@@ -1285,7 +1285,7 @@ static char *sprintTracePoint(char *p, char *end, struct aircraft *a, int i, uin
 }
 static void checkTraceCache(struct aircraft *a, uint64_t now) {
     if (!a->traceCache) {
-        if (now > a->seen_pos + 5 * MINUTES || !a->trace) {
+        if (now > a->seen_pos + TRACE_CACHE_LIFETIME / 2 || !a->trace) {
             return;
         }
         a->traceCache = malloc(sizeof(struct traceCache));
@@ -1301,7 +1301,6 @@ static void checkTraceCache(struct aircraft *a, uint64_t now) {
     char *end = c->json + sizeof(c->json);
     int firstRecent = max(0, a->trace_len - TRACE_RECENT_POINTS);
 
-    uint64_t startStamp = a->trace[0].timestamp;
     struct traceCacheEntry *e = c->entries;
     int k = 0;
     int stateIndex = firstRecent;
@@ -1312,11 +1311,6 @@ static void checkTraceCache(struct aircraft *a, uint64_t now) {
             break;
         }
         k++;
-    }
-    if (c->startStamp != startStamp) {
-        // reset if timestamps don't match
-        found = 0;
-        c->startStamp = startStamp;
     }
     if (found) {
         int newEntryCount = a->trace_len - 1 - e[c->entriesLen - 1].stateIndex;
@@ -1329,7 +1323,7 @@ static void checkTraceCache(struct aircraft *a, uint64_t now) {
             int moveIndexes = min(k, TRACE_CACHE_EXTRA);
             c->entriesLen -= moveIndexes;
             k -= moveIndexes;
-            memmove(e, e + TRACE_CACHE_EXTRA, c->entriesLen);
+            memmove(e, e + TRACE_CACHE_EXTRA, c->entriesLen * sizeof(struct traceCacheEntry));
 
             int moveDist = e[0].offset;
             struct traceCacheEntry *last = &e[c->entriesLen - 1];
@@ -1352,6 +1346,7 @@ static void checkTraceCache(struct aircraft *a, uint64_t now) {
     if (!found) {
         // reset / initialize stuff
 checkTraceReset:
+        c->startStamp = a->trace[firstRecent].timestamp;
         k = 0;
         c->entriesLen = 0;
         p = c->json;
@@ -1362,13 +1357,13 @@ checkTraceReset:
         e[k].stateIndex = i;
         e[k].offset = p - c->json;
 
-        p = sprintTracePoint(p, end, a, i, startStamp);
+        p = sprintTracePoint(p, end, a, i, c->startStamp);
         if (p >= end) {
             fprintf(stderr, "traceCache full, not an issue but fix it!\n");
             // not enough space to safely write another cache
             break;
         }
-        //sprintCount++;
+        sprintCount++;
 
         e[k].len = p - c->json - e[k].offset;
         e[k].flags = a->trace[i].flags;
@@ -1376,7 +1371,7 @@ checkTraceReset:
         k++;
         c->entriesLen++;
     }
-    if (sprintCount > 5) {
+    if (a->addr == TRACE_FOCUS && sprintCount > 1) {
         fprintf(stderr, "%06x sprintCount: %d\n", a->addr, sprintCount);
     }
 }
@@ -1404,10 +1399,6 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
         return cb;
     }
 
-    if (recent) {
-        checkTraceCache(a, now);
-    }
-
     p = safe_snprintf(p, end, "{\"icao\":\"%s%06x\"", (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
 
     if (Modes.db) {
@@ -1432,18 +1423,17 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
     }
 
     uint64_t startStamp = a->trace[start].timestamp;
-    if (recent)
-            startStamp = a->trace[0].timestamp;
-    p = safe_snprintf(p, end, ",\n\"timestamp\": %.3f", startStamp / 1000.0);
 
-    p = safe_snprintf(p, end, ",\n\"trace\":[ ");
-
+    if (recent) {
+        checkTraceCache(a, now);
+    }
     struct traceCache *c = a->traceCache;
     struct traceCacheEntry *e = NULL;
     int k = 0;
-    if (c) {
-        int found = 0;
+    if (c && recent) {
+        startStamp = c->startStamp;
         e = c->entries;
+        int found = 0;
         while (k < c->entriesLen) {
             if (e[k].stateIndex == start) {
                 found = 1;
@@ -1454,25 +1444,35 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
         if (!found)
             c = NULL;
     }
-    int sprintCount = 0;
-    for (int i = start; i <= last && i < limit; i++) {
-        if (c && k < c->entriesLen && e[k].stateIndex == i
-                && a->trace[i].flags.leg_marker == e[k].flags.leg_marker
-                && c->startStamp == startStamp) {
-            memcpy(p, c->json + e[k].offset, e[k].len);
-            p += e[k].len;
-        } else {
-            p = sprintTracePoint(p, end, a, i, startStamp);
-            if (recent) {
-                //sprintCount++;
+
+    p = safe_snprintf(p, end, ",\n\"timestamp\": %.3f", startStamp / 1000.0);
+
+    p = safe_snprintf(p, end, ",\n\"trace\":[ ");
+
+    if (c && recent) {
+        int sprintCount = 0;
+        for (int i = start; i <= last && i < limit; i++) {
+            if (k < c->entriesLen && e[k].stateIndex == i
+                    && a->trace[i].flags.leg_marker == e[k].flags.leg_marker) {
+                memcpy(p, c->json + e[k].offset, e[k].len);
+                p += e[k].len;
+            } else {
+                p = sprintTracePoint(p, end, a, i, startStamp);
+                sprintCount++;
             }
+            if (p < end)
+                *p++ = ',';
+            k++;
         }
-        if (p < end)
-            *p++ = ',';
-        k++;
-    }
-    if (sprintCount > 5) {
-        fprintf(stderr, "%06x sprintCount2: %d\n", a->addr, sprintCount);
+        if (a->addr == TRACE_FOCUS && sprintCount > 1) {
+            fprintf(stderr, "%06x sprintCount2: %d\n", a->addr, sprintCount);
+        }
+    } else {
+        for (int i = start; i <= last && i < limit; i++) {
+            p = sprintTracePoint(p, end, a, i, startStamp);
+            if (p < end)
+                *p++ = ',';
+        }
     }
 
     if (*(p-1) == ',')
@@ -1555,7 +1555,7 @@ struct char_buffer generateReceiverJson() {
 }
 
 // Write JSON to file
-static inline void writeJsonTo (const char* dir, const char *file, struct char_buffer cb, int gzip) {
+static inline int writeJsonTo (const char* dir, const char *file, struct char_buffer cb, int gzip) {
 
     char pathbuf[PATH_MAX];
     char tmppath[PATH_MAX];
@@ -1575,7 +1575,7 @@ static inline void writeJsonTo (const char* dir, const char *file, struct char_b
         perror(tmppath);
         if (!gzip)
             free(content);
-        return;
+        return -1;
     }
 
     if (!dir)
@@ -1640,7 +1640,7 @@ static inline void writeJsonTo (const char* dir, const char *file, struct char_b
     }
     if (!gzip)
         free(content);
-    return;
+    return 0;
 
 error_1:
     close(fd);
@@ -1648,15 +1648,15 @@ error_2:
     unlink(tmppath);
     if (!gzip)
         free(content);
-    return;
+    return -1;
 }
 
-void writeJsonToFile (const char* dir, const char *file, struct char_buffer cb) {
-    writeJsonTo(dir, file, cb, 0);
+int writeJsonToFile (const char* dir, const char *file, struct char_buffer cb) {
+    return writeJsonTo(dir, file, cb, 0);
 }
 
-void writeJsonToGzip (const char* dir, const char *file, struct char_buffer cb, int gzip) {
-    writeJsonTo(dir, file, cb, gzip);
+int writeJsonToGzip (const char* dir, const char *file, struct char_buffer cb, int gzip) {
+    return writeJsonTo(dir, file, cb, gzip);
 }
 
 struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {

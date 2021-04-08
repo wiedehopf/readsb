@@ -39,8 +39,8 @@ struct char_buffer generateHistoryJson ();
 struct char_buffer generateClientsJson();
 struct char_buffer generateVRS(int part, int n_parts, int reduced_data);
 
-void writeJsonToFile (const char* dir, const char *file, struct char_buffer cb);
-void writeJsonToGzip (const char* dir, const char *file, struct char_buffer cb, int gzip);
+int writeJsonToFile (const char* dir, const char *file, struct char_buffer cb);
+int writeJsonToGzip (const char* dir, const char *file, struct char_buffer cb, int gzip);
 
 __attribute__ ((format(printf, 3, 4))) static inline char *safe_snprintf(char *p, char *end, const char *format, ...) {
     va_list ap;

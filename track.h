@@ -222,9 +222,10 @@ struct state_all
   unsigned padding:22;
 } __attribute__ ((__packed__));
 
-#define TRACE_RECENT_POINTS (128)
-#define TRACE_CACHE_EXTRA (32)
+#define TRACE_RECENT_POINTS (100)
+#define TRACE_CACHE_EXTRA (16)
 #define TRACE_CACHE_POINTS (TRACE_RECENT_POINTS + TRACE_CACHE_EXTRA)
+#define TRACE_CACHE_LIFETIME (60 * MINUTES)
 struct traceCacheEntry {
     int32_t stateIndex;
     int32_t offset;
@@ -269,8 +270,8 @@ struct aircraft
 
   uint64_t trace_next_mw; // timestamp for next full trace write to /run (tmpfs)
   uint64_t trace_next_perm; // timestamp for next trace write to history_dir (disk)
-  double unused_trace_llat; // last saved lat
-  double unused_trace_llon; // last saved lon
+  uint64_t trace_next_prune; // next scheduled trace prune timestamp
+  uint64_t trace_perm_last_timestamp; // timestamp for last trace point written to disk
 
   // ----
 

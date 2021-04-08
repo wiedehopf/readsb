@@ -1,6 +1,15 @@
 #ifndef GLOBE_INDEX_H
 #define GLOBE_INDEX_H
 
+#define TRACE_FOCUS (0xc0ffeeba)
+
+#define WRECENT (1<<10)
+#define WMEM (1<<11)
+#define WPERM (1<<12)
+
+#define GLOBE_PERM_IVAL (4 * HOURS)
+#define GLOBE_MEM_IVAL (48 * HOURS) // basically never
+
 #define GLOBE_INDEX_GRID 3
 #define GLOBE_SPECIAL_INDEX 70
 #define GLOBE_LAT_MULT (360 / GLOBE_INDEX_GRID + 1)

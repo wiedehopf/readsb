@@ -214,6 +214,8 @@ static void modesInit(void) {
         pthread_mutex_init(&Modes.jsonTraceMutex[i], NULL);
         pthread_cond_init(&Modes.jsonTraceCond[i], NULL);
     }
+    pthread_mutex_init(&Modes.traceDebugMutex, NULL);
+
     for (int i = 0; i < STALE_THREADS; i++) {
         pthread_mutex_init(&Modes.staleMutex[i], NULL);
         pthread_cond_init(&Modes.staleCond[i], NULL);
@@ -1639,6 +1641,7 @@ int main(int argc, char **argv) {
         pthread_mutex_destroy(&Modes.jsonTraceMutex[i]);
         pthread_cond_destroy(&Modes.jsonTraceCond[i]);
     }
+    pthread_mutex_destroy(&Modes.traceDebugMutex);
 
     pthread_mutex_destroy(&Modes.mainMutex);
     pthread_cond_destroy(&Modes.mainCond);
