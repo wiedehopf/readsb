@@ -1427,35 +1427,36 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
     if (recent) {
         checkTraceCache(a, now);
     }
-    struct traceCache *c = a->traceCache;
-    struct traceCacheEntry *e = NULL;
+    struct traceCache *tCache = NULL;
+    struct traceCacheEntry *entries = NULL;
     int k = 0;
-    if (c && recent) {
-        startStamp = c->startStamp;
-        e = c->entries;
+    if (a->traceCache && recent) {
+        tCache = a->traceCache;
+        startStamp = tCache->startStamp;
+        entries = tCache->entries;
         int found = 0;
-        while (k < c->entriesLen) {
-            if (e[k].stateIndex == start) {
+        while (k < tCache->entriesLen) {
+            if (entries[k].stateIndex == start) {
                 found = 1;
                 break;
             }
             k++;
         }
         if (!found)
-            c = NULL;
+            tCache = NULL;
     }
 
     p = safe_snprintf(p, end, ",\n\"timestamp\": %.3f", startStamp / 1000.0);
 
     p = safe_snprintf(p, end, ",\n\"trace\":[ ");
 
-    if (c && recent) {
+    if (tCache) {
         int sprintCount = 0;
         for (int i = start; i <= last && i < limit; i++) {
-            if (k < c->entriesLen && e[k].stateIndex == i
-                    && a->trace[i].flags.leg_marker == e[k].flags.leg_marker) {
-                memcpy(p, c->json + e[k].offset, e[k].len);
-                p += e[k].len;
+            if (k < tCache->entriesLen && entries[k].stateIndex == i
+                    && a->trace[i].flags.leg_marker == entries[k].flags.leg_marker) {
+                memcpy(p, tCache->json + entries[k].offset, entries[k].len);
+                p += entries[k].len;
             } else {
                 p = sprintTracePoint(p, end, a, i, startStamp);
                 sprintCount++;
