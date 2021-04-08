@@ -404,10 +404,10 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
         return;
     }
 
-    int start24 = 0;
+    int startFull = 0;
     for (int i = 0; i < a->trace_len; i++) {
-        if (a->trace[i].timestamp > now - (24 * HOURS + 15 * MINUTES)) {
-            start24 = i;
+        if (a->trace[i].timestamp > now - Modes.keep_traces) {
+            startFull = i;
             break;
         }
     }
@@ -423,8 +423,8 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
 
     if ((trace_write & WRECENT)) {
         int start_recent = a->trace_len - recent_points;
-        if (start_recent < start24)
-            start_recent = start24;
+        if (start_recent < startFull)
+            start_recent = startFull;
 
         if (!init && a->trace_len % 4 == 0) {
             mark_legs(a, max(0, start_recent - 256 - recent_points));
@@ -454,7 +454,7 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
 
         mark_legs(a, 0);
 
-        full = generateTraceJson(a, start24, -1);
+        full = generateTraceJson(a, startFull, -1);
 
         if (a->trace_writeCounter >= 0xc0ffee)
             a->trace_next_mw = now + GLOBE_MEM_IVAL / 8 + random() % (GLOBE_MEM_IVAL / 1);
@@ -475,15 +475,15 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
             if (a->addr == TRACE_FOCUS)
                 fprintf(stderr, "perm\n");
 
-            // nineteen_ago changes day 19 min after midnight: stop writing the previous days traces
-            // twenty_ago changes day 20 min after midnight: allow webserver to read the previous days traces (see checkNewDay function)
+            // fiftyfive_ago changes day 55 min after midnight: stop writing the previous days traces
+            // fiftysix_ago changes day 56 min after midnight: allow webserver to read the previous days traces (see checkNewDay function)
             // this is in seconds, not milliseconds
-            time_t nineteen_ago = now / 1000 - 19 * 60;
+            time_t fiftyfive = now / 1000 - 55 * 60;
 
             struct tm utc;
-            gmtime_r(&nineteen_ago, &utc);
+            gmtime_r(&fiftyfive, &utc);
 
-            // this is in reference to the nineteenago clock ....
+            // this is in reference to the fiftyfive clock ....
             if (utc.tm_hour == 23 && utc.tm_min > 30) {
                 a->trace_next_perm = now + GLOBE_PERM_IVAL / 8 + random() % (GLOBE_PERM_IVAL / 1);
             } else {
@@ -739,8 +739,10 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
         Modes.aircraft[hash] = a;
     }
 
-    if (a->trace_next_perm < now || a->trace_next_perm > now + GLOBE_PERM_IVAL * 3 / 2) {
-        a->trace_next_perm = now + 5 * MINUTES + random() % GLOBE_PERM_IVAL;
+    if (a->trace_next_perm < now) {
+        a->trace_next_perm = now + 1 * MINUTES + random() % (5 * MINUTES);
+    } else if (a->trace_next_perm > now + GLOBE_PERM_IVAL * 3 / 2) {
+        a->trace_next_perm = now + 10 * MINUTES + random() % GLOBE_PERM_IVAL;
     }
 
     if (a->trace) {
@@ -1379,15 +1381,12 @@ void traceMaintenance(struct aircraft *a, uint64_t now) {
 
     // on day change write out the traces for yesterday
     // for which day and which time span is written is determined by traceday
-    if (a->traceWrittenForYesterday != Modes.mday) {
-        a->traceWrittenForYesterday = Modes.mday;
+    if (a->traceWrittenForYesterday != Modes.triggerPermWriteDay) {
+        a->traceWrittenForYesterday = Modes.triggerPermWriteDay;
         if (a->addr == TRACE_FOCUS)
             fprintf(stderr, "schedule_perm\n");
-        if (now < a->seen_pos + 2 * HOURS) {
-            a->trace_next_perm = now + 5 * MINUTES + random() % (1 * MINUTES);
-        } else {
-            a->trace_next_perm = now + random() % (4 * MINUTES);
-        }
+
+        a->trace_next_perm = now + random() % (5 * MINUTES);
     }
 
     int oldAlloc = a->trace_alloc;
@@ -2192,14 +2191,14 @@ void checkNewDay(uint64_t now) {
     char dateDir[PATH_MAX * 3/4];
     struct tm utc;
 
-    // at midnight, start a permanent write of all traces
+    // at 30 min past midnight, start a permanent write of all traces
     // create the new directory for writing traces
     // prevent the webserver from reading it until they are in a finished state
-    time_t time = now / 1000;
-    gmtime_r(&time, &utc);
+    time_t thirtyAgo = now / 1000 - 30 * 60; // in seconds
+    gmtime_r(&thirtyAgo, &utc);
 
-    if (utc.tm_mday != Modes.mday) {
-        Modes.mday = utc.tm_mday;
+    if (utc.tm_mday != Modes.triggerPermWriteDay) {
+        Modes.triggerPermWriteDay = utc.tm_mday;
 
         createDateDir(Modes.globe_history_dir, &utc, dateDir);
 
@@ -2219,11 +2218,11 @@ void checkNewDay(uint64_t now) {
         }
     }
 
-    // nineteen_ago changes day 19 min after midnight: stop writing the previous days traces (see traceWrite function)
-    // twenty_ago changes day 20 min after midnight: allow webserver to read the previous days traces
+    // fiftyfive_ago changes day 55 min after midnight: stop writing the previous days traces
+    // fiftysix_ago changes day 56 min after midnight: allow webserver to read the previous days traces (see checkNewDay function)
     // this is in seconds, not milliseconds
-    time_t twenty_ago = now / 1000 - 20 * 60;
-    gmtime_r(&twenty_ago, &utc);
+    time_t fiftysix_ago = now / 1000 - 56 * 60;
+    gmtime_r(&fiftysix_ago, &utc);
 
     if (utc.tm_mday != Modes.traceDay) {
         Modes.traceDay = utc.tm_mday;

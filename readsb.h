@@ -581,7 +581,7 @@ struct _Modes
     int json_aircraft_history_full;
     int8_t userLocationValid;
     int8_t biastee;
-    int8_t mday;
+    int8_t triggerPermWriteDay;
     int8_t acasDay;
     int8_t traceDay;
     int8_t jsonBinCraft; // only write binCraft for globe (1) and also aircraft.json (2)

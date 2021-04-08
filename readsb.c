@@ -1387,7 +1387,7 @@ static void configAfterParse() {
     }
 
     if (Modes.json_globe_index) {
-        Modes.keep_traces = 24 * HOURS + 40 * MINUTES; // include 40 minutes overlap, tar1090 needs at least 30 minutes currently
+        Modes.keep_traces = 24 * HOURS + 60 * MINUTES; // include 60 minutes overlap
     } else if (Modes.heatmap || Modes.trace_focus != BADDR) {
         Modes.keep_traces = 35 * MINUTES; // heatmap is written every 30 minutes
     }
