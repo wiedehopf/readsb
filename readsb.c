@@ -1521,6 +1521,7 @@ int main(int argc, char **argv) {
     pthread_create(&Modes.miscThread, NULL, miscThreadEntryPoint, NULL);
 
     if (Modes.api) {
+        apiBufferInit();
         apiInit();
     }
 
@@ -1594,6 +1595,7 @@ int main(int argc, char **argv) {
     // after miscThread for the moment
     if (Modes.api) {
         apiCleanup();
+        apiBufferCleanup();
     }
 
     pthread_mutex_lock(&Modes.decodeMutex);

@@ -359,7 +359,10 @@ int apiUpdate(struct craftArray *ca) {
     }
 
     // reset hashList to NULL
-    memset(buffer->hashList, 0, API_BUCKETS * sizeof(struct apiEntry*));
+    memset(buffer->hashList, 0x0, API_BUCKETS * sizeof(struct apiEntry*));
+
+    // reset api list, just in case we don't set the entries completely due to oversight
+    memset(buffer->list, 0x0, buffer->alloc * sizeof(struct apiEntry));
 
     uint64_t now = mstime();
     for (int i = 0; i < ca->len; i++) {
@@ -386,6 +389,19 @@ int apiUpdate(struct craftArray *ca) {
 
     return buffer->len;
 }
+
+// lock for flipping apiFlip
+void apiLockMutex() {
+    for (int i = 0; i < API_THREADS; i++) {
+        pthread_mutex_lock(&Modes.apiMutex[i]);
+    }
+}
+void apiUnlockMutex() {
+    for (int i = 0; i < API_THREADS; i++) {
+        pthread_mutex_unlock(&Modes.apiMutex[i]);
+    }
+}
+
 
 static void apiCloseConn(struct apiCon *con, struct apiThread *thread) {
     int fd = con->fd;
@@ -772,6 +788,36 @@ static void *apiUpdateEntryPoint(void *arg) {
     pthread_exit(NULL);
 }
 
+void apiBufferInit() {
+    for (int i = 0; i < 2; i++) {
+        Modes.apiBuffer[i].hashList = malloc(API_BUCKETS * sizeof(struct apiEntry*));
+    }
+    for (int i = 0; i < API_THREADS; i++) {
+        pthread_mutex_init(&Modes.apiMutex[i], NULL);
+    }
+    pthread_mutex_init(&Modes.apiUpdateMutex, NULL);
+    pthread_cond_init(&Modes.apiUpdateCond, NULL);
+    apiUpdate(&Modes.aircraftActive); // run an initial apiUpdate
+    pthread_create(&Modes.apiUpdateThread, NULL, apiUpdateEntryPoint, NULL);
+}
+
+void apiBufferCleanup() {
+
+    pthread_join(Modes.apiUpdateThread, NULL);
+    pthread_mutex_destroy(&Modes.apiUpdateMutex);
+    pthread_cond_destroy(&Modes.apiUpdateCond);
+
+    for (int i = 0; i < 2; i++) {
+        free(Modes.apiBuffer[i].list);
+        free(Modes.apiBuffer[i].json);
+        free(Modes.apiBuffer[i].hashList);
+    }
+
+    for (int i = 0; i < API_THREADS; i++) {
+        pthread_mutex_destroy(&Modes.apiMutex[i]);
+    }
+}
+
 void apiInit() {
     Modes.apiService.descr = strdup("API output");
     serviceListen(&Modes.apiService, Modes.net_bind_address, Modes.net_output_api_ports);
@@ -790,27 +836,12 @@ void apiInit() {
         con->events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
     }
 
-    for (int i = 0; i < 2; i++) {
-        Modes.apiBuffer[i].hashList = malloc(API_BUCKETS * sizeof(struct apiEntry*));
-    }
-
-    for (int i = 0; i < API_THREADS; i++) {
-        pthread_mutex_init(&Modes.apiMutex[i], NULL);
-    }
-    pthread_mutex_init(&Modes.apiUpdateMutex, NULL);
-    pthread_cond_init(&Modes.apiUpdateCond, NULL);
-    apiUpdate(&Modes.aircraftActive); // run an initial apiUpdate
-    pthread_create(&Modes.apiUpdateThread, NULL, apiUpdateEntryPoint, NULL);
     for (int i = 0; i < API_THREADS; i++) {
         Modes.apiThread[i].index = i;
         pthread_create(&Modes.apiThread[i].thread, NULL, apiThreadEntryPoint, &Modes.apiThread[i]);
     }
 }
 void apiCleanup() {
-    pthread_join(Modes.apiUpdateThread, NULL);
-    pthread_mutex_destroy(&Modes.apiUpdateMutex);
-    pthread_cond_destroy(&Modes.apiUpdateCond);
-
     for (int i = 0; i < API_THREADS; i++) {
         pthread_join(Modes.apiThread[i].thread, NULL);
     }
@@ -822,27 +853,6 @@ void apiCleanup() {
 
     free((void *) Modes.apiService.read_sep);
     free(Modes.apiService.listener_fds);
-    for (int i = 0; i < 2; i++) {
-        free(Modes.apiBuffer[i].list);
-        free(Modes.apiBuffer[i].json);
-        free(Modes.apiBuffer[i].hashList);
-    }
     free((void *) Modes.apiService.descr);
-
-    for (int i = 0; i < API_THREADS; i++) {
-        pthread_mutex_destroy(&Modes.apiMutex[i]);
-    }
-}
-
-void apiLockMutex() {
-    for (int i = 0; i < API_THREADS; i++) {
-        pthread_mutex_lock(&Modes.apiMutex[i]);
-    }
-}
-
-void apiUnlockMutex() {
-    for (int i = 0; i < API_THREADS; i++) {
-        pthread_mutex_unlock(&Modes.apiMutex[i]);
-    }
 }
 

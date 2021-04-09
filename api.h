@@ -13,23 +13,32 @@ struct apiCon {
 };
 
 struct offset {
-    int offset;
-    int len;
+    int32_t offset;
+    int32_t len;
 };
 
 struct apiEntry {
     struct apiEntry *next;
+
     uint32_t addr;
     int32_t lat;
+
+
     int32_t lon;
     int32_t alt;
+
     struct offset jsonOffset;
+
+
     float distance;
     char typeCode[4];
     uint16_t dbFlags;
     unsigned aircraftJson:1;
     unsigned globeJson:1;
     unsigned padding:14;
+    uint32_t pad2;
+
+    uint64_t pad3;
 } __attribute__ ((__packed__));
 
 struct apiCircle {
@@ -62,10 +71,14 @@ struct range {
     int to; // exclusive
 };
 
-void apiInit();
-void apiCleanup();
 void apiLockMutex();
 void apiUnlockMutex();
+
+void apiBufferInit();
+void apiBufferCleanup();
+
+void apiInit();
+void apiCleanup();
 
 int apiUpdate(struct craftArray *ca);
 

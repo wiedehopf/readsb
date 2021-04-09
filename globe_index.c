@@ -386,6 +386,11 @@ static void createDateDir(char *base_dir, struct tm *utc, char *dateDir) {
         perror(dateDir);
 }
 
+static void scheduleMemBothWrite(struct aircraft *a, uint64_t schedTime) {
+    a->trace_next_mw = schedTime;
+    a->trace_writeCounter = 0xc0ffee;
+}
+
 static void traceWrite(struct aircraft *a, uint64_t now, int init) {
     struct char_buffer recent;
     struct char_buffer full;
@@ -415,11 +420,8 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
     int recent_points = TRACE_RECENT_POINTS;
     if (a->trace_writeCounter >= recent_points - 2) {
         trace_write |= WMEM;
-    }
-    if ((trace_write & WMEM)) {
         trace_write |= WRECENT;
     }
-
 
     if ((trace_write & WRECENT)) {
         int start_recent = a->trace_len - recent_points;
@@ -697,7 +699,7 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
             *p += size_all;
 
             if (a->addr == LEG_FOCUS) {
-                a->trace_next_mw = now;
+                scheduleMemBothWrite(a, now);
                 fprintf(stderr, "%06x trace len: %d\n", a->addr, a->trace_len);
             }
         }
@@ -752,8 +754,7 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
         }
 
         // schedule writing all the traces into run so they are present
-        a->trace_next_mw = now + random() % (90 * SECONDS) + (now - a->seen_pos) / (24 * 60 / 4); // condense 24h into 4 minutes
-        a->trace_writeCounter = 0xc0ffee;
+        scheduleMemBothWrite(a, now + random() % (90 * SECONDS) + (now - a->seen_pos) / (24 * 60 / 4)); // condense 24h into 4 minutes
     }
 
     int new_index = a->globe_index;
@@ -1670,7 +1671,7 @@ no_save_state:
         // allocate trace memory
         traceRealloc(a, 2 * TRACE_MARGIN);
         a->trace->timestamp = now;
-        a->trace_next_mw = now; // rewrite full history file
+        scheduleMemBothWrite(a, now); // rewrite full history file
         a->trace_next_perm = now + GLOBE_PERM_IVAL / 2; // schedule perm write
 
         //fprintf(stderr, "%06x: new trace\n", a->addr);
