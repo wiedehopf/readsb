@@ -1355,6 +1355,7 @@ int parseCommandLine(int argc, char **argv) {
        ) {
         exit(0);
     }
+    fprintf(stderr, VERSION_STRING"\n");
 
     return 0;
 }
@@ -1410,9 +1411,8 @@ int main(int argc, char **argv) {
     signal(SIGTERM, sigtermHandler);
     signal(SIGUSR1, SIG_IGN);
 
-    fprintf(stderr, VERSION_STRING"\n");
-
     if (argc >= 2 && !strcmp(argv[1], "--structs")) {
+        fprintf(stderr, VERSION_STRING"\n");
         fprintf(stderr, "struct sizes: %zu, ", sizeof(struct aircraft));
         fprintf(stderr, "%zu, ", sizeof(struct state));
         fprintf(stderr, "%zu, ", sizeof(struct state_all));

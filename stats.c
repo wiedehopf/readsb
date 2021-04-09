@@ -649,7 +649,14 @@ struct char_buffer generatePromFile() {
 
     unsigned long long trace_json_cpu_millis_sum = 0;
     for (int i = 0; i < TRACE_THREADS; i ++) {
-        trace_json_cpu_millis_sum += (uint64_t) st->trace_json_cpu[i].tv_sec * 1000UL + st->trace_json_cpu[i].tv_nsec / 1000000UL;
+        uint64_t res = (uint64_t) st->trace_json_cpu[i].tv_sec * 1000UL + st->trace_json_cpu[i].tv_nsec / 1000000UL;
+        trace_json_cpu_millis_sum += res;
+        if (0 && Modes.debug_traceCount) {
+            fprintf(stderr, "%7.3f ", res / 1000.0);
+        }
+    }
+    if (0 && Modes.debug_traceCount) {
+        fprintf(stderr, "\n");
     }
 
     struct statsCount *sC = &(Modes.globalStatsCount);

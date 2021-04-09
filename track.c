@@ -2016,12 +2016,22 @@ void trackRemoveStale(uint64_t now) {
     activeUpdate(now);
 
     static int part;
-    int nParts = 128; // power of 2
-    int partLen = AIRCRAFT_BUCKETS / nParts;
-    int start = part * partLen;
-    int end = start + partLen;
+    int nParts = 64; // power of 2
+    int nStripes = 16; // power of 2
+    if (nParts * nStripes > AIRCRAFT_BUCKETS) {
+        fprintf(stderr, "WAT?!\n");
+        nStripes = AIRCRAFT_BUCKETS / nParts;
+    }
+    int stripeLen = AIRCRAFT_BUCKETS / nStripes;
+    int partLen = AIRCRAFT_BUCKETS / nParts / nStripes;
 
-    removeStaleRange(start, end, now);
+    for (int i = 0; i < nStripes; i++) {
+        int start = i * stripeLen + part * partLen;
+        int end = start + partLen;
+        removeStaleRange(start, end, now);
+        //fprintf(stderr, "%6d %6d ", start, end);
+    }
+    //fprintf(stderr, " %6d \n", AIRCRAFT_BUCKETS);
 
     part = (part + 1) % nParts;
     //fprintf(stderr, "removeStale done: running for %ld ms\n", mstime() - Modes.startup_time);

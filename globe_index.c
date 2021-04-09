@@ -752,7 +752,7 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
         }
 
         // schedule writing all the traces into run so they are present
-        a->trace_next_mw = now + 60 * SECONDS + (now - a->seen_pos) / (24 * 60 / 4); // condense 24h into 4 minutes
+        a->trace_next_mw = now + random() % (90 * SECONDS) + (now - a->seen_pos) / (24 * 60 / 4); // condense 24h into 4 minutes
         a->trace_writeCounter = 0xc0ffee;
     }
 
