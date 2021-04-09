@@ -235,13 +235,13 @@ static struct char_buffer apiReq(struct apiBuffer *buffer, double *box, uint32_t
     for (int i = 0; i < count; i++) {
         *p++ = '\n';
         struct apiEntry *e = &matches[i];
-        struct offset *off = &e->jsonOffset;
-        if (p + off->len + 100 >= end) {
-            fprintf(stderr, "search code ieva2aeV: need: %d alloc: %d\n", (int) ((p + off->len + 100) - cb.buffer), (int) alloc);
+        struct offset off = e->jsonOffset; // READ-ONLY here
+        if (p + off.len + 100 >= end) {
+            fprintf(stderr, "search code ieva2aeV: need: %d alloc: %d\n", (int) ((p + off.len + 100) - cb.buffer), (int) alloc);
             break;
         }
-        memcpy(p, json + off->offset, off->len);
-        p += off->len;
+        memcpy(p, json + off.offset, off.len);
+        p += off.len;
         if (circle) {
             p--;
             p = safe_snprintf(p, end, ",\"dst\":%.3f}", e->distance / 1852.0);
@@ -275,15 +275,15 @@ static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, uint64_t
         entry->lat = (int32_t) (a->lat * 1E6);
         entry->lon = (int32_t) (a->lon * 1E6);
     } else {
-        entry->lat = INT32_MIN;
-        entry->lon = INT32_MIN;
+        entry->lat = INT32_MAX;
+        entry->lon = INT32_MAX;
     }
     if (trackDataValid(&a->altitude_baro_valid)) {
         entry->alt = a->altitude_baro;
     } else if (trackDataValid(&a->altitude_geom_valid)) {
         entry->alt = a->altitude_geom;
     } else {
-        entry->alt = INT32_MIN;
+        entry->alt = INT32_MAX;
     }
     memcpy(entry->typeCode, a->typeCode, sizeof(entry->typeCode));
     entry->dbFlags = a->dbFlags;
@@ -311,11 +311,10 @@ static inline void apiGenerateJson(struct apiBuffer *buffer, uint64_t now) {
 
         struct apiEntry *entry = &buffer->list[i];
         struct aircraft *a = aircraftGet(entry->addr);
-        struct offset *off = &entry->jsonOffset;
         if (!a) {
             fprintf(stderr, "apiGenerateJson: aircraft missing, this shouldn't happen.");
-            off->offset = 0;
-            off->len = 0;
+            entry->jsonOffset.offset = 0;
+            entry->jsonOffset.len = 0;
             continue;
         }
 
@@ -326,8 +325,8 @@ static inline void apiGenerateJson(struct apiBuffer *buffer, uint64_t now) {
         char *start = p;
         p = sprintAircraftObject(p, end, a, now, 0, NULL);
 
-        off->offset = start - buffer->json;
-        off->len = p - start;
+        entry->jsonOffset.offset = start - buffer->json;
+        entry->jsonOffset.len = p - start;
     }
 
     if (p >= end) {
@@ -751,7 +750,7 @@ static void *apiUpdateEntryPoint(void *arg) {
     clock_gettime(CLOCK_REALTIME, &ts);
     struct timespec cpu_timer;
     while (!Modes.exit) {
-        incTimedwait(&ts, 500);
+        incTimedwait(&ts, 900);
 
         //struct timespec watch;
         //startWatch(&watch);

@@ -27,7 +27,10 @@ struct apiEntry {
     float distance;
     char typeCode[4];
     uint16_t dbFlags;
-};
+    unsigned aircraftJson:1;
+    unsigned globeJson:1;
+    unsigned padding:14;
+} __attribute__ ((__packed__));
 
 struct apiCircle {
     double lat;
