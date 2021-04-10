@@ -820,6 +820,7 @@ void apiBufferInit() {
 
 void apiBufferCleanup() {
 
+    pthread_cond_signal(&Modes.apiUpdateCond);
     pthread_join(Modes.apiUpdateThread, NULL);
     pthread_mutex_destroy(&Modes.apiUpdateMutex);
     pthread_cond_destroy(&Modes.apiUpdateCond);

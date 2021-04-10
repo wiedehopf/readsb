@@ -74,8 +74,6 @@ static void sigintHandler(int dummy) {
     MODES_NOTUSED(dummy);
     setExit();
 
-    pthread_cond_signal(&Modes.mainCond);
-
     signal(SIGINT, SIG_DFL); // reset signal handler - bit extra safety
     log_with_timestamp("Caught SIGINT, shutting down..\n");
 }
@@ -83,8 +81,6 @@ static void sigintHandler(int dummy) {
 static void sigtermHandler(int dummy) {
     MODES_NOTUSED(dummy);
     setExit();
-
-    pthread_cond_signal(&Modes.mainCond);
 
     signal(SIGTERM, SIG_DFL); // reset signal handler - bit extra safety
     log_with_timestamp("Caught SIGTERM, shutting down..\n");
@@ -1545,25 +1541,22 @@ int main(int argc, char **argv) {
         writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
     }
 
-
-    pthread_mutex_lock(&Modes.mainMutex);
-
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
+
+    int mainEpfd = my_epoll_create();
+    struct epoll_event *events = NULL;
+    int maxEvents = 1;
+    epollAllocEvents(&events, &maxEvents);
 
     while (!Modes.exit) {
         trackPeriodicUpdate();
 
-        incTimedwait(&ts, PERIODIC_UPDATE);
-
-        //fprintf(stderr, "%.1f\n", ts.tv_nsec / 1e6);
-
-        int err = pthread_cond_timedwait(&Modes.mainCond, &Modes.mainMutex, &ts);
-        if (err && err != ETIMEDOUT)
-            fprintf(stderr, "main thread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
+        epoll_wait(mainEpfd, events, maxEvents, PERIODIC_UPDATE);
     }
 
-    pthread_mutex_unlock(&Modes.mainMutex);
+    close(mainEpfd);
+    free(events);
 
     if (Modes.json_dir) {
 
