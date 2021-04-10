@@ -56,6 +56,7 @@ struct apiBuffer {
     char *json;
     struct apiEntry **hashList;
     uint32_t focus;
+    int aircraftJsonCount;
 };
 
 struct apiThread {
@@ -81,5 +82,7 @@ void apiInit();
 void apiCleanup();
 
 int apiUpdate(struct craftArray *ca);
+
+struct char_buffer apiGenerateAircraftJson(uint64_t now);
 
 #endif

@@ -580,10 +580,9 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *byte
 
 char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now, int printMode, struct modesMessage *mm) {
 
-    // printMode == 0: aircraft.json
+    // printMode == 0: aircraft.json / globe.json / apiBuffer
     // printMode == 1: trace.json
     // printMode == 2: jsonPositionOutput
-    // printMode == 3: globe.json
 
     p = safe_snprintf(p, end, "{");
     if (printMode == 2)
@@ -1127,7 +1126,7 @@ struct char_buffer generateGlobeJson(int globe_index){
             }
 
             p = safe_snprintf(p, end, "\n");
-            p = sprintAircraftObject(p, end, a, now, 3, NULL);
+            p = sprintAircraftObject(p, end, a, now, 0, NULL);
             p = safe_snprintf(p, end, ",");
 
             if (p >= end)
@@ -1324,6 +1323,8 @@ static void checkTraceCache(struct aircraft *a, uint64_t now) {
             updateCache = 0;
             if (a->addr == TRACE_FOCUS)
                 fprintf(stderr, "%06x newEntryCount: %d\n", a->addr, newEntryCount);
+            if (Modes.debug_traceCount)
+                fprintf(stderr, "%06x ", a->addr);
         } else if (newEntryCount + c->entriesLen > TRACE_CACHE_POINTS) {
             // if the cache would get full, do memmove fun!
             int moveIndexes = min(k, TRACE_CACHE_EXTRA);

@@ -457,14 +457,16 @@ struct _Modes
     struct net_writer vrs_out; // SBS-format output
     struct net_writer fatsv_out; // FATSV-format output
 
-    int api; // enable api output
+    int8_t apiUpdate; // creates json snippets also by non api stuff
+    int8_t api; // enable api output
     int apiFlip;
     struct net_service apiService;
     struct apiCon **apiListeners;
 
     struct apiBuffer apiBuffer[2];
     struct apiThread apiThread[API_THREADS];
-    pthread_mutex_t apiMutex[API_THREADS];
+    pthread_mutex_t apiMutex[API_THREADS]; // each api thread has its own mutex to read apiFlip
+    pthread_mutex_t apiFlipMutex; // mutex to read apiFlip
     pthread_t apiUpdateThread;
     pthread_mutex_t apiUpdateMutex;
     pthread_cond_t apiUpdateCond;

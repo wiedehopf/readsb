@@ -447,16 +447,12 @@ static void *jsonThreadEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
     srandom(get_seed());
 
-    uint64_t sleep_ms = Modes.json_interval;
-
     uint64_t next_history = mstime();
 
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
 
     pthread_mutex_lock(&Modes.jsonMutex);
-
-    writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
 
     while (!Modes.exit) {
 
@@ -465,9 +461,13 @@ static void *jsonThreadEntryPoint(void *arg) {
 
         uint64_t now = mstime();
 
-        struct char_buffer cb = generateAircraftJson(0);
+        // old direct creation, slower when creating json for an aircraft more than once
+        //struct char_buffer cb = generateAircraftJson(0);
+
+        // new way: use the apiBuffer of json fragments
+        struct char_buffer cb = apiGenerateAircraftJson(now);
         if (Modes.json_gzip)
-            writeJsonToGzip(Modes.json_dir, "aircraft.json.gz", cb, 5);
+            writeJsonToGzip(Modes.json_dir, "aircraft.json.gz", cb, 3);
         writeJsonToFile(Modes.json_dir, "aircraft.json", cb);
 
         if (Modes.debug_recent) {
@@ -497,7 +497,7 @@ static void *jsonThreadEntryPoint(void *arg) {
 
         end_cpu_timing(&start_time, &Modes.stats_current.aircraft_json_cpu);
 
-        incTimedwait(&ts, sleep_ms);
+        incTimedwait(&ts, Modes.json_interval * 3 / 2);
 
         int err = pthread_cond_timedwait(&Modes.jsonCond, &Modes.jsonMutex, &ts);
         if (err && err != ETIMEDOUT)
@@ -1520,15 +1520,14 @@ int main(int argc, char **argv) {
 
     pthread_create(&Modes.miscThread, NULL, miscThreadEntryPoint, NULL);
 
-    if (Modes.api) {
+    if (Modes.api || (Modes.json_dir && Modes.jsonBinCraft < 2)) {
+        // provide a json buffer
+        Modes.apiUpdate = 1;
         apiBufferInit();
-        apiInit();
     }
-
-    if (Modes.json_dir && Modes.json_globe_index) {
-        for (int i = 0; i < TRACE_THREADS; i++) {
-            pthread_create(&Modes.jsonTraceThread[i], NULL, jsonTraceThreadEntryPoint, &Modes.threadNumber[i]);
-        }
+    if (Modes.api) {
+        // after apiBufferInit()
+        apiInit();
     }
 
     if (Modes.json_dir) {
@@ -1537,8 +1536,15 @@ int main(int argc, char **argv) {
         if (Modes.json_globe_index) {
             // globe_xxxx.json
             pthread_create(&Modes.jsonGlobeThread, NULL, jsonGlobeThreadEntryPoint, NULL);
+
+            for (int i = 0; i < TRACE_THREADS; i++) {
+                pthread_create(&Modes.jsonTraceThread[i], NULL, jsonTraceThreadEntryPoint, &Modes.threadNumber[i]);
+            }
         }
+
+        writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
     }
+
 
     pthread_mutex_lock(&Modes.mainMutex);
 
@@ -1595,6 +1601,9 @@ int main(int argc, char **argv) {
     // after miscThread for the moment
     if (Modes.api) {
         apiCleanup();
+    }
+    if (Modes.apiUpdate) {
+        // after apiCleanup()
         apiBufferCleanup();
     }
 

@@ -1562,13 +1562,16 @@ void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a) {
     MODES_NOTUSED(mm);
     char *p;
 
-    p = prepareWrite(&Modes.json_out, 1000);
+    p = prepareWrite(&Modes.json_out, 1200);
     if (!p)
         return;
-    char *end = p + 1000;
+    char *end = p + 1200;
 
     p = sprintAircraftObject(p, end, a, mm->sysTimestampMsg, 2, NULL);
     completeWrite(&Modes.json_out, p);
+    if (p >= end) {
+        fprintf(stderr, "buffer full jsonPositionOutput()\n");
+    }
 }
 //
 //=========================================================================

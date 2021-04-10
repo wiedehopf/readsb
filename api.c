@@ -288,6 +288,16 @@ static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, uint64_t
     memcpy(entry->typeCode, a->typeCode, sizeof(entry->typeCode));
     entry->dbFlags = a->dbFlags;
 
+    if (a->messages >= 2 && (
+                a->position_valid.source == SOURCE_JAERO
+                || now < a->seen + TRACK_EXPIRE / 2
+                || now < a->seenPosReliable + TRACK_EXPIRE
+                )
+       ) {
+        buffer->aircraftJsonCount++;
+        entry->aircraftJson = 1;
+    }
+
     buffer->len++;
 }
 
@@ -364,6 +374,8 @@ int apiUpdate(struct craftArray *ca) {
     // reset api list, just in case we don't set the entries completely due to oversight
     memset(buffer->list, 0x0, buffer->alloc * sizeof(struct apiEntry));
 
+    buffer->aircraftJsonCount = 0;
+
     uint64_t now = mstime();
     for (int i = 0; i < ca->len; i++) {
         struct aircraft *a = ca->list[i];
@@ -382,10 +394,15 @@ int apiUpdate(struct craftArray *ca) {
 
     // doesn't matter which of the 2 buffers the api req will use they are both pretty current
     apiLockMutex();
+    pthread_mutex_lock(&Modes.apiFlipMutex);
 
     Modes.apiFlip = flip;
 
+    pthread_mutex_unlock(&Modes.apiFlipMutex);
     apiUnlockMutex();
+
+    pthread_cond_signal(&Modes.jsonCond);
+    //pthread_cond_signal(&Modes.jsonGlobeCond);
 
     return buffer->len;
 }
@@ -766,7 +783,6 @@ static void *apiUpdateEntryPoint(void *arg) {
     clock_gettime(CLOCK_REALTIME, &ts);
     struct timespec cpu_timer;
     while (!Modes.exit) {
-        incTimedwait(&ts, 900);
 
         //struct timespec watch;
         //startWatch(&watch);
@@ -780,6 +796,7 @@ static void *apiUpdateEntryPoint(void *arg) {
         //uint64_t elapsed = stopWatch(&watch);
         //fprintf(stderr, "api req took: %.5f s, got %d aircraft!\n", elapsed / 1000.0, n);
 
+        incTimedwait(&ts, Modes.json_interval);
         int err = pthread_cond_timedwait(&Modes.apiUpdateCond, &Modes.apiUpdateMutex, &ts);
         if (err && err != ETIMEDOUT)
             fprintf(stderr, "main thread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
@@ -856,3 +873,57 @@ void apiCleanup() {
     free((void *) Modes.apiService.descr);
 }
 
+struct char_buffer apiGenerateAircraftJson(uint64_t now) {
+    struct char_buffer cb;
+
+    pthread_mutex_lock(&Modes.apiFlipMutex);
+    int flip = Modes.apiFlip;
+    pthread_mutex_unlock(&Modes.apiFlipMutex);
+
+    struct apiBuffer *buffer = &Modes.apiBuffer[flip];
+    int acCount = buffer->aircraftJsonCount;
+
+    size_t alloc = acCount * 1024 + 2048;
+    char *buf = (char *) malloc(alloc), *p = buf, *end = buf + alloc;
+
+    p = safe_snprintf(p, end,
+            "{ \"now\" : %.1f,\n"
+            "  \"messages\" : %u,\n",
+            now / 1000.0,
+            Modes.stats_current.messages_total + Modes.stats_alltime.messages_total);
+
+    p = safe_snprintf(p, end, "  \"aircraft\" : [");
+    for (int j = 0; j < buffer->len; j++) {
+        struct apiEntry *entry = &buffer->list[j];
+        if (!entry->aircraftJson)
+            continue;
+
+        // check if we have enough space
+        if ((p + 2000) >= end) {
+            int used = p - buf;
+            alloc *= 2;
+            buf = (char *) realloc(buf, alloc);
+            p = buf + used;
+            end = buf + alloc;
+        }
+
+        *p++ = '\n';
+
+        memcpy(p, buffer->json + entry->jsonOffset.offset, entry->jsonOffset.len);
+        p += entry->jsonOffset.len;
+
+        *p++ = ',';
+
+        if (p >= end)
+            fprintf(stderr, "buffer overrun aircraft json\n");
+    }
+
+    if (*(p-1) == ',')
+        p--;
+
+    p = safe_snprintf(p, end, "\n  ]\n}\n");
+
+    cb.len = p - buf;
+    cb.buffer = buf;
+    return cb;
+}
