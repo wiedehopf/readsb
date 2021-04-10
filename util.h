@@ -24,6 +24,9 @@
 #ifndef DUMP1090_UTIL_H
 #define DUMP1090_UTIL_H
 
+#define likely(x)       __builtin_expect((x),1)
+#define unlikely(x)     __builtin_expect((x),0)
+
 #define GZBUFFER_BIG (1 * 1024 * 1024)
 
 #include <stdint.h>
