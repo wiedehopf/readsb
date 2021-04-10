@@ -1312,38 +1312,41 @@ static void checkTraceCache(struct aircraft *a, uint64_t now) {
         }
         k++;
     }
-    int newEntryCount = 0;
     int updateCache = 0; // by default rebuild the cache instead of updating it
-    if (found) {
-        updateCache = 1;
 
-        int newEntryCount = a->trace_len - 1 - e[c->entriesLen - 1].stateIndex;
+    if (found) {
+        int newEntryCount = 0;
+        newEntryCount = a->trace_len - 1 - e[c->entriesLen - 1].stateIndex;
         if (newEntryCount > TRACE_CACHE_EXTRA) {
             // make it a bit simpler, just rebuild the cache in this case
             updateCache = 0;
+        } else if (newEntryCount + c->entriesLen > TRACE_CACHE_POINTS) {
+            // if the cache would get full, do memmove fun!
+            int moveIndexes = min(k, TRACE_CACHE_EXTRA);
+            c->entriesLen -= moveIndexes;
+            k -= moveIndexes;
+            memmove(e, e + TRACE_CACHE_EXTRA, c->entriesLen * sizeof(struct traceCacheEntry));
+
+            int moveDist = e[0].offset;
+            struct traceCacheEntry *last = &e[c->entriesLen - 1];
+            int jsonLen = last->offset + last->len;
+
+            memmove(c->json, c->json + moveDist, jsonLen);
+            for (int x = 0; x < c->entriesLen; x++) {
+                e[x].offset -= moveDist;
+            }
+            updateCache = 1;
+        } else {
+            updateCache = 1;
         }
     }
-    if (c->startStamp && a->trace[firstRecent].timestamp > c->startStamp + 8 * HOURS) {
+
+    if (c->startStamp && a->trace[firstRecent].timestamp > c->startStamp + 3 * HOURS) {
+        //fprintf(stderr, "%06x startStamp diff: %.1f h\n", a->addr, (a->trace[firstRecent].timestamp - c->startStamp) / (double) (1 * HOURS));
         // rebuild cache if startStamp is too old to avoid very large numbers for the relative time
         updateCache = 0;
     }
 
-    if (updateCache && newEntryCount + c->entriesLen > TRACE_CACHE_POINTS) {
-        // if the cache would get full, do memmove fun!
-        int moveIndexes = min(k, TRACE_CACHE_EXTRA);
-        c->entriesLen -= moveIndexes;
-        k -= moveIndexes;
-        memmove(e, e + TRACE_CACHE_EXTRA, c->entriesLen * sizeof(struct traceCacheEntry));
-
-        int moveDist = e[0].offset;
-        struct traceCacheEntry *last = &e[c->entriesLen - 1];
-        int jsonLen = last->offset + last->len;
-
-        memmove(c->json, c->json + moveDist, jsonLen);
-        for (int x = 0; x < c->entriesLen; x++) {
-            e[x].offset -= moveDist;
-        }
-    }
 
     if (updateCache) {
         // step to last cached entry

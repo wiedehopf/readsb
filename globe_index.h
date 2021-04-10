@@ -1,7 +1,7 @@
 #ifndef GLOBE_INDEX_H
 #define GLOBE_INDEX_H
 
-#define TRACE_FOCUS (0xc0ffeeba)
+#define TRACE_FOCUS BADDR
 
 #define WRECENT (1<<10)
 #define WMEM (1<<11)
