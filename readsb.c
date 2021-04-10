@@ -466,7 +466,7 @@ static void *jsonThreadEntryPoint(void *arg) {
         //struct char_buffer cb = generateAircraftJson(0);
 
         // new way: use the apiBuffer of json fragments
-        struct char_buffer cb = apiGenerateAircraftJson(now);
+        struct char_buffer cb = apiGenerateAircraftJson();
         if (Modes.json_gzip)
             writeJsonToGzip(Modes.json_dir, "aircraft.json.gz", cb, 3);
         writeJsonToFile(Modes.json_dir, "aircraft.json", cb);
@@ -484,7 +484,7 @@ static void *jsonThreadEntryPoint(void *arg) {
             char filebuf[PATH_MAX];
 
             snprintf(filebuf, PATH_MAX, "history_%d.json", Modes.json_aircraft_history_next);
-            writeJsonToFile(Modes.json_dir, filebuf, generateAircraftJson(0));
+            writeJsonToFile(Modes.json_dir, filebuf, apiGenerateAircraftJson());
 
             if (!Modes.json_aircraft_history_full) {
                 writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson()); // number of history entries changed

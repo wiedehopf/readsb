@@ -874,7 +874,7 @@ void apiCleanup() {
     free((void *) Modes.apiService.descr);
 }
 
-struct char_buffer apiGenerateAircraftJson(uint64_t now) {
+struct char_buffer apiGenerateAircraftJson() {
     struct char_buffer cb;
 
     pthread_mutex_lock(&Modes.apiFlipMutex);
@@ -890,8 +890,10 @@ struct char_buffer apiGenerateAircraftJson(uint64_t now) {
     p = safe_snprintf(p, end,
             "{ \"now\" : %.1f,\n"
             "  \"messages\" : %u,\n",
-            now / 1000.0,
+            buffer->timestamp / 1000.0,
             Modes.stats_current.messages_total + Modes.stats_alltime.messages_total);
+
+    //fprintf(stderr, "%.3f\n", ((double) mstime() - (double) buffer->timestamp) / 1000.0);
 
     p = safe_snprintf(p, end, "  \"aircraft\" : [");
     for (int j = 0; j < buffer->len; j++) {

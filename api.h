@@ -83,6 +83,6 @@ void apiCleanup();
 
 int apiUpdate(struct craftArray *ca);
 
-struct char_buffer apiGenerateAircraftJson(uint64_t now);
+struct char_buffer apiGenerateAircraftJson();
 
 #endif
