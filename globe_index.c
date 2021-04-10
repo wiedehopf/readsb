@@ -758,6 +758,7 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
 
         // write the recent trace to /run so it's available in the webinterface
         if (a->position_valid.source != SOURCE_INVALID) {
+            a->trace_writeCounter = 0; // avoid full writes here
             a->trace_write |= WRECENT;
             traceWrite(a, now, 1);
         }
