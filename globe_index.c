@@ -1286,7 +1286,7 @@ static void tracePrune(struct aircraft *a, uint64_t now) {
     // throw out oldest values if approaching max trace size
     if (a->trace_len + TRACE_MARGIN >= TRACE_SIZE) {
         new_start = TRACE_SIZE / 64 + 2 * TRACE_MARGIN;
-    } else if (a->trace->timestamp < keep_after - 10 * MINUTES)  {
+    } else if (a->trace->timestamp < keep_after - 15 * MINUTES)  {
         new_start = a->trace_len;
         for (int i = 0; i < a->trace_len; i++) {
             struct state *state = &a->trace[i];

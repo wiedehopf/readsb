@@ -1312,28 +1312,40 @@ static void checkTraceCache(struct aircraft *a, uint64_t now) {
         }
         k++;
     }
+    int newEntryCount = 0;
+    int updateCache = 0; // by default rebuild the cache instead of updating it
     if (found) {
+        updateCache = 1;
+
         int newEntryCount = a->trace_len - 1 - e[c->entriesLen - 1].stateIndex;
         if (newEntryCount > TRACE_CACHE_EXTRA) {
             // make it a bit simpler, just rebuild the cache in this case
-            goto checkTraceReset;
+            updateCache = 0;
         }
-        if (newEntryCount + c->entriesLen > TRACE_CACHE_POINTS) {
-            // if the cache would get full, do memmove fun!
-            int moveIndexes = min(k, TRACE_CACHE_EXTRA);
-            c->entriesLen -= moveIndexes;
-            k -= moveIndexes;
-            memmove(e, e + TRACE_CACHE_EXTRA, c->entriesLen * sizeof(struct traceCacheEntry));
+    }
+    if (c->startStamp && a->trace[firstRecent].timestamp > c->startStamp + 30 * MINUTES) {
+        // rebuild cache if startStamp is too old
+        updateCache = 0;
+    }
 
-            int moveDist = e[0].offset;
-            struct traceCacheEntry *last = &e[c->entriesLen - 1];
-            int jsonLen = last->offset + last->len;
+    if (updateCache && newEntryCount + c->entriesLen > TRACE_CACHE_POINTS) {
+        // if the cache would get full, do memmove fun!
+        int moveIndexes = min(k, TRACE_CACHE_EXTRA);
+        c->entriesLen -= moveIndexes;
+        k -= moveIndexes;
+        memmove(e, e + TRACE_CACHE_EXTRA, c->entriesLen * sizeof(struct traceCacheEntry));
 
-            memmove(c->json, c->json + moveDist, jsonLen);
-            for (int x = 0; x < c->entriesLen; x++) {
-                e[x].offset -= moveDist;
-            }
+        int moveDist = e[0].offset;
+        struct traceCacheEntry *last = &e[c->entriesLen - 1];
+        int jsonLen = last->offset + last->len;
+
+        memmove(c->json, c->json + moveDist, jsonLen);
+        for (int x = 0; x < c->entriesLen; x++) {
+            e[x].offset -= moveDist;
         }
+    }
+
+    if (updateCache) {
         // step to last cached entry
         k = c->entriesLen - 1;
         // set p to write after json corresponding to last entry
@@ -1342,10 +1354,8 @@ static void checkTraceCache(struct aircraft *a, uint64_t now) {
         stateIndex = e[k].stateIndex + 1;
         // set k to the index we will write to in the cache
         k++;
-    }
-    if (!found) {
-        // reset / initialize stuff
-checkTraceReset:
+    } else {
+        // reset / initialize stuff / rebuild cache
         c->startStamp = a->trace[firstRecent].timestamp;
         k = 0;
         c->entriesLen = 0;
