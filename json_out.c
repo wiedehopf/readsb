@@ -1323,8 +1323,8 @@ static void checkTraceCache(struct aircraft *a, uint64_t now) {
             updateCache = 0;
         }
     }
-    if (c->startStamp && a->trace[firstRecent].timestamp > c->startStamp + 30 * MINUTES) {
-        // rebuild cache if startStamp is too old
+    if (c->startStamp && a->trace[firstRecent].timestamp > c->startStamp + 8 * HOURS) {
+        // rebuild cache if startStamp is too old to avoid very large numbers for the relative time
         updateCache = 0;
     }
 
