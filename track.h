@@ -252,7 +252,7 @@ struct aircraft
 
   uint64_t trace_next_mw; // timestamp for next full trace write to /run (tmpfs)
   uint64_t trace_next_perm; // timestamp for next trace write to history_dir (disk)
-  uint64_t trace_next_prune; // next scheduled trace prune timestamp
+  uint64_t unused_3243;
   uint64_t trace_perm_last_timestamp; // timestamp for last trace point written to disk
 
   // ----

@@ -1265,8 +1265,7 @@ void traceRealloc(struct aircraft *a, int len) {
         fprintf(stderr, "Quite a long trace: %06x (%d).\n", a->addr, a->trace_len);
 }
 
-static void tracePrune(struct aircraft *a, uint64_t now, int full) {
-
+static void tracePrune(struct aircraft *a, uint64_t now) {
     if (a->trace_alloc == 0) {
         return;
     }
@@ -1279,9 +1278,9 @@ static void tracePrune(struct aircraft *a, uint64_t now, int full) {
 
     int new_start = -1;
     // throw out oldest values if approaching max trace size
-    if (full) {
+    if (a->trace_len + TRACE_MARGIN >= TRACE_SIZE) {
         new_start = TRACE_SIZE / 64 + 2 * TRACE_MARGIN;
-    } else if (a->trace->timestamp < keep_after - 20 * MINUTES)  {
+    } else if (a->trace->timestamp < keep_after - 10 * MINUTES)  {
         new_start = a->trace_len;
         for (int i = 0; i < a->trace_len; i++) {
             struct state *state = &a->trace[i];
@@ -1358,15 +1357,9 @@ void traceMaintenance(struct aircraft *a, uint64_t now) {
 
     //fprintf(stderr, "%06x\n", a->addr);
 
-    // throw out oldest values if approaching max trace size
-    if (a->trace_len + TRACE_MARGIN >= TRACE_SIZE) {
-        tracePrune(a, now, 1);
-    }
+    // throw out old data if older than keep_trace or trace is getting full
+    tracePrune(a, now);
 
-    if (now > a->trace_next_prune) {
-        tracePrune(a, now, 0);
-        a->trace_next_prune = now + 1 * HOURS + random() % (30 * MINUTES);
-    }
     if (Modes.json_globe_index) {
         if (now > a->trace_next_perm)
             a->trace_write |= WPERM;
@@ -1375,7 +1368,8 @@ void traceMaintenance(struct aircraft *a, uint64_t now) {
     }
 
     // free trace cache for inactive aircraft
-    if (now > a->seen_pos + TRACE_CACHE_LIFETIME) {
+    if (a->traceCache && now > a->seen_pos + TRACE_CACHE_LIFETIME) {
+        //fprintf(stderr, "%06x free traceCache\n", a->addr);
         free(a->traceCache);
         a->traceCache = NULL;
     }
