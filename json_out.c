@@ -1366,7 +1366,7 @@ checkTraceReset:
         sprintCount++;
 
         e[k].len = p - c->json - e[k].offset;
-        e[k].flags = a->trace[i].flags;
+        e[k].leg_marker = a->trace[i].flags.leg_marker;
 
         k++;
         c->entriesLen++;
@@ -1454,7 +1454,7 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
         int sprintCount = 0;
         for (int i = start; i <= last && i < limit; i++) {
             if (k < tCache->entriesLen && entries[k].stateIndex == i
-                    && a->trace[i].flags.leg_marker == entries[k].flags.leg_marker) {
+                    && a->trace[i].flags.leg_marker == entries[k].leg_marker) {
                 memcpy(p, tCache->json + entries[k].offset, entries[k].len);
                 p += entries[k].len;
             } else {

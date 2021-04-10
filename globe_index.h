@@ -21,6 +21,24 @@
 #define TRACE_STALE (15 * SECONDS)
 #define TRACE_MIN_ELAPSED (1642) // milliseconds
 
+#define TRACE_RECENT_POINTS (128)
+#define TRACE_CACHE_EXTRA (16)
+#define TRACE_CACHE_POINTS (TRACE_RECENT_POINTS + TRACE_CACHE_EXTRA)
+#define TRACE_CACHE_LIFETIME (10 * MINUTES)
+struct traceCacheEntry {
+    int32_t stateIndex;
+    int32_t offset;
+    int32_t len;
+    int32_t leg_marker;
+} __attribute__ ((__packed__));
+
+struct traceCache {
+    int32_t entriesLen;
+    uint64_t startStamp;
+    struct traceCacheEntry entries[TRACE_CACHE_POINTS];
+    char json[TRACE_CACHE_POINTS * 256];
+};
+
 struct tile {
     int south;
     int west;
