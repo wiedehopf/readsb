@@ -1293,8 +1293,7 @@ static void checkTraceCache(struct aircraft *a, uint64_t now) {
             fprintf(stderr, "malloc error code point ohB6yeeg\n");
             return;
         }
-        a->traceCache->entriesLen = 0;
-        a->traceCache->startStamp = 0;
+        memset(a->traceCache, 0x0, sizeof(struct traceCache));
     }
     struct traceCache *c = a->traceCache;
     char *p;
@@ -1314,12 +1313,17 @@ static void checkTraceCache(struct aircraft *a, uint64_t now) {
     }
     int updateCache = 0; // by default rebuild the cache instead of updating it
 
+
+    if (!found && a->addr == TRACE_FOCUS)
+        fprintf(stderr, "%06x firstRecent not found, entriesLen: %d\n", a->addr, c->entriesLen);
+
     if (found) {
-        int newEntryCount = 0;
-        newEntryCount = a->trace_len - 1 - e[c->entriesLen - 1].stateIndex;
+        int newEntryCount = a->trace_len - 1 - e[c->entriesLen - 1].stateIndex;
         if (newEntryCount > TRACE_CACHE_EXTRA) {
             // make it a bit simpler, just rebuild the cache in this case
             updateCache = 0;
+            if (a->addr == TRACE_FOCUS)
+                fprintf(stderr, "%06x newEntryCount: %d\n", a->addr, newEntryCount);
         } else if (newEntryCount + c->entriesLen > TRACE_CACHE_POINTS) {
             // if the cache would get full, do memmove fun!
             int moveIndexes = min(k, TRACE_CACHE_EXTRA);
@@ -1336,17 +1340,19 @@ static void checkTraceCache(struct aircraft *a, uint64_t now) {
                 e[x].offset -= moveDist;
             }
             updateCache = 1;
+            //if (a->addr == TRACE_FOCUS)
+            //    fprintf(stderr, "%06x k: %d moveIndexes: %d newEntryCount: %d\n", a->addr, k, moveIndexes, newEntryCount);
         } else {
             updateCache = 1;
         }
     }
 
-    if (c->startStamp && a->trace[firstRecent].timestamp > c->startStamp + 3 * HOURS) {
-        //fprintf(stderr, "%06x startStamp diff: %.1f h\n", a->addr, (a->trace[firstRecent].timestamp - c->startStamp) / (double) (1 * HOURS));
+    if (c->startStamp && a->trace[firstRecent].timestamp > c->startStamp + 8 * HOURS) {
+        if (a->addr == TRACE_FOCUS)
+            fprintf(stderr, "%06x startStamp diff: %.1f h\n", a->addr, (a->trace[firstRecent].timestamp - c->startStamp) / (double) (1 * HOURS));
         // rebuild cache if startStamp is too old to avoid very large numbers for the relative time
         updateCache = 0;
     }
-
 
     if (updateCache) {
         // step to last cached entry
@@ -1363,6 +1369,8 @@ static void checkTraceCache(struct aircraft *a, uint64_t now) {
         k = 0;
         c->entriesLen = 0;
         p = c->json;
+        if (a->addr == TRACE_FOCUS)
+            fprintf(stderr, "%06x resetting traceCache\n", a->addr);
     }
 
     int sprintCount = 0;
@@ -1384,7 +1392,7 @@ static void checkTraceCache(struct aircraft *a, uint64_t now) {
         k++;
         c->entriesLen++;
     }
-    if (a->addr == TRACE_FOCUS && sprintCount > 1) {
+    if (a->addr == TRACE_FOCUS && sprintCount > 3) {
         fprintf(stderr, "%06x sprintCount: %d\n", a->addr, sprintCount);
     }
 }

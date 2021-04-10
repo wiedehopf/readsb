@@ -21,10 +21,10 @@
 #define TRACE_STALE (15 * SECONDS)
 #define TRACE_MIN_ELAPSED (1642) // milliseconds
 
-#define TRACE_RECENT_POINTS (128)
+#define TRACE_RECENT_POINTS (92)
 #define TRACE_CACHE_EXTRA (16)
 #define TRACE_CACHE_POINTS (TRACE_RECENT_POINTS + TRACE_CACHE_EXTRA)
-#define TRACE_CACHE_LIFETIME (10 * MINUTES)
+#define TRACE_CACHE_LIFETIME (30 * MINUTES)
 struct traceCacheEntry {
     int32_t stateIndex;
     int32_t offset;
