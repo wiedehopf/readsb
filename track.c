@@ -158,6 +158,10 @@ static int compare_validity(const data_validity *lhs, const data_validity *rhs) 
 double greatcircle(double lat0, double lon0, double lat1, double lon1) {
     double dlat, dlon;
 
+    if (lat0 == lat1 && lon0 == lon1) {
+        return 0;
+    }
+
     lat0 = lat0 * M_PI / 180.0;
     lon0 = lon0 * M_PI / 180.0;
     lat1 = lat1 * M_PI / 180.0;
@@ -1114,6 +1118,99 @@ static inline void focusGroundstateChange(struct aircraft *a, struct modesMessag
                 airground_to_string(mm->airground));
     }
 }
+static void updateAltitude(uint64_t now, struct aircraft *a, struct modesMessage *mm) {
+    int alt = altitude_to_feet(mm->altitude_baro, mm->altitude_baro_unit);
+    if (a->modeC_hit) {
+        int new_modeC = (a->altitude_baro + 49) / 100;
+        int old_modeC = (alt + 49) / 100;
+        if (new_modeC != old_modeC) {
+            a->modeC_hit = 0;
+        }
+    }
+
+    int delta = alt - a->altitude_baro;
+    int fpm = 0;
+
+    int max_fpm = 12500;
+    int min_fpm = -12500;
+
+    if (abs(delta) >= 300) {
+        fpm = delta*60*10/(abs((int)trackDataAge(now, &a->altitude_baro_valid)/100)+10);
+        if (trackDataValid(&a->geom_rate_valid) && trackDataAge(now, &a->geom_rate_valid) < trackDataAge(now, &a->baro_rate_valid)) {
+            min_fpm = a->geom_rate - 1500 - min(11000, ((int)trackDataAge(now, &a->geom_rate_valid)/2));
+            max_fpm = a->geom_rate + 1500 + min(11000, ((int)trackDataAge(now, &a->geom_rate_valid)/2));
+        } else if (trackDataValid(&a->baro_rate_valid)) {
+            min_fpm = a->baro_rate - 1500 - min(11000, ((int)trackDataAge(now, &a->baro_rate_valid)/2));
+            max_fpm = a->baro_rate + 1500 + min(11000, ((int)trackDataAge(now, &a->baro_rate_valid)/2));
+        }
+        if (trackDataValid(&a->altitude_baro_valid) && trackDataAge(now, &a->altitude_baro_valid) < 30 * SECONDS) {
+            a->alt_reliable = min(
+                    ALTITUDE_BARO_RELIABLE_MAX - (ALTITUDE_BARO_RELIABLE_MAX*trackDataAge(now, &a->altitude_baro_valid)/(30 * SECONDS)),
+                    a->alt_reliable);
+        } else {
+            a->alt_reliable = 0;
+        }
+    }
+    int good_crc = 0;
+
+    // just trust messages with this source implicitely and rate the altitude as max reliable
+    // if we get the occasional altitude excursion that's acceptable and preferable to not capturing implausible altitude changes for example before a crash
+    if (mm->crc == 0 && mm->source >= SOURCE_JAERO)
+        good_crc = ALTITUDE_BARO_RELIABLE_MAX;
+
+    if (mm->source == SOURCE_SBS || mm->source == SOURCE_MLAT)
+        good_crc = ALTITUDE_BARO_RELIABLE_MAX/2 - 1;
+
+    if (a->altitude_baro > 50175 && mm->alt_q_bit && a->alt_reliable > ALTITUDE_BARO_RELIABLE_MAX/4) {
+        good_crc = 0;
+        //fprintf(stderr, "q_bit == 1 && a->alt > 50175: %06x\n", a->addr);
+        goto discard_alt;
+    }
+
+    // accept the message if the good_crc score is better than the current alt reliable score
+    if (good_crc >= a->alt_reliable)
+        goto accept_alt;
+    // accept the altitude if the source is better than the current one
+    if (mm->source > a->altitude_baro_valid.source)
+        goto accept_alt;
+
+    if (a->alt_reliable <= 0  || abs(delta) < 300)
+        goto accept_alt;
+    if (fpm < max_fpm && fpm > min_fpm)
+        goto accept_alt;
+
+    goto discard_alt;
+accept_alt:
+    if (accept_data(&a->altitude_baro_valid, mm->source, mm, 2)) {
+        a->alt_reliable = min(ALTITUDE_BARO_RELIABLE_MAX , a->alt_reliable + (good_crc+1));
+        if (0 && a->addr == 0x4b2917 && abs(delta) > -1 && delta != alt) {
+            fprintf(stderr, "Alt check S: %06x: %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
+                    a->addr, a->alt_reliable, a->altitude_baro, alt,
+                    source_string(a->altitude_baro_valid.source),
+                    source_string(mm->source),
+                    min_fpm/1000.0, max_fpm/1000.0, fpm/1000.0);
+        }
+        a->altitude_baro = alt;
+    }
+    return;
+discard_alt:
+    a->alt_reliable = a->alt_reliable - (good_crc+1);
+    if (0 && a->addr == 0x4b2917)
+        fprintf(stderr, "Alt check F: %06x: %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
+                a->addr, a->alt_reliable, a->altitude_baro, alt,
+                source_string(a->altitude_baro_valid.source),
+                source_string(mm->source),
+                min_fpm/1000.0, max_fpm/1000.0, fpm/1000.0);
+    if (a->alt_reliable <= 0) {
+        //fprintf(stderr, "Altitude INVALIDATED: %06x\n", a->addr);
+        a->alt_reliable = 0;
+        if (a->position_valid.source != SOURCE_JAERO)
+            a->altitude_baro_valid.source = SOURCE_INVALID;
+    }
+    if (Modes.garbage_ports)
+        mm->source = SOURCE_INVALID;
+    return;
+}
 
 //
 //=========================================================================
@@ -1171,13 +1268,14 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         a->signalLevel[a->signalNext] = mm->signalLevel;
         a->signalNext = (a->signalNext + 1) & 7;
 
-        if (a->no_signal_count >= 10) {
-            for (int i = 0; i < 8; ++i) {
-                a->signalLevel[i] = fmax(0, mm->signalLevel);
+        if (a->no_signal_count > 0) {
+            if (a->no_signal_count >= 10) {
+                for (int i = 0; i < 8; ++i) {
+                    a->signalLevel[i] = fmax(0, mm->signalLevel);
+                }
             }
-        }
-        if (a->no_signal_count > 0)
             a->no_signal_count = 0;
+        }
     } else {
         // if we haven't received a message with signal level for a bit, set it to zero
         if (a->no_signal_count < 10 && ++a->no_signal_count >= 10) {
@@ -1198,9 +1296,6 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     }
 
     // update addrtype
-    if (a->addrtype_updated > now)
-        a->addrtype_updated = now;
-
     if (
             (mm->addrtype <= a->addrtype && now > 30 * 1000 + a->addrtype_updated)
             || (mm->addrtype > a->addrtype && now > 90 * 1000 + a->addrtype_updated)
@@ -1247,7 +1342,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     // done early to update version / HRD / TAH
     if (mm->opstatus.valid) {
         *message_version = mm->opstatus.version;
-        
+
         if (mm->opstatus.hrd != HEADING_INVALID) {
             a->adsb_hrd = mm->opstatus.hrd;
         }
@@ -1280,98 +1375,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
               && a->altitude_baro_valid.source != SOURCE_SBS)
             )
        ) {
-        int alt = altitude_to_feet(mm->altitude_baro, mm->altitude_baro_unit);
-        if (a->modeC_hit) {
-            int new_modeC = (a->altitude_baro + 49) / 100;
-            int old_modeC = (alt + 49) / 100;
-            if (new_modeC != old_modeC) {
-                a->modeC_hit = 0;
-            }
-        }
-
-        int delta = alt - a->altitude_baro;
-        int fpm = 0;
-
-        int max_fpm = 12500;
-        int min_fpm = -12500;
-
-        if (abs(delta) >= 300) {
-            fpm = delta*60*10/(abs((int)trackDataAge(now, &a->altitude_baro_valid)/100)+10);
-            if (trackDataValid(&a->geom_rate_valid) && trackDataAge(now, &a->geom_rate_valid) < trackDataAge(now, &a->baro_rate_valid)) {
-                min_fpm = a->geom_rate - 1500 - min(11000, ((int)trackDataAge(now, &a->geom_rate_valid)/2));
-                max_fpm = a->geom_rate + 1500 + min(11000, ((int)trackDataAge(now, &a->geom_rate_valid)/2));
-            } else if (trackDataValid(&a->baro_rate_valid)) {
-                min_fpm = a->baro_rate - 1500 - min(11000, ((int)trackDataAge(now, &a->baro_rate_valid)/2));
-                max_fpm = a->baro_rate + 1500 + min(11000, ((int)trackDataAge(now, &a->baro_rate_valid)/2));
-            }
-            if (trackDataValid(&a->altitude_baro_valid) && trackDataAge(now, &a->altitude_baro_valid) < 30 * SECONDS) {
-                a->alt_reliable = min(
-                        ALTITUDE_BARO_RELIABLE_MAX - (ALTITUDE_BARO_RELIABLE_MAX*trackDataAge(now, &a->altitude_baro_valid)/(30 * SECONDS)),
-                        a->alt_reliable);
-            } else {
-                a->alt_reliable = 0;
-            }
-        }
-        int good_crc = 0;
-
-        // just trust messages with this source implicitely and rate the altitude as max reliable
-        // if we get the occasional altitude excursion that's acceptable and preferable to not capturing implausible altitude changes for example before a crash
-        if (mm->crc == 0 && mm->source >= SOURCE_JAERO)
-            good_crc = ALTITUDE_BARO_RELIABLE_MAX;
-
-        if (mm->source == SOURCE_SBS || mm->source == SOURCE_MLAT)
-            good_crc = ALTITUDE_BARO_RELIABLE_MAX/2 - 1;
-
-        if (a->altitude_baro > 50175 && mm->alt_q_bit && a->alt_reliable > ALTITUDE_BARO_RELIABLE_MAX/4) {
-            good_crc = 0;
-            //fprintf(stderr, "q_bit == 1 && a->alt > 50175: %06x\n", a->addr);
-            goto discard_alt;
-        }
-
-        // accept the message if the good_crc score is better than the current alt reliable score
-        if (good_crc >= a->alt_reliable)
-            goto accept_alt;
-        // accept the altitude if the source is better than the current one
-        if (mm->source > a->altitude_baro_valid.source)
-            goto accept_alt;
-
-        if (a->alt_reliable <= 0  || abs(delta) < 300)
-            goto accept_alt;
-        if (fpm < max_fpm && fpm > min_fpm)
-            goto accept_alt;
-
-        goto discard_alt;
-accept_alt:
-            if (accept_data(&a->altitude_baro_valid, mm->source, mm, 2)) {
-                a->alt_reliable = min(ALTITUDE_BARO_RELIABLE_MAX , a->alt_reliable + (good_crc+1));
-                if (0 && a->addr == 0x4b2917 && abs(delta) > -1 && delta != alt) {
-                    fprintf(stderr, "Alt check S: %06x: %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
-                            a->addr, a->alt_reliable, a->altitude_baro, alt,
-                            source_string(a->altitude_baro_valid.source),
-                            source_string(mm->source),
-                            min_fpm/1000.0, max_fpm/1000.0, fpm/1000.0);
-                }
-                a->altitude_baro = alt;
-            }
-            goto end_alt;
-discard_alt:
-            a->alt_reliable = a->alt_reliable - (good_crc+1);
-            if (0 && a->addr == 0x4b2917)
-                fprintf(stderr, "Alt check F: %06x: %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
-                        a->addr, a->alt_reliable, a->altitude_baro, alt,
-                        source_string(a->altitude_baro_valid.source),
-                        source_string(mm->source),
-                        min_fpm/1000.0, max_fpm/1000.0, fpm/1000.0);
-            if (a->alt_reliable <= 0) {
-                //fprintf(stderr, "Altitude INVALIDATED: %06x\n", a->addr);
-                a->alt_reliable = 0;
-                if (a->position_valid.source != SOURCE_JAERO)
-                    a->altitude_baro_valid.source = SOURCE_INVALID;
-            }
-            if (Modes.garbage_ports)
-                mm->source = SOURCE_INVALID;
-end_alt:
-            ;
+        updateAltitude(now, a, mm);
     }
 
     if (mm->squawk_valid && accept_data(&a->squawk_valid, mm->source, mm, 0)) {
@@ -1380,9 +1384,9 @@ end_alt:
         }
         a->squawk = mm->squawk;
 
-#if 0   // Disabled for now as it obscures the origin of the data
+        // Disabled for now as it obscures the origin of the data
         // Handle 7x00 without a corresponding emergency status
-        if (!mm->emergency_valid) {
+        if (0 && !mm->emergency_valid) {
             emergency_t squawk_emergency;
             switch (mm->squawk) {
                 case 0x7500:
@@ -1403,7 +1407,6 @@ end_alt:
                 a->emergency = squawk_emergency;
             }
         }
-#endif
     }
 
     if (mm->emergency_valid && accept_data(&a->emergency_valid, mm->source, mm, 0)) {
@@ -1500,8 +1503,6 @@ end_alt:
             if (accept_data(&a->airground_valid, mm->source, mm, 0)) {
                 focusGroundstateChange(a, mm, 1, now);
                 a->airground = mm->airground;
-
-                //if (a->airground == AG_GROUND && mm->source == SOURCE_MODE_S) {
             }
         }
     }
@@ -1767,11 +1768,11 @@ end_alt:
         if (mm->pos_bad) {
             position_bad(mm, a);
         }
-    } else {
-        if (!a->onActiveList) {
-            a->onActiveList = 1;
-            ca_add(&Modes.aircraftActive, a);
-        }
+    }
+
+    if (!a->onActiveList) {
+        a->onActiveList = 1;
+        ca_add(&Modes.aircraftActive, a);
     }
     // never forward duplicate positions
     if (mm->duplicate) {

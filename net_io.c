@@ -2065,7 +2065,7 @@ static const char *hexEscapeString(const char *str, char *buf, int len) {
 // close the connection with the client in case of non-recoverable errors.
 //
 static void modesReadFromClient(struct client *c, uint64_t start) {
-    if (!c->service) { fprintf(stderr, "report error: aeGei5An\n"); return; }
+    assert(c->service);
 
     int left;
     int nread;
@@ -2125,14 +2125,13 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
             return;
         }
 
-        // No data available, check later!
-        if (nread < 0 && (err == EAGAIN || err == EWOULDBLOCK))
-        {
-            return;
-        }
 
-        // Other errors
         if (nread < 0) {
+            if (err == EAGAIN || err == EWOULDBLOCK) {
+                // No data available, check later!
+                return;
+            }
+            // Other errors
             if (Modes.debug_net) {
                 if (Modes.netIngest && c->service->read_mode != READ_MODE_IGNORE && c->proxy_string[0] != '\0') {
                     double elapsed = (now - c->connectedSince) / 1000.0;
@@ -2560,6 +2559,13 @@ void modesNetPeriodicWork(void) {
     int64_t elapsed1 = stopWatch(&watch);
 
     uint64_t now = mstime();
+
+    if (now > Modes.next_remove_stale) {
+        // this is ugly but should only happen very rarely under heavy load from network input
+        pthread_mutex_unlock(&Modes.decodeMutex);
+        msleep(1);
+        pthread_mutex_lock(&Modes.decodeMutex);
+    }
 
     if (now > next_second) {
         next_second = now + 1000;

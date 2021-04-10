@@ -720,6 +720,9 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
     if (a->globe_index > GLOBE_MAX_INDEX)
         a->globe_index = -5;
 
+    if (a->addrtype_updated > now)
+        a->addrtype_updated = now;
+
     if (a->seen > now)
         a->seen = 0;
 
