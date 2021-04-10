@@ -841,7 +841,7 @@ void *jsonTraceThreadEntryPoint(void *arg) {
 
     pthread_mutex_unlock(&Modes.jsonTraceMutex[thread]);
 
-    pthread_exit(NULL);
+    return NULL;
 }
 
 static void mark_legs(struct aircraft *a, int start) {

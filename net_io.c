@@ -2564,13 +2564,6 @@ void modesNetPeriodicWork(void) {
 
     uint64_t now = mstime();
 
-    if (now > Modes.next_remove_stale) {
-        // this is ugly but should only happen very rarely under heavy load from network input
-        pthread_mutex_unlock(&Modes.decodeMutex);
-        msleep(1);
-        pthread_mutex_lock(&Modes.decodeMutex);
-    }
-
     if (now > next_second) {
         next_second = now + 1000;
         modesNetSecondWork();

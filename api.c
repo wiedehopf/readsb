@@ -771,7 +771,7 @@ static void *apiThreadEntryPoint(void *arg) {
     free(events);
     pthread_mutex_unlock(&thread->mutex);
     pthread_mutex_destroy(&thread->mutex);
-    pthread_exit(NULL);
+    return NULL;
 }
 
 static void *apiUpdateEntryPoint(void *arg) {
@@ -802,7 +802,7 @@ static void *apiUpdateEntryPoint(void *arg) {
             fprintf(stderr, "main thread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
     }
     pthread_mutex_unlock(&Modes.apiUpdateMutex);
-    pthread_exit(NULL);
+    return NULL;
 }
 
 void apiBufferInit() {

@@ -56,7 +56,7 @@
 
 struct _Modes Modes;
 
-static void backgroundTasks(void);
+static void backgroundTasks(uint64_t now);
 static error_t parse_opt(int key, char *arg, struct argp_state *state);
 
 //
@@ -318,7 +318,12 @@ static void lockThreads() {
 }
 
 static void unlockThreads() {
+
+    // make sure the decode thread wakes up from waiting
+    pthread_cond_signal(&Modes.decodeCond);
+    pthread_cond_signal(&Modes.data_cond);
     pthread_mutex_unlock(&Modes.decodeMutex);
+
     pthread_mutex_unlock(&Modes.apiUpdateMutex);
     pthread_mutex_unlock(&Modes.miscMutex);
     pthread_mutex_unlock(&Modes.jsonGlobeMutex);
@@ -436,7 +441,7 @@ static void *readerThreadEntryPoint(void *arg) {
     pthread_cond_signal(&Modes.data_cond);
     pthread_mutex_unlock(&Modes.data_mutex);
 
-    pthread_exit(NULL);
+    return NULL;
 }
 
 static void *jsonThreadEntryPoint(void *arg) {
@@ -502,7 +507,7 @@ static void *jsonThreadEntryPoint(void *arg) {
 
     pthread_mutex_unlock(&Modes.jsonMutex);
 
-    pthread_exit(NULL);
+    return NULL;
 }
 
 static void *jsonGlobeThreadEntryPoint(void *arg) {
@@ -578,7 +583,7 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
 
     pthread_mutex_unlock(&Modes.jsonGlobeMutex);
 
-    pthread_exit(NULL);
+    return NULL;
 }
 
 static void *decodeThreadEntryPoint(void *arg) {
@@ -599,17 +604,32 @@ static void *decodeThreadEntryPoint(void *arg) {
     interactiveInit();
 
     if (Modes.net_only) {
+        struct timespec ts;
         while (!Modes.exit) {
             struct timespec start_time;
 
             start_cpu_timing(&start_time);
 
+            uint64_t now = mstime();
+
             // sleep via epoll_wait in net_periodic_work
-            backgroundTasks();
+            backgroundTasks(now);
+
+            // in case we're looping backgroundTasks and trackPeriodic isn't getting a turn
+            if (now > Modes.next_remove_stale + 5 * SECONDS) {
+                clock_gettime(CLOCK_REALTIME, &ts);
+                incTimedwait(&ts, 20);
+                int err = pthread_cond_timedwait(&Modes.decodeCond, &Modes.decodeMutex, &ts);
+                if (err && err != ETIMEDOUT)
+                    fprintf(stderr, "decode: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
+            }
 
             end_cpu_timing(&start_time, &Modes.stats_current.background_cpu);
         }
     } else {
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+
         int watchdogCounter = 50; // about 5 seconds
 
         uint32_t maxSleep = 80; // in ms
@@ -617,8 +637,6 @@ static void *decodeThreadEntryPoint(void *arg) {
         pthread_mutex_lock(&Modes.data_mutex);
         pthread_create(&Modes.reader_thread, NULL, readerThreadEntryPoint, NULL);
 
-        struct timespec ts;
-        clock_gettime(CLOCK_REALTIME, &ts);
         while (!Modes.exit) {
             struct timespec start_time;
 
@@ -668,28 +686,20 @@ static void *decodeThreadEntryPoint(void *arg) {
             }
 
             start_cpu_timing(&start_time);
-            backgroundTasks();
+            backgroundTasks(mstime());
             end_cpu_timing(&start_time, &Modes.stats_current.background_cpu);
 
             pthread_mutex_lock(&Modes.data_mutex);
 
             uint64_t now = mstime();
 
-            if (Modes.first_free_buffer == Modes.first_filled_buffer || now > Modes.next_remove_stale + 1 * SECONDS) {
+            if (Modes.first_free_buffer == Modes.first_filled_buffer || now > Modes.next_remove_stale + 5 * SECONDS) {
                 /* wait for more data.
                  * we should be getting data every 50-60ms. wait for max 80 before we give up and do some background work.
                  * this is fairly aggressive as all our network I/O runs out of the background work!
                  */
 
-                // make sure we go to removeStale and the other functions
-                // in trackPeriodicUpdate that require the decodeMutex
-                // (the latest if when we are 2 seconds late, use a short wait
-                // that should be sufficient to make the other thread get the lock)
-                if (now > Modes.next_remove_stale + 1 * SECONDS) {
-                    incTimedwait(&ts, 3);
-                } else {
-                    incTimedwait(&ts, maxSleep);
-                }
+                incTimedwait(&ts, maxSleep);
 
                 pthread_mutex_unlock(&Modes.decodeMutex);
 
@@ -709,7 +719,7 @@ static void *decodeThreadEntryPoint(void *arg) {
 
     pthread_mutex_unlock(&Modes.decodeMutex);
 
-    pthread_exit(NULL);
+    return NULL;
 }
 //
 // ============================== Snip mode =================================
@@ -746,8 +756,7 @@ static void display_total_stats(void) {
 // perform tasks we need to do continuously, like accepting new clients
 // from the net, refreshing the screen in interactive mode, and so forth
 //
-static void backgroundTasks(void) {
-    uint64_t now = mstime();
+static void backgroundTasks(uint64_t now) {
     // Refresh screen when in interactive mode
     static uint64_t next_interactive;
     if (Modes.interactive && now > next_interactive) {
