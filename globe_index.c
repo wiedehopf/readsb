@@ -675,10 +675,12 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
     // read trace
     int size_state = stateBytes(a->trace_len);
     int size_all = stateAllBytes(a->trace_len);
+    // check that the trace meta data make sense before loading it
     if (a->trace_len > 0
-            && a->trace_len <= TRACE_SIZE
             && a->trace_alloc >= a->trace_len
-            && a->trace_alloc <= TRACE_SIZE
+            // let's allow for loading traces larger than we normally allow by a factor of 32
+            && a->trace_len <= 32 * TRACE_SIZE
+            && a->trace_alloc <= 32 * TRACE_SIZE
        ) {
 
 
@@ -748,12 +750,16 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
     }
 
     if (a->trace) {
+        // let's clean up old points in the trace if necessary
+        traceMaintenance(a, now);
+
+        // write the recent trace to /run so it's available in the webinterface
         if (a->position_valid.source != SOURCE_INVALID) {
             a->trace_write |= WRECENT;
             traceWrite(a, now, 1);
         }
 
-        // schedule writing all the traces into run so they are present
+        // schedule writing all the traces into run so they are present for the webinterface
         scheduleMemBothWrite(a, now + random() % (90 * SECONDS) + (now - a->seen_pos) / (24 * 60 / 4)); // condense 24h into 4 minutes
     }
 
@@ -1352,7 +1358,7 @@ void traceCleanup(struct aircraft *a) {
 
 
 void traceMaintenance(struct aircraft *a, uint64_t now) {
-    if (!(Modes.keep_traces && a->trace_alloc))
+    if (!a->trace_alloc)
         return;
 
     //fprintf(stderr, "%06x\n", a->addr);
