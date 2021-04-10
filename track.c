@@ -1383,30 +1383,6 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             a->modeA_hit = 0;
         }
         a->squawk = mm->squawk;
-
-        // Disabled for now as it obscures the origin of the data
-        // Handle 7x00 without a corresponding emergency status
-        if (0 && !mm->emergency_valid) {
-            emergency_t squawk_emergency;
-            switch (mm->squawk) {
-                case 0x7500:
-                    squawk_emergency = EMERGENCY_UNLAWFUL;
-                    break;
-                case 0x7600:
-                    squawk_emergency = EMERGENCY_NORDO;
-                    break;
-                case 0x7700:
-                    squawk_emergency = EMERGENCY_GENERAL;
-                    break;
-                default:
-                    squawk_emergency = EMERGENCY_NONE;
-                    break;
-            }
-
-            if (squawk_emergency != EMERGENCY_NONE && accept_data(&a->emergency_valid, mm->source, mm, 0)) {
-                a->emergency = squawk_emergency;
-            }
-        }
     }
 
     if (mm->emergency_valid && accept_data(&a->emergency_valid, mm->source, mm, 0)) {

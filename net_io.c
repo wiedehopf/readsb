@@ -1762,7 +1762,11 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
     if (Modes.receiver_focus && mm.receiverId != Modes.receiver_focus)
         return 0;
 
-    if (ch == '1') {
+    if (ch == '2') {
+        msgLen = MODES_SHORT_MSG_BYTES;
+    } else if (ch == '3') {
+        msgLen = MODES_LONG_MSG_BYTES;
+    } else if (ch == '1') {
         if (!Modes.mode_ac) {
             if (remote) {
                 Modes.stats_current.remote_received_modeac++;
@@ -1772,10 +1776,6 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
             return 0;
         }
         msgLen = MODEAC_MSG_BYTES;
-    } else if (ch == '2') {
-        msgLen = MODES_SHORT_MSG_BYTES;
-    } else if (ch == '3') {
-        msgLen = MODES_LONG_MSG_BYTES;
     } else if (ch == '5') {
         // Special case for Radarcape position messages.
         float lat, lon, alt;
@@ -1792,6 +1792,9 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
         alt = ieee754_binary32_le_to_float(msg + 12);
 
         handle_radarcape_position(lat, lon, alt);
+        return 0;
+    } else {
+        // unknown msg type
         return 0;
     }
 
@@ -2289,14 +2292,12 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                     }
 
                     ch = *p;
-                    if (ch == '1') {
-                        eom = p + MODEAC_MSG_BYTES + 8; // point past remainder of message
-                    } else if (ch == '2') {
+                    if (ch == '2') {
                         eom = p + MODES_SHORT_MSG_BYTES + 8;
                     } else if (ch == '3') {
                         eom = p + MODES_LONG_MSG_BYTES + 8;
-                    } else if (ch == '4') {
-                        eom = p + MODES_LONG_MSG_BYTES + 8;
+                    } else if (ch == '1') {
+                        eom = p + MODEAC_MSG_BYTES + 8; // point past remainder of message
                     } else if (ch == '5') {
                         eom = p + MODES_LONG_MSG_BYTES + 8;
                     } else if (ch == 0xe4) {
