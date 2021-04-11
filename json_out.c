@@ -937,8 +937,13 @@ struct char_buffer generateAircraftBin() {
     struct char_buffer cb;
     uint64_t now = mstime();
     struct aircraft *a;
-    size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
-    char *buf = malloc(buflen), *p = buf, *end = buf + buflen;
+
+    struct craftArray *ca = &Modes.aircraftActive;
+    size_t alloc = 4096 + ca->len * sizeof(struct binCraft); // The initial buffer is resized as needed
+
+    char *buf = malloc(alloc);
+    char *p = buf;
+    char *end = buf + alloc;
 
     uint32_t elementSize = sizeof(struct binCraft);
     memset(p, 0, elementSize);
@@ -970,8 +975,6 @@ struct char_buffer generateAircraftBin() {
 
     p = buf + elementSize;
 
-    struct craftArray *ca = &Modes.aircraftActive;
-
     for (int i = 0; i < ca->len; i++) {
         a = ca->list[i];
 
@@ -989,12 +992,12 @@ struct char_buffer generateAircraftBin() {
             continue;
 
         // check if we have enough space
-        if ((p + 1000) >= end) {
+        if ((p + 2 * sizeof(struct binCraft)) >= end) {
             int used = p - buf;
-            buflen *= 2;
-            buf = (char *) realloc(buf, buflen);
+            alloc *= 2;
+            buf = (char *) realloc(buf, alloc);
             p = buf + used;
-            end = buf + buflen;
+            end = buf + alloc;
         }
 
         struct binCraft bin;
@@ -1017,8 +1020,26 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
     struct char_buffer cb;
     uint64_t now = mstime();
     struct aircraft *a;
-    size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
-    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
+    size_t alloc = 4096; // The initial buffer is resized as needed
+
+    struct craftArray *ca = NULL;
+    int good;
+    if (globe_index == -1) {
+        ca = &Modes.aircraftActive;
+        good = 1;
+    } else if (globe_index <= GLOBE_MAX_INDEX) {
+        ca = &Modes.globeLists[globe_index];
+        good = 1;
+    } else {
+        fprintf(stderr, "generateAircraftJson: bad globe_index: %d\n", globe_index);
+        good = 0;
+    }
+    if (good && ca)
+        alloc += ca->len * sizeof(struct binCraft);
+
+    char *buf = malloc(alloc);
+    char *p = buf;
+    char *end = buf + alloc;
 
     uint32_t elementSize = sizeof(struct binCraft);
     memset(p, 0, elementSize);
@@ -1065,18 +1086,6 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
 
     p = buf + elementSize;
 
-    struct craftArray *ca = NULL;
-    int good;
-    if (globe_index == -1) {
-        ca = &Modes.aircraftActive;
-        good = 1;
-    } else if (globe_index <= GLOBE_MAX_INDEX) {
-        ca = &Modes.globeLists[globe_index];
-        good = 1;
-    } else {
-        fprintf(stderr, "generateAircraftJson: bad globe_index: %d\n", globe_index);
-        good = 0;
-    }
     if (good && ca->list) {
         for (int i = 0; i < ca->len; i++) {
             a = ca->list[i];
@@ -1097,12 +1106,12 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
                 continue;
 
             // check if we have enough space
-            if ((p + 1000) >= end) {
+            if ((p + 2 * sizeof(struct binCraft)) >= end) {
                 int used = p - buf;
-                buflen *= 2;
-                buf = (char *) realloc(buf, buflen);
+                alloc *= 2;
+                buf = (char *) realloc(buf, alloc);
                 p = buf + used;
-                end = buf + buflen;
+                end = buf + alloc;
             }
 
             struct binCraft bin;
@@ -1126,8 +1135,22 @@ struct char_buffer generateGlobeJson(int globe_index){
     struct char_buffer cb;
     uint64_t now = mstime();
     struct aircraft *a;
-    size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
-    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
+    size_t alloc = 4096; // The initial buffer is resized as needed
+
+    struct craftArray *ca = NULL;
+    int good;
+    if (globe_index <= GLOBE_MAX_INDEX) {
+        ca = &Modes.globeLists[globe_index];
+        good = 1;
+        alloc += ca->len * 1024; // 1024 bytes per potential aircraft object
+    } else {
+        fprintf(stderr, "generateAircraftJson: bad globe_index: %d\n", globe_index);
+        good = 0;
+    }
+
+    char *buf = malloc(alloc);
+    char *p = buf;
+    char *end = buf + alloc;
 
     p = safe_snprintf(p, end,
             "{ \"now\" : %.1f,\n"
@@ -1170,15 +1193,6 @@ struct char_buffer generateGlobeJson(int globe_index){
 
     p = safe_snprintf(p, end, "  \"aircraft\" : [");
 
-    struct craftArray *ca = NULL;
-    int good;
-    if (globe_index <= GLOBE_MAX_INDEX) {
-        ca = &Modes.globeLists[globe_index];
-        good = 1;
-    } else {
-        fprintf(stderr, "generateAircraftJson: bad globe_index: %d\n", globe_index);
-        good = 0;
-    }
     if (good && ca->list) {
         for (int i = 0; i < ca->len; i++) {
             a = ca->list[i];
@@ -1199,10 +1213,10 @@ struct char_buffer generateGlobeJson(int globe_index){
             // check if we have enough space
             if ((p + 2000) >= end) {
                 int used = p - buf;
-                buflen *= 2;
-                buf = (char *) realloc(buf, buflen);
+                alloc *= 2;
+                buf = (char *) realloc(buf, alloc);
                 p = buf + used;
-                end = buf + buflen;
+                end = buf + alloc;
             }
 
             p = safe_snprintf(p, end, "\n");
@@ -1227,8 +1241,13 @@ struct char_buffer generateAircraftJson(uint64_t onlyRecent){
     struct char_buffer cb;
     uint64_t now = mstime();
     struct aircraft *a;
-    size_t buflen = 6*1024*1024; // The initial buffer is resized as needed
-    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
+
+    struct craftArray *ca = &Modes.aircraftActive;
+    size_t alloc = 4096 + ca->len * sizeof(struct binCraft); // The initial buffer is resized as needed
+
+    char *buf = malloc(alloc);
+    char *p = buf;
+    char *end = buf + alloc;
 
     p = safe_snprintf(p, end,
             "{ \"now\" : %.1f,\n"
@@ -1237,11 +1256,6 @@ struct char_buffer generateAircraftJson(uint64_t onlyRecent){
             Modes.stats_current.messages_total + Modes.stats_alltime.messages_total);
 
     p = safe_snprintf(p, end, "  \"aircraft\" : [");
-
-    //for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
-    //    for (a = Modes.aircraft[j]; a; a = a->next) {
-
-    struct craftArray *ca = &Modes.aircraftActive;
 
     for (int i = 0; i < ca->len; i++) {
         a = ca->list[i];
@@ -1263,10 +1277,10 @@ struct char_buffer generateAircraftJson(uint64_t onlyRecent){
         // check if we have enough space
         if ((p + 2000) >= end) {
             int used = p - buf;
-            buflen *= 2;
-            buf = (char *) realloc(buf, buflen);
+            alloc *= 2;
+            buf = (char *) realloc(buf, alloc);
             p = buf + used;
-            end = buf + buflen;
+            end = buf + alloc;
         }
 
         char *beforeSprint = p;
@@ -1491,10 +1505,10 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
         last = limit - 1;
     }
 
-    int alloc = max(last - start + 1, 0);
-    size_t buflen = alloc * 300 + 1024;
+    int traceCount = max(last - start + 1, 0);
+    size_t alloc = traceCount * 300 + 1024;
 
-    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
+    char *buf = (char *) malloc(alloc), *p = buf, *end = buf + alloc;
 
     if (!buf) {
         fprintf(stderr, "malloc error code point Loi1ahwe\n");
@@ -1589,7 +1603,7 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
     cb.buffer = buf;
 
     if (p >= end) {
-        fprintf(stderr, "buffer overrun trace json %zu %zu\n", cb.len, buflen);
+        fprintf(stderr, "buffer overrun trace json %zu %zu\n", cb.len, alloc);
     }
 
     return cb;
@@ -1768,7 +1782,6 @@ struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {
     struct aircraft *a;
     size_t buflen = 256*1024; // The initial buffer is resized as needed
     char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
-    char *line_start;
     int first = 1;
     int part_len = AIRCRAFT_BUCKETS / n_parts;
     int part_start = part * part_len;
@@ -1790,13 +1803,20 @@ struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {
             if (a->addr & MODES_NON_ICAO_ADDRESS)
                 continue;
 
+
+            if ((p + 2048) >= end) {
+                int used = p - buf;
+                buflen *= 2;
+                buf = (char *) realloc(buf, buflen);
+                p = buf + used;
+                end = buf + buflen;
+                //fprintf(stderr, "realloc at %s, line %d.\n", __FILE__, __LINE__);
+            }
+
             if (first)
                 first = 0;
             else
                 *p++ = ',';
-
-retry:
-            line_start = p;
 
             p = safe_snprintf(p, end, "{\"Icao\":\"%s%06X\"", (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
 
@@ -1929,16 +1949,6 @@ retry:
 skip_fields:
 
             p = safe_snprintf(p, end, "}");
-
-            if ((p + 10) >= end) { // +10 to leave some space for the final line
-                // overran the buffer
-                int used = line_start - buf;
-                buflen *= 2;
-                buf = (char *) realloc(buf, buflen);
-                p = buf + used;
-                end = buf + buflen;
-                goto retry;
-            }
         }
     }
 

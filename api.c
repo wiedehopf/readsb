@@ -311,7 +311,7 @@ static inline void apiGenerateJson(struct apiBuffer *buffer, uint64_t now) {
     free(buffer->json);
     buffer->json = NULL;
 
-    size_t alloc = buffer->len * 1024 + 2048; // The initial buffer is resized as needed
+    size_t alloc = buffer->len * 1024 + 4096; // The initial buffer is resized as needed
     buffer->json = (char *) malloc(alloc);
     char *p = buffer->json;
     char *end = buffer->json + alloc;
@@ -941,14 +941,21 @@ struct char_buffer apiGenerateGlobeJson(int globe_index) {
     assert (globe_index <= GLOBE_MAX_INDEX);
 
     struct char_buffer cb;
-    size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
-    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
 
     pthread_mutex_lock(&Modes.apiFlipMutex);
     int flip = Modes.apiFlip;
     pthread_mutex_unlock(&Modes.apiFlipMutex);
 
     struct apiBuffer *buffer = &Modes.apiBuffer[flip];
+
+
+    size_t alloc = 4096;
+    // only used to estimate allocation size
+    struct craftArray *ca = &Modes.globeLists[globe_index];
+    if (ca)
+        alloc += ca->len * 1024;
+
+    char *buf = (char *) malloc(alloc), *p = buf, *end = buf + alloc;
 
     p = safe_snprintf(p, end,
             "{ \"now\" : %.1f,\n"
@@ -1000,10 +1007,10 @@ struct char_buffer apiGenerateGlobeJson(int globe_index) {
         // check if we have enough space
         if ((p + 2000) >= end) {
             int used = p - buf;
-            buflen *= 2;
-            buf = (char *) realloc(buf, buflen);
+            alloc *= 2;
+            buf = (char *) realloc(buf, alloc);
             p = buf + used;
-            end = buf + buflen;
+            end = buf + alloc;
         }
 
         *p++ = '\n';
