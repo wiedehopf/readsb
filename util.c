@@ -203,7 +203,7 @@ struct char_buffer readWholeFile(int fd, char *errorContext) {
     }
     cb.buffer[fsize] = '\0'; // for good measure put a null byte to terminate the string. (consumers should honor cb.len)
     if (res < 0 || cb.len != fsize) {
-        free(cb.buffer);
+        sfree(cb.buffer);
         cb = (struct char_buffer) {0};
     }
     return cb;
@@ -234,14 +234,14 @@ struct char_buffer readWholeGz(gzFile gzfp, char *errorContext) {
             char *oldBuffer = cb.buffer;
             cb.buffer = realloc(cb.buffer, alloc);
             if (!cb.buffer) {
-                free(oldBuffer);
+                sfree(oldBuffer);
                 fprintf(stderr, "reading %s: readWholeGz alloc fail!\n", errorContext);
                 return (struct char_buffer) {0};
             }
         }
     }
     if (res < 0) {
-        free(cb.buffer);
+        sfree(cb.buffer);
         int error;
         fprintf(stderr, "readWholeGz: gzread failed: %s (res == %d)\n", gzerror(gzfp, &error), res);
         if (error == Z_ERRNO)
@@ -343,7 +343,7 @@ void epollAllocEvents(struct epoll_event **events, int *maxEvents) {
         *maxEvents *= 2;
     }
 
-    free(*events);
+    sfree(*events);
     *events = malloc(*maxEvents * sizeof(struct epoll_event));
 
     if (!*events) {

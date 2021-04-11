@@ -562,14 +562,13 @@ void serviceClose(struct net_service *s) {
             epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, c->fd, &c->epollEvent);
             anetCloseSocket(s->listener_fds[i]);
         }
-        free(s->listenSockets);
+        sfree(s->listenSockets);
     }
-    free(s->listener_fds);
+    sfree(s->listener_fds);
     if (s->writer && s->writer->data) {
-        free(s->writer->data);
-        s->writer->data = NULL;
+        sfree(s->writer->data);
     }
-    free(s);
+    sfree(s);
 }
 
 void modesInitNet(void) {
@@ -647,10 +646,10 @@ void modesInitNet(void) {
         if (sbs_out_jaero->listener_count == 0)
             serviceListen(sbs_out_jaero, Modes.net_bind_address, jaero, Modes.net_epfd);
 
-        free(replay);
-        free(mlat);
-        free(prio);
-        free(jaero);
+        sfree(replay);
+        sfree(mlat);
+        sfree(prio);
+        sfree(jaero);
     }
 
     sbs_in = serviceInit("SBS TCP input MAIN", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLine);
@@ -677,9 +676,9 @@ void modesInitNet(void) {
         if (sbs_in_jaero->listener_count == 0)
             serviceListen(sbs_in_jaero, Modes.net_bind_address, jaero, Modes.net_epfd);
 
-        free(mlat);
-        free(prio);
-        free(jaero);
+        sfree(mlat);
+        sfree(prio);
+        sfree(jaero);
     }
 
     raw_in = serviceInit("Raw TCP input", NULL, NULL, READ_MODE_ASCII, "\n", decodeHexMessage);
@@ -2523,8 +2522,8 @@ void netFreeClients() {
             if (c->fd == -1) {
                 // Recently closed, prune from list
                 *prev = c->next;
-                free(c->sendq);
-                free(c);
+                sfree(c->sendq);
+                sfree(c);
             } else {
                 prev = &c->next;
             }
@@ -2669,7 +2668,7 @@ void writeJsonToNet(struct net_writer *writer, struct char_buffer cb) {
 
     char *p = prepareWrite(writer, bytes);
     if (!p) {
-        free(content);
+        sfree(content);
         return;
     }
 
@@ -2689,7 +2688,7 @@ void writeJsonToNet(struct net_writer *writer, struct char_buffer cb) {
     }
 
     flushWrites(writer);
-    free(content);
+    sfree(content);
 }
 
 
@@ -2741,10 +2740,9 @@ void cleanupNetwork(void) {
             anetCloseSocket(c->fd);
             c->sendq_len = 0;
             if (c->sendq) {
-                free(c->sendq);
-                c->sendq = NULL;
+                sfree(c->sendq);
             }
-            free(c);
+            sfree(c);
 
             c = nc;
         }
@@ -2764,16 +2762,13 @@ void cleanupNetwork(void) {
         if (con->gai_request_in_progress) {
             pthread_join(con->thread, NULL);
         }
-        free(con->address0);
-        if (con->addr_info) {
-            freeaddrinfo(con->addr_info);
-            con->addr_info = NULL;
-        }
+        sfree(con->address0);
+        freeaddrinfo(con->addr_info);
         pthread_mutex_destroy(&con->mutex);
-        free(con);
+        sfree(con);
     }
-    free(Modes.net_connectors);
-    free(Modes.net_events);
+    sfree(Modes.net_connectors);
+    sfree(Modes.net_events);
 
     Modes.net_connectors_count = 0;
 

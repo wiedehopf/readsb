@@ -249,7 +249,7 @@ static struct char_buffer apiReq(struct apiBuffer *buffer, double *box, uint32_t
         *p++ = ',';
     }
 
-    free(matches);
+    sfree(matches);
 
     if (*(p - 1) == ',')
         p--; // remove trailing comma if necessary
@@ -308,7 +308,7 @@ static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, uint64_t
 }
 
 static inline void apiGenerateJson(struct apiBuffer *buffer, uint64_t now) {
-    free(buffer->json);
+    sfree(buffer->json);
     buffer->json = NULL;
 
     size_t alloc = buffer->len * 1024 + 4096; // The initial buffer is resized as needed
@@ -366,7 +366,7 @@ int apiUpdate(struct craftArray *ca) {
             return buffer->len;
         }
         buffer->alloc = acCount + 128;
-        free(buffer->list);
+        sfree(buffer->list);
         buffer->list = malloc(buffer->alloc * sizeof(struct apiEntry));
         if (!buffer->list) {
             fprintf(stderr, "apiList alloc: out of memory!\n");
@@ -432,8 +432,8 @@ static void apiCloseConn(struct apiCon *con, struct apiThread *thread) {
     anetCloseSocket(fd);
     if (Modes.debug_api)
         fprintf(stderr, "%d: clo c: %d\n", thread->index, fd);
-    free(con->request.buffer);
-    free(con);
+    sfree(con->request.buffer);
+    sfree(con);
 }
 
 static void send400(int fd) {
@@ -589,7 +589,7 @@ static void apiSendData(struct apiCon *con, struct apiThread *thread) {
         // free stuff some other time
     }
 
-    free(cb->buffer);
+    sfree(cb->buffer);
     cb->len = 0;
     cb->buffer = NULL;
 
@@ -774,7 +774,7 @@ static void *apiThreadEntryPoint(void *arg) {
         }
     }
     close(thread->epfd);
-    free(events);
+    sfree(events);
     pthread_mutex_unlock(&thread->mutex);
     pthread_mutex_destroy(&thread->mutex);
     return NULL;
@@ -832,9 +832,9 @@ void apiBufferCleanup() {
     pthread_cond_destroy(&Modes.apiUpdateCond);
 
     for (int i = 0; i < 2; i++) {
-        free(Modes.apiBuffer[i].list);
-        free(Modes.apiBuffer[i].json);
-        free(Modes.apiBuffer[i].hashList);
+        sfree(Modes.apiBuffer[i].list);
+        sfree(Modes.apiBuffer[i].json);
+        sfree(Modes.apiBuffer[i].hashList);
     }
 
     for (int i = 0; i < API_THREADS; i++) {
@@ -871,12 +871,11 @@ void apiCleanup() {
     }
 
     for (int i = 0; i < Modes.apiService.listener_count; ++i) {
-        free(Modes.apiListeners[i]);
+        sfree(Modes.apiListeners[i]);
     }
-    free(Modes.apiListeners);
+    sfree(Modes.apiListeners);
 
-    free(Modes.apiService.listener_fds);
-    Modes.apiService.listener_fds = NULL;
+    sfree(Modes.apiService.listener_fds);
 }
 
 struct char_buffer apiGenerateAircraftJson() {

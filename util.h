@@ -31,6 +31,8 @@
 
 #include <stdint.h>
 
+#define sfree(x) do { free(x); x = NULL; } while (0)
+
 struct char_buffer
 {
     char *buffer;

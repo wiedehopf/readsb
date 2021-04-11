@@ -483,13 +483,13 @@ static void *jsonThreadEntryPoint(void *arg) {
         if (Modes.onlyBin >= 2) {
             struct char_buffer cb3 = generateAircraftBin();
             writeJsonToGzip(Modes.json_dir, "aircraft.binCraft", cb3, 1);
-            free(cb3.buffer);
+            sfree(cb3.buffer);
         }
 
         if (Modes.binCraft) {
             struct char_buffer cb2 = generateGlobeBin(-1, 1);
             writeJsonToGzip(Modes.json_dir, "globeMil_42777.binCraft", cb2, 5);
-            free(cb2.buffer);
+            sfree(cb2.buffer);
         }
 
         if ((ALL_JSON) && Modes.onlyBin < 2 && now >= next_history) {
@@ -544,7 +544,7 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
             snprintf(filename, 31, "globe_%04d.json", index);
             struct char_buffer cb = apiGenerateGlobeJson(index);
             writeJsonToGzip(Modes.json_dir, filename, cb, 2);
-            free(cb.buffer);
+            sfree(cb.buffer);
         }
 
         end_cpu_timing(&start_time, &Modes.stats_current.globe_json_cpu);
@@ -588,12 +588,12 @@ static void *binThreadEntryPoint(void *arg) {
             snprintf(filename, 31, "globe_%04d.binCraft", index);
             struct char_buffer cb2 = generateGlobeBin(index, 0);
             writeJsonToGzip(Modes.json_dir, filename, cb2, 5);
-            free(cb2.buffer);
+            sfree(cb2.buffer);
 
             snprintf(filename, 31, "globeMil_%04d.binCraft", index);
             struct char_buffer cb3 = generateGlobeBin(index, 1);
             writeJsonToGzip(Modes.json_dir, filename, cb3, 2);
-            free(cb3.buffer);
+            sfree(cb3.buffer);
         }
 
         part++;
@@ -812,33 +812,33 @@ static void cleanup_and_exit(int code) {
     geomag_destroy();
     interactiveCleanup();
     cleanup_globe_index();
-    free(Modes.scratch);
-    free(Modes.dev_name);
-    free(Modes.filename);
-    free(Modes.prom_file);
-    free(Modes.json_dir);
-    free(Modes.globe_history_dir);
-    free(Modes.heatmap_dir);
-    free(Modes.state_dir);
-    free(Modes.globalStatsCount.rssi_table);
-    free(Modes.net_bind_address);
-    free(Modes.db_file);
-    free(Modes.net_input_beast_ports);
-    free(Modes.net_output_beast_ports);
-    free(Modes.net_output_beast_reduce_ports);
-    free(Modes.net_output_vrs_ports);
-    free(Modes.net_input_raw_ports);
-    free(Modes.net_output_raw_ports);
-    free(Modes.net_output_sbs_ports);
-    free(Modes.net_input_sbs_ports);
-    free(Modes.net_input_jaero_ports);
-    free(Modes.net_output_jaero_ports);
-    free(Modes.net_output_json_ports);
-    free(Modes.net_output_api_ports);
-    free(Modes.beast_serial);
-    free(Modes.uuidFile);
-    free(Modes.dbIndex);
-    free(Modes.db);
+    sfree(Modes.scratch);
+    sfree(Modes.dev_name);
+    sfree(Modes.filename);
+    sfree(Modes.prom_file);
+    sfree(Modes.json_dir);
+    sfree(Modes.globe_history_dir);
+    sfree(Modes.heatmap_dir);
+    sfree(Modes.state_dir);
+    sfree(Modes.globalStatsCount.rssi_table);
+    sfree(Modes.net_bind_address);
+    sfree(Modes.db_file);
+    sfree(Modes.net_input_beast_ports);
+    sfree(Modes.net_output_beast_ports);
+    sfree(Modes.net_output_beast_reduce_ports);
+    sfree(Modes.net_output_vrs_ports);
+    sfree(Modes.net_input_raw_ports);
+    sfree(Modes.net_output_raw_ports);
+    sfree(Modes.net_output_sbs_ports);
+    sfree(Modes.net_input_sbs_ports);
+    sfree(Modes.net_input_jaero_ports);
+    sfree(Modes.net_output_jaero_ports);
+    sfree(Modes.net_output_json_ports);
+    sfree(Modes.net_output_api_ports);
+    sfree(Modes.beast_serial);
+    sfree(Modes.uuidFile);
+    sfree(Modes.dbIndex);
+    sfree(Modes.db);
     /* Go through tracked aircraft chain and free up any used memory */
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
         struct aircraft *a = Modes.aircraft[j], *na;
@@ -846,11 +846,11 @@ static void cleanup_and_exit(int code) {
             na = a->next;
             if (a) {
                 if (a->trace) {
-                    free(a->trace);
-                    free(a->trace_all);
-                    free(a->traceCache);
+                    sfree(a->trace);
+                    sfree(a->trace_all);
+                    sfree(a->traceCache);
                 }
-                free(a);
+                sfree(a);
             }
             a = na;
         }
@@ -858,7 +858,7 @@ static void cleanup_and_exit(int code) {
 
     int i;
     for (i = 0; i < MODES_MAG_BUFFERS; ++i) {
-        free(Modes.mag_buffers[i].data);
+        sfree(Modes.mag_buffers[i].data);
     }
     crcCleanupTables();
 
@@ -1073,7 +1073,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptStateDir:
             if (Modes.state_dir)
-                free(Modes.state_dir);
+                sfree(Modes.state_dir);
             Modes.state_dir = malloc(PATH_MAX);
             snprintf(Modes.state_dir, PATH_MAX, "%s/internal_state", arg);
             break;
@@ -1097,7 +1097,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 Modes.json_reliable = 4;
             break;
         case OptDbFile:
-            free(Modes.db_file);
+            sfree(Modes.db_file);
             if (strcmp(arg, "tar1090") == 0) {
                 Modes.db_file = strdup("/usr/local/share/tar1090/git-db/aircraft.csv.gz");
             } else {
@@ -1130,23 +1130,23 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.net_output_flush_interval = (uint64_t) (1000 * atof(arg));
             break;
         case OptNetRoPorts:
-            free(Modes.net_output_raw_ports);
+            sfree(Modes.net_output_raw_ports);
             Modes.net_output_raw_ports = strdup(arg);
             break;
         case OptNetRiPorts:
-            free(Modes.net_input_raw_ports);
+            sfree(Modes.net_input_raw_ports);
             Modes.net_input_raw_ports = strdup(arg);
             break;
         case OptNetBoPorts:
-            free(Modes.net_output_beast_ports);
+            sfree(Modes.net_output_beast_ports);
             Modes.net_output_beast_ports = strdup(arg);
             break;
         case OptNetBiPorts:
-            free(Modes.net_input_beast_ports);
+            sfree(Modes.net_input_beast_ports);
             Modes.net_input_beast_ports = strdup(arg);
             break;
         case OptNetBeastReducePorts:
-            free(Modes.net_output_beast_reduce_ports);
+            sfree(Modes.net_output_beast_reduce_ports);
             Modes.net_output_beast_reduce_ports = strdup(arg);
             break;
         case OptNetBeastReduceInterval:
@@ -1159,37 +1159,37 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.sbsReduce = 1;
             break;
         case OptNetBindAddr:
-            free(Modes.net_bind_address);
+            sfree(Modes.net_bind_address);
             Modes.net_bind_address = strdup(arg);
             break;
         case OptNetSbsPorts:
-            free(Modes.net_output_sbs_ports);
+            sfree(Modes.net_output_sbs_ports);
             Modes.net_output_sbs_ports = strdup(arg);
             break;
         case OptNetJsonPorts:
-            free(Modes.net_output_json_ports);
+            sfree(Modes.net_output_json_ports);
             Modes.net_output_json_ports = strdup(arg);
             Modes.keep_traces = 35 * MINUTES;
             break;
         case OptNetApiPorts:
-            free(Modes.net_output_api_ports);
+            sfree(Modes.net_output_api_ports);
             Modes.net_output_api_ports = strdup(arg);
             Modes.api = 1;
             break;
         case OptNetSbsInPorts:
-            free(Modes.net_input_sbs_ports);
+            sfree(Modes.net_input_sbs_ports);
             Modes.net_input_sbs_ports = strdup(arg);
             break;
         case OptNetJaeroPorts:
-            free(Modes.net_output_jaero_ports);
+            sfree(Modes.net_output_jaero_ports);
             Modes.net_output_jaero_ports = strdup(arg);
             break;
         case OptNetJaeroInPorts:
-            free(Modes.net_input_jaero_ports);
+            sfree(Modes.net_input_jaero_ports);
             Modes.net_input_jaero_ports = strdup(arg);
             break;
         case OptNetVRSPorts:
-            free(Modes.net_output_vrs_ports);
+            sfree(Modes.net_output_vrs_ports);
             Modes.net_output_vrs_ports = strdup(arg);
             break;
         case OptNetVRSInterval:
@@ -1215,7 +1215,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.netIngest = 1;
             break;
         case OptUuidFile:
-            free(Modes.uuidFile);
+            sfree(Modes.uuidFile);
             Modes.uuidFile = strdup(arg);
             break;
         case OptNetConnector:
@@ -1601,7 +1601,7 @@ int main(int argc, char **argv) {
     }
 
     close(mainEpfd);
-    free(events);
+    sfree(events);
 
     if (Modes.json_dir) {
 
