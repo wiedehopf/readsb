@@ -1542,6 +1542,7 @@ int main(int argc, char **argv) {
 
     Modes.exitEventfd = eventfd(0, EFD_NONBLOCK);
 
+    /*
     for (int thread = 0; thread < STALE_THREADS; thread++) {
         Modes.staleRun[thread] = 1;
         pthread_mutex_lock(&Modes.staleDoneMutex[thread]);
@@ -1550,6 +1551,7 @@ int main(int argc, char **argv) {
             pthread_cond_wait(&Modes.staleDoneCond[thread], &Modes.staleDoneMutex[thread]);
         }
     }
+    */
 
     pthread_create(&Modes.decodeThread, NULL, decodeThreadEntryPoint, NULL);
 

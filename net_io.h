@@ -63,11 +63,12 @@ struct net_service
     read_fn read_handler;
     struct net_writer *writer; // shared writer state
     struct net_service* next;
-    int *listener_fds; // listening FDs
     const char *descr;
-    struct client *clients; // linked list of clients connected to this service
     int read_sep_len;
     const char *read_sep; // hander details for input data
+    struct client *clients; // linked list of clients connected to this service
+    int *listener_fds; // listening FDs
+    struct client *listenSockets; // dummy client structs for all open sockets for epoll commonality
 };
 
 // Client connection
@@ -102,10 +103,11 @@ struct net_connector
 
 struct client
 {
+    int fd; // File descriptor
+    int acceptSocket; // not really a client but rather an accept Socket ... only fd and epollEvent will be valid
+    int buflen; // Amount of data on buffer
     struct net_service *service; // Service this client is part of
     struct client* next; // Pointer to next client
-    int fd; // File descriptor
-    int buflen; // Amount of data on buffer
     uint64_t bytesReceived;
     uint64_t receiverId;
     uint64_t receiverId2;
@@ -115,8 +117,8 @@ struct client
     uint64_t connectedSince;
     uint64_t messageCounter; // counter for incoming data
     uint64_t positionCounter; // counter for incoming data
-    int8_t modeac_requested; // 1 if this Beast output connection has asked for A/C
-    int8_t receiverIdLocked; // receiverId has been transmitted by other side.
+    int modeac_requested; // 1 if this Beast output connection has asked for A/C
+    int receiverIdLocked; // receiverId has been transmitted by other side.
     void *sendq;  // Write buffer - allocated later
     int sendq_len; // Amount of data in SendQ
     int sendq_max; // Max size of SendQ
@@ -148,7 +150,8 @@ struct net_service *serviceInit (const char *descr, struct net_writer *writer, h
 struct client *serviceConnect(struct net_connector *con);
 void serviceReconnectCallback(uint64_t now);
 struct client *checkServiceConnected(struct net_connector *con);
-void serviceListen (struct net_service *service, char *bind_addr, char *bind_ports);
+void serviceListen (struct net_service *service, char *bind_addr, char *bind_ports, int epfd);
+void serviceClose(struct net_service *s);
 struct client *createSocketClient (struct net_service *service, int fd);
 struct client *createGenericClient (struct net_service *service, int fd);
 
@@ -160,7 +163,6 @@ void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a);
 void modesNetSecondWork(void);
 void modesNetPeriodicWork (void);
 void modesReadSerialClient(void);
-void modesAcceptClients(uint64_t now);
 void cleanupNetwork(void);
 void netFreeClients();
 

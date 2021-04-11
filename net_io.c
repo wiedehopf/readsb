@@ -193,15 +193,11 @@ struct client *createGenericClient(struct net_service *service, int fd) {
 
     c->service = service;
     c->fd = fd;
-    c->buflen = 0;
-    c->modeac_requested = 0;
     c->last_flush = now;
     c->last_send = now;
-    c->sendq_len = 0;
-    c->sendq_max = 0;
-    c->sendq = NULL;
-    c->con = NULL;
     c->last_read = now;
+    c->connectedSince = now;
+
     c->proxy_string[0] = '\0';
     c->host[0] = '\0';
     c->port[0] = '\0';
@@ -213,10 +209,7 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     c->receiverId ^= random();
 
     c->receiverId2 = 0;
-
     c->receiverIdLocked = 0;
-
-    c->connectedSince = mstime();
 
     //fprintf(stderr, "c->receiverId: %016"PRIx64"\n", c->receiverId);
 
@@ -244,7 +237,7 @@ struct client *createGenericClient(struct net_service *service, int fd) {
 
     epoll_data_t data;
     data.ptr = c;
-    c->epollEvent.events = EPOLLIN | EPOLLRDHUP;
+    c->epollEvent.events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
     c->epollEvent.data = data;
     if (epoll_ctl(Modes.net_epfd, EPOLL_CTL_ADD, c->fd, &c->epollEvent))
         perror("epoll_ctl fail:");
@@ -479,7 +472,7 @@ struct client *serviceConnect(struct net_connector *con) {
 
 // Set up the given service to listen on an address/port.
 // _exits_ on failure!
-void serviceListen(struct net_service *service, char *bind_addr, char *bind_ports) {
+void serviceListen(struct net_service *service, char *bind_addr, char *bind_ports, int epfd) {
     int *fds = NULL;
     int n = 0;
     char *p, *end;
@@ -539,6 +532,44 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
 
     service->listener_count = n;
     service->listener_fds = fds;
+
+    if (epfd >= 0) {
+        service->listenSockets = calloc(service->listener_count, sizeof(struct client));
+        for (int i = 0; i < service->listener_count; ++i) {
+
+            // struct client for epoll purposes for each listen socket.
+            struct client *c = &service->listenSockets[i];
+
+            c->service = service;
+            c->fd = service->listener_fds[i];
+            c->acceptSocket = 1;
+            c->epollEvent.events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
+            c->epollEvent.data.ptr = c;
+
+            if (epoll_ctl(epfd, EPOLL_CTL_ADD, c->fd, &c->epollEvent))
+                perror("epoll_ctl fail:");
+
+        }
+    }
+}
+
+void serviceClose(struct net_service *s) {
+    if (!s)
+        return;
+    if (s->listenSockets) {
+        for (int i = 0; i < s->listener_count; ++i) {
+            struct client *c = &s->listenSockets[i]; // not really a client
+            epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, c->fd, &c->epollEvent);
+            anetCloseSocket(s->listener_fds[i]);
+        }
+        free(s->listenSockets);
+    }
+    free(s->listener_fds);
+    if (s->writer && s->writer->data) {
+        free(s->writer->data);
+        s->writer->data = NULL;
+    }
+    free(s);
 }
 
 void modesInitNet(void) {
@@ -570,51 +601,51 @@ void modesInitNet(void) {
 
     // set up listeners
     raw_out = serviceInit("Raw TCP output", &Modes.raw_out, send_raw_heartbeat, READ_MODE_IGNORE, NULL, NULL);
-    serviceListen(raw_out, Modes.net_bind_address, Modes.net_output_raw_ports);
+    serviceListen(raw_out, Modes.net_bind_address, Modes.net_output_raw_ports, Modes.net_epfd);
 
     beast_out = serviceInit("Beast TCP output", &Modes.beast_out, send_beast_heartbeat, READ_MODE_BEAST_COMMAND, NULL, handleBeastCommand);
-    serviceListen(beast_out, Modes.net_bind_address, Modes.net_output_beast_ports);
+    serviceListen(beast_out, Modes.net_bind_address, Modes.net_output_beast_ports, Modes.net_epfd);
 
     beast_reduce_out = serviceInit("BeastReduce TCP output", &Modes.beast_reduce_out, send_beast_heartbeat, READ_MODE_IGNORE, NULL, NULL);
-    serviceListen(beast_reduce_out, Modes.net_bind_address, Modes.net_output_beast_reduce_ports);
+    serviceListen(beast_reduce_out, Modes.net_bind_address, Modes.net_output_beast_reduce_ports, Modes.net_epfd);
 
     garbage_out = serviceInit("Garbage TCP output", &Modes.garbage_out, send_beast_heartbeat, READ_MODE_IGNORE, NULL, NULL);
-    serviceListen(garbage_out, Modes.net_bind_address, Modes.garbage_ports);
+    serviceListen(garbage_out, Modes.net_bind_address, Modes.garbage_ports, Modes.net_epfd);
 
     vrs_out = serviceInit("VRS json output", &Modes.vrs_out, NULL, READ_MODE_IGNORE, NULL, NULL);
-    serviceListen(vrs_out, Modes.net_bind_address, Modes.net_output_vrs_ports);
+    serviceListen(vrs_out, Modes.net_bind_address, Modes.net_output_vrs_ports, Modes.net_epfd);
 
     json_out = serviceInit("Position json output", &Modes.json_out, NULL, READ_MODE_IGNORE, NULL, NULL);
-    serviceListen(json_out, Modes.net_bind_address, Modes.net_output_json_ports);
+    serviceListen(json_out, Modes.net_bind_address, Modes.net_output_json_ports, Modes.net_epfd);
 
     sbs_out = serviceInit("SBS TCP output ALL", &Modes.sbs_out, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
-    serviceListen(sbs_out, Modes.net_bind_address, Modes.net_output_sbs_ports);
+    serviceListen(sbs_out, Modes.net_bind_address, Modes.net_output_sbs_ports, Modes.net_epfd);
 
     sbs_out_replay = serviceInit("SBS TCP output MAIN", &Modes.sbs_out_replay, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     sbs_out_prio = serviceInit("SBS TCP output PRIO", &Modes.sbs_out_prio, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     sbs_out_mlat = serviceInit("SBS TCP output MLAT", &Modes.sbs_out_mlat, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     sbs_out_jaero = serviceInit("SBS TCP output JAERO", &Modes.sbs_out_jaero, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
 
-    serviceListen(sbs_out_jaero, Modes.net_bind_address, Modes.net_output_jaero_ports);
+    serviceListen(sbs_out_jaero, Modes.net_bind_address, Modes.net_output_jaero_ports, Modes.net_epfd);
 
     if (strlen(Modes.net_output_sbs_ports) == 5 && Modes.net_output_sbs_ports[4] == '5') {
 
         char *replay = strdup(Modes.net_output_sbs_ports);
         replay[4] = '6';
-        serviceListen(sbs_out_replay, Modes.net_bind_address, replay);
+        serviceListen(sbs_out_replay, Modes.net_bind_address, replay, Modes.net_epfd);
 
         char *mlat = strdup(Modes.net_output_sbs_ports);
         mlat[4] = '7';
-        serviceListen(sbs_out_mlat, Modes.net_bind_address, mlat);
+        serviceListen(sbs_out_mlat, Modes.net_bind_address, mlat, Modes.net_epfd);
 
         char *prio = strdup(Modes.net_output_sbs_ports);
         prio[4] = '8';
-        serviceListen(sbs_out_prio, Modes.net_bind_address, prio);
+        serviceListen(sbs_out_prio, Modes.net_bind_address, prio, Modes.net_epfd);
 
         char *jaero = strdup(Modes.net_output_sbs_ports);
         jaero[4] = '9';
         if (sbs_out_jaero->listener_count == 0)
-            serviceListen(sbs_out_jaero, Modes.net_bind_address, jaero);
+            serviceListen(sbs_out_jaero, Modes.net_bind_address, jaero, Modes.net_epfd);
 
         free(replay);
         free(mlat);
@@ -623,28 +654,28 @@ void modesInitNet(void) {
     }
 
     sbs_in = serviceInit("SBS TCP input MAIN", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLine);
-    serviceListen(sbs_in, Modes.net_bind_address, Modes.net_input_sbs_ports);
+    serviceListen(sbs_in, Modes.net_bind_address, Modes.net_input_sbs_ports, Modes.net_epfd);
 
     sbs_in_mlat = serviceInit("SBS TCP input MLAT", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLineMlat);
     sbs_in_prio = serviceInit("SBS TCP input PRIO", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLinePrio);
     sbs_in_jaero = serviceInit("SBS TCP input JAERO", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLineJaero);
 
 
-    serviceListen(sbs_in_jaero, Modes.net_bind_address, Modes.net_input_jaero_ports);
+    serviceListen(sbs_in_jaero, Modes.net_bind_address, Modes.net_input_jaero_ports, Modes.net_epfd);
 
     if (strlen(Modes.net_input_sbs_ports) == 5 && Modes.net_input_sbs_ports[4] == '6') {
         char *mlat = strdup(Modes.net_input_sbs_ports);
         mlat[4] = '7';
-        serviceListen(sbs_in_mlat, Modes.net_bind_address, mlat);
+        serviceListen(sbs_in_mlat, Modes.net_bind_address, mlat, Modes.net_epfd);
 
         char *prio = strdup(Modes.net_input_sbs_ports);
         prio[4] = '8';
-        serviceListen(sbs_in_prio, Modes.net_bind_address, prio);
+        serviceListen(sbs_in_prio, Modes.net_bind_address, prio, Modes.net_epfd);
 
         char *jaero = strdup(Modes.net_input_sbs_ports);
         jaero[4] = '9';
         if (sbs_in_jaero->listener_count == 0)
-            serviceListen(sbs_in_jaero, Modes.net_bind_address, jaero);
+            serviceListen(sbs_in_jaero, Modes.net_bind_address, jaero, Modes.net_epfd);
 
         free(mlat);
         free(prio);
@@ -652,11 +683,11 @@ void modesInitNet(void) {
     }
 
     raw_in = serviceInit("Raw TCP input", NULL, NULL, READ_MODE_ASCII, "\n", decodeHexMessage);
-    serviceListen(raw_in, Modes.net_bind_address, Modes.net_input_raw_ports);
+    serviceListen(raw_in, Modes.net_bind_address, Modes.net_input_raw_ports, Modes.net_epfd);
 
     /* Beast input via network */
     beast_in = serviceInit("Beast TCP input", NULL, NULL, READ_MODE_BEAST, NULL, decodeBinMessage);
-    serviceListen(beast_in, Modes.net_bind_address, Modes.net_input_beast_ports);
+    serviceListen(beast_in, Modes.net_bind_address, Modes.net_input_beast_ports, Modes.net_epfd);
 
     // print newline after all the listen announcements in serviceListen
     fprintf(stderr, "\n");
@@ -714,58 +745,49 @@ void modesInitNet(void) {
 //
 //=========================================================================
 // Accept new connections
-void modesAcceptClients(uint64_t now) {
-    static uint64_t next_accept;
-    if (now < next_accept)
+static void modesAcceptClients(struct client *c, uint64_t now) {
+    if (!c || !c->acceptSocket)
         return;
 
+    int listen_fd = c->fd;
+    struct net_service *s = c->service;
+
+    struct sockaddr_storage storage;
+    struct sockaddr *saddr = (struct sockaddr *) &storage;
+    socklen_t slen = sizeof(storage);
+
     int fd;
-    struct net_service *s;
-    struct client *c;
+    while ((fd = anetGenericAccept(Modes.aneterr, listen_fd, saddr, &slen, SOCK_NONBLOCK)) >= 0) {
+        c = createSocketClient(s, fd);
+        if (c) {
+            // We created the client, save the sockaddr info and 'hostport'
+            getnameinfo(saddr, slen,
+                    c->host, sizeof(c->host),
+                    c->port, sizeof(c->port),
+                    NI_NUMERICHOST | NI_NUMERICSERV);
 
-    for (s = Modes.services; s; s = s->next) {
-        int i;
-        for (i = 0; i < s->listener_count; ++i) {
-            struct sockaddr_storage storage;
-            struct sockaddr *saddr = (struct sockaddr *) &storage;
-            socklen_t slen = sizeof(storage);
-
-            while ((fd = anetGenericAccept(Modes.aneterr, s->listener_fds[i], saddr, &slen, SOCK_NONBLOCK)) >= 0) {
-                c = createSocketClient(s, fd);
-                if (c) {
-                    // We created the client, save the sockaddr info and 'hostport'
-                    getnameinfo(saddr, slen,
-                            c->host, sizeof(c->host),
-                            c->port, sizeof(c->port),
-                            NI_NUMERICHOST | NI_NUMERICSERV);
-
-                    setProxyString(c);
-                    if (!Modes.netIngest && Modes.debug_net) {
-                        fprintf(stderr, "%s: new c from %s port %s (fd %d)\n",
-                                c->service->descr, c->host, c->port, fd);
-                    }
-                    if (anetTcpKeepAlive(Modes.aneterr, fd) != ANET_OK)
-                        fprintf(stderr, "%s: Unable to set keepalive on connection from %s port %s (fd %d)\n", c->service->descr, c->host, c->port, fd);
-                } else {
-                    fprintf(stderr, "%s: Fatal: createSocketClient shouldn't fail!\n", s->descr);
-                    exit(1);
-                }
+            setProxyString(c);
+            if (!Modes.netIngest && Modes.debug_net) {
+                fprintf(stderr, "%s: new c from %s port %s (fd %d)\n",
+                        c->service->descr, c->host, c->port, fd);
             }
-
-            if (errno != EMFILE && errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK) {
-                fprintf(stderr, "%s: Error accepting new connection: %s\n", s->descr, Modes.aneterr);
-            }
+            if (anetTcpKeepAlive(Modes.aneterr, fd) != ANET_OK)
+                fprintf(stderr, "%s: Unable to set keepalive on connection from %s port %s (fd %d)\n", c->service->descr, c->host, c->port, fd);
+        } else {
+            fprintf(stderr, "%s: Fatal: createSocketClient shouldn't fail!\n", s->descr);
+            exit(1);
         }
     }
 
-    // temporarily stop trying to accept new clients if we are limited by file descriptors
-    if (errno == EMFILE) {
-        fprintf(stderr, "Accepting new connections suspended for 3 seconds: %s\n", Modes.aneterr);
-        next_accept = now + 3000;
+    if (!(errno & (EMFILE | EINTR | EAGAIN | EWOULDBLOCK))) {
+        fprintf(stderr, "%s: Error accepting new connection: %s\n", s->descr, Modes.aneterr);
     }
 
-    // only check for new clients not sooner than 150 ms from now
-    next_accept = now + 150;
+    static uint64_t antiSpam;
+    if (errno == EMFILE && now > antiSpam + 30 * SECONDS) {
+        antiSpam = now;
+        fprintf(stderr, "<3> Can't accept new connection, out of file descriptors: %s\n", Modes.aneterr);
+    }
 }
 
 //
@@ -2510,23 +2532,26 @@ void netFreeClients() {
     }
 }
 
-static void readWriteClients(int count) {
+static void handleEpoll(int count) {
     uint64_t now = mstime();
 
     for (int i = 0; i < count; i++) {
         struct epoll_event event = Modes.net_events[i];
-        if (event.data.ptr == &Modes.exitEventfd)
+        if (event.data.ptr == &Modes.exitEventfd) {
+            // program is exiting
             break;
+        }
         struct client *c = (struct client *) event.data.ptr;
         if (!c) { fprintf(stderr, "report error: eeKoh5ee\n"); continue; }
-        if (!c->service)
+
+        if (c->acceptSocket) {
+            modesAcceptClients(c, now);
             continue;
-        if (event.events & (EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP)) {
+        }
+        if ((event.events & (EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP)) && c->service) {
             modesReadFromClient(c, now);
         }
-        if (!c->service)
-            continue;
-        if (event.events & EPOLLOUT) {
+        if (event.events & EPOLLOUT && c->service) {
             // check if we need to flush a client because the send buffer was full previously
             flushClient(c, now);
         }
@@ -2554,7 +2579,7 @@ void modesNetPeriodicWork(void) {
 
     int64_t interval = stopWatch(&watch);
 
-    readWriteClients(count);
+    handleEpoll(count);
 
     if (count == Modes.net_maxEvents) {
         epollAllocEvents(&Modes.net_events, &Modes.net_maxEvents);
@@ -2568,8 +2593,6 @@ void modesNetPeriodicWork(void) {
         next_second = now + 1000;
         modesNetSecondWork();
     }
-
-    modesAcceptClients(now);
 
     int64_t elapsed2 = stopWatch(&watch);
 
@@ -2708,6 +2731,8 @@ static void *pthreadGetaddrinfo(void *param) {
 
 
 void cleanupNetwork(void) {
+    if (!Modes.net)
+        return;
     for (struct net_service *s = Modes.services; s; s = s->next) {
         struct client *c = s->clients, *nc;
         while (c) {
@@ -2730,15 +2755,7 @@ void cleanupNetwork(void) {
     struct net_service *s = Modes.services, *ns;
     while (s) {
         ns = s->next;
-        for (int i = 0; i < s->listener_count; ++i) {
-            anetCloseSocket(s->listener_fds[i]);
-        }
-        free(s->listener_fds);
-        if (s->writer && s->writer->data) {
-            free(s->writer->data);
-            s->writer->data = NULL;
-        }
-        if (s) free(s);
+        serviceClose(s);
         s = ns;
     }
 

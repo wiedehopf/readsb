@@ -843,13 +843,13 @@ void apiBufferCleanup() {
 }
 
 void apiInit() {
-    Modes.apiService.descr = strdup("API output");
-    serviceListen(&Modes.apiService, Modes.net_bind_address, Modes.net_output_api_ports);
+    Modes.apiService.descr = "API output";
+    serviceListen(&Modes.apiService, Modes.net_bind_address, Modes.net_output_api_ports, -1);
     if (Modes.apiService.listener_count <= 0) {
         Modes.api = 0;
         return;
     }
-    Modes.apiListeners = malloc(sizeof(struct apiCon*) * Modes.apiService.listener_count);
+    Modes.apiListeners = calloc(sizeof(struct apiCon*), Modes.apiService.listener_count);
     for (int i = 0; i < Modes.apiService.listener_count; ++i) {
         struct apiCon *con = calloc(sizeof(struct apiCon), 1);
         if (!con) fprintf(stderr, "EMEM, how much is the fish?\n"), exit(1);
@@ -869,15 +869,14 @@ void apiCleanup() {
     for (int i = 0; i < API_THREADS; i++) {
         pthread_join(Modes.apiThread[i].thread, NULL);
     }
+
     for (int i = 0; i < Modes.apiService.listener_count; ++i) {
-        anetCloseSocket(Modes.apiService.listener_fds[i]);
         free(Modes.apiListeners[i]);
     }
     free(Modes.apiListeners);
 
-    free((void *) Modes.apiService.read_sep);
     free(Modes.apiService.listener_fds);
-    free((void *) Modes.apiService.descr);
+    Modes.apiService.listener_fds = NULL;
 }
 
 struct char_buffer apiGenerateAircraftJson() {
