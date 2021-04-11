@@ -34,9 +34,8 @@ struct apiEntry {
     char typeCode[4];
     uint16_t dbFlags;
     unsigned aircraftJson:1;
-    unsigned globeJson:1;
-    unsigned padding:14;
-    uint32_t pad2;
+    unsigned padding:15;
+    int32_t globe_index;
 
     uint64_t pad3;
 } __attribute__ ((__packed__));
@@ -84,5 +83,6 @@ void apiCleanup();
 int apiUpdate(struct craftArray *ca);
 
 struct char_buffer apiGenerateAircraftJson();
+struct char_buffer apiGenerateGlobeJson(int globe_index);
 
 #endif

@@ -933,6 +933,86 @@ static void check_state_all(struct aircraft *test, uint64_t now) {
     }
 }
 */
+struct char_buffer generateAircraftBin() {
+    struct char_buffer cb;
+    uint64_t now = mstime();
+    struct aircraft *a;
+    size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
+    char *buf = malloc(buflen), *p = buf, *end = buf + buflen;
+
+    uint32_t elementSize = sizeof(struct binCraft);
+    memset(p, 0, elementSize);
+
+#define memWrite(p, var) do { memcpy(p, &var, sizeof(var)); p += sizeof(var); } while(0)
+
+    memWrite(p, now);
+
+    memWrite(p, elementSize);
+
+    uint32_t ac_count_pos = Modes.globalStatsCount.json_ac_count_pos;
+    memWrite(p, ac_count_pos);
+
+    uint32_t index = 314159; // unnecessary
+    memWrite(p, index);
+
+    int16_t south = -90;
+    int16_t west = -180;
+    int16_t north = 90;
+    int16_t east = 180;
+
+    memWrite(p, south);
+    memWrite(p, west);
+    memWrite(p, north);
+    memWrite(p, east);
+
+    if (p - buf > (int) elementSize)
+        fprintf(stderr, "buffer overrun globeBin\n");
+
+    p = buf + elementSize;
+
+    struct craftArray *ca = &Modes.aircraftActive;
+
+    for (int i = 0; i < ca->len; i++) {
+        a = ca->list[i];
+
+        if (a == NULL)
+            continue;
+
+        // don't include stale aircraft in the aircraft.binCraft
+        if (a->position_valid.source != SOURCE_JAERO
+                && now > a->seen + TRACK_EXPIRE / 2
+                && now > a->seenPosReliable + TRACK_EXPIRE
+           ) {
+            continue;
+        }
+        if (a->messages < 2)
+            continue;
+
+        // check if we have enough space
+        if ((p + 1000) >= end) {
+            int used = p - buf;
+            buflen *= 2;
+            buf = (char *) realloc(buf, buflen);
+            p = buf + used;
+            end = buf + buflen;
+        }
+
+        struct binCraft bin;
+        toBinCraft(a, &bin, now);
+
+        memWrite(p, bin);
+
+        if (p >= end)
+            fprintf(stderr, "buffer overrun globeBin\n");
+    }
+
+    cb.len = p - buf;
+    cb.buffer = buf;
+    return cb;
+
+#undef memWrite
+}
+
 struct char_buffer generateGlobeBin(int globe_index, int mil) {
     struct char_buffer cb;
     uint64_t now = mstime();

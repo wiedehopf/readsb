@@ -5,7 +5,8 @@
 static void mark_legs(struct aircraft *a, int start);
 static void load_blob(int blob);
 
-void init_globe_index(struct tile *s_tiles) {
+void init_globe_index() {
+    struct tile *s_tiles = Modes.json_globe_special_tiles = calloc(GLOBE_SPECIAL_INDEX, sizeof(struct tile));
     int count = 0;
 
     // Arctic
@@ -320,6 +321,32 @@ void init_globe_index(struct tile *s_tiles) {
 
     if (count + 1 >= GLOBE_SPECIAL_INDEX)
         fprintf(stderr, "increase GLOBE_SPECIAL_INDEX please!\n");
+
+    Modes.json_globe_indexes = calloc(GLOBE_MAX_INDEX, sizeof(int32_t));
+    Modes.json_globe_indexes_len = 0;
+    for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
+        if (i == Modes.specialTileCount)
+            i = GLOBE_MIN_INDEX;
+
+        if (i >= GLOBE_MIN_INDEX) {
+            int index_index = globe_index_index(i);
+            if (index_index != i) {
+
+                if (index_index >= GLOBE_MIN_INDEX) {
+                    fprintf(stderr, "weird globe index: %d\n", i);
+                }
+                continue;
+            }
+        }
+        Modes.json_globe_indexes[Modes.json_globe_indexes_len++] = i;
+    }
+}
+void cleanup_globe_index() {
+    free(Modes.json_globe_indexes);
+    Modes.json_globe_indexes = NULL;
+
+    free(Modes.json_globe_special_tiles);
+    Modes.json_globe_special_tiles = NULL;
 }
 
 int globe_index(double lat_in, double lon_in) {

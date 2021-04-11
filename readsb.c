@@ -200,6 +200,9 @@ static void modesInit(void) {
     pthread_mutex_init(&Modes.jsonGlobeMutex, NULL);
     pthread_cond_init(&Modes.jsonGlobeCond, NULL);
 
+    pthread_mutex_init(&Modes.binMutex, NULL);
+    pthread_cond_init(&Modes.binCond, NULL);
+
     pthread_mutex_init(&Modes.jsonMutex, NULL);
     pthread_cond_init(&Modes.jsonCond, NULL);
 
@@ -291,7 +294,7 @@ static void modesInit(void) {
         Modes.net_sndbuf_size = MODES_NET_SNDBUF_MAX;
     }
 
-    if((Modes.net_connector_delay <= 0) || (Modes.net_connector_delay > 86400 * 1000)) {
+    if ((Modes.net_connector_delay <= 0) || (Modes.net_connector_delay > 86400 * 1000)) {
         Modes.net_connector_delay = 30 * 1000;
     }
 
@@ -302,8 +305,7 @@ static void modesInit(void) {
 
     icaoFilterAdd(Modes.show_only);
 
-    Modes.json_globe_special_tiles = calloc(GLOBE_SPECIAL_INDEX, sizeof(struct tile));
-    init_globe_index(Modes.json_globe_special_tiles);
+    init_globe_index();
 }
 
 static void lockThreads() {
@@ -465,22 +467,28 @@ static void *jsonThreadEntryPoint(void *arg) {
         // old direct creation, slower when creating json for an aircraft more than once
         //struct char_buffer cb = generateAircraftJson(0);
 
-        // new way: use the apiBuffer of json fragments
-        struct char_buffer cb = apiGenerateAircraftJson();
-        if (Modes.json_gzip)
-            writeJsonToGzip(Modes.json_dir, "aircraft.json.gz", cb, 3);
-        writeJsonToFile(Modes.json_dir, "aircraft.json", cb);
+        if (Modes.onlyBin < 2) {
+            // new way: use the apiBuffer of json fragments
+            struct char_buffer cb = apiGenerateAircraftJson();
+            if (Modes.json_gzip)
+                writeJsonToGzip(Modes.json_dir, "aircraft.json.gz", cb, 3);
+            writeJsonToFile(Modes.json_dir, "aircraft.json", cb);
+        }
 
         if (Modes.debug_recent) {
             struct char_buffer cb = generateAircraftJson(1 * SECONDS);
             writeJsonToFile(Modes.json_dir, "aircraft_recent.json", cb);
         }
 
+        struct char_buffer cb3 = generateAircraftBin();
+        writeJsonToGzip(Modes.json_dir, "aircraft.binCraft", cb3, 1);
+        free(cb3.buffer);
+
         struct char_buffer cb2 = generateGlobeBin(-1, 1);
         writeJsonToGzip(Modes.json_dir, "globeMil_42777.binCraft", cb2, 5);
         free(cb2.buffer);
 
-        if ((ALL_JSON) && now >= next_history) {
+        if ((ALL_JSON) && Modes.onlyBin < 2 && now >= next_history) {
             char filebuf[PATH_MAX];
 
             snprintf(filebuf, PATH_MAX, "history_%d.json", Modes.json_aircraft_history_next);
@@ -514,14 +522,50 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
     srandom(get_seed());
 
+    if (Modes.onlyBin > 0)
+        return NULL;
+
+    pthread_mutex_lock(&Modes.jsonGlobeMutex);
+
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    while (!Modes.exit) {
+        struct timespec start_time;
+        start_cpu_timing(&start_time);
+
+        for (int j = 0; j <= Modes.json_globe_indexes_len; j++) {
+            int index = Modes.json_globe_indexes[j];
+
+            char filename[32];
+            snprintf(filename, 31, "globe_%04d.json", index);
+            struct char_buffer cb = apiGenerateGlobeJson(index);
+            writeJsonToGzip(Modes.json_dir, filename, cb, 2);
+            free(cb.buffer);
+        }
+
+        end_cpu_timing(&start_time, &Modes.stats_current.globe_json_cpu);
+
+        incTimedwait(&ts, Modes.json_interval * 3 / 2);
+        int err = pthread_cond_timedwait(&Modes.jsonGlobeCond, &Modes.jsonGlobeMutex, &ts);
+        if (err && err != ETIMEDOUT)
+            fprintf(stderr, "json thread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
+    }
+
+    pthread_mutex_unlock(&Modes.jsonGlobeMutex);
+    return NULL;
+}
+
+static void *binThreadEntryPoint(void *arg) {
+    MODES_NOTUSED(arg);
+    srandom(get_seed());
+
     int part = 0;
-    int writeJson = 0;
     int n_parts = 8; // power of 2
 
     uint64_t sleep_ms = Modes.json_interval / n_parts / 2;
-    // write globe binCraft at double speed, globe json at normal speed
+    // write globe binCraft at double speed
 
-    pthread_mutex_lock(&Modes.jsonGlobeMutex);
+    pthread_mutex_lock(&Modes.binMutex);
 
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
@@ -531,57 +575,35 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
         struct timespec start_time;
         start_cpu_timing(&start_time);
 
-        if (part == 0)
-            writeJson = !writeJson;
-
-        for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
-            if (i == Modes.specialTileCount)
-                i = GLOBE_MIN_INDEX;
-
-            if (i % n_parts != part)
+        for (int j = 0; j < Modes.json_globe_indexes_len; j++) {
+            if (j % n_parts != part)
                 continue;
 
-            if (i >= GLOBE_MIN_INDEX) {
-                int index_index = globe_index_index(i);
-                if (index_index!= i) {
+            int index = Modes.json_globe_indexes[j];
 
-                    if (index_index >= GLOBE_MIN_INDEX) {
-                        fprintf(stderr, "weird globe index: %d\n", i);
-                    }
-                    continue;
-                }
-            }
-
-            snprintf(filename, 31, "globe_%04d.binCraft", i);
-            struct char_buffer cb2 = generateGlobeBin(i, 0);
+            snprintf(filename, 31, "globe_%04d.binCraft", index);
+            struct char_buffer cb2 = generateGlobeBin(index, 0);
             writeJsonToGzip(Modes.json_dir, filename, cb2, 5);
             free(cb2.buffer);
 
-            snprintf(filename, 31, "globeMil_%04d.binCraft", i);
-            struct char_buffer cb3 = generateGlobeBin(i, 1);
+            snprintf(filename, 31, "globeMil_%04d.binCraft", index);
+            struct char_buffer cb3 = generateGlobeBin(index, 1);
             writeJsonToGzip(Modes.json_dir, filename, cb3, 2);
             free(cb3.buffer);
-
-            if (!Modes.jsonBinCraft && writeJson) {
-                snprintf(filename, 31, "globe_%04d.json", i);
-                struct char_buffer cb = generateGlobeJson(i);
-                writeJsonToGzip(Modes.json_dir, filename, cb, 2);
-                free(cb.buffer);
-            }
         }
 
         part++;
         part %= n_parts;
-        end_cpu_timing(&start_time, &Modes.stats_current.globe_json_cpu);
+        end_cpu_timing(&start_time, &Modes.stats_current.bin_cpu);
 
         incTimedwait(&ts, sleep_ms);
 
-        int err = pthread_cond_timedwait(&Modes.jsonGlobeCond, &Modes.jsonGlobeMutex, &ts);
+        int err = pthread_cond_timedwait(&Modes.binCond, &Modes.binMutex, &ts);
         if (err && err != ETIMEDOUT)
-            fprintf(stderr, "jsonGlobeThread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
+            fprintf(stderr, "binGlobeThread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
     }
 
-    pthread_mutex_unlock(&Modes.jsonGlobeMutex);
+    pthread_mutex_unlock(&Modes.binMutex);
 
     return NULL;
 }
@@ -785,6 +807,7 @@ static void cleanup_and_exit(int code) {
     // Free any used memory
     geomag_destroy();
     interactiveCleanup();
+    cleanup_globe_index();
     free(Modes.scratch);
     free(Modes.dev_name);
     free(Modes.filename);
@@ -809,7 +832,6 @@ static void cleanup_and_exit(int code) {
     free(Modes.net_output_json_ports);
     free(Modes.net_output_api_ports);
     free(Modes.beast_serial);
-    free(Modes.json_globe_special_tiles);
     free(Modes.uuidFile);
     free(Modes.dbIndex);
     free(Modes.db);
@@ -1081,8 +1103,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptJsonGzip:
             Modes.json_gzip = 1;
             break;
-        case OptJsonBinCraft:
-            Modes.jsonBinCraft = atoi(arg);
+        case OptJsonOnlyBin:
+            Modes.onlyBin = atoi(arg);
             break;
         case OptJsonTraceInt:
             if (atof(arg) > 0)
@@ -1397,6 +1419,10 @@ static void configAfterParse() {
     } else if (Modes.heatmap || Modes.trace_focus != BADDR) {
         Modes.keep_traces = 35 * MINUTES; // heatmap is written every 30 minutes
     }
+
+    if (Modes.json_dir && (Modes.json_globe_index || Modes.onlyBin > 1)) {
+        Modes.binCraft = 1;
+    }
 }
 
 //
@@ -1525,7 +1551,7 @@ int main(int argc, char **argv) {
 
     pthread_create(&Modes.miscThread, NULL, miscThreadEntryPoint, NULL);
 
-    if (Modes.api || (Modes.json_dir && Modes.jsonBinCraft < 2)) {
+    if (Modes.api || (Modes.json_dir && Modes.onlyBin < 2)) {
         // provide a json buffer
         Modes.apiUpdate = 1;
         apiBufferInit();
@@ -1533,6 +1559,10 @@ int main(int argc, char **argv) {
     if (Modes.api) {
         // after apiBufferInit()
         apiInit();
+    }
+
+    if (Modes.binCraft) {
+        pthread_create(&Modes.binThread, NULL, binThreadEntryPoint, NULL);
     }
 
     if (Modes.json_dir) {
@@ -1593,6 +1623,12 @@ int main(int argc, char **argv) {
             pthread_join(Modes.jsonTraceThread[i], NULL);
         }
     }
+    if (Modes.binCraft) {
+        pthread_mutex_lock(&Modes.binMutex);
+        pthread_cond_signal(&Modes.binCond);
+        pthread_mutex_unlock(&Modes.binMutex);
+        pthread_join(Modes.binThread, NULL);
+    }
 
     pthread_mutex_lock(&Modes.miscMutex);
     pthread_cond_signal(&Modes.miscCond);
@@ -1647,9 +1683,11 @@ int main(int argc, char **argv) {
     pthread_mutex_destroy(&Modes.decodeMutex);
     pthread_mutex_destroy(&Modes.jsonMutex);
     pthread_mutex_destroy(&Modes.jsonGlobeMutex);
+    pthread_mutex_destroy(&Modes.binMutex);
     pthread_cond_destroy(&Modes.decodeCond);
     pthread_cond_destroy(&Modes.jsonCond);
     pthread_cond_destroy(&Modes.jsonGlobeCond);
+    pthread_cond_destroy(&Modes.binCond);
     for (int i = 0; i < TRACE_THREADS; i++) {
         pthread_mutex_destroy(&Modes.jsonTraceMutex[i]);
         pthread_cond_destroy(&Modes.jsonTraceCond[i]);

@@ -298,6 +298,12 @@ static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, uint64_t
         entry->aircraftJson = 1;
     }
 
+    if (a->position_valid.source == SOURCE_JAERO || now < a->seenPosReliable + 2 * MINUTES) {
+        entry->globe_index = a->globe_index;
+    } else {
+        entry->globe_index = -2;
+    }
+
     buffer->len++;
 }
 
@@ -402,7 +408,7 @@ int apiUpdate(struct craftArray *ca) {
     apiUnlockMutex();
 
     pthread_cond_signal(&Modes.jsonCond);
-    //pthread_cond_signal(&Modes.jsonGlobeCond);
+    pthread_cond_signal(&Modes.jsonGlobeCond);
 
     return buffer->len;
 }
@@ -922,6 +928,96 @@ struct char_buffer apiGenerateAircraftJson() {
     }
 
     if (*(p-1) == ',')
+        p--;
+
+    p = safe_snprintf(p, end, "\n  ]\n}\n");
+
+    cb.len = p - buf;
+    cb.buffer = buf;
+    return cb;
+}
+
+struct char_buffer apiGenerateGlobeJson(int globe_index) {
+    assert (globe_index <= GLOBE_MAX_INDEX);
+
+    struct char_buffer cb;
+    size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
+    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
+
+    pthread_mutex_lock(&Modes.apiFlipMutex);
+    int flip = Modes.apiFlip;
+    pthread_mutex_unlock(&Modes.apiFlipMutex);
+
+    struct apiBuffer *buffer = &Modes.apiBuffer[flip];
+
+    p = safe_snprintf(p, end,
+            "{ \"now\" : %.1f,\n"
+            "  \"messages\" : %u,\n",
+            buffer->timestamp / 1000.0,
+            Modes.stats_current.messages_total + Modes.stats_alltime.messages_total);
+
+    p = safe_snprintf(p, end,
+            "  \"global_ac_count_withpos\" : %d,\n",
+            Modes.globalStatsCount.json_ac_count_pos
+            );
+
+    p = safe_snprintf(p, end, "  \"globeIndex\" : %d, ", globe_index);
+    if (globe_index >= GLOBE_MIN_INDEX) {
+        int grid = GLOBE_INDEX_GRID;
+        int lat = ((globe_index - GLOBE_MIN_INDEX) / GLOBE_LAT_MULT) * grid - 90;
+        int lon = ((globe_index - GLOBE_MIN_INDEX) % GLOBE_LAT_MULT) * grid - 180;
+        p = safe_snprintf(p, end,
+                "\"south\" : %d, "
+                "\"west\" : %d, "
+                "\"north\" : %d, "
+                "\"east\" : %d,\n",
+                lat,
+                lon,
+                lat + grid,
+                lon + grid);
+    } else {
+        struct tile *tiles = Modes.json_globe_special_tiles;
+        struct tile tile = tiles[globe_index];
+        p = safe_snprintf(p, end,
+                "\"south\" : %d, "
+                "\"west\" : %d, "
+                "\"north\" : %d, "
+                "\"east\" : %d,\n",
+                tile.south,
+                tile.west,
+                tile.north,
+                tile.east);
+    }
+
+    p = safe_snprintf(p, end, "  \"aircraft\" : [");
+
+    for (int j = 0; j < buffer->len; j++) {
+
+        struct apiEntry *entry = &buffer->list[j];
+        if (entry->globe_index != globe_index)
+            continue;
+
+        // check if we have enough space
+        if ((p + 2000) >= end) {
+            int used = p - buf;
+            buflen *= 2;
+            buf = (char *) realloc(buf, buflen);
+            p = buf + used;
+            end = buf + buflen;
+        }
+
+        *p++ = '\n';
+
+        memcpy(p, buffer->json + entry->jsonOffset.offset, entry->jsonOffset.len);
+        p += entry->jsonOffset.len;
+
+        *p++ = ',';
+
+        if (p >= end)
+            fprintf(stderr, "buffer overrun aircraft json\n");
+    }
+
+    if (*(p - 1) == ',')
         p--;
 
     p = safe_snprintf(p, end, "\n  ]\n}\n");

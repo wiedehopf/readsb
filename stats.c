@@ -297,6 +297,7 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
     add_timespecs(&st1->background_cpu, &st2->background_cpu, &target->background_cpu);
     add_timespecs(&st1->aircraft_json_cpu, &st2->aircraft_json_cpu, &target->aircraft_json_cpu);
     add_timespecs(&st1->globe_json_cpu, &st2->globe_json_cpu, &target->globe_json_cpu);
+    add_timespecs(&st1->bin_cpu, &st2->bin_cpu, &target->bin_cpu);
     add_timespecs(&st1->heatmap_and_state_cpu, &st2->heatmap_and_state_cpu, &target->heatmap_and_state_cpu);
     add_timespecs(&st1->remove_stale_cpu, &st2->remove_stale_cpu, &target->remove_stale_cpu);
     add_timespecs(&st1->api_update_cpu, &st2->api_update_cpu, &target->api_update_cpu);
@@ -561,6 +562,7 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
                 ",\"cpu\":{\"demod\":%llu,\"reader\":%llu,\"background\":%llu"
                 ",\"aircraft_json\":%llu"
                 ",\"globe_json\":%llu"
+                ",\"binCraft\":%llu"
                 ",\"trace_json\":%llu"
                 ",\"heatmap_and_state\":%llu"
                 ",\"api_workers\":%llu"
@@ -592,6 +594,7 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
             CPU_MILLIS(background),
             CPU_MILLIS(aircraft_json),
             CPU_MILLIS(globe_json),
+            CPU_MILLIS(bin),
             trace_json_cpu_millis_sum,
             CPU_MILLIS(heatmap_and_state),
             CPU_MILLIS(api_worker),
@@ -706,6 +709,7 @@ struct char_buffer generatePromFile() {
     p = safe_snprintf(p, end, "readsb_cpu_reader %llu\n", CPU_MILLIS(reader));
     p = safe_snprintf(p, end, "readsb_cpu_aircraft_json %llu\n", CPU_MILLIS(aircraft_json));
     p = safe_snprintf(p, end, "readsb_cpu_globe_json %llu\n", CPU_MILLIS(globe_json));
+    p = safe_snprintf(p, end, "readsb_cpu_binCraft %llu\n", CPU_MILLIS(bin));
     p = safe_snprintf(p, end, "readsb_cpu_heatmap_and_state %llu\n", CPU_MILLIS(heatmap_and_state));
     p = safe_snprintf(p, end, "readsb_cpu_remove_stale %llu\n", CPU_MILLIS(remove_stale));
     p = safe_snprintf(p, end, "readsb_cpu_trace_json %llu\n", trace_json_cpu_millis_sum);

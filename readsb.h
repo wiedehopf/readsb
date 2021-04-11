@@ -383,12 +383,15 @@ struct _Modes
     pthread_t decodeThread; // thread writing json
     pthread_t jsonThread; // thread writing json
     pthread_t jsonGlobeThread; // thread writing json
+    pthread_t binThread; // thread writing binCraft
     pthread_mutex_t decodeMutex;
     pthread_mutex_t jsonMutex;
     pthread_mutex_t jsonGlobeMutex;
+    pthread_mutex_t binMutex;
     pthread_cond_t decodeCond;
     pthread_cond_t jsonCond;
     pthread_cond_t jsonGlobeCond;
+    pthread_cond_t binCond;
 
     // writing icao trace jsons
     pthread_t jsonTraceThread[TRACE_THREADS];
@@ -574,6 +577,8 @@ struct _Modes
     int acasFD1; // file descriptor to write acasFDs to
     int acasFD2;
     struct tile *json_globe_special_tiles;
+    int32_t *json_globe_indexes;
+    int32_t json_globe_indexes_len;
     int specialTileCount;
     int json_gzip; // Enable extra globe indexed json files.
     char *beast_serial; // Modes-S Beast device path
@@ -586,7 +591,8 @@ struct _Modes
     int8_t triggerPermWriteDay;
     int8_t acasDay;
     int8_t traceDay;
-    int8_t jsonBinCraft; // only write binCraft for globe (1) and also aircraft.json (2)
+    int8_t onlyBin; // only write binCraft for globe (1) and also aircraft.json (2)
+    int8_t binCraft; // write binCraft
 
     int8_t updateStats;
     int8_t staleStop;
@@ -885,7 +891,7 @@ enum {
     OptFilterDF,
     OptJsonDir,
     OptJsonGzip,
-    OptJsonBinCraft,
+    OptJsonOnlyBin,
     OptJsonReliable,
     OptJaeroTimeout,
     OptDbFile,

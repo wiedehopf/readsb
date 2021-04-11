@@ -86,6 +86,7 @@ struct stats
   struct timespec aircraft_json_cpu;
   struct timespec trace_json_cpu[TRACE_THREADS];
   struct timespec globe_json_cpu;
+  struct timespec bin_cpu;
   struct timespec heatmap_and_state_cpu;
   struct timespec remove_stale_cpu;
   struct timespec api_worker_cpu;
