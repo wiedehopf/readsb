@@ -264,7 +264,7 @@ static struct char_buffer apiReq(struct apiBuffer *buffer, double *box, uint32_t
 }
 
 static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, uint64_t now) {
-    if (now > a->seen + TRACK_EXPIRE_LONG)
+    if (!(now < a->seen + 5 * MINUTES || a->position_valid.source == SOURCE_JAERO))
         return;
 
     struct apiEntry *entry = &(buffer->list[buffer->len]);
