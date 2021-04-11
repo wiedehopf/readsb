@@ -200,7 +200,12 @@ static int findInCircle(struct apiBuffer *buffer, struct apiCircle *circle, stru
     return count;
 }
 
-static struct char_buffer apiReq(struct apiBuffer *buffer, double *box, uint32_t *hexList, int hexCount, struct apiCircle *circle) {
+static struct char_buffer apiReq(struct apiThread *thread, double *box, uint32_t *hexList, int hexCount, struct apiCircle *circle) {
+    pthread_mutex_lock(&Modes.apiMutex[thread->index]);
+    int flip = Modes.apiFlip;
+    pthread_mutex_unlock(&Modes.apiMutex[thread->index]);
+    struct apiBuffer *buffer = &Modes.apiBuffer[flip];
+
     struct char_buffer cb = { 0 };
     struct apiEntry *matches = malloc(buffer->len * sizeof(struct apiEntry));
 
@@ -465,7 +470,7 @@ static int parseDoubles(char *p, double *results, int max) {
     return count;
 }
 
-static struct char_buffer parseFetch(struct char_buffer *request, struct apiBuffer *buffer) {
+static struct char_buffer parseFetch(struct char_buffer *request, struct apiThread *thread) {
     struct char_buffer invalid = { 0 };
     char *p, *needle, *eot;
     char *saveptr;
@@ -497,7 +502,7 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiBuff
         if (box[0] > box[1])
             return invalid;
 
-        return apiReq(buffer, box, NULL, 0, NULL);
+        return apiReq(thread, box, NULL, 0, NULL);
     }
     needle = "?hexlist=";
     p = strcasestr(req, needle);
@@ -522,7 +527,7 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiBuff
         }
         if (hexCount == 0)
             return invalid;
-        return apiReq(buffer, NULL, hexList, hexCount, NULL);
+        return apiReq(thread, NULL, hexList, hexCount, NULL);
     }
     needle = "?circle=";
     p = strcasestr(req, needle);
@@ -557,7 +562,7 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiBuff
 
         circle.onlyClosest = onlyClosest;
 
-        return apiReq(buffer, NULL, NULL, 0, &circle);
+        return apiReq(thread, NULL, NULL, 0, &circle);
     }
     return invalid;
 }
@@ -616,7 +621,7 @@ static void apiSendData(struct apiCon *con, struct apiThread *thread) {
     return;
 }
 
-static void apiReadRequest(struct apiCon *con, struct apiBuffer *buffer, struct apiThread *thread) {
+static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
     int nread, err, toRead;
     int fd = con->fd;
 
@@ -658,7 +663,7 @@ static void apiReadRequest(struct apiCon *con, struct apiBuffer *buffer, struct 
 
     //fprintf(stderr, "%s\n", req);
 
-    struct char_buffer cb = parseFetch(request, buffer);
+    struct char_buffer cb = parseFetch(request, thread);
     if (cb.len == 0) {
         send400(fd);
         apiCloseConn(con, thread);
@@ -738,23 +743,19 @@ static void *apiThreadEntryPoint(void *arg) {
 
     struct timespec cpu_timer;
     start_cpu_timing(&cpu_timer);
+    uint32_t loop = 0;
     while (!Modes.exit) {
-        int flip;
-
         if (count == maxEvents) {
             epollAllocEvents(&events, &maxEvents);
         }
         count = epoll_wait(thread->epfd, events, maxEvents, 1000);
 
-        pthread_mutex_lock(&Modes.apiMutex[thread->index]);
-
-        flip = Modes.apiFlip;
-        end_cpu_timing(&cpu_timer, &Modes.stats_current.api_worker_cpu);
-
-        pthread_mutex_unlock(&Modes.apiMutex[thread->index]);
-
-        struct apiBuffer *buffer = &Modes.apiBuffer[flip];
-        start_cpu_timing(&cpu_timer);
+        if (loop++ % 5) {
+            pthread_mutex_lock(&Modes.apiMutex[thread->index]);
+            end_cpu_timing(&cpu_timer, &Modes.stats_current.api_worker_cpu);
+            pthread_mutex_unlock(&Modes.apiMutex[thread->index]);
+            start_cpu_timing(&cpu_timer);
+        }
 
         for (int i = 0; i < count; i++) {
             struct epoll_event event = events[i];
@@ -768,11 +769,16 @@ static void *apiThreadEntryPoint(void *arg) {
                 if (event.events & EPOLLOUT) {
                     apiSendData(con, thread);
                 } else {
-                    apiReadRequest(con, buffer, thread);
+                    apiReadRequest(con, thread);
                 }
             }
         }
     }
+
+    pthread_mutex_lock(&Modes.apiMutex[thread->index]);
+    end_cpu_timing(&cpu_timer, &Modes.stats_current.api_worker_cpu);
+    pthread_mutex_unlock(&Modes.apiMutex[thread->index]);
+
     close(thread->epfd);
     sfree(events);
     pthread_mutex_unlock(&thread->mutex);
