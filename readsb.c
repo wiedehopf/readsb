@@ -480,13 +480,17 @@ static void *jsonThreadEntryPoint(void *arg) {
             writeJsonToFile(Modes.json_dir, "aircraft_recent.json", cb);
         }
 
-        struct char_buffer cb3 = generateAircraftBin();
-        writeJsonToGzip(Modes.json_dir, "aircraft.binCraft", cb3, 1);
-        free(cb3.buffer);
+        if (Modes.onlyBin >= 2) {
+            struct char_buffer cb3 = generateAircraftBin();
+            writeJsonToGzip(Modes.json_dir, "aircraft.binCraft", cb3, 1);
+            free(cb3.buffer);
+        }
 
-        struct char_buffer cb2 = generateGlobeBin(-1, 1);
-        writeJsonToGzip(Modes.json_dir, "globeMil_42777.binCraft", cb2, 5);
-        free(cb2.buffer);
+        if (Modes.binCraft) {
+            struct char_buffer cb2 = generateGlobeBin(-1, 1);
+            writeJsonToGzip(Modes.json_dir, "globeMil_42777.binCraft", cb2, 5);
+            free(cb2.buffer);
+        }
 
         if ((ALL_JSON) && Modes.onlyBin < 2 && now >= next_history) {
             char filebuf[PATH_MAX];
@@ -1420,7 +1424,7 @@ static void configAfterParse() {
         Modes.keep_traces = 35 * MINUTES; // heatmap is written every 30 minutes
     }
 
-    if (Modes.json_dir && (Modes.json_globe_index || Modes.onlyBin > 1)) {
+    if (Modes.json_globe_index) {
         Modes.binCraft = 1;
     }
 }
