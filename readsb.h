@@ -313,9 +313,6 @@ typedef enum {
 #define PERIODIC_UPDATE 200 // don't use values larger than 200 ... some hard-coded stuff
 #define API_THREADS 4
 
-#define STALE_THREADS 1
-#define STALE_BUCKETS (AIRCRAFT_BUCKETS / STALE_THREADS)
-
 #define STAT_BUCKETS 90 // 90 * 10 seconds = 15 min (max interval in stats.json)
 
 // mix_fasthash: https://github.com/ZilongTan/fast-hash (MIT License Copyright (C) 2012 Zilong Tan (eric.zltan@gmail.com))
@@ -399,15 +396,6 @@ struct _Modes
     pthread_cond_t jsonTraceCond[TRACE_THREADS];
 
     pthread_mutex_t traceDebugMutex;
-
-    // stale removal
-    pthread_t staleThread[STALE_THREADS];
-    pthread_mutex_t staleMutex[STALE_THREADS];
-    pthread_cond_t staleCond[STALE_THREADS];
-    pthread_mutex_t staleDoneMutex[STALE_THREADS];
-    pthread_cond_t staleDoneCond[STALE_THREADS];
-    int8_t staleRun[STALE_THREADS];
-    uint64_t lastRemoveStale[STALE_THREADS];
 
     pthread_t miscThread;
     pthread_mutex_t miscMutex;

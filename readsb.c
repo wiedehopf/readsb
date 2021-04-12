@@ -215,14 +215,6 @@ static void modesInit(void) {
     }
     pthread_mutex_init(&Modes.traceDebugMutex, NULL);
 
-    for (int i = 0; i < STALE_THREADS; i++) {
-        pthread_mutex_init(&Modes.staleMutex[i], NULL);
-        pthread_cond_init(&Modes.staleCond[i], NULL);
-
-        pthread_mutex_init(&Modes.staleDoneMutex[i], NULL);
-        pthread_cond_init(&Modes.staleDoneCond[i], NULL);
-    }
-
     for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
         ca_init(&Modes.globeLists[i]);
     }
@@ -1542,17 +1534,6 @@ int main(int argc, char **argv) {
 
     Modes.exitEventfd = eventfd(0, EFD_NONBLOCK);
 
-    /*
-    for (int thread = 0; thread < STALE_THREADS; thread++) {
-        Modes.staleRun[thread] = 1;
-        pthread_mutex_lock(&Modes.staleDoneMutex[thread]);
-        pthread_create(&Modes.staleThread[thread], NULL, staleThreadEntryPoint, &Modes.threadNumber[thread]);
-        while (Modes.staleRun[thread]) {
-            pthread_cond_wait(&Modes.staleDoneCond[thread], &Modes.staleDoneMutex[thread]);
-        }
-    }
-    */
-
     pthread_create(&Modes.decodeThread, NULL, decodeThreadEntryPoint, NULL);
 
     pthread_create(&Modes.miscThread, NULL, miscThreadEntryPoint, NULL);
@@ -1667,23 +1648,6 @@ int main(int argc, char **argv) {
 
     if (Modes.state_dir) {
         writeInternalState();
-    }
-
-    // stop stale threads and be careful about it
-    Modes.staleStop = 1;
-    for (int i = 0; i < STALE_THREADS; i++) {
-        pthread_mutex_lock(&Modes.staleMutex[i]);
-        pthread_cond_signal(&Modes.staleCond[i]);
-        pthread_mutex_unlock(&Modes.staleDoneMutex[i]);
-        pthread_mutex_unlock(&Modes.staleMutex[i]);
-
-        pthread_join(Modes.staleThread[i], NULL);
-
-        pthread_mutex_destroy(&Modes.staleMutex[i]);
-        pthread_mutex_destroy(&Modes.staleDoneMutex[i]);
-        pthread_cond_destroy(&Modes.staleCond[i]);
-        pthread_cond_destroy(&Modes.staleDoneCond[i]);
-        //fprintf(stderr, "%d\n", i);
     }
 
     pthread_mutex_destroy(&Modes.decodeMutex);

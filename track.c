@@ -1973,23 +1973,6 @@ void trackRemoveStale(uint64_t now) {
     //fprintf(stderr, "removeStale()\n");
     //fprintf(stderr, "removeStale start: running for %ld ms\n", mstime() - Modes.startup_time);
 
-    // leave this code here for now ... was hard enough to get working .. maybe we need worker style stuff in the future
-    /*
-    for (int thread = 0; thread < STALE_THREADS; thread++) {
-        pthread_mutex_lock(&Modes.staleMutex[thread]);
-        Modes.staleRun[thread] = 1;
-        pthread_cond_signal(&Modes.staleCond[thread]);
-        pthread_mutex_unlock(&Modes.staleMutex[thread]);
-    }
-    for (int thread = 0; thread < STALE_THREADS; thread++) {
-        while (Modes.staleRun[thread]) {
-            int err = pthread_cond_wait(&Modes.staleDoneCond[thread], &Modes.staleDoneMutex[thread]);
-            if (err)
-                fprintf(stderr, "removeStale: pthread_cond unexpected error: %s\n", strerror(err));
-        }
-    }
-    */
-
     activeUpdate(now);
 
     static int part;
@@ -2012,45 +1995,6 @@ void trackRemoveStale(uint64_t now) {
 
     part = (part + 1) % nParts;
     //fprintf(stderr, "removeStale done: running for %ld ms\n", mstime() - Modes.startup_time);
-}
-
-
-void *staleThreadEntryPoint(void *arg) {
-    int thread = * (int *) arg;
-    pthread_mutex_lock(&Modes.staleMutex[thread]);
-    Modes.staleRun[thread] = 0;
-    pthread_cond_signal(&Modes.staleDoneCond[thread]); // tell the main thread we've take the staleMutex lock
-
-    srandom(get_seed());
-
-    int thread_start = thread * STALE_BUCKETS;
-    int thread_end = thread_start + STALE_BUCKETS;
-
-    while (!Modes.staleStop) {
-        int err = pthread_cond_wait(&Modes.staleCond[thread], &Modes.staleMutex[thread]);
-        if (err)
-            fprintf(stderr, "staleThread: pthread_cond_wait unexpected error: %s\n", strerror(err));
-
-        if (Modes.staleRun[thread]) {
-            uint64_t now = mstime();
-
-            removeStaleRange(thread_start, thread_end, now);
-
-            if (now > Modes.lastRemoveStale[thread] + 60 * SECONDS && Modes.lastRemoveStale[thread] && !Modes.staleStop) {
-                fprintf(stderr, "thread %d: removeStale interval too long: %.1f seconds\n", thread, (now - Modes.lastRemoveStale[thread]) / 1000.0);
-            }
-            Modes.lastRemoveStale[thread] = now;
-
-            pthread_mutex_lock(&Modes.staleDoneMutex[thread]);
-            Modes.staleRun[thread] = 0;
-            pthread_cond_signal(&Modes.staleDoneCond[thread]);
-            pthread_mutex_unlock(&Modes.staleDoneMutex[thread]);
-        }
-        //fprintf(stderr, "%d %d %d\n", thread, thread_start, thread_end);
-    }
-    pthread_mutex_unlock(&Modes.staleMutex[thread]);
-
-    pthread_exit(NULL);
 }
 
 static void miscStuff() {
