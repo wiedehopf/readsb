@@ -2248,105 +2248,52 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
             }
         }
 
-        switch (c->service->read_mode) {
-            case READ_MODE_IGNORE:
-                // drop the bytes on the floor
-                som = eod;
-                break;
-
-            case READ_MODE_BEAST:
-                // This is the Beast Binary scanning case.
-                // If there is a complete message still in the buffer, there must be the separator 'sep'
-                // in the buffer, note that we full-scan the buffer at every read for simplicity.
+        if (c->service->read_mode == READ_MODE_BEAST) {
+            // This is the Beast Binary scanning case.
+            // If there is a complete message still in the buffer, there must be the separator 'sep'
+            // in the buffer, note that we full-scan the buffer at every read for simplicity.
 
 
-                // disconnect garbage feeds
-                if (c->garbage > 512) {
-                    if (!Modes.netIngest || Modes.debug_receiver) {
-                        *eod = '\0';
-                        char sample[64];
-                        hexEscapeString(som, sample, sizeof(sample));
-                        sample[sizeof(sample) - 1] = '\0';
-                        if (Modes.netIngest && c->proxy_string[0] != '\0')
-                            fprintf(stderr, "Garbage: Close: %s sample: %s\n", c->proxy_string, sample);
-                        else
-                            fprintf(stderr, "Garbage: Close: %s port %s sample: %s\n", c->host, c->port, sample);
-                    }
-                    modesCloseClient(c);
-                    return;
+            // disconnect garbage feeds
+            if (c->garbage > 512) {
+                if (!Modes.netIngest || Modes.debug_receiver) {
+                    *eod = '\0';
+                    char sample[64];
+                    hexEscapeString(som, sample, sizeof(sample));
+                    sample[sizeof(sample) - 1] = '\0';
+                    if (Modes.netIngest && c->proxy_string[0] != '\0')
+                        fprintf(stderr, "Garbage: Close: %s sample: %s\n", c->proxy_string, sample);
+                    else
+                        fprintf(stderr, "Garbage: Close: %s port %s sample: %s\n", c->host, c->port, sample);
                 }
-                while (som < eod && ((p = memchr(som, (char) 0x1a, eod - som)) != NULL)) { // The first byte of buffer 'should' be 0x1a
+                modesCloseClient(c);
+                return;
+            }
+            while (som < eod && ((p = memchr(som, (char) 0x1a, eod - som)) != NULL)) { // The first byte of buffer 'should' be 0x1a
 
-                    c->garbage += p - som;
-                    Modes.stats_current.remote_malformed_beast += p - som;
+                c->garbage += p - som;
+                Modes.stats_current.remote_malformed_beast += p - som;
 
-                    som = p; // consume garbage up to the 0x1a
-                    ++p; // skip 0x1a
+                som = p; // consume garbage up to the 0x1a
+                ++p; // skip 0x1a
 
-                    if (p >= eod) {
-                        // Incomplete message in buffer, retry later
-                        break;
-                    }
+                if (p >= eod) {
+                    // Incomplete message in buffer, retry later
+                    break;
+                }
 
-                    char *eom; // one byte past end of message
-                    unsigned char ch;
+                char *eom; // one byte past end of message
+                unsigned char ch;
 
-                    int invalid = 0;
+                int invalid = 0;
 
 
-                    // Check for message with receiverId prepended
-                    ch = *p;
-                    if (ch == 0xe3) {
-                        eom = p + 9;
-                        // we need to be careful of double escape characters in the receiverId
-                        for (; p < eod && p < eom; p++) {
-                            if (0x1A == *p) {
-                                p++;
-                                eom++;
-                                if (p < eod && 0x1A != *p) { // check that it's indeed a double escape
-                                    // might be start of message rather than double escape.
-                                    c->garbage += p - 1 - som;
-                                    Modes.stats_current.remote_malformed_beast += p - 1 - som;
-                                    som = p - 1;
-                                    invalid = 1;
-                                    break;
-                                }
-                            }
-                        }
-                        if (invalid) // skip to potential start of a message
-                            continue;
-                        if (eom + 2 > eod)// Incomplete message in buffer, retry later
-                            break;
-                        p++; // skip 0x1a
-                    }
+                // Check for message with receiverId prepended
+                ch = *p;
+                if (ch == 0xe3) {
 
-                    ch = *p;
-                    if (ch == '2') {
-                        eom = p + MODES_SHORT_MSG_BYTES + 8;
-                    } else if (ch == '3') {
-                        eom = p + MODES_LONG_MSG_BYTES + 8;
-                    } else if (ch == '1') {
-                        eom = p + MODEAC_MSG_BYTES + 8; // point past remainder of message
-                    } else if (ch == '5') {
-                        eom = p + MODES_LONG_MSG_BYTES + 8;
-                    } else if (ch == 0xe4) {
-                        // read UUID and continue with next message
-                        p++;
-                        read_uuid(c, p, eod);
-                        ++som;
-                        continue;
-                    } else {
-                        // Not a valid beast message, skip 0x1a
-                        // Skip following byte as well:
-                        // either: 0x1a (likely not a start of message but rather escaped 0x1a)
-                        // or: any other char is skipped anyhow when looking for the next 0x1a
-                        som += 2;
-                        Modes.stats_current.remote_malformed_beast += 2;
-                        c->garbage += 2;
-                        continue;
-                    }
-
-                    // we need to be careful of double escape characters in the message body
+                    eom = p + 9;
+                    // we need to be careful of double escape characters in the receiverId
                     for (; p < eod && p < eom; p++) {
                         if (0x1A == *p) {
                             p++;
@@ -2363,97 +2310,145 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                     }
                     if (invalid) // skip to potential start of a message
                         continue;
-                    if (eom > eod) // Incomplete message in buffer, retry later
+                    if (eom + 2 > eod)// Incomplete message in buffer, retry later
                         break;
-
-
-                    // Have a 0x1a followed by 1/2/3/4/5 - pass message to handler.
-                    if (c->service->read_handler(c, som + 1, remote, now)) {
-                        modesCloseClient(c);
-                        return;
-                    }
-
-                    // if we get some valid data, reduce the garbage counter.
-                    if (c->garbage > 128)
-                        c->garbage -= 128;
-
-                    // advance to next message
-                    som = eom;
+                    p++; // skip 0x1a
                 }
 
-                if (eod - som > 256) {
-                    c->garbage += eod - som;
-                    Modes.stats_current.remote_malformed_beast += eod - som;
-                    som = eod;
+                ch = *p;
+                if (ch == '2') {
+                    eom = p + MODES_SHORT_MSG_BYTES + 8;
+                } else if (ch == '3') {
+                    eom = p + MODES_LONG_MSG_BYTES + 8;
+                } else if (ch == '1') {
+                    eom = p + MODEAC_MSG_BYTES + 8; // point past remainder of message
+                } else if (ch == '5') {
+                    eom = p + MODES_LONG_MSG_BYTES + 8;
+                } else if (ch == 0xe4) {
+                    // read UUID and continue with next message
+                    p++;
+                    read_uuid(c, p, eod);
+                    ++som;
+                    continue;
+                } else {
+                    // Not a valid beast message, skip 0x1a
+                    // Skip following byte as well:
+                    // either: 0x1a (likely not a start of message but rather escaped 0x1a)
+                    // or: any other char is skipped anyhow when looking for the next 0x1a
+                    som += 2;
+                    Modes.stats_current.remote_malformed_beast += 2;
+                    c->garbage += 2;
+                    continue;
                 }
-                break;
 
-            case READ_MODE_BEAST_COMMAND:
-                while (som < eod && ((p = memchr(som, (char) 0x1a, eod - som)) != NULL)) { // The first byte of buffer 'should' be 0x1a
-                    char *eom; // one byte past end of message
-
-                    som = p; // consume garbage up to the 0x1a
-                    ++p; // skip 0x1a
-
-                    if (p >= eod) {
-                        // Incomplete message in buffer, retry later
-                        break;
-                    }
-
-                    if (*p == '1') {
-                        eom = p + 2;
-                    } else {
-                        // Not a valid beast command, skip 0x1a and try again
-                        ++som;
-                        continue;
-                    }
-
-                    // we need to be careful of double escape characters in the message body
-                    for (p = som + 1; p < eod && p < eom; p++) {
-                        if (0x1A == *p) {
-                            p++;
-                            eom++;
+                // we need to be careful of double escape characters in the message body
+                for (; p < eod && p < eom; p++) {
+                    if (0x1A == *p) {
+                        p++;
+                        eom++;
+                        if (p < eod && 0x1A != *p) { // check that it's indeed a double escape
+                            // might be start of message rather than double escape.
+                            c->garbage += p - 1 - som;
+                            Modes.stats_current.remote_malformed_beast += p - 1 - som;
+                            som = p - 1;
+                            invalid = 1;
+                            break;
                         }
                     }
-
-                    if (eom > eod) { // Incomplete message in buffer, retry later
-                        break;
-                    }
-
-                    // Have a 0x1a followed by 1 - pass message to handler.
-                    if (c->service->read_handler(c, som + 1, remote, now)) {
-                        modesCloseClient(c);
-                        return;
-                    }
-
-                    // advance to next message
-                    som = eom;
                 }
-                break;
+                if (invalid) // skip to potential start of a message
+                    continue;
+                if (eom > eod) // Incomplete message in buffer, retry later
+                    break;
 
-            case READ_MODE_ASCII:
-                //
-                // This is the ASCII scanning case, AVR RAW or HTTP at present
-                // If there is a complete message still in the buffer, there must be the separator 'sep'
-                // in the buffer, note that we full-scan the buffer at every read for simplicity.
 
-                // Always NUL-terminate so we are free to use strstr()
-                // nb: we never fill the last byte of the buffer with read data (see above) so this is safe
-                *eod = '\0';
-
-                while (som < eod && (p = strstr(som, c->service->read_sep)) != NULL) { // end of first message if found
-                    *p = '\0'; // The handler expects null terminated strings
-                    if (c->service->read_handler(c, som, remote, now)) { // Pass message to handler.
-                        if (Modes.debug_net) {
-                            fprintf(stderr, "%s: Closing connection from %s port %s\n", c->service->descr, c->host, c->port);
-                        }
-                        modesCloseClient(c); // Handler returns 1 on error to signal we .
-                        return; // should close the client connection
-                    }
-                    som = p + c->service->read_sep_len; // Move to start of next message
+                // Have a 0x1a followed by 1/2/3/4/5 - pass message to handler.
+                if (c->service->read_handler(c, som + 1, remote, now)) {
+                    modesCloseClient(c);
+                    return;
                 }
 
-                break;
+                // if we get some valid data, reduce the garbage counter.
+                if (c->garbage > 128)
+                    c->garbage -= 128;
+
+                // advance to next message
+                som = eom;
+            }
+
+            if (eod - som > 256) {
+                c->garbage += eod - som;
+                Modes.stats_current.remote_malformed_beast += eod - som;
+                som = eod;
+            }
+
+        } else if (c->service->read_mode == READ_MODE_IGNORE) {
+            // drop the bytes on the floor
+            som = eod;
+
+        } else if (c->service->read_mode == READ_MODE_BEAST_COMMAND) {
+            while (som < eod && ((p = memchr(som, (char) 0x1a, eod - som)) != NULL)) { // The first byte of buffer 'should' be 0x1a
+                char *eom; // one byte past end of message
+
+                som = p; // consume garbage up to the 0x1a
+                ++p; // skip 0x1a
+
+                if (p >= eod) {
+                    // Incomplete message in buffer, retry later
+                    break;
+                }
+
+                if (*p == '1') {
+                    eom = p + 2;
+                } else {
+                    // Not a valid beast command, skip 0x1a and try again
+                    ++som;
+                    continue;
+                }
+
+                // we need to be careful of double escape characters in the message body
+                for (p = som + 1; p < eod && p < eom; p++) {
+                    if (0x1A == *p) {
+                        p++;
+                        eom++;
+                    }
+                }
+
+                if (eom > eod) { // Incomplete message in buffer, retry later
+                    break;
+                }
+
+                // Have a 0x1a followed by 1 - pass message to handler.
+                if (c->service->read_handler(c, som + 1, remote, now)) {
+                    modesCloseClient(c);
+                    return;
+                }
+
+                // advance to next message
+                som = eom;
+            }
+
+        } else if (c->service->read_mode == READ_MODE_ASCII) {
+            //
+            // This is the ASCII scanning case, AVR RAW or HTTP at present
+            // If there is a complete message still in the buffer, there must be the separator 'sep'
+            // in the buffer, note that we full-scan the buffer at every read for simplicity.
+
+            // Always NUL-terminate so we are free to use strstr()
+            // nb: we never fill the last byte of the buffer with read data (see above) so this is safe
+            *eod = '\0';
+
+            while (som < eod && (p = strstr(som, c->service->read_sep)) != NULL) { // end of first message if found
+                *p = '\0'; // The handler expects null terminated strings
+                if (c->service->read_handler(c, som, remote, now)) { // Pass message to handler.
+                    if (Modes.debug_net) {
+                        fprintf(stderr, "%s: Closing connection from %s port %s\n", c->service->descr, c->host, c->port);
+                    }
+                    modesCloseClient(c); // Handler returns 1 on error to signal we .
+                    return; // should close the client connection
+                }
+                som = p + c->service->read_sep_len; // Move to start of next message
+            }
         }
 
         if (!c->receiverIdLocked && (c->bytesReceived > 512 || now > c->connectedSince + 10000)) {

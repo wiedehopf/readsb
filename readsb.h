@@ -398,7 +398,7 @@ struct _Modes
     unsigned first_free_buffer; // Entry in mag_buffers that will next be filled with input.
     unsigned first_filled_buffer; // Entry in mag_buffers that has valid data and will be demodulated next. If equal to next_free_buffer, there is no unprocessed data.
     unsigned trailing_samples; // extra trailing samples in magnitude buffers
-    int8_t exit; // Exit from the main loop when true
+    int8_t volatile exit; // Exit from the main loop when true
     int fd; // --ifile option file descriptor
     input_format_t input_format; // --iformat option
     iq_convert_fn converter_function;

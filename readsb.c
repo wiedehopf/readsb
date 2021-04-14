@@ -1430,14 +1430,12 @@ int main(int argc, char **argv) {
 
     if (argc >= 2 && !strcmp(argv[1], "--structs")) {
         fprintf(stderr, VERSION_STRING"\n");
-        fprintf(stderr, "struct sizes: %zu, ", sizeof(struct aircraft));
-        fprintf(stderr, "%zu, ", sizeof(struct state));
-        fprintf(stderr, "%zu, ", sizeof(struct state_all));
-        fprintf(stderr, "%zu\n", sizeof(struct binCraft));
+        fprintf(stderr, "struct aircraft: %zu\n", sizeof(struct aircraft));
+        fprintf(stderr, "state: %zu\n", sizeof(struct state));
+        fprintf(stderr, "state_all: %zu\n", sizeof(struct state_all));
+        fprintf(stderr, "binCraft: %zu\n", sizeof(struct binCraft));
         //fprintf(stderr, "%zu\n", sizeof(struct state_flags));
-        //fprintf(stderr, "%zu\n", sizeof(struct modesMessage));
-        //fprintf(stderr, "%zu\n", sizeof(pthread_mutex_t));
-        //fprintf(stderr, "%zu\n", 10000 * sizeof(struct aircraft));
+        fprintf(stderr, "modesMessage: %zu\n", sizeof(struct modesMessage));
         exit(0);
     }
 
