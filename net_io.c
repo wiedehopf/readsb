@@ -1764,27 +1764,11 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
     unsigned char ch;
     struct modesMessage mm;
     unsigned char *msg = mm.msg;
-    MODES_NOTUSED(c);
 
     memset(&mm, 0, sizeof(mm));
     mm.client = c;
 
     ch = *p++; /// Get the message type
-
-    if (ch == 0xe3 && !Modes.netIngest) {
-        // Grab the receiver id (big endian format)
-        uint64_t receiverId = 0;
-        for (j = 0; j < 8; j++) {
-            ch = *p++;
-            receiverId = receiverId << 8 | (ch & 255);
-            if (0x1A == ch) {
-                p++;
-            }
-        }
-        c->receiverId = receiverId;
-        p++; // discard 0x1A
-        ch = *p++; /// Get the message type
-    }
 
     mm.receiverId = c->receiverId;
 
@@ -1810,10 +1794,10 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
         float lat, lon, alt;
         unsigned char msg[21];
         for (j = 0; j < 21; j++) { // and the data
-            msg[j] = ch = *p++;
             if (0x1A == ch) {
                 p++;
             }
+            msg[j] = ch = *p++;
         }
 
         lat = ieee754_binary32_le_to_float(msg + 4);
@@ -1836,11 +1820,11 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
     // Grab the timestamp (big endian format)
     mm.timestampMsg = 0;
     for (j = 0; j < 6; j++) {
-        ch = *p++;
-        mm.timestampMsg = mm.timestampMsg << 8 | (ch & 255);
         if (0x1A == ch) {
             p++;
         }
+        ch = *p++;
+        mm.timestampMsg = mm.timestampMsg << 8 | (ch & 255);
     }
 
     // record reception time as the time we read it.
@@ -1866,10 +1850,10 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
     }
 
     for (j = 0; j < msgLen; j++) { // and the data
-        msg[j] = ch = *p++;
         if (0x1A == ch) {
             p++;
         }
+        msg[j] = ch = *p++;
     }
 
     int result = -10;
@@ -2291,14 +2275,16 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                 // Check for message with receiverId prepended
                 ch = *p;
                 if (ch == 0xe3) {
-
-                    eom = p + 9;
+                    p++;
+                    uint64_t receiverId = 0;
+                    eom = p + 8;
                     // we need to be careful of double escape characters in the receiverId
-                    for (; p < eod && p < eom; p++) {
-                        if (0x1A == *p) {
-                            p++;
+                    for (int j = 0; j < 8 && p < eod && p < eom; j++) {
+                        ch = *p++;
+                        if (ch == 0x1A) {
+                            ch = *p++;
                             eom++;
-                            if (p < eod && 0x1A != *p) { // check that it's indeed a double escape
+                            if (p < eod && ch != 0x1A) { // check that it's indeed a double escape
                                 // might be start of message rather than double escape.
                                 c->garbage += p - 1 - som;
                                 Modes.stats_current.remote_malformed_beast += p - 1 - som;
@@ -2307,11 +2293,19 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                                 break;
                             }
                         }
+                        // Grab the receiver id (big endian format)
+                        receiverId = receiverId << 8 | (ch & 255);
                     }
+                    if (!Modes.netIngest) {
+                        c->receiverId = receiverId;
+                    }
+
                     if (invalid) // skip to potential start of a message
                         continue;
                     if (eom + 2 > eod)// Incomplete message in buffer, retry later
                         break;
+
+                    som = p; // set start of next message
                     p++; // skip 0x1a
                 }
 
@@ -2340,6 +2334,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                     c->garbage += 2;
                     continue;
                 }
+                //char msg[MODES_LONG_MSG_BYTES + 8 + 64]; // sufficiently long
 
                 // we need to be careful of double escape characters in the message body
                 for (; p < eod && p < eom; p++) {
