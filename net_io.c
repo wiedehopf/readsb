@@ -2531,30 +2531,46 @@ void netFreeClients() {
     }
 }
 
-static void handleEpoll(int count) {
+static int handleEpoll(int count) {
     uint64_t now = mstime();
 
-    for (int i = 0; i < count; i++) {
+    int i;
+    for (i = 0; i < count; i++) {
         struct epoll_event event = Modes.net_events[i];
-        if (event.data.ptr == &Modes.exitEventfd) {
-            // program is exiting
-            break;
-        }
-        struct client *c = (struct client *) event.data.ptr;
-        if (!c) { fprintf(stderr, "report error: eeKoh5ee\n"); continue; }
+        if (event.data.ptr == &Modes.exitEventfd)
+            return -1; // not a client, program is exiting
 
-        if (c->acceptSocket) {
-            modesAcceptClients(c, now);
-            continue;
+        struct client *cl = (struct client *) Modes.net_events[i].data.ptr;
+        if (!cl) { fprintf(stderr, "handleEpoll: epollEvent.data.ptr == NULL\n"); continue; }
+
+        if (cl->acceptSocket) {
+            modesAcceptClients(cl, now);
         }
-        if ((event.events & (EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP)) && c->service) {
-            modesReadFromClient(c, now);
-        }
-        if (event.events & EPOLLOUT && c->service) {
+        if (!cl->acceptSocket && (event.events & EPOLLOUT) && cl->service) {
             // check if we need to flush a client because the send buffer was full previously
-            flushClient(c, now);
+            flushClient(cl, now);
         }
     }
+
+    // modesReadFromClient calls useModesMessage which needs to happen under decode lock
+    pthread_mutex_lock(&Modes.decodeMutex);
+    for (i = 0; i < count; i++) {
+        struct epoll_event event = Modes.net_events[i];
+        if (event.data.ptr == &Modes.exitEventfd) {
+            pthread_mutex_unlock(&Modes.decodeMutex);
+            return -1; // not a client, program is exiting
+        }
+
+        struct client *cl = (struct client *) Modes.net_events[i].data.ptr;
+        if (!cl) { fprintf(stderr, "handleEpoll: epollEvent.data.ptr == NULL\n"); continue; }
+
+        if (!cl->acceptSocket && (event.events & (EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP)) && cl->service) {
+            modesReadFromClient(cl, now);
+        }
+    }
+    pthread_mutex_unlock(&Modes.decodeMutex);
+
+    return i;
 }
 //
 // Perform periodic network work
@@ -2568,17 +2584,15 @@ void modesNetPeriodicWork(void) {
         epollAllocEvents(&Modes.net_events, &Modes.net_maxEvents);
     }
 
-    pthread_mutex_unlock(&Modes.decodeMutex);
-
     // we only wait here in net-only mode
     int count = epoll_wait(Modes.net_epfd, Modes.net_events, Modes.net_maxEvents,
             Modes.net_only ? Modes.net_output_flush_interval / 2 : 0);
 
-    pthread_mutex_lock(&Modes.decodeMutex);
-
     int64_t interval = stopWatch(&watch);
 
-    handleEpoll(count);
+    if (handleEpoll(count) == -1) {
+        return; // program exiting
+    }
 
     if (count == Modes.net_maxEvents) {
         epollAllocEvents(&Modes.net_events, &Modes.net_maxEvents);

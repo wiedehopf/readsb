@@ -608,8 +608,6 @@ static void *decodeThreadEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
     srandom(get_seed());
 
-    pthread_mutex_lock(&Modes.decodeMutex);
-
     modesInitNet();
 
     /* If the user specifies --net-only, just run in order to serve network
@@ -622,7 +620,6 @@ static void *decodeThreadEntryPoint(void *arg) {
     interactiveInit();
 
     if (Modes.net_only) {
-        struct timespec ts;
         while (!Modes.exit) {
             struct timespec start_time;
 
@@ -630,17 +627,13 @@ static void *decodeThreadEntryPoint(void *arg) {
 
             uint64_t now = mstime();
 
+            // in case we're not waiting in backgroundTasks and trackPeriodic doesn't have a chance to schedule
+            if (now > Modes.next_remove_stale + 5 * SECONDS) {
+                msleep(20);
+            }
+
             // sleep via epoll_wait in net_periodic_work
             backgroundTasks(now);
-
-            // in case we're looping backgroundTasks and trackPeriodic isn't getting a turn
-            if (now > Modes.next_remove_stale + 5 * SECONDS) {
-                clock_gettime(CLOCK_REALTIME, &ts);
-                incTimedwait(&ts, 20);
-                int err = pthread_cond_timedwait(&Modes.decodeCond, &Modes.decodeMutex, &ts);
-                if (err && err != ETIMEDOUT)
-                    fprintf(stderr, "decode: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
-            }
 
             end_cpu_timing(&start_time, &Modes.stats_current.background_cpu);
         }
@@ -678,10 +671,15 @@ static void *decodeThreadEntryPoint(void *arg) {
                 // stuff at the same time.
                 pthread_mutex_unlock(&Modes.data_mutex);
 
+                // decoding require decodeMutex
+                pthread_mutex_lock(&Modes.decodeMutex);
+
                 demodulate2400(buf);
                 if (Modes.mode_ac) {
                     demodulate2400AC(buf);
                 }
+
+                pthread_mutex_unlock(&Modes.decodeMutex);
 
                 Modes.stats_current.samples_processed += buf->length;
                 Modes.stats_current.samples_dropped += buf->dropped;
@@ -719,14 +717,10 @@ static void *decodeThreadEntryPoint(void *arg) {
 
                 incTimedwait(&ts, maxSleep);
 
-                pthread_mutex_unlock(&Modes.decodeMutex);
-
                 // This unlocks Modes.data_mutex, and waits for Modes.data_cond
                 int err = pthread_cond_timedwait(&Modes.data_cond, &Modes.data_mutex, &ts);
                 if (err && err != ETIMEDOUT)
                     fprintf(stderr, "decode: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
-
-                pthread_mutex_lock(&Modes.decodeMutex);
             }
         }
 
@@ -734,8 +728,6 @@ static void *decodeThreadEntryPoint(void *arg) {
 
         sdrCancel();
     }
-
-    pthread_mutex_unlock(&Modes.decodeMutex);
 
     return NULL;
 }
@@ -1576,9 +1568,10 @@ int main(int argc, char **argv) {
     epollAllocEvents(&events, &maxEvents);
 
     while (!Modes.exit) {
+        if (epoll_wait(mainEpfd, events, maxEvents, PERIODIC_UPDATE) > 0) {
+            break; // any events must be on exitEventfd
+        }
         trackPeriodicUpdate();
-
-        epoll_wait(mainEpfd, events, maxEvents, PERIODIC_UPDATE);
     }
 
     close(mainEpfd);
