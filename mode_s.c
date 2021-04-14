@@ -2184,6 +2184,7 @@ void displayModesMessage(struct modesMessage *mm) {
 // Basically this function passes a raw message to the upper layers for further
 // processing and visualization
 //
+
 void useModesMessage(struct modesMessage *mm) {
     struct aircraft *a;
 
@@ -2203,7 +2204,7 @@ void useModesMessage(struct modesMessage *mm) {
     // forward messages when we have seen two of them.
 
     if (Modes.net && !mm->sbs_in) {
-        if (Modes.net_verbatim || mm->msgtype == 32 || !a || Modes.net_only) {
+        if (Modes.net_verbatim || !a || Modes.net_only) {
             // Unconditionally send
             modesQueueOutput(mm, a);
         } else if (a->messages > 1) {

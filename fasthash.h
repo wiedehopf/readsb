@@ -29,6 +29,12 @@
 #include <stdint.h>
 #include <stdio.h>
 
+
+#define mix_fasthash(h) ({              \
+        (h) ^= (h) >> 23;               \
+        (h) *= 0x2127599bf4325c37ULL;   \
+        (h) ^= (h) >> 47; })
+
 #ifdef __cplusplus
 extern "C" {
 #endif

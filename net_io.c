@@ -151,6 +151,7 @@ struct net_service *serviceInit(const char *descr, struct net_writer *writer, he
         service->writer->lastWrite = mstime();
         service->writer->send_heartbeat = hb;
         service->writer->lastReceiverId = 0;
+        service->writer->connections = 0;
     }
 
     return service;
@@ -221,11 +222,14 @@ struct client *createGenericClient(struct net_service *service, int fd) {
         // Have to keep track of this manually
         c->sendq_max = MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size;
         service->writer->lastReceiverId = 0; // make sure to resend receiverId
+
+        service->writer->connections++;
     }
+    service->connections++;
+
     c->next = service->clients;
     service->clients = c;
 
-    ++service->connections;
 
     if (Modes.debug_net && service->connections % 50 == 0) {
         fprintf(stderr, "%s connection count: %d\n", service->descr, service->connections);
@@ -803,6 +807,9 @@ static void modesCloseClient(struct client *c) {
     epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, c->fd, &c->epollEvent);
     anetCloseSocket(c->fd);
     c->service->connections--;
+    if (c->service->writer) {
+        c->service->writer->connections++;
+    }
     if (c->con) {
         // Clean this up and set the next_reconnect timer for another try.
         // If the connection had been established and the connect didn't fail,
@@ -918,10 +925,7 @@ static void flushWrites(struct net_writer *writer) {
 // Prepare to write up to 'len' bytes to the given net_writer.
 // Returns a pointer to write to, or NULL to skip this write.
 static void *prepareWrite(struct net_writer *writer, int len) {
-    if (!writer ||
-            !writer->service ||
-            !writer->service->connections ||
-            !writer->data) {
+    if (!writer->connections) {
         return NULL;
     }
 
@@ -1601,19 +1605,19 @@ void modesQueueOutput(struct modesMessage *mm, struct aircraft *a) {
     int is_mlat = (mm->source == SOURCE_MLAT);
 
     if (Modes.garbage_ports && (mm->garbage || mm->pos_bad)) {
-        if (mm->garbage || !mm->pos_ignore)
+        if ((mm->garbage || !mm->pos_ignore) && Modes.garbage_out.connections)
             modesSendBeastOutput(mm, &Modes.garbage_out);
         return;
     }
 
     if (a && (!Modes.sbsReduce || mm->reduce_forward)) {
-        if (!is_mlat || Modes.forward_mlat)
+        if ((!is_mlat || Modes.forward_mlat) && Modes.sbs_out.connections)
             modesSendSBSOutput(mm, a, &Modes.sbs_out);
-        if (is_mlat)
+        if (is_mlat && Modes.sbs_out_mlat.connections)
             modesSendSBSOutput(mm, a, &Modes.sbs_out_mlat);
     }
 
-    if (!is_mlat && (Modes.net_verbatim || mm->correctedbits < 2)) {
+    if (!is_mlat && (Modes.net_verbatim || mm->correctedbits < 2) && Modes.raw_out.connections) {
         // Forward 2-bit-corrected messages via raw output only if --net-verbatim is set
         // Don't ever forward mlat messages via raw output.
         modesSendRawOutput(mm);
@@ -1622,8 +1626,9 @@ void modesQueueOutput(struct modesMessage *mm, struct aircraft *a) {
     if ((!is_mlat || Modes.forward_mlat) && (Modes.net_verbatim || mm->correctedbits < 2)) {
         // Forward 2-bit-corrected messages via beast output only if --net-verbatim is set
         // Forward mlat messages via beast output only if --forward-mlat is set
-        modesSendBeastOutput(mm, &Modes.beast_out);
-        if (mm->reduce_forward) {
+        if (Modes.beast_out.connections)
+            modesSendBeastOutput(mm, &Modes.beast_out);
+        if (mm->reduce_forward && Modes.beast_reduce_out.connections) {
             modesSendBeastOutput(mm, &Modes.beast_reduce_out);
         }
     }

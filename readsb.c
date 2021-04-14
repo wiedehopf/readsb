@@ -308,14 +308,12 @@ static void lockThreads() {
         pthread_mutex_lock(&Modes.jsonTraceMutex[i]);
     }
     pthread_mutex_lock(&Modes.jsonGlobeMutex);
+
     pthread_mutex_lock(&Modes.decodeMutex);
 }
 
 static void unlockThreads() {
 
-    // make sure the decode thread wakes up from waiting
-    pthread_cond_signal(&Modes.decodeCond);
-    pthread_cond_signal(&Modes.data_cond);
     pthread_mutex_unlock(&Modes.decodeMutex);
 
     pthread_mutex_unlock(&Modes.apiUpdateMutex);

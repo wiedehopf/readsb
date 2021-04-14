@@ -315,13 +315,6 @@ typedef enum {
 
 #define STAT_BUCKETS 90 // 90 * 10 seconds = 15 min (max interval in stats.json)
 
-// mix_fasthash: https://github.com/ZilongTan/fast-hash (MIT License Copyright (C) 2012 Zilong Tan (eric.zltan@gmail.com))
-#define mix_fasthash(h) ({              \
-        (h) ^= (h) >> 23;               \
-        (h) *= 0x2127599bf4325c37ULL;   \
-        (h) ^= (h) >> 47; })
-// end mix_fasthash
-
 // Include subheaders after all the #defines are in place
 
 #include "toString.h"

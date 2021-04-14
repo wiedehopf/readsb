@@ -137,9 +137,7 @@ struct net_writer
 {
     void *data; // shared write buffer, sized MODES_OUT_BUF_SIZE
     int dataUsed; // number of bytes of write buffer currently used
-#if !defined(__arm__)
-    uint32_t padding;
-#endif
+    int connections; // number of active clients
     struct net_service *service; // owning service
     heartbeat_fn send_heartbeat; // function that queues a heartbeat if needed
     uint64_t lastWrite; // time of last write to clients
