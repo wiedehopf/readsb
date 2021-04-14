@@ -1758,6 +1758,7 @@ static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t no
 // The function always returns 0 (success) to the caller as there is no
 // case where we want broken messages here to close the client connection.
 //
+// to save a couple cycles we remove the escapes in the calling function and expect nonescaped messages here
 static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now) {
     int msgLen = 0;
     int j;
@@ -1771,9 +1772,6 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
     ch = *p++; /// Get the message type
 
     mm.receiverId = c->receiverId;
-
-    if (Modes.receiver_focus && mm.receiverId != Modes.receiver_focus)
-        return 0;
 
     if (ch == '2') {
         msgLen = MODES_SHORT_MSG_BYTES;
@@ -1794,9 +1792,6 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
         float lat, lon, alt;
         unsigned char msg[21];
         for (j = 0; j < 21; j++) { // and the data
-            if (0x1A == ch) {
-                p++;
-            }
             msg[j] = ch = *p++;
         }
 
@@ -1820,15 +1815,13 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
     // Grab the timestamp (big endian format)
     mm.timestampMsg = 0;
     for (j = 0; j < 6; j++) {
-        if (0x1A == ch) {
-            p++;
-        }
         ch = *p++;
         mm.timestampMsg = mm.timestampMsg << 8 | (ch & 255);
     }
 
     // record reception time as the time we read it.
     mm.sysTimestampMsg = now;
+
 
     ch = *p++; // Grab the signal level
     mm.signalLevel = ((unsigned char) ch / 255.0);
@@ -1845,14 +1838,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
             Modes.stats_current.strong_signal_count++; // signal power above -3dBFS
     }
 
-    if (0x1A == ch) {
-        p++;
-    }
-
     for (j = 0; j < msgLen; j++) { // and the data
-        if (0x1A == ch) {
-            p++;
-        }
         msg[j] = ch = *p++;
     }
 
@@ -2334,7 +2320,8 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                     c->garbage += 2;
                     continue;
                 }
-                //char msg[MODES_LONG_MSG_BYTES + 8 + 64]; // sufficiently long
+                char noEscape[MODES_LONG_MSG_BYTES + 8 + 16]; // 16 extra for good measure
+                char *t = noEscape;
 
                 // we need to be careful of double escape characters in the message body
                 for (; p < eod && p < eom; p++) {
@@ -2350,18 +2337,24 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                             break;
                         }
                     }
+                    *t++ = *p;
                 }
                 if (invalid) // skip to potential start of a message
                     continue;
                 if (eom > eod) // Incomplete message in buffer, retry later
                     break;
 
+                if (Modes.receiver_focus && c->receiverId != Modes.receiver_focus) {
+                    // advance to next message
+                    som = eom;
+                }
 
                 // Have a 0x1a followed by 1/2/3/4/5 - pass message to handler.
-                if (c->service->read_handler(c, som + 1, remote, now)) {
+                if (c->service->read_handler(c, noEscape, remote, now)) {
                     modesCloseClient(c);
                     return;
                 }
+
 
                 // if we get some valid data, reduce the garbage counter.
                 if (c->garbage > 128)
