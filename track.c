@@ -237,7 +237,6 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     uint64_t now = a->seen;
     double oldLat = a->lat;
     double oldLon = a->lon;
-    MODES_NOTUSED(mm);
 
     int surface = trackDataValid(&a->airground_valid)
         && a->airground == AG_GROUND
