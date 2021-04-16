@@ -2255,8 +2255,6 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                 char *eom; // one byte past end of message
                 unsigned char ch;
 
-                int invalid = 0;
-
 
                 // Check for message with receiverId prepended
                 ch = *p;
@@ -2275,8 +2273,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                                 c->garbage += p - 1 - som;
                                 Modes.stats_current.remote_malformed_beast += p - 1 - som;
                                 som = p - 1;
-                                invalid = 1;
-                                break;
+                                goto beastWhileContinue;
                             }
                         }
                         // Grab the receiver id (big endian format)
@@ -2286,8 +2283,6 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                         c->receiverId = receiverId;
                     }
 
-                    if (invalid) // skip to potential start of a message
-                        continue;
                     if (eom + 2 > eod)// Incomplete message in buffer, retry later
                         break;
 
@@ -2320,33 +2315,43 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                     c->garbage += 2;
                     continue;
                 }
-                char noEscape[MODES_LONG_MSG_BYTES + 8 + 16]; // 16 extra for good measure
-                char *t = noEscape;
+
+                if (eom > eod) // Incomplete message in buffer, retry later
+                    break;
+
+                char noEscapeStorage[MODES_LONG_MSG_BYTES + 8 + 16]; // 16 extra for good measure
+                char *noEscape = p;
 
                 // we need to be careful of double escape characters in the message body
-                for (; p < eod && p < eom; p++) {
-                    if (0x1A == *p) {
-                        p++;
-                        eom++;
-                        if (p < eod && 0x1A != *p) { // check that it's indeed a double escape
-                            // might be start of message rather than double escape.
-                            c->garbage += p - 1 - som;
-                            Modes.stats_current.remote_malformed_beast += p - 1 - som;
-                            som = p - 1;
-                            invalid = 1;
-                            break;
+                if (memchr(p, (char) 0x1A, eom - p)) {
+                    char *t = noEscapeStorage;
+                    while (p < eom) {
+                        if (*p == (char) 0x1A) {
+                            p++;
+                            eom++;
+                            if (eom > eod) { // Incomplete message in buffer, retry later
+                                goto beastWhileBreak;
+                            }
+                            if (*p != (char) 0x1A) { // check that it's indeed a double escape
+                                // might be start of message rather than double escape.
+                                c->garbage += p - 1 - som;
+                                Modes.stats_current.remote_malformed_beast += p - 1 - som;
+                                som = p - 1;
+                                goto beastWhileContinue;
+                            }
                         }
+                        *t++ = *p++;
                     }
-                    *t++ = *p;
+                    noEscape = noEscapeStorage;
                 }
-                if (invalid) // skip to potential start of a message
-                    continue;
+
                 if (eom > eod) // Incomplete message in buffer, retry later
                     break;
 
                 if (Modes.receiver_focus && c->receiverId != Modes.receiver_focus) {
                     // advance to next message
                     som = eom;
+                    continue;
                 }
 
                 // Have a 0x1a followed by 1/2/3/4/5 - pass message to handler.
@@ -2362,7 +2367,11 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
 
                 // advance to next message
                 som = eom;
+
+beastWhileContinue:
+                ;
             }
+beastWhileBreak:
 
             if (eod - som > 256) {
                 c->garbage += eod - som;
