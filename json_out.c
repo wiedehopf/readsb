@@ -252,6 +252,11 @@ static char *sprintACASJson(char *p, char *end, unsigned char *bytes, struct mod
             p = safe_snprintf(p, end, ",\"debug\":true");
         }
         p = safe_snprintf(p, end, ",\"df_type\":%d", mm->msgtype);
+        p = safe_snprintf(p, end, ",\"full_bytes\":\"");
+        for (int i = 0; i < mm->msgbits / 8; ++i) {
+            p = safe_snprintf(p, end, "%02X", (unsigned) mm->msg[i]);
+        }
+        p = safe_snprintf(p, end, "\"");
     }
 
     p = safe_snprintf(p, end, ",\"bytes\":\"");
