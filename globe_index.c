@@ -1862,17 +1862,15 @@ void save_blob(int blob) {
 
     for (int j = start; j < end; j++) {
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
-            memcpy(p, &magic, sizeof(magic));
-            p += sizeof(magic);
+            int trace_len = a->trace_len;
+            if (a->tracePosBuffered)
+                trace_len++; // use buffered position for saving state
 
-            if (Modes.exit)
-                traceUsePosBuffered(a);
-
-            int size_state = stateBytes(a->trace_len);
-            int size_all = stateAllBytes(a->trace_len);
+            int size_state = stateBytes(trace_len);
+            int size_all = stateAllBytes(trace_len);
 
 
-            if (p + size_state + size_all + sizeof(struct aircraft) >= buf + alloc) {
+            if (p + sizeof(magic) + size_state + size_all + sizeof(struct aircraft) >= buf + alloc) {
                 //fprintf(stderr, "save_blob writing %d KB (buffer)\n", (int) ((p - buf) / 1024));
                 if (gzip) {
                     writeGz(gzfp, buf, p - buf, tmppath);
@@ -1882,12 +1880,19 @@ void save_blob(int blob) {
 
                 p = buf;
             }
+
+            memcpy(p, &magic, sizeof(magic));
+            p += sizeof(magic);
+
             if (p + size_state + size_all + sizeof(struct aircraft) >= buf + alloc) {
                 fprintf(stderr, "%06x: Couldn't write internal state, check save_blob code!\n", a->addr);
             } else {
                 memcpy(p, a, sizeof(struct aircraft));
+                struct aircraft *b = (struct aircraft *) p;
+                b->trace_len = trace_len; // correct trace_len for buffered position
+                b->tracePosBuffered = 0;
                 p += sizeof(struct aircraft);
-                if (a->trace_len > 0) {
+                if (trace_len > 0) {
                     memcpy(p, a->trace, size_state);
                     p += size_state;
                     memcpy(p, a->trace_all, size_all);
