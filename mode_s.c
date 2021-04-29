@@ -783,17 +783,30 @@ static void decodeESIdentAndCategory(struct modesMessage *mm) {
 
     mm->mesub = getbits(me, 6, 8);
 
-    mm->callsign[0] = ais_charset[getbits(me, 9, 14)];
-    mm->callsign[1] = ais_charset[getbits(me, 15, 20)];
-    mm->callsign[2] = ais_charset[getbits(me, 21, 26)];
-    mm->callsign[3] = ais_charset[getbits(me, 27, 32)];
-    mm->callsign[4] = ais_charset[getbits(me, 33, 38)];
-    mm->callsign[5] = ais_charset[getbits(me, 39, 44)];
-    mm->callsign[6] = ais_charset[getbits(me, 45, 50)];
-    mm->callsign[7] = ais_charset[getbits(me, 51, 56)];
-    mm->callsign[8] = 0;
+    char *callsign = mm->callsign;
 
-    mm->callsign_valid = 1;
+    callsign[0] = ais_charset[getbits(me, 9, 14)];
+    callsign[1] = ais_charset[getbits(me, 15, 20)];
+    callsign[2] = ais_charset[getbits(me, 21, 26)];
+    callsign[3] = ais_charset[getbits(me, 27, 32)];
+    callsign[4] = ais_charset[getbits(me, 33, 38)];
+    callsign[5] = ais_charset[getbits(me, 39, 44)];
+    callsign[6] = ais_charset[getbits(me, 45, 50)];
+    callsign[7] = ais_charset[getbits(me, 51, 56)];
+    callsign[8] = 0;
+
+    int score = 8;
+    int zeros = 0;
+    for (int i = 0; i < 8; ++i) {
+        if ((callsign[i] >= 'A' && callsign[i] <= 'Z') || (callsign[i] >= '0' && callsign[i] <= '9') || callsign[i] == ' ') {
+            score += 6;
+        } else if (callsign[i] == '@') {
+            zeros++;
+        }
+    }
+    if (zeros < 8 && score >= 32) {
+        mm->callsign_valid = 1;
+    }
 
     mm->category = ((0x0E - mm->metype) << 4) | mm->mesub;
     mm->category_valid = 1;
