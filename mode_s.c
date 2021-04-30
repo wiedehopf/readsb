@@ -802,6 +802,8 @@ static void decodeESIdentAndCategory(struct modesMessage *mm) {
             score += 6;
         } else if (callsign[i] == '@') {
             zeros++;
+        } else if (callsign[i] == '\\' || callsign[i] == '"') {
+            score -= 500;
         }
     }
     if (zeros < 8 && score >= 32) {

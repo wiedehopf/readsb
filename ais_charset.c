@@ -23,7 +23,4 @@
 
 #include "ais_charset.h"
 
-// proper charset:
-// char ais_charset[64] = "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_ !\"#$%&'()*+,-./0123456789:;<=>?";
-// modify to avoid any json escaping issues, replace \ with | and " with '
-char ais_charset[64] = "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[|]^_ !'#$%&'()*+,-./0123456789:;<=>?";
+char ais_charset[64] = "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_ !\"#$%&'()*+,-./0123456789:;<=>?";
