@@ -382,7 +382,7 @@ static void trackPeriodicUpdate() {
     unlockThreads();
 
     static uint64_t antiSpam;
-    if (elapsed1 + elapsed2 > 60 && now > antiSpam + 30 * SECONDS) {
+    if ((elapsed1 > 150 || elapsed2 > 150) && now > antiSpam + 30 * SECONDS) {
         fprintf(stderr, "<3>High load: removeStale took %"PRIi64"/%"PRIi64" ms! upcount: %d stats: %d (suppressing for 30 seconds)\n", elapsed1, elapsed2, (int) (upcount % (1 * SECONDS / PERIODIC_UPDATE)), Modes.updateStats);
         antiSpam = now;
     }
