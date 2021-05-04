@@ -233,6 +233,7 @@ static int decodeBDS20(struct modesMessage *mm, bool store) {
         } else if (callsign[i] == '@') {
             // Padding (sometimes we get @@@@@@@@, i.e. BDS2,0 with all zeros - we do want to accept this as a BDS2,0 but not actually use the callsign)
             zeros++;
+            score += 6;
         } else if (callsign[i] == '\\' || callsign[i] == '"') {
             // Invalid
             return 0;

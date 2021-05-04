@@ -795,6 +795,7 @@ static void decodeESIdentAndCategory(struct modesMessage *mm) {
     callsign[7] = ais_charset[getbits(me, 51, 56)];
     callsign[8] = 0;
 
+    mm->callsign_valid = 1;
     int score = 8;
     int zeros = 0;
     for (int i = 0; i < 8; ++i) {
@@ -802,12 +803,13 @@ static void decodeESIdentAndCategory(struct modesMessage *mm) {
             score += 6;
         } else if (callsign[i] == '@') {
             zeros++;
+            score += 6;
         } else if (callsign[i] == '\\' || callsign[i] == '"') {
             score -= 500; // invalidate
         }
     }
-    if (score >= 32) {
-        mm->callsign_valid = 1;
+    if (score < 32) {
+        mm->callsign_valid = 0;
     }
     // accept all zeros for the moment, deal with it in display
     if (0 && zeros == 8)
