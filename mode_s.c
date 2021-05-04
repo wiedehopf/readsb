@@ -796,24 +796,19 @@ static void decodeESIdentAndCategory(struct modesMessage *mm) {
     callsign[8] = 0;
 
     mm->callsign_valid = 1;
-    int score = 8;
-    int zeros = 0;
     for (int i = 0; i < 8; ++i) {
-        if ((callsign[i] >= 'A' && callsign[i] <= 'Z') || (callsign[i] >= '0' && callsign[i] <= '9') || callsign[i] == ' ') {
-            score += 6;
-        } else if (callsign[i] == '@') {
-            zeros++;
-            score += 6;
-        } else if (callsign[i] == '\\' || callsign[i] == '"') {
-            score -= 500; // invalidate
+        if (
+                (callsign[i] >= 'A' && callsign[i] <= 'Z')
+                // -./0123456789
+                || (callsign[i] >= '-' && callsign[i] <= '9')
+                || callsign[i] == ' '
+                || callsign[i] == '@'
+           ) {
+            // valid chars
+        } else {
+            mm->callsign_valid = 0;
         }
     }
-    if (score < 32) {
-        mm->callsign_valid = 0;
-    }
-    // accept all zeros for the moment, deal with it in display
-    if (0 && zeros == 8)
-        mm->callsign_valid = 0;
 
     mm->category = ((0x0E - mm->metype) << 4) | mm->mesub;
     mm->category_valid = 1;
