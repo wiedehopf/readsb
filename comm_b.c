@@ -238,7 +238,8 @@ static int decodeBDS20(struct modesMessage *mm, bool store) {
             return 0;
         }
     }
-    if (zeros == 8)
+    // disable for the moment, just accept
+    if (0 && zeros == 8)
         valid = 0;
 
     if (store) {

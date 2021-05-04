@@ -803,12 +803,15 @@ static void decodeESIdentAndCategory(struct modesMessage *mm) {
         } else if (callsign[i] == '@') {
             zeros++;
         } else if (callsign[i] == '\\' || callsign[i] == '"') {
-            score -= 500;
+            score -= 500; // invalidate
         }
     }
-    if (zeros < 8 && score >= 32) {
+    if (score >= 32) {
         mm->callsign_valid = 1;
     }
+    // accept all zeros for the moment, deal with it in display
+    if (0 && zeros == 8)
+        mm->callsign_valid = 0;
 
     mm->category = ((0x0E - mm->metype) << 4) | mm->mesub;
     mm->category_valid = 1;
