@@ -307,6 +307,8 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
         dropping = 1;
         outbuf->dropped += slen;
         sampleCounter += slen;
+        // make extra sure that the decode thread isn't sleeping
+        pthread_cond_signal(&Modes.data_cond);
         pthread_mutex_unlock(&Modes.data_mutex);
 
         if (--antiSpam <= 0 && !Modes.exit) {
