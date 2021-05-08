@@ -1665,7 +1665,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             mm->pos_bad = 1;
             // speed check failed, do nothing
         } else if (mm->source == SOURCE_MLAT && mm->receiverCountMlat
-                && min(a->receiverCountMlat - mm->receiverCountMlat, 7) * (mm->receiverCountMlat > 12 ? 800 : 1200) > (int64_t) trackDataAge(mm->sysTimestampMsg, &a->position_valid)
+                && min(a->receiverCountMlat - mm->receiverCountMlat, 7) * (mm->receiverCountMlat > 12 ? 300 : 800) > (int64_t) trackDataAge(mm->sysTimestampMsg, &a->position_valid)
                 ) {
             // don't use MLAT positions that had less receivers used to calculate them unless some time has elapsed
             // only works with SBS input MLAT data coming from some versions of mlat-server
