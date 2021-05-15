@@ -148,6 +148,7 @@ static void modesInitConfig(void) {
 
     Modes.filterDF = -1; // don't filter when set to -1
     Modes.cpr_focus = BADDR;
+    Modes.leg_focus = BADDR;
     Modes.trace_focus = BADDR;
     Modes.show_only = BADDR;
 
@@ -1217,6 +1218,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.cpr_focus = strtol(arg, NULL, 16);
             Modes.interactive = 0;
             fprintf(stderr, "cpr_focus = %06x\n", Modes.cpr_focus);
+            break;
+        case OptLegFocus:
+            Modes.leg_focus = strtol(arg, NULL, 16);
+            fprintf(stderr, "leg_focus = %06x\n", Modes.leg_focus);
             break;
         case OptReceiverFocus:
             Modes.receiver_focus = strtoull(arg, NULL, 16);

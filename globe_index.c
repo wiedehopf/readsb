@@ -1,7 +1,5 @@
 #include "readsb.h"
 
-#define LEG_FOCUS (0xc0ffeeba)
-
 static void mark_legs(struct aircraft *a, int start);
 static void load_blob(int blob);
 
@@ -727,7 +725,7 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
             memcpy(a->trace_all, *p, size_all);
             *p += size_all;
 
-            if (a->addr == LEG_FOCUS) {
+            if (a->addr == Modes.leg_focus) {
                 scheduleMemBothWrite(a, now);
                 fprintf(stderr, "%06x trace len: %d\n", a->addr, a->trace_len);
             }
@@ -787,6 +785,11 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
         if (a->position_valid.source != SOURCE_INVALID) {
             a->trace_writeCounter = 0; // avoid full writes here
             a->trace_write |= WRECENT;
+            traceWrite(a, now, 1);
+        }
+
+        if (a->addr == Modes.leg_focus) {
+            a->trace_writeCounter = 0xc0ffee;
             traceWrite(a, now, 1);
         }
 
@@ -923,7 +926,7 @@ static void mark_legs(struct aircraft *a, int start) {
 
     int threshold = (int) (sum / (double) (a->trace_len * 3));
 
-    if (a->addr == LEG_FOCUS) {
+    if (a->addr == Modes.leg_focus) {
         fprintf(stderr, "threshold: %d\n", threshold);
         fprintf(stderr, "trace_len: %d\n", a->trace_len);
     }
@@ -983,7 +986,10 @@ static void mark_legs(struct aircraft *a, int start) {
             for (int i = 0; i < 5; i++)
                 avg += last_five[i];
             avg /= 5;
-            altitude = avg - threshold / 2;
+            altitude = avg - threshold / 8;
+            //if (a->addr == Modes.leg_focus) {
+            //    fprintf(stderr, "%d\n", altitude);
+            //}
         } else {
             if (five_pos == 0) {
                 for (int i = 0; i < 5; i++)
@@ -1029,7 +1035,7 @@ static void mark_legs(struct aircraft *a, int start) {
                     major_climb = a->trace[bla].timestamp;
                     major_climb_index = bla;
                 }
-                if (a->addr == LEG_FOCUS) {
+                if (a->addr == Modes.leg_focus) {
                     time_t nowish = major_climb/1000;
                     struct tm utc;
                     gmtime_r(&nowish, &utc);
@@ -1042,7 +1048,7 @@ static void mark_legs(struct aircraft *a, int start) {
                 int bla = max(0, last_low_index - 3);
                 major_descent = a->trace[bla].timestamp;
                 major_descent_index = bla;
-                if (a->addr == LEG_FOCUS) {
+                if (a->addr == Modes.leg_focus) {
                     time_t nowish = major_descent/1000;
                     struct tm utc;
                     gmtime_r(&nowish, &utc);
@@ -1058,8 +1064,8 @@ static void mark_legs(struct aircraft *a, int start) {
                 (major_descent && (on_ground || was_ground) && state->timestamp > last_airborne + 45 * 60 * 1000)
            )
         {
-            if (a->addr == LEG_FOCUS)
-                fprintf(stderr, "ground leg\n");
+            if (a->addr == Modes.leg_focus)
+                fprintf(stderr, "ground leg (on ground and time between reception > 25 min\n");
             leg_now = 1;
         }
         double distance = greatcircle(
@@ -1069,22 +1075,33 @@ static void mark_legs(struct aircraft *a, int start) {
                 (double) a->trace[i-1].lon / 1E6
                 );
 
-        if ( elapsed > 30 * 60 * 1000 && distance < 10E3 * (elapsed / (30 * 60 * 1000.0)) && distance > 1) {
+        if (elapsed > 30 * 60 * 1000 && distance < 10E3 * (elapsed / (30 * 60 * 1000.0)) && distance > 1) {
             leg_now = 1;
-            if (a->addr == LEG_FOCUS)
+            if (a->addr == Modes.leg_focus)
                 fprintf(stderr, "time/distance leg, elapsed: %0.fmin, distance: %0.f\n", elapsed / (60 * 1000.0), distance / 1000.0);
         }
 
         int leg_float = 0;
-        if (major_climb && major_descent &&
-                (major_climb > major_descent + 8 * MINUTES || last_ground > major_descent - 2 * MINUTES)
-           ) {
+        if (major_climb && major_descent && major_climb > major_descent + 8 * MINUTES) {
             for (int i = major_descent_index + 1; i < major_climb_index; i++) {
                 if (a->trace[i].timestamp > a->trace[i - 1].timestamp + 5 * MINUTES) {
                     leg_float = 1;
-                    if (a->addr == LEG_FOCUS)
-                        fprintf(stderr, "float leg\n");
+                    if (a->addr == Modes.leg_focus)
+                        fprintf(stderr, "float leg: 8 minutes between descent / climb, 5 minute reception gap in between somewhere\n");
                 }
+            }
+        }
+        if (major_climb && major_descent && major_climb > major_descent + 1 * MINUTES && last_ground >= major_descent) {
+            int groundCount = 0;
+            for (int i = major_descent_index + 1; i < major_climb_index; i++) {
+                if (a->trace[i].flags.on_ground) {
+                    groundCount++;
+                }
+            }
+            if (groundCount >= 3) {
+                leg_float = 1;
+                if (a->addr == Modes.leg_focus)
+                    fprintf(stderr, "float leg: 1 minutes between descent / climb, 3 or more ground positions between descent and climb\n");
             }
         }
 
@@ -1140,7 +1157,7 @@ static void mark_legs(struct aircraft *a, int start) {
             low += threshold;
             high -= threshold;
 
-            if (a->addr == LEG_FOCUS) {
+            if (a->addr == Modes.leg_focus) {
                 if (new_leg) {
                     time_t nowish = leg_ts/1000;
                     struct tm utc;
@@ -2064,9 +2081,9 @@ int handleHeatmap(uint64_t now) {
 
                         memcpy(&buffer[len].lon, all->callsign, 8);
 
-                        if (a->addr == LEG_FOCUS) {
-                            fprintf(stderr, "squawk: %d %04x\n", d, s);
-                        }
+                        //if (a->addr == Modes.leg_focus) {
+                        //    fprintf(stderr, "squawk: %d %04x\n", d, s);
+                        //}
 
                         slices[len] = slice;
                         len++;
