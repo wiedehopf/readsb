@@ -927,8 +927,10 @@ static void mark_legs(struct aircraft *a, int start) {
     int threshold = (int) (sum / (double) (a->trace_len * 3));
 
     if (a->addr == Modes.leg_focus) {
-        fprintf(stderr, "threshold: %d\n", threshold);
+        fprintf(stderr, "--------------------------\n");
+        fprintf(stderr, "start: %d\n", start);
         fprintf(stderr, "trace_len: %d\n", a->trace_len);
+        fprintf(stderr, "threshold: %d\n", threshold);
     }
 
 
@@ -958,7 +960,7 @@ static void mark_legs(struct aircraft *a, int start) {
         last_five[i] = 0;
     five_pos = 0;
 
-    int prev_tmp = 0;
+    int prev_tmp = start - 1;
     for (int i = start; i < a->trace_len; i++) {
         struct state *state = &a->trace[i];
         int prev_index = prev_tmp;
@@ -1065,7 +1067,7 @@ static void mark_legs(struct aircraft *a, int start) {
            )
         {
             if (a->addr == Modes.leg_focus)
-                fprintf(stderr, "ground leg (on ground and time between reception > 25 min\n");
+                fprintf(stderr, "ground leg (on ground and time between reception > 25 min)\n");
             leg_now = 1;
         }
         double distance = greatcircle(
