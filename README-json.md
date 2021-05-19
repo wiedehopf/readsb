@@ -97,7 +97,7 @@ This file contains readsb list of recently seen aircraft. The keys are:
    * wd, ws: wind direction and wind speed are calculated from ground track, true heading, true airspeed and ground speed
    * oat, tat: outer/static air temperature and total air temperature are calculated from mach number and true airspeed (typically somewhat inaccurate at lower altitudes / mach numbers below 0.5, calculation is inhibited for mach < 0.395)
 
-   If used with --db-file using a aircraft.csv.gz from the tar1090-db repository, these additional flags will be available:
+   If used with --db-file using a aircraft.csv.gz from the tar1090-db repository (csv branch), these additional flags will be available:
    * r: aircraft registration pulled from database
    * t: aircraft type pulled from database
    * dbFlags: bitfield for certain database flags, below & must be a bitwise and ... check the documentation for your programming language:
