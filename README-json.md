@@ -100,6 +100,7 @@ This file contains readsb list of recently seen aircraft. The keys are:
    If used with --db-file using a aircraft.csv.gz from the tar1090-db repository (csv branch), these additional flags will be available:
    * r: aircraft registration pulled from database
    * t: aircraft type pulled from database
+   * (optional with --db-file-lt: desc: long type name)
    * dbFlags: bitfield for certain database flags, below & must be a bitwise and ... check the documentation for your programming language:
 
    ```

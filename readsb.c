@@ -1079,6 +1079,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             if (Modes.json_reliable > 4)
                 Modes.json_reliable = 4;
             break;
+        case OptDbFileLongtype:
+            Modes.jsonLongtype = 1;
+            break;
         case OptDbFile:
             sfree(Modes.db_file);
             if (strcmp(arg, "tar1090") == 0) {

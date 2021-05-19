@@ -878,6 +878,7 @@ enum {
     OptJsonReliable,
     OptJaeroTimeout,
     OptDbFile,
+    OptDbFileLongtype,
     OptPromFile,
     OptGlobeHistoryDir,
     OptStateDir,
