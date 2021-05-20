@@ -953,6 +953,7 @@ static void mark_legs(struct aircraft *a, int start) {
 
     uint64_t last_airborne = 0;
     uint64_t last_ground = 0;
+    uint64_t first_ground = 0;
 
     int was_ground = 0;
 
@@ -1002,10 +1003,15 @@ static void mark_legs(struct aircraft *a, int start) {
             five_pos++;
         }
 
-        if (!on_ground)
-            last_airborne = state->timestamp;
-        else
+        if (on_ground || was_ground) {
+            // count the last point in time on ground to be when the aircraft is received airborn after being on ground
+            if (state->timestamp > last_ground + 5 * MINUTES) {
+                first_ground = state->timestamp;
+            }
             last_ground = state->timestamp;
+        } else {
+            last_airborne = state->timestamp;
+        }
 
         if (altitude >= high) {
             high = altitude;
@@ -1093,18 +1099,14 @@ static void mark_legs(struct aircraft *a, int start) {
                 }
             }
         }
-        if (major_climb && major_descent && major_climb > major_descent + 1 * MINUTES && last_ground >= major_descent) {
-            int groundCount = 0;
-            for (int i = major_descent_index + 1; i < major_climb_index; i++) {
-                if (a->trace[i].flags.on_ground) {
-                    groundCount++;
-                }
-            }
-            if (groundCount >= 3) {
-                leg_float = 1;
-                if (a->addr == Modes.leg_focus)
-                    fprintf(stderr, "float leg: 1 minutes between descent / climb, 3 or more ground positions between descent and climb\n");
-            }
+        if (major_climb && major_descent
+                && major_climb > major_descent + 1 * MINUTES
+                && last_ground >= major_descent
+                && last_ground > first_ground + 1 * MINUTES
+           ) {
+            leg_float = 1;
+            if (a->addr == Modes.leg_focus)
+                fprintf(stderr, "float leg: 1 minutes between descent / climb, 1 minute on ground\n");
         }
 
 
