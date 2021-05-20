@@ -473,20 +473,23 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
     int memWritten = 0;
     // prepare the data for the trace_full file in /run
     if ((trace_write & WMEM)) {
-        memWritten = a->trace_writeCounter;
-        //if (Modes.debug_traceCount && ++count3 % 1000 == 0)
-        //    fprintf(stderr, "memory trace writes: %u\n", count3);
-        if (a->addr == TRACE_FOCUS)
-            fprintf(stderr, "full\n");
+        if (a->trace_writeCounter > 0) {
+            memWritten = a->trace_writeCounter;
+            //if (Modes.debug_traceCount && ++count3 % 1000 == 0)
+            //    fprintf(stderr, "memory trace writes: %u\n", count3);
+            if (a->addr == TRACE_FOCUS)
+                fprintf(stderr, "full\n");
 
-        mark_legs(a, 0);
+            mark_legs(a, 0);
 
-        full = generateTraceJson(a, startFull, -1);
+            full = generateTraceJson(a, startFull, -1);
+        }
 
-        if (a->trace_writeCounter >= 0xc0ffee)
+        if (a->trace_writeCounter >= 0xc0ffee) {
             a->trace_next_mw = now + GLOBE_MEM_IVAL / 8 + random() % (GLOBE_MEM_IVAL / 1);
-        else
+        } else {
             a->trace_next_mw = now + GLOBE_MEM_IVAL / 1 + random() % (GLOBE_MEM_IVAL / 8);
+        }
 
         a->trace_writeCounter = 0;
     }
@@ -540,7 +543,8 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
             }
             uint64_t endStamp = a->trace[end].timestamp;
             if (start >= 0 && end >= 0 && end >= start
-                    && (a->trace_perm_last_timestamp != endStamp || endStamp + 30 * MINUTES > now)
+                    // only write permanent trace if we haven't already written it
+                    && a->trace_perm_last_timestamp != endStamp
                ) {
                 mark_legs(a, 0);
                 hist = generateTraceJson(a, start, end);
@@ -724,11 +728,6 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
             *p += size_state;
             memcpy(a->trace_all, *p, size_all);
             *p += size_all;
-
-            if (a->addr == Modes.leg_focus) {
-                scheduleMemBothWrite(a, now);
-                fprintf(stderr, "%06x trace len: %d\n", a->addr, a->trace_len);
-            }
         }
     } else {
         // no or bad trace
@@ -789,8 +788,9 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
         }
 
         if (a->addr == Modes.leg_focus) {
-            a->trace_writeCounter = 0xc0ffee;
-            traceWrite(a, now, 1);
+            scheduleMemBothWrite(a, now);
+            fprintf(stderr, "leg_focus: %06x trace len: %d\n", a->addr, a->trace_len);
+            traceWrite(a, now, 0);
         }
 
         // schedule writing all the traces into run so they are present for the webinterface
