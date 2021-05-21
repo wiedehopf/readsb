@@ -884,7 +884,8 @@ static void mark_legs(struct aircraft *a, int start) {
     int high = 0;
     int low = 100000;
 
-    int last_five[5] = { 0 };
+    int last_five[5];
+    for (int i = 0; i < 5; i++) { last_five[i] = -1000; }
     uint32_t five_pos = 0;
 
     double sum = 0;
