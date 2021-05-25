@@ -889,6 +889,7 @@ static void mark_legs(struct aircraft *a, int start) {
     uint32_t five_pos = 0;
 
     double sum = 0;
+    int count = 0;
 
     struct state *last_leg = NULL;
     struct state *new_leg = NULL;
@@ -923,9 +924,10 @@ static void mark_legs(struct aircraft *a, int start) {
         }
 
         sum += altitude;
+        count++;
     }
 
-    int threshold = (int) (sum / (double) (a->trace_len * 3));
+    int threshold = (int) (sum / (double) (count * 3));
 
     if (a->addr == Modes.leg_focus) {
         fprintf(stderr, "--------------------------\n");
