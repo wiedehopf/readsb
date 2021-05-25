@@ -952,6 +952,8 @@ static void mark_legs(struct aircraft *a, int start) {
     uint64_t last_high = 0;
     uint64_t last_low = 0;
 
+    int32_t last_altitude = -1;
+
     int last_low_index = 0;
 
     uint64_t last_airborne = 0;
@@ -984,6 +986,18 @@ static void mark_legs(struct aircraft *a, int start) {
         //
         if (!on_ground && !altitude_valid)
             continue;
+
+        if (!on_ground && altitude_valid) {
+            if (last_altitude == -1) {
+                last_altitude = altitude;
+            }
+
+            if (abs(altitude - last_altitude) > threshold) {
+                last_altitude = altitude;
+                continue;
+            }
+            last_altitude = altitude;
+        }
 
         prev_tmp = i;
 
