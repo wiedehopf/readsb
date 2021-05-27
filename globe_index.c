@@ -937,8 +937,8 @@ static void mark_legs(struct aircraft *a, int start) {
     }
 
 
-    if (threshold > 10000)
-        threshold = 10000;
+    if (threshold > 2500)
+        threshold = 2500;
     if (threshold < 200)
         threshold = 200;
 
