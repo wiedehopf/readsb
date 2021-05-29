@@ -1037,12 +1037,6 @@ static void mark_legs(struct aircraft *a, int start) {
             low = altitude;
         }
 
-        /*
-        if (state->timestamp > a->trace[i-1].timestamp + 45 * 60 * 1000) {
-            high = low = altitude;
-        }
-        */
-
         if (abs(low - altitude) < threshold * 1 / 3 && elapsed < 30 * MINUTES) {
             last_low = state->timestamp;
             last_low_index = i;
@@ -1094,10 +1088,10 @@ static void mark_legs(struct aircraft *a, int start) {
             leg_now = 1;
         }
         double distance = greatcircle(
-                (double) a->trace[i].lat / 1E6,
-                (double) a->trace[i].lon / 1E6,
-                (double) a->trace[i-1].lat / 1E6,
-                (double) a->trace[i-1].lon / 1E6
+                (double) state->lat / 1E6,
+                (double) state->lon / 1E6,
+                (double) prev->lat / 1E6,
+                (double) prev->lon / 1E6
                 );
 
         if (elapsed > 30 * 60 * 1000 && distance < 10E3 * (elapsed / (30 * 60 * 1000.0)) && distance > 1) {
