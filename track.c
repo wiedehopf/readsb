@@ -1252,6 +1252,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         return NULL;
     }
 
+    bool longTimeNoSee = (now > a->seen + TRACK_EXPIRE);
     // only count the aircraft as "seen" for reliable messages with CRC
     if (addressReliable(mm)) {
         a->seen = now;
@@ -1264,23 +1265,27 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
     if (mm->signalLevel > 0) {
 
-        a->signalLevel[a->signalNext] = mm->signalLevel;
-        a->signalNext = (a->signalNext + 1) & 7;
+        a->signalLevel[a->signalNext % 8] = mm->signalLevel;
+        a->signalNext++;
 
-        if (a->no_signal_count > 0) {
-            if (a->no_signal_count >= 10) {
-                for (int i = 0; i < 8; ++i) {
-                    a->signalLevel[i] = fmax(0, mm->signalLevel);
-                }
+        //fprintf(stderr, "%0.4f\n",mm->signalLevel);
+
+#define NO_SIGNAL_THRESHOLD 30
+        if (a->no_signal_count >= NO_SIGNAL_THRESHOLD) {
+            for (int i = 0; i < 8; ++i) {
+                a->signalLevel[i] = mm->signalLevel;
             }
-            a->no_signal_count = 0;
         }
+
+        a->no_signal_count = 0;
     } else {
         // if we haven't received a message with signal level for a bit, set it to zero
-        if (a->no_signal_count < 10 && ++a->no_signal_count >= 10) {
+        if (a->no_signal_count++ == NO_SIGNAL_THRESHOLD) {
             for (int i = 0; i < 8; ++i) {
                 a->signalLevel[i] = 0;
             }
+            a->signalNext = 0;
+            //fprintf(stderr, "reset Signal no_signal == 30: %06x\n", a->addr);
         }
     }
 
@@ -1678,10 +1683,14 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             if (a->messages < 2)
                 a->messages = 2;
 
-            for (int i = 0; i < 8; ++i) {
-                a->signalLevel[i] = 0;
+            if (longTimeNoSee && mm->signalLevel == 0) {
+                for (int i = 0; i < 8; ++i) {
+                    a->signalLevel[i] = 0;
+                }
+                a->no_signal_count = NO_SIGNAL_THRESHOLD;
+                a->signalNext = 0;
+                //fprintf(stderr, "reset Signal MLAT: %06x\n", a->addr);
             }
-            a->no_signal_count = 10;
         }
     }
 

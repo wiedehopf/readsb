@@ -239,7 +239,7 @@ struct aircraft
   int trace_writeCounter; // how many points where added since the complete trace was written to memory
   int trace_alloc; // current number of allocated points
   int destroy; // aircraft is being deleted
-  int signalNext; // next index of signalLevel to use
+  uint32_t signalNext; // next index of signalLevel to use
 
   // ----
 

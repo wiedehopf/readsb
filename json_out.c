@@ -50,6 +50,17 @@ static const char *jsonEscapeString(const char *str, char *buf, int len) {
     return buf;
 }
 
+static inline double getSignal(struct aircraft *a) {
+    double sum;
+    if (a->signalNext < 8)
+        sum = 0;
+    else
+        sum = a->signalLevel[0] + a->signalLevel[1] + a->signalLevel[2] + a->signalLevel[3] +
+            a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7];
+
+    return 10 * log10(sum / 8 + 1.125e-5);
+}
+
 static char *append_flags(char *p, char *end, struct aircraft *a, datasource_t source) {
     p = safe_snprintf(p, end, "[");
 
@@ -740,8 +751,7 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now,
 
         p = safe_snprintf(p, end, ",\"messages\":%u,\"seen\":%.1f,\"rssi\":%.1f",
                 a->messages, (now < a->seen) ? 0 : ((now - a->seen) / 1000.0),
-                10 * log10((a->signalLevel[0] + a->signalLevel[1] + a->signalLevel[2] + a->signalLevel[3] +
-                        a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7]) / 8 + 1.125e-5));
+                getSignal(a));
     }
 
     if (trackDataAge(now, &a->acas_ra_valid) < 15 * SECONDS || (mm && mm->acas_ra_valid)) {
