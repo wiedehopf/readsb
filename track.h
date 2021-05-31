@@ -252,7 +252,7 @@ struct aircraft
 
   uint64_t trace_next_mw; // timestamp for next full trace write to /run (tmpfs)
   uint64_t trace_next_perm; // timestamp for next trace write to history_dir (disk)
-  uint64_t unused_3243;
+  uint64_t lastSignalTimestamp; // timestamp the last message with RSSI was received
   uint64_t trace_perm_last_timestamp; // timestamp for last trace point written to disk
 
   // ----
@@ -274,7 +274,7 @@ struct aircraft
   uint64_t unused2343;
   uint64_t addrtype_updated;
   float tat;
-  uint16_t no_signal_count; // consecutive messages without signal strength specified
+  uint16_t unused232323;
   uint16_t receiverIdsNext;
   uint64_t seenPosReliable; // last time we saw a reliable position
   uint64_t lastPosReceiverId;

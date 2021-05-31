@@ -59,10 +59,6 @@ struct aircraft *aircraftCreate(struct modesMessage *mm) {
     // Now initialise things that should not be 0/NULL to their defaults
     a->addr = mm->addr;
     a->addrtype = ADDR_UNKNOWN;
-    for (int i = 0; i < 8; ++i) {
-        a->signalLevel[i] = fmax(0, mm->signalLevel);
-    }
-    a->signalNext = 0;
 
     // defaults until we see a message otherwise
     a->adsb_version = -1;
