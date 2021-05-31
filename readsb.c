@@ -173,18 +173,6 @@ static void modesInitConfig(void) {
 //
 static void modesInit(void) {
 
-    if (Modes.json_reliable == -13) {
-        if (Modes.json_globe_index || Modes.globe_history_dir)
-            Modes.json_reliable = 2;
-        else if (Modes.userLocationValid)
-            Modes.json_reliable = 1;
-        else
-            Modes.json_reliable = 2;
-    }
-    //fprintf(stderr, "json_reliable: %d\n", Modes.json_reliable);
-
-    Modes.filter_persistence += Modes.json_reliable - 1;
-
     uint64_t now = mstime();
     Modes.next_stats_update = roundSeconds(10, 5, now + 10 * SECONDS);
     Modes.next_stats_display = now + Modes.stats;
@@ -270,6 +258,16 @@ static void modesInit(void) {
         Modes.userLocationValid = 1;
         fprintf(stderr, "Using lat: %9.4f, lon: %9.4f\n", Modes.fUserLat, Modes.fUserLon);
     }
+
+    if (Modes.json_reliable == -13) {
+        if (Modes.userLocationValid && Modes.maxRange != 0)
+            Modes.json_reliable = 1;
+        else
+            Modes.json_reliable = 2;
+    }
+    //fprintf(stderr, "json_reliable: %d\n", Modes.json_reliable);
+
+    Modes.filter_persistence += Modes.json_reliable - 1;
 
     if (Modes.net_output_flush_size > (MODES_OUT_BUF_SIZE)) {
         Modes.net_output_flush_size = MODES_OUT_BUF_SIZE;
