@@ -2034,14 +2034,16 @@ static const char *hexEscapeString(const char *str, char *buf, int len) {
     const char *in = str;
     char *out = buf, *end = buf + len - 10;
 
-    for (; *in && out < end; ++in) {
+    for (; out < end; ++in) {
         unsigned char ch = *in;
+        *out++ = '.';
         if (ch == '"' || ch == '\\') {
             *out++ = '\\';
             *out++ = ch;
         } else if (ch < 32 || ch > 126) {
-            out = safe_snprintf(out, end, ".%02x.", ch);
+            out = safe_snprintf(out, end, "%02x", ch);
         } else {
+            *out++ = ' ';
             *out++ = ch;
         }
     }
@@ -2186,6 +2188,8 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
             remote = 0;
         }
 
+        //char *lastSom = som;
+
         // check for PROXY v1 header if connection is new / low bytes received
         if (Modes.netIngest && c->bytesReceived <= MODES_CLIENT_BUF_SIZE && c->buflen > 5 && som[0] == 'P' && som[1] == 'R') {
             // NUL-terminate so we are free to use strstr()
@@ -2244,6 +2248,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                 c->garbage += p - som;
                 Modes.stats_current.remote_malformed_beast += p - som;
 
+                //lastSom = p;
                 som = p; // consume garbage up to the 0x1a
                 ++p; // skip 0x1a
 
@@ -2297,6 +2302,17 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                     eom = p + MODES_LONG_MSG_BYTES + 8;
                 } else if (ch == '1') {
                     eom = p + MODEAC_MSG_BYTES + 8; // point past remainder of message
+                    if (0) {
+                        char sample[256];
+                        char *sampleStart = som - 32;
+                        if (sampleStart < c->buf)
+                            sampleStart = c->buf;
+                        *som = 'X';
+                        hexEscapeString(sampleStart, sample, sizeof(sample));
+                        *som = 0x1a;
+                        sample[sizeof(sample) - 1] = '\0';
+                        fprintf(stderr, "modeAC: som pos %d, sample %s, eom > eod %d\n", (int) (som - c->buf), sample, eom > eod);
+                    }
                 } else if (ch == '5') {
                     eom = p + MODES_LONG_MSG_BYTES + 8;
                 } else if (ch == 0xe4) {
@@ -2334,9 +2350,24 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                             }
                             if (*p != (char) 0x1A) { // check that it's indeed a double escape
                                 // might be start of message rather than double escape.
+                                //
                                 c->garbage += p - 1 - som;
                                 Modes.stats_current.remote_malformed_beast += p - 1 - som;
                                 som = p - 1;
+
+                                if (0) {
+                                    char sample[256];
+                                    char *sampleStart = som - 32;
+                                    if (sampleStart < c->buf)
+                                        sampleStart = c->buf;
+                                    *som = 'X';
+                                    hexEscapeString(sampleStart, sample, sizeof(sample));
+                                    *som = 0x1a;
+                                    sample[sizeof(sample) - 1] = '\0';
+                                    fprintf(stderr, "not a double Escape: som pos %d, sample %s, eom - som %d\n", (int) (som - c->buf), sample, (int) (eom - som));
+
+                                }
+
                                 goto beastWhileContinue;
                             }
                         }
@@ -2374,6 +2405,7 @@ beastWhileContinue:
 beastWhileBreak:
 
             if (eod - som > 256) {
+                //fprintf(stderr, "beastWhile too much data remaining, garbage?!\n");
                 c->garbage += eod - som;
                 Modes.stats_current.remote_malformed_beast += eod - som;
                 som = eod;
@@ -2461,8 +2493,11 @@ beastWhileBreak:
         }
 
         if (som > c->buf) { // We processed something - so
+            //som = lastSom;
             c->buflen = eod - som; //     Update the unprocessed buffer length
             if (c->buflen <= 0) {
+                if (c->buflen < 0)
+                    fprintf(stderr, "codepoint Si0wereH\n");
                 c->buflen = 0;
             } else {
                 memmove(c->buf, som, c->buflen); //     Move what's remaining to the start of the buffer
