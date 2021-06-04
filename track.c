@@ -1688,9 +1688,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             }
             a->rr_seen = now;
             if (Modes.debug_rough_receiver_location
-                    && accept_data(&a->position_valid, SOURCE_SBS, mm, 2)) {
+                    && trackDataAge(now, &a->position_valid) > 55 * SECONDS
+                    && accept_data(&a->position_valid, SOURCE_INDIRECT, mm, 2)) {
                 a->addrtype_updated = now;
-                a->addrtype = ADDR_OTHER;
+                a->addrtype = ADDR_MODE_S;
                 mm->decoded_lat = a->rr_lat;
                 mm->decoded_lon = a->rr_lon;
                 incrementReliable(a, mm, now, 2);
