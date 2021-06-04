@@ -578,7 +578,6 @@ void serviceClose(struct net_service *s) {
 void modesInitNet(void) {
     if (!Modes.net)
         return;
-    struct net_service *s;
     struct net_service *beast_out;
     struct net_service *beast_reduce_out;
     struct net_service *garbage_out;
@@ -696,14 +695,8 @@ void modesInitNet(void) {
     fprintf(stderr, "\n");
 
     /* Beast input from local Modes-S Beast via USB */
-    if (Modes.sdr_type == SDR_MODESBEAST) {
+    if (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS) {
         createGenericClient(beast_in, Modes.beast_fd);
-    }
-    else if (Modes.sdr_type == SDR_GNS) {
-        /* Hex input from local GNS5894 via USART0 */
-        s = serviceInit("Hex GNSHAT input", NULL, NULL, READ_MODE_ASCII, "\n", decodeHexMessage);
-        s->serial_service = 1;
-        createGenericClient(s, Modes.beast_fd);
     }
 
     for (int i = 0; i < Modes.net_connectors_count; i++) {
@@ -1682,6 +1675,84 @@ static void handle_radarcape_position(float lat, float lon, float alt) {
     }
 }
 
+/**
+ * Convert 32bit binary angular measure to double degree.
+ * See https://www.globalspec.com/reference/14722/160210/Chapter-7-5-3-Binary-Angular-Measure
+ * @param data Data buffer start (MSB first)
+ * @return Angular degree.
+ */
+static double bam32ToDouble(uint32_t bam) {
+    return (double) ((int32_t) __bswap_32(bam) * 8.38190317153931E-08);
+}
+
+//
+//=========================================================================
+//
+// This function decodes a GNS HULC protocol message
+
+static void decodeHulcMessage(char *p) {
+    // silently ignore these messages if proper SDR isn't set
+    if (Modes.sdr_type != SDR_GNS)
+        return;
+
+    int alt = 0;
+    double lat = 0.0;
+    double lon = 0.0;
+    char id = *p++; //Get message id
+    unsigned char len = *p++; // Get message length
+    hulc_status_msg_t hsm;
+
+    if (id == 0x01 && len == 0x18) {
+        // HULC Status message
+        for (int j = 0; j < len; j++) {
+            hsm.buf[j] = *p++;
+            // unescape
+            if (*p == 0x1A) {
+                p++;
+            }
+        }
+        /*
+        // Antenna serial
+        Modes.receiver.antenna_serial = __bswap_32(hsm.status.serial);
+        // Antenna status flags
+        Modes.receiver.antenna_flags = __bswap_16(hsm.status.flags);
+        // Reserved for internal use
+        Modes.receiver.antenna_reserved = __bswap_16(hsm.status.reserved);
+        // Antenna Unix epoch (not used)
+        // Antenna GPS satellites used for fix
+        Modes.receiver.antenna_gps_sats = hsm.status.satellites;
+        // Antenna GPS HDOP*10, thus 12 is HDOP 1.2
+        Modes.receiver.antenna_gps_hdop = hsm.status.hdop;
+        */
+
+        // Antenna GPS latitude
+        lat = bam32ToDouble(hsm.status.latitude);
+        // Antenna GPS longitude
+        lon = bam32ToDouble(hsm.status.longitude);
+        // Antenna GPS altitude
+        alt = __bswap_16(hsm.status.altitude);
+        uint32_t antenna_flags = __bswap_16(hsm.status.flags);
+        // Use only valid GPS position
+        if ((antenna_flags & 0xE000) == 0xE000) {
+            if (!isfinite(lat) || lat < -90 || lat > 90 || !isfinite(lon) || lon < -180 || lon > 180) {
+                return;
+            }
+            // only use when no fixed location is defined
+            if (!Modes.userLocationValid) {
+                Modes.fUserLat = lat;
+                Modes.fUserLon = lon;
+                Modes.userLocationValid = 1;
+                receiverPositionChanged(lat, lon, alt);
+            }
+        }
+    } else if (id == 0x01 && len > 0x18) {
+        // Future use planed.
+    } else if (id == 0x24 && len == 0x10) {
+        // Response to command #00
+        fprintf(stderr, "Firmware: v%0u.%0u.%0u\n", *(p + 5), *(p + 6), *(p + 7));
+    }
+}
+
 // recompute global Mode A/C setting
 static void autoset_modeac() {
     struct net_service *s;
@@ -1800,6 +1871,9 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
         alt = ieee754_binary32_le_to_float(msg + 12);
 
         handle_radarcape_position(lat, lon, alt);
+        return 0;
+    } else if (ch == 'H') {
+        decodeHulcMessage(p);
         return 0;
     } else {
         // unknown msg type

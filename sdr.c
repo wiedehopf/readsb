@@ -96,7 +96,7 @@ static sdr_handler sdr_handlers[] = {
 #endif
 
     { beastInitConfig, beastHandleOption, beastOpen, noRun, noCancel, noClose, "modesbeast", SDR_MODESBEAST, 0},
-    { beastInitConfig, beastHandleOption, beastOpen, noRun, noCancel, noClose, "gns5894", SDR_GNS, 0},
+    { beastInitConfig, beastHandleOption, beastOpen, noRun, noCancel, noClose, "gnshulc", SDR_GNS, 0},
     { ifileInitConfig, ifileHandleOption, ifileOpen, ifileRun, noCancel, ifileClose, "ifile", SDR_IFILE, 0},
     { noInitConfig, noHandleOption, noOpen, noRun, noCancel, noClose, "none", SDR_NONE, 0},
 

@@ -160,10 +160,9 @@ static struct argp_option optionsReadsb[] = {
     {"beast-fec-off", OptBeastFecOff, 0, 0, "Turn OFF forward error correction", 5},
     {"beast-modeac", OptBeastModeAc, 0, 0, "Turn ON mode A/C", 5},
 
-    //{0,0,0,0, "GNS5894 options:", 6},
-    //{0,0,0, OPTION_DOC, "use with --device-type gns5894", 6},
-    //{0,0,0, OPTION_DOC, "Expects ASCII HEX protocal input.", 6},
-    //{"beast-serial", OptBeastSerial, "<path>", 0, "Path to GNS5894 serial device (default /dev/ttyAMA0)", 6},
+    {0, 0, 0, 0, "GNS HULC options, use with --device-type gnshulc:", 6},
+    //{0, 0, 0, OPTION_DOC, "Beast binary and HULC protocol input with hardware handshake enabled.", 6},
+    {"beast-serial", OptBeastSerial, "<path>", 0, "Path to GNS HULC serial device (default /dev/ttyUSB0)", 6},
 
     {0,0,0,0, "ifile-specific options, use with --ifile:", 7},
     {"ifile", OptIfileName, "<path>", 0, "Read samples from given file ('-' for stdin)", 7},

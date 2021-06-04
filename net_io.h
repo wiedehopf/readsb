@@ -166,5 +166,22 @@ void netFreeClients();
 
 void writeJsonToNet(struct net_writer *writer, struct char_buffer cb);
 
+// GNS HULC status message
+
+typedef union __packed {
+    unsigned char buf[24];
+
+    struct _packed {
+        uint32_t serial;
+        uint16_t flags;
+        uint16_t reserved;
+        uint32_t epoch;
+        uint32_t latitude;
+        uint32_t longitude;
+        uint16_t altitude;
+        uint8_t satellites;
+        uint8_t hdop;
+    } status;
+} hulc_status_msg_t;
 
 #endif
