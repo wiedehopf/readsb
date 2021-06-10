@@ -1375,7 +1375,11 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         if (mm->squawk != a->squawk) {
             a->modeA_hit = 0;
         }
-        a->squawk = mm->squawk;
+
+        if (a->squawkTentative == mm->squawk) {
+            a->squawk = mm->squawk;
+        }
+        a->squawkTentative = mm->squawk;
     }
 
     if (mm->emergency_valid && accept_data(&a->emergency_valid, mm->source, mm, 0)) {

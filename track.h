@@ -305,7 +305,7 @@ struct aircraft
   unsigned ias;
   unsigned tas;
   unsigned squawk; // Squawk
-  unsigned padding2344;
+  unsigned squawkTentative; // require the same squawk code twice to accept it
   unsigned nav_altitude_mcp; // FCU/MCP selected altitude
   unsigned nav_altitude_fms; // FMS selected altitude
   unsigned cpr_odd_lat;
