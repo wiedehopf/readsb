@@ -1101,7 +1101,7 @@ static void mark_legs(struct aircraft *a, int start) {
         }
 
         int leg_float = 0;
-        if (major_climb && major_descent && major_climb > major_descent + 8 * MINUTES) {
+        if (major_climb && major_descent && major_climb > major_descent + 12 * MINUTES) {
             for (int i = major_descent_index + 1; i <= major_climb_index; i++) {
                 if (a->trace[i].timestamp > a->trace[i - 1].timestamp + 5 * MINUTES) {
                     leg_float = 1;
