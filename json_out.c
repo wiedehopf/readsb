@@ -954,6 +954,23 @@ static void check_state_all(struct aircraft *test, uint64_t now) {
     }
 }
 */
+
+static inline __attribute__((always_inline)) int includeAircraftJson(uint64_t now, struct aircraft *a) {
+    if (a == NULL)
+        return 0;
+    if (a->messages < 2)
+        return 0;
+
+    // don't include stale aircraft in the aircraftJson or similar
+    if (a->position_valid.source == SOURCE_INVALID
+            && now > a->seen + TRACK_EXPIRE / 2
+            && now > a->seenPosReliable + TRACK_EXPIRE
+       ) {
+        return 0;
+    }
+    return 1;
+}
+
 struct char_buffer generateAircraftBin() {
     struct char_buffer cb;
     uint64_t now = mstime();
@@ -998,20 +1015,11 @@ struct char_buffer generateAircraftBin() {
 
     for (int i = 0; i < ca->len; i++) {
         a = ca->list[i];
+        if (a == NULL) continue;
 
-        if (a == NULL)
-            continue;
-
-        // don't include stale aircraft in the aircraft.binCraft
-        if (a->position_valid.source != SOURCE_JAERO
-                && now > a->seen + TRACK_EXPIRE / 2
-                && now > a->seenPosReliable + TRACK_EXPIRE
-           ) {
+        if (!includeAircraftJson(now, a)) {
             continue;
         }
-        if (a->messages < 2)
-            continue;
-
         // check if we have enough space
         if ((p + 2 * sizeof(struct binCraft)) >= end) {
             int used = p - buf;
@@ -1110,23 +1118,14 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
     if (good && ca->list) {
         for (int i = 0; i < ca->len; i++) {
             a = ca->list[i];
+            if (a == NULL) continue;
 
-            if (a == NULL)
+            if (!includeAircraftJson(now, a))
                 continue;
+
             if (mil && !(a->dbFlags & 1))
                 continue;
-
-            int use = 0;
-
-            if (a->position_valid.source == SOURCE_JAERO)
-                use = 1;
-            if (now < a->seenPosReliable + 2 * MINUTES)
-                use = 1;
-
-            if (!use)
-                continue;
-
-            // check if we have enough space
+                        // check if we have enough space
             if ((p + 2 * sizeof(struct binCraft)) >= end) {
                 int used = p - buf;
                 alloc *= 2;
@@ -1217,18 +1216,9 @@ struct char_buffer generateGlobeJson(int globe_index){
     if (good && ca->list) {
         for (int i = 0; i < ca->len; i++) {
             a = ca->list[i];
+            if (a == NULL) continue;
 
-            if (a == NULL)
-                continue;
-
-            int use = 0;
-
-            if (a->position_valid.source == SOURCE_JAERO)
-                use = 1;
-            if (now < a->seenPosReliable + 2 * MINUTES)
-                use = 1;
-
-            if (!use)
+            if (!includeAircraftJson(now, a))
                 continue;
 
             // check if we have enough space
@@ -1280,19 +1270,10 @@ struct char_buffer generateAircraftJson(uint64_t onlyRecent){
 
     for (int i = 0; i < ca->len; i++) {
         a = ca->list[i];
+        if (a == NULL) continue;
 
-        if (a == NULL)
-            continue;
         //fprintf(stderr, "a: %05x\n", a->addr);
-
-        // don't include stale aircraft in the JSON
-        if (a->position_valid.source != SOURCE_JAERO
-                && now > a->seen + TRACK_EXPIRE / 2
-                && now > a->seenPosReliable + TRACK_EXPIRE
-           ) {
-            continue;
-        }
-        if (a->messages < 2)
+        if (!includeAircraftJson(now, a))
             continue;
 
         // check if we have enough space

@@ -1703,16 +1703,25 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                 a->rr_lon = reflon;
             }
             a->rr_seen = now;
-            if (Modes.debug_rough_receiver_location
-                    && trackDataAge(now, &a->position_valid) > 55 * SECONDS
-                    && accept_data(&a->position_valid, SOURCE_INDIRECT, mm, 2)) {
-                a->addrtype_updated = now;
-                a->addrtype = ADDR_MODE_S;
-                mm->decoded_lat = a->rr_lat;
-                mm->decoded_lon = a->rr_lon;
-                incrementReliable(a, mm, now, 2);
-                set_globe_index(a, globe_index(mm->decoded_lat, mm->decoded_lon));
-                setPosition(a, mm, now);
+            if (Modes.debug_rough_receiver_location) {
+                if (
+                        (a->position_valid.last_source == SOURCE_INDIRECT && trackDataAge(now, &a->position_valid) > TRACK_EXPIRE_ROUGH - 30 * SECONDS)
+                        || (a->position_valid.last_source != SOURCE_INDIRECT && a->position_valid.source == SOURCE_INVALID)
+                   ) {
+                    if (accept_data(&a->position_valid, SOURCE_INDIRECT, mm, 2)) {
+                        a->addrtype_updated = now;
+                        a->addrtype = ADDR_MODE_S;
+                        if (a->position_valid.last_source != SOURCE_INDIRECT && a->position_valid.source == SOURCE_INVALID) {
+                            mm->decoded_lat = a->lat;
+                            mm->decoded_lon = a->lon;
+                        } else {
+                            mm->decoded_lat = a->rr_lat;
+                            mm->decoded_lon = a->rr_lon;
+                        }
+                        set_globe_index(a, globe_index(mm->decoded_lat, mm->decoded_lon));
+                        setPosition(a, mm, now);
+                    }
+                }
             }
         }
     }

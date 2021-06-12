@@ -72,6 +72,7 @@
 #define TRACK_EXPIRE (60*SECONDS)
 #define TRACK_EXPIRE_LONG (180*SECONDS)
 #define TRACK_EXPIRE_JAERO (33*MINUTES)
+#define TRACK_EXPIRE_ROUGH (5 * MINUTES)
 
 // 2.5 seconds maximum between messages used for calculating wind / temperature
 #define TRACK_WT_TIMEOUT (2500)
@@ -454,6 +455,9 @@ updateValidity (data_validity *v, uint64_t now, uint64_t expiration_timeout)
     if (v->source == SOURCE_JAERO) {
         if (now > v->updated + Modes.trackExpireJaero)
             v->source = SOURCE_INVALID;
+    } else if (v->source == SOURCE_INDIRECT && Modes.debug_rough_receiver_location) {
+        if (now > v->updated + TRACK_EXPIRE_ROUGH)
+            v->source = SOURCE_INVALID;
     } else {
         if (now > v->updated + expiration_timeout)
             v->source = SOURCE_INVALID;
@@ -473,6 +477,8 @@ static inline int posReliable(struct aircraft *a) {
     if (a->position_valid.source == SOURCE_JAERO)
         return 1;
     if (a->position_valid.source == SOURCE_MLAT)
+        return 1;
+    if (a->position_valid.source == SOURCE_INDIRECT)
         return 1;
     int reliable = Modes.json_reliable;
     if (reliable > 1 && (a->addr & MODES_NON_ICAO_ADDRESS || a->addrtype == ADDR_TISB_ICAO || a->addrtype == ADDR_ADSR_ICAO))
