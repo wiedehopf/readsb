@@ -158,7 +158,7 @@ int64_t stopWatch(struct timespec *start_time) {
 unsigned int get_seed() {
     struct timespec time;
     clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time);
-    return (time.tv_sec ^ time.tv_nsec ^ (getpid() << 16) ^ pthread_self());
+    return (time.tv_sec ^ time.tv_nsec ^ (getpid() << 16) ^ (uintptr_t) pthread_self());
 }
 
 // increment target by increment in ms, if result is in the past, set target to now.
