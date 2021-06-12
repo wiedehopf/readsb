@@ -1375,11 +1375,23 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         if (mm->squawk != a->squawk) {
             a->modeA_hit = 0;
         }
+        uint32_t oldsquawk = a->squawk;
 
         if (a->squawkTentative == mm->squawk) {
             a->squawk = mm->squawk;
         }
         a->squawkTentative = mm->squawk;
+        if (Modes.debug_squawk
+                && (mm->squawk != oldsquawk || a->squawk != oldsquawk)
+                && (mm->squawk == 0x7500 || mm->squawk == 0x7600 || mm->squawk == 0x7700
+                    || a->squawk == 0x7500 || a->squawk == 0x7600 || a->squawk == 0x7700)
+           ) {
+            fprintf(stderr, "%06x DF: %02d a->squawk: %04x mm->squawk: %04x\n",
+                    a->addr,
+                    mm->msgtype,
+                    a->squawk,
+                    mm->squawk);
+        }
     }
 
     if (mm->emergency_valid && accept_data(&a->emergency_valid, mm->source, mm, 0)) {
