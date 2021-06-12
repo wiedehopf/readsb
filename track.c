@@ -1371,16 +1371,18 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         updateAltitude(now, a, mm);
     }
 
-    if (mm->squawk_valid && accept_data(&a->squawk_valid, mm->source, mm, 0)) {
-        if (mm->squawk != a->squawk) {
-            a->modeA_hit = 0;
-        }
+    if (mm->squawk_valid) {
         uint32_t oldsquawk = a->squawk;
 
-        if (a->squawkTentative == mm->squawk) {
+        if (a->squawkTentative == mm->squawk && accept_data(&a->squawk_valid, mm->source, mm, 0)) {
+            if (mm->squawk != a->squawk) {
+                a->modeA_hit = 0;
+            }
             a->squawk = mm->squawk;
         }
         a->squawkTentative = mm->squawk;
+
+
         if (Modes.debug_squawk
                 && (mm->squawk != oldsquawk || a->squawk != oldsquawk)
                 && (mm->squawk == 0x7500 || mm->squawk == 0x7600 || mm->squawk == 0x7700
@@ -2589,7 +2591,7 @@ void updateValidities(struct aircraft *a, uint64_t now) {
     updateValidity(&a->sil_valid, now, TRACK_EXPIRE);
     updateValidity(&a->gva_valid, now, TRACK_EXPIRE);
     updateValidity(&a->sda_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->squawk_valid, now, TRACK_EXPIRE_LONG);
+    updateValidity(&a->squawk_valid, now, TRACK_EXPIRE);
 
     updateValidity(&a->emergency_valid, now, TRACK_EXPIRE);
     updateValidity(&a->airground_valid, now, TRACK_EXPIRE_LONG);
