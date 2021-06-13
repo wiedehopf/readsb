@@ -327,25 +327,27 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         inrange = override;
     }
 
-    if ((source > SOURCE_MLAT && track_diff < 190 && !inrange && (Modes.debug_cpr || Modes.debug_speed_check))
-            || (a->addr == Modes.cpr_focus)) {
+    if (elapsed > 1 * SECONDS || distance > 0) {
+        if ((source > SOURCE_MLAT && track_diff < 190 && !inrange && (Modes.debug_cpr || Modes.debug_speed_check))
+                || (a->addr == Modes.cpr_focus)) {
 
-        //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
-        fprintf(stderr, "%5.1fs %06x: %s %s %s %s R:%2d tD:%3.0f  %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
-                (now % (600 * SECONDS)) / 1000.0,
-                a->addr,
-                mm->cpr_odd ? "O" : "E",
-                cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "S"),
-                (surface ? "S" : "A"),
-                (override != -1 ? (override ? "over" : " bog") : (inrange ? "pass" : "FAIL")),
-                min(a->pos_reliable_odd, a->pos_reliable_even),
-                track_diff,
-                distance / 1000.0,
-                range / 1000.0,
-                elapsed / 1000.0,
-                (distance / elapsed * 1000.0 / 1852.0 * 3600.0),
-                speed,
-                a->lat, a->lon, lat, lon);
+            //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
+            fprintf(stderr, "%5.1fs %06x: %s %s %s %s R:%2d tD:%3.0f  %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
+                    (now % (600 * SECONDS)) / 1000.0,
+                    a->addr,
+                    mm->cpr_odd ? "O" : "E",
+                    cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "S"),
+                    (surface ? "S" : "A"),
+                    (override != -1 ? (override ? "over" : " bog") : (inrange ? "pass" : "FAIL")),
+                    min(a->pos_reliable_odd, a->pos_reliable_even),
+                    track_diff,
+                    distance / 1000.0,
+                    range / 1000.0,
+                    elapsed / 1000.0,
+                    (distance / elapsed * 1000.0 / 1852.0 * 3600.0),
+                    speed,
+                    a->lat, a->lon, lat, lon);
+        }
     }
 
     if (!inrange && mm->source == SOURCE_ADSB
@@ -1384,12 +1386,11 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
 
         if (Modes.debug_squawk
-                && mm->squawk != oldsquawk
-                && (mm->squawk == 0x7500 || mm->squawk == 0x7600 || mm->squawk == 0x7700
+                && (a->squawk == 0x7500 || a->squawk == 0x7600 || a->squawk == 0x7700
                     || oldsquawk == 0x7500 || oldsquawk == 0x7600 || oldsquawk == 0x7700)
            ) {
-            if (a->squawk == oldsquawk) {
-                if (0) {
+            if (a->squawk == oldsquawk && a->squawk != mm->squawk) {
+                if (1) {
                     fprintf(stderr, "%06x DF: %02d a->squawk: %04x ignored: %04x\n",
                             a->addr,
                             mm->msgtype,
@@ -1397,11 +1398,15 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                             mm->squawk);
                 }
             } else {
-                fprintf(stderr, "%06x DF: %02d a->squawk: %04x -> %04x\n",
-                        a->addr,
-                        mm->msgtype,
-                        oldsquawk,
-                        a->squawk);
+                static uint64_t antiSpam;
+                if (now > antiSpam + 15 * SECONDS || oldsquawk != a->squawk) {
+                    antiSpam = now;
+                    fprintf(stderr, "%06x DF: %02d a->squawk: %04x -> %04x\n",
+                            a->addr,
+                            mm->msgtype,
+                            oldsquawk,
+                            a->squawk);
+                }
             }
         }
     }
