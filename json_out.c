@@ -955,19 +955,41 @@ static void check_state_all(struct aircraft *test, uint64_t now) {
 }
 */
 
+static inline __attribute__((always_inline)) int includeGlobeJson(uint64_t now, struct aircraft *a) {
+    if (a == NULL)
+        return 0;
+    if (a->messages < 2)
+        return 0;
+
+    // check aircraft without position:
+    if (a->position_valid.source == SOURCE_INVALID) {
+        // don't include stale aircraft
+        if (now > a->seen + TRACK_EXPIRE / 2 && now > a->seenPosReliable + TRACK_EXPIRE) {
+            return 0;
+        }
+        // don't include aircraft with very outdated positions in globe files
+        if (now > a->seenPosReliable + 30 * MINUTES) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 static inline __attribute__((always_inline)) int includeAircraftJson(uint64_t now, struct aircraft *a) {
     if (a == NULL)
         return 0;
     if (a->messages < 2)
         return 0;
 
-    // don't include stale aircraft in the aircraftJson or similar
-    if (a->position_valid.source == SOURCE_INVALID
-            && now > a->seen + TRACK_EXPIRE / 2
-            && now > a->seenPosReliable + TRACK_EXPIRE
-       ) {
-        return 0;
+    // check aircraft without position:
+    if (a->position_valid.source == SOURCE_INVALID) {
+        // don't include stale aircraft
+        if (now > a->seen + TRACK_EXPIRE / 2 && now > a->seenPosReliable + TRACK_EXPIRE) {
+            return 0;
+        }
     }
+
     return 1;
 }
 
@@ -1009,7 +1031,7 @@ struct char_buffer generateAircraftBin() {
     memWrite(p, east);
 
     if (p - buf > (int) elementSize)
-        fprintf(stderr, "buffer overrun globeBin\n");
+        fprintf(stderr, "buffer overrun aircrafBin\n");
 
     p = buf + elementSize;
 
@@ -1035,7 +1057,7 @@ struct char_buffer generateAircraftBin() {
         memWrite(p, bin);
 
         if (p >= end)
-            fprintf(stderr, "buffer overrun globeBin\n");
+            fprintf(stderr, "buffer overrun aircraftBin\n");
     }
 
     cb.len = p - buf;
@@ -1060,7 +1082,7 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
         ca = &Modes.globeLists[globe_index];
         good = 1;
     } else {
-        fprintf(stderr, "generateAircraftJson: bad globe_index: %d\n", globe_index);
+        fprintf(stderr, "generateGlobeBin: bad globe_index: %d\n", globe_index);
         good = 0;
     }
     if (good && ca)
@@ -1120,7 +1142,7 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
             a = ca->list[i];
             if (a == NULL) continue;
 
-            if (!includeAircraftJson(now, a))
+            if (!includeGlobeJson(now, a))
                 continue;
 
             if (mil && !(a->dbFlags & 1))
@@ -1218,8 +1240,13 @@ struct char_buffer generateGlobeJson(int globe_index){
             a = ca->list[i];
             if (a == NULL) continue;
 
-            if (!includeAircraftJson(now, a))
+            if (!includeGlobeJson(now, a))
                 continue;
+
+            // don't include aircraft with very outdated positions in globe files
+            if (a->position_valid.source == SOURCE_INVALID && now > a->seenPosReliable + 5 * MINUTES) {
+                continue;
+            }
 
             // check if we have enough space
             if ((p + 2000) >= end) {
