@@ -10,11 +10,12 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 see the LICENSE file for details
 
 
-## how to install
+## how to install / build
 
-I'd recommend following either of these pages if you're not familiar with compiling stuff:
-
+I'd recommend this script to automatically install it:
 - https://github.com/wiedehopf/adsb-scripts/wiki/Automatic-installation-for-readsb
+
+How to build the package yourself:
 - https://github.com/wiedehopf/adsb-wiki/wiki/Building-readsb-from-source
 
 ### aircraft.json format:
