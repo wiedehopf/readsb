@@ -1501,10 +1501,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         // If our current state is certain but new data is not, only accept the uncertain state if the certain data has gone stale
         if (a->airground == AG_UNCERTAIN || mm->airground != AG_UNCERTAIN ||
                 (mm->airground == AG_UNCERTAIN && now > a->airground_valid.updated + TRACK_EXPIRE_LONG)) {
-            if (mm->airground != a->airground)
-                mm->reduce_forward = 1;
             if (accept_data(&a->airground_valid, mm->source, mm, 0)) {
                 focusGroundstateChange(a, mm, 1, now);
+                if (mm->airground != a->airground)
+                    mm->reduce_forward = 1;
                 a->airground = mm->airground;
             }
         }
@@ -1570,7 +1570,6 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
 
     if (mm->acas_ra_valid) {
-        mm->reduce_forward = 1;
 
         unsigned char *bytes = NULL;
         if (mm->msgtype == 16) {
@@ -1583,6 +1582,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
         if (bytes && (checkAcasRaValid(bytes, mm, 0))) {
             if (accept_data(&a->acas_ra_valid, mm->source, mm, 0)) {
+                mm->reduce_forward = 1;
                 memcpy(a->acas_ra, bytes, sizeof(a->acas_ra));
                 logACASInfoShort(mm->addr, bytes, a, mm, mm->sysTimestampMsg);
             }
@@ -1749,23 +1749,26 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         a->next_reduce_forward_DF11 = now + 2 * Modes.net_output_beast_reduce_interval;
         mm->reduce_forward = 1;
     }
+    // this is all not really nececcary, remove it for the moment
+    /*
     if (mm->msgtype == 0 && (now > a->next_reduce_forward_DF0 || mm->reduce_forward)) {
         a->next_reduce_forward_DF0 = now + 2 * Modes.net_output_beast_reduce_interval;
         mm->reduce_forward = 1;
     }
     // forward DF16/20/21 every 2 * beast_reduce_interval for beast_reduce
     if (mm->msgtype == 16 && (now > a->next_reduce_forward_DF16 || mm->reduce_forward)) {
-        a->next_reduce_forward_DF16 = now + Modes.net_output_beast_reduce_interval;
+        a->next_reduce_forward_DF16 = now + 2 * Modes.net_output_beast_reduce_interval;
         mm->reduce_forward = 1;
     }
     if (mm->msgtype == 20 && (now > a->next_reduce_forward_DF20 || mm->reduce_forward)) {
-        a->next_reduce_forward_DF20 = now + Modes.net_output_beast_reduce_interval;
+        a->next_reduce_forward_DF20 = now + 2 * Modes.net_output_beast_reduce_interval;
         mm->reduce_forward = 1;
     }
     if (mm->msgtype == 21 && (now > a->next_reduce_forward_DF21 || mm->reduce_forward)) {
-        a->next_reduce_forward_DF21 = now + Modes.net_output_beast_reduce_interval;
+        a->next_reduce_forward_DF21 = now + 2 * Modes.net_output_beast_reduce_interval;
         mm->reduce_forward = 1;
     }
+    */
 
     if (cpr_new) {
         a->last_cpr_type = mm->cpr_type;
@@ -1806,6 +1809,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             mm->reduce_forward = 0;
             //fprintf(stderr, "%.0f %.0f\n", (double) a->altitude_baro, Modes.beast_reduce_filter_altitude);
         }
+    }
+
+    if (0 && mm->reduce_forward && a->addr == 0x4BA893) {
+        displayModesMessage(mm);
     }
 
     return (a);
