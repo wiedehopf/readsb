@@ -125,6 +125,8 @@ static struct argp_option optionsReadsb[] = {
     {"net-api-port", OptNetApiPorts, "<port>", 0, "TCP API listen port (in contrast to other listeners, only a single port is allowed) (update frequency controlled by write-json-every parameter) (default: 0)", 2},
     {"net-beast-reduce-out-port", OptNetBeastReducePorts, "<ports>", 0, "TCP BeastReduce output listen ports (default: 0)", 2},
     {"net-beast-reduce-interval", OptNetBeastReduceInterval, "<seconds>", 0, "BeastReduce position update interval, longer means less data (default: 0.125, valid range: 0.000 - 14.999)", 2},
+    {"net-beast-reduce-filter-dist", OptNetBeastReduceFilterDist, "<distance in nmi>", 0, "beast-reduce: remove aircraft which are further than distance from the receiver", 2},
+    {"net-beast-reduce-filter-alt", OptNetBeastReduceFilterAlt, "<pressure altitude in ft>", 0, "beast-reduce: remove aircraft which are above altitude", 2},
     {"net-sbs-reduce", OptNetSbsReduce, 0, 0, "Apply beast reduce logic and interval to SBS outputs", 2},
     {"net-receiver-id", OptNetReceiverId, 0, 0, "forward receiver ID", 2},
     {"net-ingest", OptNetIngest, 0, 0, "primary ingest node", 2},

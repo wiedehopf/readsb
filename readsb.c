@@ -119,6 +119,8 @@ static void modesInitConfig(void) {
     Modes.net_output_beast_ports = strdup("0");
     Modes.net_output_beast_reduce_ports = strdup("0");
     Modes.net_output_beast_reduce_interval = 125;
+    Modes.beast_reduce_filter_distance = -1;
+    Modes.beast_reduce_filter_altitude = -1;
     Modes.net_output_vrs_ports = strdup("0");
     Modes.net_output_vrs_interval = 5 * SECONDS;
     Modes.net_output_json_ports = strdup("0");
@@ -1132,6 +1134,14 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptNetBeastReducePorts:
             sfree(Modes.net_output_beast_reduce_ports);
             Modes.net_output_beast_reduce_ports = strdup(arg);
+            break;
+        case OptNetBeastReduceFilterAlt:
+            if (atof(arg) > 0)
+                Modes.beast_reduce_filter_altitude = atof(arg);
+            break;
+        case OptNetBeastReduceFilterDist:
+            if (atof(arg) > 0)
+                Modes.beast_reduce_filter_distance = atof(arg) * 1852.0; // convert to meters
             break;
         case OptNetBeastReduceInterval:
             if (atof(arg) >= 0)

@@ -1791,6 +1791,22 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (Modes.netIngest && mm->cpr_valid) {
         mm->reduce_forward = 1;
     }
+    if (mm->reduce_forward) {
+        if (Modes.beast_reduce_filter_distance != -1
+                && now < a->seenPosReliable + 1 * MINUTES
+                && Modes.userLocationValid
+                && greatcircle(Modes.fUserLat, Modes.fUserLon, a->latReliable, a->lonReliable) > Modes.beast_reduce_filter_distance) {
+            mm->reduce_forward = 0;
+            //fprintf(stderr, "%.0f %0.f\n", greatcircle(Modes.fUserLat, Modes.fUserLon, a->latReliable, a->lonReliable) / 1852.0, Modes.beast_reduce_filter_distance / 1852.0);
+        }
+        if (Modes.beast_reduce_filter_altitude != -1
+                && altReliable(a)
+                && a->airground != AG_GROUND
+                && a->altitude_baro > Modes.beast_reduce_filter_altitude) {
+            mm->reduce_forward = 0;
+            //fprintf(stderr, "%.0f %.0f\n", (double) a->altitude_baro, Modes.beast_reduce_filter_altitude);
+        }
+    }
 
     return (a);
 }
