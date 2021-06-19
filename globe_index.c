@@ -1497,7 +1497,7 @@ int traceAdd(struct aircraft *a, uint64_t now) {
     float turn_density = 4.5;
 
     float max_speed_diff = 5.0;
-    int max_alt_diff = 200;
+    int max_alt_diff = 125;
 
     if (trackVState(now, &a->altitude_baro_valid, &a->position_valid) && a->altitude_baro > 10000) {
         max_speed_diff = 10.0;
