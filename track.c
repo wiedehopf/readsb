@@ -1931,6 +1931,9 @@ static void removeStaleRange(int start, int end, uint64_t now) {
     if (Modes.state_dir) {
         posTimeout = now - 14 * 24 * HOURS;
     }
+    if (Modes.debug_rough_receiver_location) {
+        posTimeout = now - 2 * 24 * HOURS;
+    }
 
     // timeout for aircraft with position
     uint64_t noposTimeout = now - 5 * MINUTES;
