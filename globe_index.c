@@ -952,8 +952,6 @@ static void mark_legs(struct aircraft *a, int start) {
     uint64_t last_high = 0;
     uint64_t last_low = 0;
 
-    int32_t last_altitude = -1;
-
     int last_low_index = 0;
 
     uint64_t last_airborne = 0;
@@ -986,17 +984,11 @@ static void mark_legs(struct aircraft *a, int start) {
         //
         if (!on_ground && !altitude_valid)
             continue;
-
-        if (!on_ground && altitude_valid) {
-            if (last_altitude == -1) {
-                last_altitude = altitude;
-            }
-
-            if (abs(altitude - last_altitude) > threshold) {
-                last_altitude = altitude;
-                continue;
-            }
-            last_altitude = altitude;
+        if (0 && a->addr == Modes.leg_focus) {
+            fprintf(stderr, "state: %d %d %d %d\n", i, a->trace[i].altitude * 25,
+                    a->trace[i].flags.altitude_valid,
+                    a->trace[i].flags.on_ground
+                   );
         }
 
         prev_tmp = i;
@@ -1032,17 +1024,34 @@ static void mark_legs(struct aircraft *a, int start) {
 
         if (altitude >= high) {
             high = altitude;
+            if (0 && a->addr == Modes.leg_focus) {
+                time_t nowish = state->timestamp/1000;
+                struct tm utc;
+                gmtime_r(&nowish, &utc);
+                char tstring[100];
+                strftime (tstring, 100, "%H:%M:%S", &utc);
+                fprintf(stderr, "high: %d %s\n", altitude, tstring);
+            }
         }
         if (altitude <= low) {
             low = altitude;
         }
 
-        if (abs(low - altitude) < threshold * 1 / 3 && elapsed < 30 * MINUTES) {
+        if (abs(low - altitude) < threshold * 1 / 3) {
             last_low = state->timestamp;
             last_low_index = i;
         }
-        if (abs(high - altitude) < threshold * 1 / 3)
+        if (abs(high - altitude) < threshold * 1 / 3) {
             last_high = state->timestamp;
+            if (0 && a->addr == Modes.leg_focus) {
+                time_t nowish = state->timestamp/1000;
+                struct tm utc;
+                gmtime_r(&nowish, &utc);
+                char tstring[100];
+                strftime (tstring, 100, "%H:%M:%S", &utc);
+                fprintf(stderr, "last_high: %d %s\n", altitude, tstring);
+            }
+        }
 
         if (high - low > threshold) {
             if (last_high > last_low) {
@@ -1060,11 +1069,23 @@ static void mark_legs(struct aircraft *a, int start) {
                     gmtime_r(&nowish, &utc);
                     char tstring[100];
                     strftime (tstring, 100, "%H:%M:%S", &utc);
-                    fprintf(stderr, "climb: %d %s\n", altitude, tstring);
+                    fprintf(stderr, "climb: %d %s %d %d\n", altitude, tstring, high, low);
                 }
                 low = high - threshold * 9/10;
             } else if (last_high < last_low) {
                 int bla = max(0, last_low_index - 3);
+                while (bla >= 0) {
+                    if (0 && a->addr == Modes.leg_focus) {
+                        fprintf(stderr, "bla: %d %d %d %d\n", bla, a->trace[bla].altitude * 25,
+                                a->trace[bla].flags.altitude_valid,
+                                a->trace[bla].flags.on_ground
+                               );
+                    }
+                    if (a->trace[bla].flags.altitude_valid && !a->trace[bla].flags.on_ground) {
+                        break;
+                    }
+                    bla--;
+                }
                 major_descent = a->trace[bla].timestamp;
                 major_descent_index = bla;
                 if (a->addr == Modes.leg_focus) {
