@@ -224,6 +224,14 @@ struct client *createGenericClient(struct net_service *service, int fd) {
         service->writer->lastReceiverId = 0; // make sure to resend receiverId
 
         service->writer->connections++;
+
+        if (service->writer->noTimestamps) {
+            char signal[3] = { 0x1a, 'W', 't' };
+            int res = write(c->fd, signal, 3);
+            if (res == 3) {
+                // whatever
+            }
+        }
     }
     service->connections++;
 
@@ -608,7 +616,8 @@ void modesInitNet(void) {
     beast_out = serviceInit("Beast TCP output", &Modes.beast_out, send_beast_heartbeat, READ_MODE_BEAST_COMMAND, NULL, handleBeastCommand);
     serviceListen(beast_out, Modes.net_bind_address, Modes.net_output_beast_ports, Modes.net_epfd);
 
-    beast_reduce_out = serviceInit("BeastReduce TCP output", &Modes.beast_reduce_out, send_beast_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    beast_reduce_out = serviceInit("BeastReduce TCP output", &Modes.beast_reduce_out, send_beast_heartbeat, READ_MODE_BEAST_COMMAND, NULL, handleBeastCommand);
+
     serviceListen(beast_reduce_out, Modes.net_bind_address, Modes.net_output_beast_reduce_ports, Modes.net_epfd);
 
     garbage_out = serviceInit("Garbage TCP output", &Modes.garbage_out, send_beast_heartbeat, READ_MODE_IGNORE, NULL, NULL);
@@ -987,31 +996,43 @@ static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *wri
     } else {
         return;
     }
+    if (writer->noTimestamps) {
+        if (mm->remote && mm->timestampMsg == 0 && mm->msgtype != 18) {
+            // no timestamp means low quality, don't forward at all
+            return;
+        }
+        if (mm->source == SOURCE_MLAT) {
+            // removing timestamps makes MLAT undetectable, discard MLAT messages
+            return;
+        }
+    }
 
-    /* timestamp, big-endian */
-    *p++ = (ch = (mm->timestampMsg >> 40));
-    if (0x1A == ch) {
-        *p++ = ch;
-    }
-    *p++ = (ch = (mm->timestampMsg >> 32));
-    if (0x1A == ch) {
-        *p++ = ch;
-    }
-    *p++ = (ch = (mm->timestampMsg >> 24));
-    if (0x1A == ch) {
-        *p++ = ch;
-    }
-    *p++ = (ch = (mm->timestampMsg >> 16));
-    if (0x1A == ch) {
-        *p++ = ch;
-    }
-    *p++ = (ch = (mm->timestampMsg >> 8));
-    if (0x1A == ch) {
-        *p++ = ch;
-    }
-    *p++ = (ch = (mm->timestampMsg));
-    if (0x1A == ch) {
-        *p++ = ch;
+    if (!writer->noTimestamps) {
+        /* timestamp, big-endian */
+        *p++ = (ch = (mm->timestampMsg >> 40));
+        if (0x1A == ch) {
+            *p++ = ch;
+        }
+        *p++ = (ch = (mm->timestampMsg >> 32));
+        if (0x1A == ch) {
+            *p++ = ch;
+        }
+        *p++ = (ch = (mm->timestampMsg >> 24));
+        if (0x1A == ch) {
+            *p++ = ch;
+        }
+        *p++ = (ch = (mm->timestampMsg >> 16));
+        if (0x1A == ch) {
+            *p++ = ch;
+        }
+        *p++ = (ch = (mm->timestampMsg >> 8));
+        if (0x1A == ch) {
+            *p++ = ch;
+        }
+        *p++ = (ch = (mm->timestampMsg));
+        if (0x1A == ch) {
+            *p++ = ch;
+        }
     }
 
     sig = nearbyint(sqrt(mm->signalLevel) * 255);
@@ -1596,7 +1617,6 @@ void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a) {
 //
 void modesQueueOutput(struct modesMessage *mm, struct aircraft *a) {
     int is_mlat = (mm->source == SOURCE_MLAT);
-
     if (Modes.garbage_ports && (mm->garbage || mm->pos_bad)) {
         if ((mm->garbage || !mm->pos_ignore) && Modes.garbage_out.connections)
             modesSendBeastOutput(mm, &Modes.garbage_out);
@@ -1789,30 +1809,49 @@ void sendBeastSettings(int fd, const char *settings) {
     anetWrite(fd, buf, len);
 }
 
+static void signalNoTimestamps(struct net_writer *writer) {
+    char *p = prepareWrite(writer, 3);
+    if (p) {
+        *p++ = 0x1a;
+        *p++ = 'W';
+        *p++ = 't';
+        completeWrite(writer, p);
+        writer->noTimestamps = 1;
+    }
+}
 //
 // Handle a Beast command message.
 // Currently, we just look for the Mode A/C command message
 // and ignore everything else.
 //
 static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t now) {
-    return 0; // disable this in this fork, no modeac unless it's enabled via config
     MODES_NOTUSED(remote);
     MODES_NOTUSED(now);
-    if (p[0] != '1') {
-        // huh?
-        return 0;
-    }
+    if (p[0] == '1') {
+        switch (p[1]) {
+            case 'j':
+                c->modeac_requested = 0;
+                break;
+            case 'J':
+                c->modeac_requested = 1;
+                break;
+        }
 
-    switch (p[1]) {
-        case 'j':
-            c->modeac_requested = 0;
-            break;
-        case 'J':
-            c->modeac_requested = 1;
-            break;
+        autoset_modeac();
     }
-
-    autoset_modeac();
+    // disable timestamps: 0x1a 'W' 't'
+    if (p[0] == 'W') {
+        switch (p[1]) {
+            case 't':
+                if (c->service->writer == &Modes.beast_reduce_out) {
+                    fprintf(stderr, "%s: Disabling timestamps.\n", c->service->descr);
+                    signalNoTimestamps(c->service->writer);
+                }
+                break;
+            case 'T':
+                break;
+        }
+    }
     return 0;
 }
 
@@ -1886,11 +1925,13 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
      */
     mm.remote = remote;
 
-    // Grab the timestamp (big endian format)
     mm.timestampMsg = 0;
-    for (j = 0; j < 6; j++) {
-        ch = *p++;
-        mm.timestampMsg = mm.timestampMsg << 8 | (ch & 255);
+    if (!c->noTimestamps) {
+        // Grab the timestamp (big endian format)
+        for (j = 0; j < 6; j++) {
+            ch = *p++;
+            mm.timestampMsg = mm.timestampMsg << 8 | (ch & 255);
+        }
     }
 
     // record reception time as the time we read it.
@@ -2265,34 +2306,45 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
         //char *lastSom = som;
 
         // check for PROXY v1 header if connection is new / low bytes received
-        if (Modes.netIngest && c->bytesReceived <= MODES_CLIENT_BUF_SIZE && c->buflen > 5 && som[0] == 'P' && som[1] == 'R') {
-            // NUL-terminate so we are free to use strstr()
-            // nb: we never fill the last byte of the buffer with read data (see above) so this is safe
-            *eod = '\0';
-            char *proxy = strstr(som, "PROXY ");
-            char *eop = strstr(som, "\r\n");
-            if (proxy && proxy == som) {
-                if (!eop) // incomplete proxy string (shouldn't happen but let's check anyhow)
-                    break;
-                *eop = '\0';
-                strncpy(c->proxy_string, proxy, sizeof(c->proxy_string));
-                c->proxy_string[sizeof(c->proxy_string) - 1] = '\0'; // make sure it's null terminated
-                //fprintf(stderr, "%s\n", c->proxy_string);
-                *eop = '\r';
-
-                // expected string example: "PROXY TCP4 172.12.2.132 172.191.123.45 40223 30005"
-
-                char *space = proxy;
-                space = memchr(space + 1, ' ', eop - space - 1);
-                space = memchr(space + 1, ' ', eop - space - 1);
-                space = memchr(space + 1, ' ', eop - space - 1);
-                // hash up to 3rd space
-                if (eop - proxy > 10) {
-                    //fprintf(stderr, "%ld %ld %s\n", eop - proxy, space - proxy, space);
-                    c->receiverId = fasthash64(proxy, space - proxy, 0x2127599bf4325c37ULL);
+        if (Modes.netIngest && c->bytesReceived <= 2 * MODES_CLIENT_BUF_SIZE) {
+            // disable this for the time being
+            if (0 && !c->noTimestampsSignaled) {
+                char signal[3] = { 0x1a, 'W', 't' };
+                int res = write(c->fd, signal, 3);
+                if (res == 3) {
+                    c->noTimestampsSignaled = 1;
+                    //fprintf(stderr, "yay\n");
                 }
+            }
+            if (c->buflen > 5 && som[0] == 'P' && som[1] == 'R') {
+                // NUL-terminate so we are free to use strstr()
+                // nb: we never fill the last byte of the buffer with read data (see above) so this is safe
+                *eod = '\0';
+                char *proxy = strstr(som, "PROXY ");
+                char *eop = strstr(som, "\r\n");
+                if (proxy && proxy == som) {
+                    if (!eop) // incomplete proxy string (shouldn't happen but let's check anyhow)
+                        break;
+                    *eop = '\0';
+                    strncpy(c->proxy_string, proxy, sizeof(c->proxy_string));
+                    c->proxy_string[sizeof(c->proxy_string) - 1] = '\0'; // make sure it's null terminated
+                    //fprintf(stderr, "%s\n", c->proxy_string);
+                    *eop = '\r';
 
-                som = eop + 2;
+                    // expected string example: "PROXY TCP4 172.12.2.132 172.191.123.45 40223 30005"
+
+                    char *space = proxy;
+                    space = memchr(space + 1, ' ', eop - space - 1);
+                    space = memchr(space + 1, ' ', eop - space - 1);
+                    space = memchr(space + 1, ' ', eop - space - 1);
+                    // hash up to 3rd space
+                    if (eop - proxy > 10) {
+                        //fprintf(stderr, "%ld %ld %s\n", eop - proxy, space - proxy, space);
+                        c->receiverId = fasthash64(proxy, space - proxy, 0x2127599bf4325c37ULL);
+                    }
+
+                    som = eop + 2;
+                }
             }
         }
 
@@ -2304,7 +2356,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
 
             // disconnect garbage feeds
             if (c->garbage > 512) {
-                if (!Modes.netIngest || Modes.debug_receiver) {
+                if (1 || !Modes.netIngest || Modes.debug_receiver) {
                     *eod = '\0';
                     char sample[64];
                     hexEscapeString(som, sample, sizeof(sample));
@@ -2371,11 +2423,11 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
 
                 ch = *p;
                 if (ch == '2') {
-                    eom = p + MODES_SHORT_MSG_BYTES + 8;
+                    eom = p + 1 + 6 * !c->noTimestamps + 1 + MODES_SHORT_MSG_BYTES;
                 } else if (ch == '3') {
-                    eom = p + MODES_LONG_MSG_BYTES + 8;
+                    eom = p + 1 + 6 * !c->noTimestamps + 1 + MODES_LONG_MSG_BYTES;
                 } else if (ch == '1') {
-                    eom = p + MODEAC_MSG_BYTES + 8; // point past remainder of message
+                    eom = p + 1 + 6 * !c->noTimestamps + 1 + MODEAC_MSG_BYTES;
                     if (0) {
                         char sample[256];
                         char *sampleStart = som - 32;
@@ -2394,6 +2446,16 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                     p++;
                     read_uuid(c, p, eod);
                     ++som;
+                    continue;
+                } else if (ch == 'W') {
+                    // read command
+                    p++;
+                    ch = *p;
+                    if (ch == 't') {
+                        c->noTimestamps = 1;
+                        //fprintf(stderr, "source says: timestamps disabled\n");
+                    }
+                    som += 2;
                     continue;
                 } else {
                     // Not a valid beast message, skip 0x1a
@@ -2426,6 +2488,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                                 // might be start of message rather than double escape.
                                 //
                                 c->garbage += p - 1 - som;
+                                fprintf(stderr, "a\n");
                                 Modes.stats_current.remote_malformed_beast += p - 1 - som;
                                 som = p - 1;
 
@@ -2503,6 +2566,8 @@ beastWhileBreak:
 
                 if (*p == '1') {
                     eom = p + 2;
+                } else if (*p == 'W') {
+                    eom = p + 2;
                 } else {
                     // Not a valid beast command, skip 0x1a and try again
                     ++som;
@@ -2521,7 +2586,7 @@ beastWhileBreak:
                     break;
                 }
 
-                // Have a 0x1a followed by 1 - pass message to handler.
+                // Pass message to handler.
                 if (c->service->read_handler(c, som + 1, remote, now)) {
                     modesCloseClient(c);
                     return;

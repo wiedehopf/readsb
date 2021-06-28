@@ -104,8 +104,12 @@ struct net_connector
 struct client
 {
     int fd; // File descriptor
-    int acceptSocket; // not really a client but rather an accept Socket ... only fd and epollEvent will be valid
     int buflen; // Amount of data on buffer
+    int8_t acceptSocket; // not really a client but rather an accept Socket ... only fd and epollEvent will be valid
+    int8_t noTimestamps;
+    int8_t noTimestampsSignaled;
+    int8_t modeac_requested; // 1 if this Beast output connection has asked for A/C
+    int8_t receiverIdLocked; // receiverId has been transmitted by other side.
     struct net_service *service; // Service this client is part of
     struct client* next; // Pointer to next client
     uint64_t bytesReceived;
@@ -117,8 +121,6 @@ struct client
     uint64_t connectedSince;
     uint64_t messageCounter; // counter for incoming data
     uint64_t positionCounter; // counter for incoming data
-    int modeac_requested; // 1 if this Beast output connection has asked for A/C
-    int receiverIdLocked; // receiverId has been transmitted by other side.
     void *sendq;  // Write buffer - allocated later
     int sendq_len; // Amount of data in SendQ
     int sendq_max; // Max size of SendQ
@@ -142,6 +144,7 @@ struct net_writer
     heartbeat_fn send_heartbeat; // function that queues a heartbeat if needed
     uint64_t lastWrite; // time of last write to clients
     uint64_t lastReceiverId;
+    int8_t noTimestamps;
 };
 
 struct net_service *serviceInit (const char *descr, struct net_writer *writer, heartbeat_fn hb_handler, read_mode_t mode, const char *sep, read_fn read_handler);
