@@ -71,8 +71,8 @@
 
 #include "anet.h"
 
-static int open_fds = 0;
-static int max_fds = 0;
+//static int open_fds = 0;
+//static int max_fds = 0;
 
 static void anetSetError(char *err, const char *fmt, ...)
 {
@@ -147,6 +147,8 @@ int anetTcpKeepAlive(char *err, int fd)
 static int anetCreateSocket(char *err, int domain, int typeFlags)
 {
     int s, on = 1;
+    /*
+       disable this check, the user will just have to deal / use a proxy if it's an issue
     if (!max_fds) {
         struct rlimit limits;
         getrlimit(RLIMIT_NOFILE, &limits);
@@ -158,12 +160,13 @@ static int anetCreateSocket(char *err, int domain, int typeFlags)
         anetSetError(err, "approaching RLIMIT: %s", strerror(errno));
         return ANET_ERR;
     }
+    */
     if ((s = socket(domain, SOCK_STREAM | typeFlags, 0)) == -1) {
         anetSetError(err, "creating socket: %s", strerror(errno));
         return ANET_ERR;
     }
 
-    open_fds++;
+    //open_fds++;
 
     /* Make sure connection-intensive things like the redis benckmark
      * will be able to close/open sockets a zillion of times */
@@ -378,6 +381,7 @@ int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *len, int
 {
     int fd;
 
+    /*
     if (!max_fds) {
         struct rlimit limits;
         getrlimit(RLIMIT_NOFILE, &limits);
@@ -394,6 +398,7 @@ int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *len, int
         anetSetError(err, "approaching RLIMIT: %s", strerror(errno));
         return ANET_ERR;
     }
+    */
 
     fd = accept4(s, sa, len, flags);
 
@@ -404,7 +409,7 @@ int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *len, int
         return ANET_ERR;
     }
 
-    open_fds++;
+    //open_fds++;
 
     return fd;
 }
@@ -437,6 +442,6 @@ void anetCloseSocket(int fd) {
         // the above seems like overhead we don't need.
         shutdown(fd, SHUT_RDWR);
         close(fd);
-        open_fds--;
+        //open_fds--;
     }
 }
