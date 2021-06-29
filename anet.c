@@ -71,9 +71,6 @@
 
 #include "anet.h"
 
-//static int open_fds = 0;
-//static int max_fds = 0;
-
 static void anetSetError(char *err, const char *fmt, ...)
 {
     va_list ap;
@@ -144,29 +141,23 @@ int anetTcpKeepAlive(char *err, int fd)
     return ANET_OK;
 }
 
+static inline void emfileError() {
+    struct rlimit limits;
+    getrlimit(RLIMIT_NOFILE, &limits);
+    fprintf(stderr, "<3>EMFILE: Out of file descriptors (either there is a leak that needs fixing or you need to increase ulimit if you need more than %d connections)!\n", (int) limits.rlim_cur);
+}
+
 static int anetCreateSocket(char *err, int domain, int typeFlags)
 {
     int s, on = 1;
-    /*
-       disable this check, the user will just have to deal / use a proxy if it's an issue
-    if (!max_fds) {
-        struct rlimit limits;
-        getrlimit(RLIMIT_NOFILE, &limits);
-        max_fds = limits.rlim_cur - 20;
-        // maximum number of file descriptors we will use for sockets
-    }
-    if (open_fds >= max_fds) {
-        errno = EMFILE;
-        anetSetError(err, "approaching RLIMIT: %s", strerror(errno));
-        return ANET_ERR;
-    }
-    */
+
     if ((s = socket(domain, SOCK_STREAM | typeFlags, 0)) == -1) {
+        if (errno == EMFILE) {
+            emfileError();
+        }
         anetSetError(err, "creating socket: %s", strerror(errno));
         return ANET_ERR;
     }
-
-    //open_fds++;
 
     /* Make sure connection-intensive things like the redis benckmark
      * will be able to close/open sockets a zillion of times */
@@ -381,41 +372,22 @@ int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *len, int
 {
     int fd;
 
-    /*
-    if (!max_fds) {
-        struct rlimit limits;
-        getrlimit(RLIMIT_NOFILE, &limits);
-        max_fds = limits.rlim_cur - 20;
-        // maximum number of file descriptors we will use for sockets
-    }
-    if (open_fds >= max_fds) {
-        // accept and immediately close all pending connections
-        while ((fd = accept4(s, sa, len, SOCK_NONBLOCK)) >= 0) {
-            open_fds++;
-            anetCloseSocket(fd);
-        }
-        errno = EMFILE;
-        anetSetError(err, "approaching RLIMIT: %s", strerror(errno));
-        return ANET_ERR;
-    }
-    */
-
     fd = accept4(s, sa, len, flags);
 
     if (fd == -1) {
+        if (errno == EMFILE) {
+            emfileError();
+        }
         if (errno != EINTR) {
             anetSetError(err, "Generic accept error: %s %d", strerror(errno), fd);
         }
         return ANET_ERR;
     }
 
-    //open_fds++;
-
     return fd;
 }
 
-/*
-static int get_socket_error(int fd) {
+static inline int get_socket_error(int fd) {
     int err = 1;
     socklen_t len = sizeof err;
     if (-1 == getsockopt(fd, SOL_SOCKET, SO_ERROR, (char *) &err, &len)) {
@@ -426,22 +398,16 @@ static int get_socket_error(int fd) {
     }
     return err;
 }
-*/
 
 void anetCloseSocket(int fd) {
-    if (fd >= 0) {
-        /*
-        get_socket_error(fd); // First clear any errors, which can cause close to fail
-        if (shutdown(fd, SHUT_RDWR) < 0) { // Secondly, terminate the reliable delivery
-            if (errno != ENOTCONN && errno != EINVAL) { // SGI causes EINVAL
-                fprintf(stderr, "Shutdown client socket failed.\n");
-            }
-        }
-        close(fd); // Finally call anetCloseSocket() socket
-        */
-        // the above seems like overhead we don't need.
-        shutdown(fd, SHUT_RDWR);
-        close(fd);
-        //open_fds--;
+    if (fd < 0) {
+        return;
     }
+    get_socket_error(fd); // First clear any errors, which can cause close to fail
+    if (shutdown(fd, SHUT_RDWR) < 0) { // Secondly, terminate the reliable delivery
+        if (errno != ENOTCONN && errno != EINVAL) { // SGI causes EINVAL
+            fprintf(stderr, "Shutdown client socket failed.\n");
+        }
+    }
+    close(fd); // Finally call anetCloseSocket() socket
 }

@@ -702,6 +702,7 @@ static void acceptConn(struct apiCon *con, struct apiThread *thread) {
     socklen_t slen = sizeof(storage);
     int fd = -1;
 
+    errno = 0;
     while ((fd = anetGenericAccept(Modes.aneterr, listen_fd, saddr, &slen, SOCK_NONBLOCK)) >= 0) {
         struct apiCon *con = calloc(sizeof(struct apiCon), 1);
         if (!con) fprintf(stderr, "EMEM, how much is the fish?\n"), exit(1);
@@ -717,6 +718,14 @@ static void acceptConn(struct apiCon *con, struct apiThread *thread) {
 
         if (epoll_ctl(thread->epfd, EPOLL_CTL_ADD, fd, &epollEvent))
             perror("epoll_ctl fail:");
+    }
+    if (!(errno & (EMFILE | EINTR | EAGAIN | EWOULDBLOCK))) {
+        fprintf(stderr, "<3>API: Error accepting new connection: %s\n", Modes.aneterr);
+    }
+    if (errno == EMFILE) {
+        fprintf(stderr, "<3>Out of file descriptors accepting api clients, "
+                "exiting to make sure we don't remain in a broken state!\n");
+        Modes.exit = 1;
     }
 }
 

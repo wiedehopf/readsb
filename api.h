@@ -64,6 +64,7 @@ struct apiThread {
     int index;
     int epfd;
     int eventfd;
+    int openFDs;
 };
 
 struct range {

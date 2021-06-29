@@ -416,6 +416,8 @@ struct _Modes
     int net_epfd; // epoll fd used for most network stuff
     int net_maxEvents;
     struct epoll_event *net_events;
+    int max_fds;
+    int modesClientCount;
 
     struct aircraft * aircraft[AIRCRAFT_BUCKETS];
     struct craftArray globeLists[GLOBE_MAX_INDEX+1];

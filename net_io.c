@@ -60,6 +60,9 @@
 #include <netdb.h>
 #include <poll.h>
 #include <sys/sendfile.h>
+#include <sys/time.h>
+#include <sys/resource.h>
+
 
 //#include <brotli/encode.h>
 
@@ -234,6 +237,7 @@ struct client *createGenericClient(struct net_service *service, int fd) {
         }
     }
     service->connections++;
+    Modes.modesClientCount++;
 
     c->next = service->clients;
     service->clients = c;
@@ -604,6 +608,10 @@ void modesInitNet(void) {
     struct net_service *sbs_in_jaero;
     struct net_service *sbs_in_prio;
 
+    struct rlimit limits;
+    getrlimit(RLIMIT_NOFILE, &limits);
+    Modes.max_fds = limits.rlim_cur;
+
     signal(SIGPIPE, SIG_IGN);
     Modes.services = NULL;
 
@@ -762,7 +770,20 @@ static void modesAcceptClients(struct client *c, uint64_t now) {
     socklen_t slen = sizeof(storage);
 
     int fd;
+    errno = 0;
     while ((fd = anetGenericAccept(Modes.aneterr, listen_fd, saddr, &slen, SOCK_NONBLOCK)) >= 0) {
+
+        int maxModesClients = Modes.max_fds * 7 / 8;
+        if (Modes.modesClientCount > maxModesClients) {
+            // drop new modes clients if the count nears max_fds ... we want some extra fds for other stuff
+            anetCloseSocket(c->fd);
+            static uint64_t antiSpam;
+            if (now > antiSpam + 30 * SECONDS) {
+                antiSpam = now;
+                fprintf(stderr, "<3> Can't accept new connection, limited to %d clients, consider increasing ulimit!\n", maxModesClients);
+            }
+        }
+
         c = createSocketClient(s, fd);
         if (c) {
             // We created the client, save the sockaddr info and 'hostport'
@@ -787,12 +808,6 @@ static void modesAcceptClients(struct client *c, uint64_t now) {
     if (!(errno & (EMFILE | EINTR | EAGAIN | EWOULDBLOCK))) {
         fprintf(stderr, "%s: Error accepting new connection: %s\n", s->descr, Modes.aneterr);
     }
-
-    static uint64_t antiSpam;
-    if (errno == EMFILE && now > antiSpam + 30 * SECONDS) {
-        antiSpam = now;
-        fprintf(stderr, "<3> Can't accept new connection, out of file descriptors: %s\n", Modes.aneterr);
-    }
 }
 
 //
@@ -805,12 +820,12 @@ static void modesCloseClient(struct client *c) {
         fprintf(stderr, "warning: double close of net client\n");
         return;
     }
-
     epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, c->fd, &c->epollEvent);
     anetCloseSocket(c->fd);
     c->service->connections--;
+    Modes.modesClientCount--;
     if (c->service->writer) {
-        c->service->writer->connections++;
+        c->service->writer->connections--;
     }
     if (c->con) {
         // Clean this up and set the next_reconnect timer for another try.
