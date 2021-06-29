@@ -452,7 +452,7 @@ static void send400(int fd) {
     "Connection: close\r\n"
     "Content-Length: 0\r\n\r\n");
 
-    int res = write(fd, buf, strlen(buf));
+    int res = send(fd, buf, strlen(buf), 0);
     MODES_NOTUSED(res);
 }
 
@@ -572,7 +572,7 @@ static void apiSendData(struct apiCon *con, struct apiThread *thread) {
     int len = cb->len - con->cbOffset;
     char *dataStart = cb->buffer + con->cbOffset;
 
-    int nwritten = write(con->fd, dataStart, len);
+    int nwritten = send(con->fd, dataStart, len, 0);
     int err = errno;
 
     if (nwritten < len || (nwritten < 0 && (err == EAGAIN || err == EWOULDBLOCK))) {
@@ -637,7 +637,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
             request->buffer = realloc(request->buffer, request->alloc);
         }
         toRead = request->alloc - request->len - 1; // leave an extra byte we can set \0
-        nread = read(fd, request->buffer + request->len, toRead);
+        nread = recv(fd, request->buffer + request->len, toRead, 0);
         err = errno;
 
         if (nread > 0) {
