@@ -703,7 +703,8 @@ static void acceptConn(struct apiCon *con, struct apiThread *thread) {
     int fd = -1;
 
     errno = 0;
-    while ((fd = anetGenericAccept(Modes.aneterr, listen_fd, saddr, &slen, SOCK_NONBLOCK)) >= 0) {
+    char aneterr[ANET_ERR_LEN];
+    while ((fd = anetGenericAccept(aneterr, listen_fd, saddr, &slen, SOCK_NONBLOCK)) >= 0) {
         struct apiCon *con = calloc(sizeof(struct apiCon), 1);
         if (!con) fprintf(stderr, "EMEM, how much is the fish?\n"), exit(1);
 
@@ -720,7 +721,7 @@ static void acceptConn(struct apiCon *con, struct apiThread *thread) {
             perror("epoll_ctl fail:");
     }
     if (!(errno & (EMFILE | EINTR | EAGAIN | EWOULDBLOCK))) {
-        fprintf(stderr, "<3>API: Error accepting new connection: %s\n", Modes.aneterr);
+        fprintf(stderr, "<3>API: Error accepting new connection: %s\n", aneterr);
     }
     if (errno == EMFILE) {
         fprintf(stderr, "<3>Out of file descriptors accepting api clients, "

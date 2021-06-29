@@ -507,7 +507,14 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
         int newfds[16];
         int nfds, i;
 
+        int unix = 0;
+        if (strncmp(p, "unix:", 5) == 0) {
+            unix = 1;
+            p += 5;
+        }
+
         end = strpbrk(p, ", ");
+
         if (!end) {
             strncpy(buf, p, sizeof (buf));
             buf[sizeof (buf) - 1] = 0;
@@ -520,12 +527,23 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
             buf[len] = 0;
             p = end + 1;
         }
-
-        nfds = anetTcpServer(Modes.aneterr, buf, bind_addr, newfds, sizeof (newfds), SOCK_NONBLOCK);
-        if (nfds == ANET_ERR) {
-            fprintf(stderr, "Error opening the listening port %s (%s): %s\n",
-                    buf, service->descr, Modes.aneterr);
-            exit(1);
+        if (unix) {
+            int fd = anetUnixSocket(Modes.aneterr, buf, SOCK_NONBLOCK);
+            if (fd == ANET_ERR) {
+                fprintf(stderr, "Error opening the listening port %s (%s): %s\n",
+                        buf, service->descr, Modes.aneterr);
+                exit(1);
+            }
+            chmod(buf, 0777);
+            newfds[0] = fd;
+            nfds = 1;
+        } else {
+            nfds = anetTcpServer(Modes.aneterr, buf, bind_addr, newfds, sizeof (newfds), SOCK_NONBLOCK);
+            if (nfds == ANET_ERR) {
+                fprintf(stderr, "Error opening the listening port %s (%s): %s\n",
+                        buf, service->descr, Modes.aneterr);
+                exit(1);
+            }
         }
         static int listenerCount;
         if (listenerCount && listenerCount % 2 == 0)

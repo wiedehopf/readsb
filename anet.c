@@ -367,6 +367,32 @@ int anetTcpServer(char *err, char *service, char *bindaddr, int *fds, int nfds, 
     }
     return (i > 0 ? i : ANET_ERR);
 }
+int anetUnixSocket(char *err, char *path, int flags)
+{
+    int s;
+    if ((s = anetCreateSocket(err, AF_UNIX, flags)) == ANET_ERR) {
+        return ANET_ERR;
+    }
+
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strcpy(addr.sun_path, path);
+
+    if (bind(s, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+        anetSetError(err, "bind: %s", strerror(errno));
+        anetCloseSocket(s);
+        return ANET_ERR;
+    }
+
+    if (listen(s, 511) == -1) {
+        anetSetError(err, "listen: %s", strerror(errno));
+        anetCloseSocket(s);
+        return ANET_ERR;
+    }
+
+    return s;
+}
 
 int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *len, int flags)
 {
