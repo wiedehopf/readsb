@@ -575,7 +575,7 @@ static void apiSendData(struct apiCon *con, struct apiThread *thread) {
     int nwritten = send(con->fd, dataStart, len, 0);
     int err = errno;
 
-    if (nwritten < len || (nwritten < 0 && (err == EAGAIN || err == EWOULDBLOCK))) {
+    if ((nwritten >= 0 && nwritten < len) || (nwritten < 0 && (err == EAGAIN || err == EWOULDBLOCK))) {
         //fprintf(stderr, "wrote only %d of %d\n", nwritten, len);
 
         con->cbOffset += nwritten;
@@ -599,7 +599,7 @@ static void apiSendData(struct apiCon *con, struct apiThread *thread) {
     cb->buffer = NULL;
 
     if (nwritten < 0) {
-        fprintf(stderr, "%s\n", strerror(err));
+        fprintf(stderr, "apiSendData fail: %s (was trying to send %d bytes)\n", strerror(err), len);
         apiCloseConn(con, thread);
         return;
     }
@@ -776,7 +776,9 @@ static void *apiThreadEntryPoint(void *arg) {
             if (con->accept) {
                 acceptConn(con, thread);
             } else {
-                if (event.events & EPOLLOUT) {
+                if (event.events & (EPOLLIN | EPOLLERR | EPOLLHUP)) {
+                    apiReadRequest(con, thread);
+                } else if (event.events & EPOLLOUT) {
                     apiSendData(con, thread);
                 } else {
                     apiReadRequest(con, thread);
