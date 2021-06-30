@@ -155,6 +155,8 @@ static int compare_validity(const data_validity *lhs, const data_validity *rhs) 
 // This has up to 0.5% error because the earth isn't actually spherical
 // (but we don't use it in situations where that matters)
 
+// define for testing some approximations:
+#define CHECK_APPROXIMATIONS (0)
 double greatcircle(double lat0, double lon0, double lat1, double lon1, int approx) {
     if (lat0 == lat1 && lon0 == lon1) {
         return 0;
@@ -169,9 +171,8 @@ double greatcircle(double lat0, double lon0, double lat1, double lon1, int appro
     double dlat = fabs(lat1 - lat0);
     double dlon = fabs(lon1 - lon0);
 
-    int checkApproximation = 0;
     double hav = 0;
-    if (checkApproximation) {
+    if (CHECK_APPROXIMATIONS) {
         // use haversine for small distances for better numerical stability
         double a = sin(dlat / 2) * sin(dlat / 2) + cos(lat0) * cos(lat1) * sin(dlon / 2) * sin(dlon / 2);
         hav = 6371e3 * 2 * atan2(sqrt(a), sqrt(1.0 - a));
@@ -186,11 +187,10 @@ double greatcircle(double lat0, double lon0, double lat1, double lon1, int appro
     // in our particular case many calls of this function are by speed_check which usually is small distances
     // thus having less trigonometric functions used should be a performance gain
     //
-    // difference to haversine is less than 0.12 percent for up to 10 degrees of lat/lon difference
-    // restricting it to a difference of 0.2 lat / lon means the absolute error is a maximum of around 20 m for 20km
+    // difference to haversine is less than 0.04 percent for up to 3 degrees of lat/lon difference
     // this isn't an issue for us and due to the oblateness and this calculation taking it into account, this calculation might actually be more accurate for small distances but i can't be bothered to check.
     //
-    if (approx || (dlat < toRad(0.2) && dlon < toRad(0.2) && fabs(lat1) < toRad(80))) {
+    if (approx || (dlat < toRad(3) && dlon < toRad(3) && fabs(lat1) < toRad(80))) {
         // calculate the equivalent length of the latitude and longitude difference
         // use pythagoras to get the distance
 
@@ -198,15 +198,22 @@ double greatcircle(double lat0, double lon0, double lat1, double lon1, int appro
         // Polar radius: p = (6356.7523 km) -> quarter meridian from wiki: 10 001.965 km
         double ec = 40075016; // equatorial circumerence
         double mc = 4 * 10001965; // meridial circumference
+        if (CHECK_APPROXIMATIONS) {
+            // let's check the diff against haversine assuming the same spherical earth
+            // normally we use some corrections here for the oblateness of the earth
+            // so this approximation is probably often better than haversine
+            ec = 2 * M_PI * 6371e3;
+            mc = 2 * M_PI * 6371e3;
+        }
 
         double avglat = lat0 + (lat1 - lat0) / 2;
         double dmer = dlat / (2 * M_PI) * mc;
         double dequ = dlon / (2 * M_PI) * ec * cosf(avglat);
         double pyth = sqrt(dmer * dmer + dequ * dequ);
 
-        if (!approx && checkApproximation) {
+        if (!approx && CHECK_APPROXIMATIONS) {
             double errorPercent = fabs(hav - pyth) / hav * 100;
-            if (errorPercent > 0.12) {
+            if (errorPercent > 0.04) {
                 fprintf(stderr, "pos: %.1f, %.1f dlat: %.5f dlon %.5f hav: %.1f errorPercent: %.3f\n", toDeg(lat0), toDeg(lon0), toDeg(dlat), toDeg(dlon), hav, errorPercent);
             }
         }
@@ -218,8 +225,8 @@ double greatcircle(double lat0, double lon0, double lat1, double lon1, int appro
     // use float calculations if latitudes differ sufficiently
     if (dlat > toRad(1) && dlon > toRad(1)) {
         // error
-        double slocf =  6371e3 * acos(sinf(lat0) * sinf(lat1) + cosf(lat0) * cosf(lat1) * cosf(dlon));
-        if (checkApproximation) {
+        double slocf =  6371e3 * acosf(sinf(lat0) * sinf(lat1) + cosf(lat0) * cosf(lat1) * cosf(dlon));
+        if (CHECK_APPROXIMATIONS) {
             double errorPercent = fabs(hav - slocf) / hav * 100;
             if (errorPercent > 0.05) {
                 fprintf(stderr, "pos: %.1f, %.1f dlat: %.5f dlon %.5f hav: %.1f errorPercent: %.3f\n", toDeg(lat0), toDeg(lon0), toDeg(dlat), toDeg(dlon), hav, errorPercent);
@@ -230,7 +237,7 @@ double greatcircle(double lat0, double lon0, double lat1, double lon1, int appro
 
     double sloc =  6371e3 * acos(sin(lat0) * sin(lat1) + cos(lat0) * cos(lat1) * cos(dlon));
 
-    if (checkApproximation) {
+    if (CHECK_APPROXIMATIONS) {
         double errorPercent = fabs(hav - sloc) / hav * 100;
         if (errorPercent > 0.05) {
             fprintf(stderr, "pos: %.1f, %.1f dlat: %.5f dlon %.5f sloc: %.1f errorPercent: %.3f\n", toDeg(lat0), toDeg(lon0), toDeg(dlat), toDeg(dlon), sloc, errorPercent);
@@ -246,21 +253,36 @@ static double bearing(double lat0, double lon0, double lat1, double lon1) {
     lat1 = toRad(lat1);
     lon1 = toRad(lon1);
 
-    double y = sin(lon1-lon0)*cos(lat1);
-    double x = cos(lat0)*sin(lat1) - sin(lat0)*cos(lat1)*cos(lon1-lon0);
-    double res = (atan2(y, x) * 180 / M_PI + 360);
+    // using float variants except for sin close to zero
+
+    double y = sinf(lon1-lon0)*cosf(lat1);
+    double x = cosf(lat0)*sinf(lat1) - sinf(lat0)*cosf(lat1)*cosf(lon1-lon0);
+    double res = atan2f(y, x) * (180 / M_PI) + 360;
+
+    if (CHECK_APPROXIMATIONS) {
+        // check against using double trigonometric functions
+        // errors greater than 0.5 are rare and only happen for small distances
+        // bearings derived from small distances don't need to be accurate at all for our purposes
+        double y = sin(lon1-lon0)*cos(lat1);
+        double x = cos(lat0)*sin(lat1) - sin(lat0)*cos(lat1)*cos(lon1-lon0);
+        double res2 = (atan2(y, x) * (180 / M_PI) + 360);
+        double diff = fabs(res2 - res);
+        if (diff > 0.5) {
+            fprintf(stderr, "%.2f %.2f %.2f %.2f\n",
+                    diff, res, res2,
+                    greatcircle(toDeg(lat0), toDeg(lon0), toDeg(lat1), toDeg(lon1), 0));
+        }
+    }
     while (res > 360)
         res -= 360;
     return res;
 }
 
 static void update_range_histogram(double lat, double lon) {
-    double range = 0;
-
     if (!Modes.userLocationValid)
         return;
 
-    range = greatcircle(Modes.fUserLat, Modes.fUserLon, lat, lon, 0);
+    double range = greatcircle(Modes.fUserLat, Modes.fUserLon, lat, lon, 0);
 
     if ((range <= Modes.maxRange || Modes.maxRange == 0)) {
         if (range > Modes.stats_current.distance_max)
@@ -1292,19 +1314,23 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         return NULL;
     }
 
-    /*
+    if (CHECK_APPROXIMATIONS) {
         // great circle random testing stuff ...
-        double la1 = random() / (double) INT_MAX - 0.5;
-        double la2 = random() / (double) INT_MAX - 0.5;
-        double lo1 = random() / (double) INT_MAX - 0.5;
-        double lo2 = random() / (double) INT_MAX - 0.5;
-        la1 *= 180;
-        lo1 *= 360;
-        la2 = la1 + 4 * la2;
-        lo2 = lo1 + 4 * lo2;
-        if (greatcircle(la1, lo1, la2, lo2, 0)) {
+        for (int i = 0; i < 100; i++) {
+            double la1 = 2 * random() / (double) INT_MAX - 1;
+            double la2 = 2 * random() / (double) INT_MAX - 1;
+            double lo1 = 2 * random() / (double) INT_MAX - 1;
+            double lo2 = 2 * random() / (double) INT_MAX - 1;
+            la1 *= 90;
+            lo1 *= 180;
+            la2 = la1 + 90 * la2;
+            lo2 = lo1 + 90 * lo2;
+            if (greatcircle(la1, lo1, la2, lo2, 0)) {
+            }
+            if (bearing(la1, lo1, la2, lo2)) {
+            }
         }
-    */
+    }
 
     uint64_t now = mm->sysTimestampMsg;
 
