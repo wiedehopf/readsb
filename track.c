@@ -156,42 +156,102 @@ static int compare_validity(const data_validity *lhs, const data_validity *rhs) 
 // (but we don't use it in situations where that matters)
 
 double greatcircle(double lat0, double lon0, double lat1, double lon1) {
-    double dlat, dlon;
-
     if (lat0 == lat1 && lon0 == lon1) {
         return 0;
     }
 
-    lat0 = lat0 * M_PI / 180.0;
-    lon0 = lon0 * M_PI / 180.0;
-    lat1 = lat1 * M_PI / 180.0;
-    lon1 = lon1 * M_PI / 180.0;
+    // toRad converts degrees to radians
+    lat0 = toRad(lat0);
+    lon0 = toRad(lon0);
+    lat1 = toRad(lat1);
+    lon1 = toRad(lon1);
 
-    dlat = fabs(lat1 - lat0);
-    dlon = fabs(lon1 - lon0);
+    double dlat = fabs(lat1 - lat0);
+    double dlon = fabs(lon1 - lon0);
 
-    // use haversine for small distances for better numerical stability
-    if (dlat < 0.001 && dlon < 0.001) {
+    int checkApproximation = 0;
+    double hav = 0;
+    if (checkApproximation) {
+        // use haversine for small distances for better numerical stability
         double a = sin(dlat / 2) * sin(dlat / 2) + cos(lat0) * cos(lat1) * sin(dlon / 2) * sin(dlon / 2);
-        return 6371e3 * 2 * atan2(sqrt(a), sqrt(1.0 - a));
+        hav = 6371e3 * 2 * atan2(sqrt(a), sqrt(1.0 - a));
+    }
+    // after checking this isn't necessary with doubles
+    // anyhow for small distance we can do a much cheaper approximation:
+    // anyhow, nice formular let's leave it in the code for reference
+
+    // for small distances the earth is flat enough that we can use this approximation
+    // don't use this approximation near the poles, would probably behave poorly
+    //
+    // in our particular case many calls of this function are by speed_check which usually is small distances
+    // thus having less trigonometric functions used should be a performance gain
+    //
+    // difference to haversine is less than 0.12 percent for up to 10 degrees of lat/lon difference
+    // restricting it to a difference of 0.2 lat / lon means the absolute error is a maximum of around 20 m for 20km
+    // this isn't an issue for us and due to the oblateness and this calculation taking it into account, this calculation might actually be more accurate for small distances but i can't be bothered to check.
+    //
+    if (dlat < toRad(0.2) && dlon < toRad(0.2) && fabs(lat1) < toRad(80)) {
+        // calculate the equivalent length of the latitude and longitude difference
+        // use pythagoras to get the distance
+
+        // Equatorial radius: e = (6378.1370 km) -> circumference: 2 * pi * e = 40 075.016 km
+        // Polar radius: p = (6356.7523 km) -> quarter meridian from wiki: 10 001.965 km
+        double ec = 40075016; // equatorial circumerence
+        double mc = 4 * 10001965; // meridial circumference
+
+        double avglat = lat0 + (lat1 - lat0) / 2;
+        double dmer = dlat / (2 * M_PI) * mc;
+        double dequ = dlon / (2 * M_PI) * ec * cos(avglat);
+        double pyth = sqrt(dmer * dmer + dequ * dequ);
+
+        if (checkApproximation) {
+            double errorPercent = fabs(hav - pyth) / hav * 100;
+            if (errorPercent > 0.12) {
+                fprintf(stderr, "pos: %.1f, %.1f dlat: %.5f dlon %.5f hav: %.1f errorPercent: %.3f\n", toDeg(lat0), toDeg(lon0), toDeg(dlat), toDeg(dlon), hav, errorPercent);
+            }
+        }
+
+        return pyth;
     }
 
     // spherical law of cosines
-    return 6371e3 * acos(sin(lat0) * sin(lat1) + cos(lat0) * cos(lat1) * cos(dlon));
+    // use float calculations if latitudes differ sufficiently
+    if (dlat > toRad(1) && dlon > toRad(1)) {
+        // error
+        double slocf =  6371e3 * acos(sinf(lat0) * sinf(lat1) + cosf(lat0) * cosf(lat1) * cosf(dlon));
+        if (checkApproximation) {
+            double errorPercent = fabs(hav - slocf) / hav * 100;
+            if (errorPercent > 0.05) {
+                fprintf(stderr, "pos: %.1f, %.1f dlat: %.5f dlon %.5f hav: %.1f errorPercent: %.3f\n", toDeg(lat0), toDeg(lon0), toDeg(dlat), toDeg(dlon), hav, errorPercent);
+            }
+        }
+        return slocf;
+    }
+
+    double sloc =  6371e3 * acos(sin(lat0) * sin(lat1) + cos(lat0) * cos(lat1) * cos(dlon));
+
+    if (checkApproximation) {
+        double errorPercent = fabs(hav - sloc) / hav * 100;
+        if (errorPercent > 0.05) {
+            fprintf(stderr, "pos: %.1f, %.1f dlat: %.5f dlon %.5f sloc: %.1f errorPercent: %.3f\n", toDeg(lat0), toDeg(lon0), toDeg(dlat), toDeg(dlon), sloc, errorPercent);
+        }
+    }
+
+    return sloc;
 }
 
-static float bearing(double lat0, double lon0, double lat1, double lon1) {
-    lat0 = lat0 * M_PI / 180.0;
-    lon0 = lon0 * M_PI / 180.0;
-    lat1 = lat1 * M_PI / 180.0;
-    lon1 = lon1 * M_PI / 180.0;
+static double bearing(double lat0, double lon0, double lat1, double lon1) {
+    lat0 = toRad(lat0);
+    lon0 = toRad(lon0);
+    lat1 = toRad(lat1);
+    lon1 = toRad(lon1);
 
     double y = sin(lon1-lon0)*cos(lat1);
     double x = cos(lat0)*sin(lat1) - sin(lat0)*cos(lat1)*cos(lon1-lon0);
     double res = (atan2(y, x) * 180 / M_PI + 360);
     while (res > 360)
         res -= 360;
-    return (float) res;
+    return res;
 }
 
 static void update_range_histogram(double lat, double lon) {
@@ -626,7 +686,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         mm->client->positionCounter++;
     }
 
-    if (trackDataAge(now, &a->track_valid) >= 10 * SECONDS && a->seen_pos) {
+    if (!trackDataValid(&a->track_valid) && a->seen_pos) {
         double distance = greatcircle(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon);
         if (distance > 100)
             a->calc_track = bearing(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon);
@@ -1231,6 +1291,20 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (mm->addr == 0 && mm->msgtype == 0) {
         return NULL;
     }
+
+    /*
+        // great circle random testing stuff ...
+        double la1 = random() / (double) INT_MAX - 0.5;
+        double la2 = random() / (double) INT_MAX - 0.5;
+        double lo1 = random() / (double) INT_MAX - 0.5;
+        double lo2 = random() / (double) INT_MAX - 0.5;
+        la1 *= 180;
+        lo1 *= 360;
+        la2 = la1 + 4 * la2;
+        lo2 = lo1 + 4 * lo2;
+        if (greatcircle(la1, lo1, la2, lo2)) {
+        }
+    */
 
     uint64_t now = mm->sysTimestampMsg;
 
