@@ -278,17 +278,42 @@ static double bearing(double lat0, double lon0, double lat1, double lon1) {
     return res;
 }
 
-static void update_range_histogram(double lat, double lon) {
+static void update_range_histogram(struct aircraft *a, uint64_t now) {
     if (!Modes.userLocationValid)
         return;
 
+    double lat = a->lat;
+    double lon = a->lon;
+
     double range = greatcircle(Modes.fUserLat, Modes.fUserLon, lat, lon, 0);
 
-    if ((range <= Modes.maxRange || Modes.maxRange == 0)) {
-        if (range > Modes.stats_current.distance_max)
-            Modes.stats_current.distance_max = range;
-        if (range < Modes.stats_current.distance_min)
-            Modes.stats_current.distance_min = range;
+    if (range > Modes.maxRange && Modes.maxRange != 0)
+        return;
+
+    if (range > Modes.stats_current.distance_max)
+        Modes.stats_current.distance_max = range;
+    if (range < Modes.stats_current.distance_min)
+        Modes.stats_current.distance_min = range;
+
+    int degrees = nearbyint(bearing(Modes.fUserLat, Modes.fUserLon, lat, lon));
+
+    int hour = (now / (1 * HOURS));
+    static int lastHour;
+    if (hour != lastHour) {
+        memset(Modes.rangeDirs[hour % 24], 0, sizeof(Modes.rangeDirs[hour % 24]));
+        lastHour = hour;
+    }
+
+    struct distCoords *record = &(Modes.rangeDirs[hour % 24][degrees % 360]);
+    if (range > record->distance) {
+        record->distance = range;
+        record->lat = lat;
+        record->lon = lon;
+        if (trackDataValid(&a->altitude_baro_valid) || !trackDataValid(&a->altitude_geom_valid)) {
+            record->alt = a->altitude_baro;
+        } else {
+            record->alt = a->altitude_geom;
+        }
     }
 
     if (Modes.stats_range_histo) {
@@ -750,8 +775,8 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
     if (mm->jsonPos)
         jsonPositionOutput(mm, a);
 
-    if (a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2 && mm->source == SOURCE_ADSB) {
-        update_range_histogram(mm->decoded_lat, mm->decoded_lon);
+    if (a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2 && (mm->source == SOURCE_ADSB || mm->source == SOURCE_ADSR)) {
+        update_range_histogram(a, now);
     }
 
     a->seen_pos = now;

@@ -177,6 +177,13 @@ struct statsCount {
     uint32_t readsb_aircraft_with_position;
 };
 
+struct distCoords {
+    float distance;
+    float lat;
+    float lon;
+    int32_t alt;
+} __attribute__ ((__packed__));
+
 void add_stats (const struct stats *st1, const struct stats *st2, struct stats *target);
 void display_stats (struct stats *st);
 void reset_stats (struct stats *st);

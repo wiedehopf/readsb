@@ -38,6 +38,7 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last);
 struct char_buffer generateReceiverJson ();
 struct char_buffer generateHistoryJson ();
 struct char_buffer generateClientsJson();
+struct char_buffer generateOutlineJson();
 struct char_buffer generateVRS(int part, int n_parts, int reduced_data);
 
 int writeJsonToFile (const char* dir, const char *file, struct char_buffer cb);

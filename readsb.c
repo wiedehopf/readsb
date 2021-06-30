@@ -154,6 +154,7 @@ static void modesInitConfig(void) {
     Modes.trace_focus = BADDR;
     Modes.show_only = BADDR;
 
+    Modes.outline_json = 1; // enable by default
     //Modes.receiver_focus = 0x123456;
     //
     Modes.trackExpireJaero = TRACK_EXPIRE_JAERO;
@@ -260,7 +261,9 @@ static void modesInit(void) {
         Modes.userLocationValid = 1;
         fprintf(stderr, "Using lat: %9.4f, lon: %9.4f\n", Modes.fUserLat, Modes.fUserLon);
     }
-
+    if (!Modes.userLocationValid || !Modes.json_dir) {
+        Modes.outline_json = 0; // disale outline_json
+    }
     if (Modes.json_reliable == -13) {
         if (Modes.userLocationValid && Modes.maxRange != 0)
             Modes.json_reliable = 1;
@@ -377,7 +380,6 @@ static void trackPeriodicUpdate() {
     int nParts = 5 * MINUTES / PERIODIC_UPDATE;
     receiverTimeout((upcount % nParts), nParts, now);
 
-    end_monotonic_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
     int64_t elapsed2 = stopWatch(&watch);
 
     unlockThreads();
@@ -413,6 +415,14 @@ static void trackPeriodicUpdate() {
             antiSpam2 = now;
         }
     }
+    if (Modes.outline_json) {
+        static uint64_t nextOutlineWrite;
+        if (now > nextOutlineWrite) {
+            writeJsonToFile(Modes.json_dir, "outline.json", generateOutlineJson());
+            nextOutlineWrite = now + 30 * SECONDS;
+        }
+    }
+    end_monotonic_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
 }
 
 //

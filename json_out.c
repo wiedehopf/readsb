@@ -1690,11 +1690,51 @@ struct char_buffer generateReceiverJson() {
         p = safe_snprintf(p, end, " ]");
     }
 
+    if (Modes.outline_json) {
+        p = safe_snprintf(p, end, ", \"outlineJson\": true");
+    }
     p = safe_snprintf(p, end, ", \"version\": \"%s\" }\n", MODES_READSB_VERSION);
 
     if (p >= end)
         fprintf(stderr, "buffer overrun receiver json\n");
 
+    cb.len = p - buf;
+    cb.buffer = buf;
+    return cb;
+}
+struct char_buffer generateOutlineJson() {
+    struct char_buffer cb;
+    size_t buflen = 1024 + 360 * 128;
+    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
+
+    // check for maximum over last 24h
+    struct distCoords record[360];
+    memset(record, 0, sizeof(record));
+    for (int hour = 0; hour < 24; hour++) {
+        for (int i = 0; i < 360; i++) {
+            struct distCoords curr = Modes.rangeDirs[hour][i];
+            if (curr.distance > record[i].distance) {
+                record[i] = curr;
+            }
+        }
+    }
+
+    // print the records in each direction
+    p = safe_snprintf(p, end, "{ \"points\": [");
+    for (int i = 0; i < 360; i++) {
+        if (record[i].lat || record[i].lon) {
+            p = safe_snprintf(p, end, "\n[%.4f,%.4f,%d],",
+                    record[i].lat,
+                    record[i].lon,
+                    record[i].alt);
+        }
+    }
+    if (*(p-1) == ',')
+        p--; // remove last comma if it exists
+    p = safe_snprintf(p, end, "\n]}\n");
+
+    if (p >= end)
+        fprintf(stderr, "buffer overrun outline json\n");
     cb.len = p - buf;
     cb.buffer = buf;
     return cb;

@@ -489,6 +489,7 @@ struct _Modes
     int8_t quiet; // Suppress stdout
     int8_t interactive; // Interactive mode
     int8_t stats_range_histo; // Collect/show a range histogram?
+    int8_t outline_json; // write a range outline json file
     int8_t onlyaddr; // Print only ICAO addresses
     int8_t metric; // Use metric units
     int8_t use_gnss; // Use GNSS altitudes with H suffix ("HAE", though it isn't always) when available
@@ -607,6 +608,8 @@ struct _Modes
 
     // array for thread numbers
     int threadNumber[256];
+
+    struct distCoords rangeDirs[24][360];
 };
 
 extern struct _Modes Modes;
