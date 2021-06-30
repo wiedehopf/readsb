@@ -534,7 +534,7 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
                         buf, service->descr, Modes.aneterr);
                 exit(1);
             }
-            chmod(buf, 0777);
+            chmod(buf, 0666);
             newfds[0] = fd;
             nfds = 1;
         } else {
