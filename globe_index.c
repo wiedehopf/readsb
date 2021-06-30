@@ -1112,7 +1112,8 @@ static void mark_legs(struct aircraft *a, int start) {
                 (double) state->lat / 1E6,
                 (double) state->lon / 1E6,
                 (double) prev->lat / 1E6,
-                (double) prev->lon / 1E6
+                (double) prev->lon / 1E6,
+                0
                 );
 
         if (elapsed > 30 * 60 * 1000 && distance < 10E3 * (elapsed / (30 * 60 * 1000.0)) && distance > 1) {
@@ -1611,7 +1612,7 @@ int traceAdd(struct aircraft *a, uint64_t now) {
     }
 
 
-    distance = greatcircle(last->lat / 1E6, last->lon / 1E6, a->lat, a->lon);
+    distance = greatcircle(last->lat / 1E6, last->lon / 1E6, a->lat, a->lon, 0);
 
     if (distance < 5)
         traceDebug = 0;

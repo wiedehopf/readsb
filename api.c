@@ -151,7 +151,7 @@ static int findInCircle(struct apiBuffer *buffer, struct apiCircle *circle, stru
     int32_t lon1 = (int32_t) (o1 * 1E6);
     int32_t lon2 = (int32_t) (o2 * 1E6);
 
-    //fprintf(stderr, "radius:%8.0f latdiff: %8.0f londiff: %8.0f\n", radius, greatcircle(a1, lon, lat, lon), greatcircle(lat, o1, lat, lon));
+    //fprintf(stderr, "radius:%8.0f latdiff: %8.0f londiff: %8.0f\n", radius, greatcircle(a1, lon, lat, lon), greatcircle(lat, o1, lat, lon, 0));
     if (lon1 <= lon2) {
         r[0] = findLonRange(lon1, lon2, buffer->list, buffer->len);
     } else if (lon1 > lon2) {
@@ -166,7 +166,7 @@ static int findInCircle(struct apiBuffer *buffer, struct apiCircle *circle, stru
             for (int j = r[k].from; j < r[k].to; j++) {
                 struct apiEntry *e = &buffer->list[j];
                 if (e->lat >= lat1 && e->lat <= lat2) {
-                    double dist = greatcircle(lat, lon, e->lat / 1E6, e->lon / 1E6);
+                    double dist = greatcircle(lat, lon, e->lat / 1E6, e->lon / 1E6, 0);
                     if (dist < radius && dist < minDistance) {
                         // first match is overwritten repeatedly
                         matches[count] = *e;
@@ -186,7 +186,7 @@ static int findInCircle(struct apiBuffer *buffer, struct apiCircle *circle, stru
             for (int j = r[k].from; j < r[k].to; j++) {
                 struct apiEntry *e = &buffer->list[j];
                 if (e->lat >= lat1 && e->lat <= lat2) {
-                    double dist = greatcircle(lat, lon, e->lat / 1E6, e->lon / 1E6);
+                    double dist = greatcircle(lat, lon, e->lat / 1E6, e->lon / 1E6, 0);
                     if (dist < radius) {
                         matches[count] = *e;
                         matches[count].distance = (float) dist;

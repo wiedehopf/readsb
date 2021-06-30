@@ -116,7 +116,7 @@ void receiverPositionReceived(struct aircraft *a, uint64_t id, double lat, doubl
         double rlat = r->latMin + latDiff / 2;
         double rlon = r->lonMin + lonDiff / 2;
 
-        double distance = greatcircle(rlat, rlon, lat, lon);
+        double distance = greatcircle(rlat, rlon, lat, lon, 1);
 
         if (!r->badExtent && distance > RECEIVER_MAX_RANGE) {
             r->badExtent = now;

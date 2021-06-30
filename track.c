@@ -155,7 +155,7 @@ static int compare_validity(const data_validity *lhs, const data_validity *rhs) 
 // This has up to 0.5% error because the earth isn't actually spherical
 // (but we don't use it in situations where that matters)
 
-double greatcircle(double lat0, double lon0, double lat1, double lon1) {
+double greatcircle(double lat0, double lon0, double lat1, double lon1, int approx) {
     if (lat0 == lat1 && lon0 == lon1) {
         return 0;
     }
@@ -190,7 +190,7 @@ double greatcircle(double lat0, double lon0, double lat1, double lon1) {
     // restricting it to a difference of 0.2 lat / lon means the absolute error is a maximum of around 20 m for 20km
     // this isn't an issue for us and due to the oblateness and this calculation taking it into account, this calculation might actually be more accurate for small distances but i can't be bothered to check.
     //
-    if (dlat < toRad(0.2) && dlon < toRad(0.2) && fabs(lat1) < toRad(80)) {
+    if (approx || (dlat < toRad(0.2) && dlon < toRad(0.2) && fabs(lat1) < toRad(80))) {
         // calculate the equivalent length of the latitude and longitude difference
         // use pythagoras to get the distance
 
@@ -204,7 +204,7 @@ double greatcircle(double lat0, double lon0, double lat1, double lon1) {
         double dequ = dlon / (2 * M_PI) * ec * cos(avglat);
         double pyth = sqrt(dmer * dmer + dequ * dequ);
 
-        if (checkApproximation) {
+        if (!approx && checkApproximation) {
             double errorPercent = fabs(hav - pyth) / hav * 100;
             if (errorPercent > 0.12) {
                 fprintf(stderr, "pos: %.1f, %.1f dlat: %.5f dlon %.5f hav: %.1f errorPercent: %.3f\n", toDeg(lat0), toDeg(lon0), toDeg(dlat), toDeg(dlon), hav, errorPercent);
@@ -260,7 +260,7 @@ static void update_range_histogram(double lat, double lon) {
     if (!Modes.userLocationValid)
         return;
 
-    range = greatcircle(Modes.fUserLat, Modes.fUserLon, lat, lon);
+    range = greatcircle(Modes.fUserLat, Modes.fUserLon, lat, lon, 0);
 
     if ((range <= Modes.maxRange || Modes.maxRange == 0)) {
         if (range > Modes.stats_current.distance_max)
@@ -359,7 +359,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     }
 
     // find actual distance
-    distance = greatcircle(oldLat, oldLon, lat, lon);
+    distance = greatcircle(oldLat, oldLon, lat, lon, 0);
 
     if (!surface && distance > 1 && source > SOURCE_MLAT
             && trackDataAge(now, &a->track_valid) < 7 * 1000
@@ -498,7 +498,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
                 a->cpr_odd_lat, a->cpr_odd_lon,
                 fflag,
                 lat, lon);
-        double refDistance = greatcircle(reflat, reflon, *lat, *lon);
+        double refDistance = greatcircle(reflat, reflon, *lat, *lon, 0);
         if (refDistance > 450e3) {
             if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
                 fprintf(stderr, "%06x CPRsurface ref %d refDistance: %4.0f km (%4.0f, %4.0f) allow_ac_rel %d\n", a->addr, ref, refDistance / 1000.0, reflat, reflon, a->surfaceCPR_allow_ac_rel);
@@ -527,7 +527,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
 
     // check max range
     if (Modes.maxRange > 0 && Modes.userLocationValid) {
-        double range = greatcircle(Modes.fUserLat, Modes.fUserLon, *lat, *lon);
+        double range = greatcircle(Modes.fUserLat, Modes.fUserLon, *lat, *lon, 0);
         if (range > Modes.maxRange) {
             if (a->addr == Modes.cpr_focus) {
                 fprintf(stderr, "Global range check failed: %06x: %.3f,%.3f, max range %.1fkm, actual %.1fkm\n",
@@ -625,7 +625,7 @@ static int doLocalCPR(struct aircraft *a, struct modesMessage *mm, double *lat, 
 
     // check range limit
     if (range_limit > 0) {
-        double range = greatcircle(reflat, reflon, *lat, *lon);
+        double range = greatcircle(reflat, reflon, *lat, *lon, 0);
         if (range > range_limit) {
             Modes.stats_current.cpr_local_range_checks++;
             return (-1);
@@ -687,7 +687,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
     }
 
     if (!trackDataValid(&a->track_valid) && a->seen_pos) {
-        double distance = greatcircle(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon);
+        double distance = greatcircle(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon, 1);
         if (distance > 100)
             a->calc_track = bearing(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon);
         if (mm->source == SOURCE_JAERO
@@ -1302,7 +1302,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         lo1 *= 360;
         la2 = la1 + 4 * la2;
         lo2 = lo1 + 4 * lo2;
-        if (greatcircle(la1, lo1, la2, lo2)) {
+        if (greatcircle(la1, lo1, la2, lo2, 0)) {
         }
     */
 
@@ -1762,7 +1762,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             }
         }
         // avoid using already received positions
-        if (old_jaero || greatcircle(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon) < 1) {
+        if (old_jaero || greatcircle(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon, 1) < 1) {
         } else if (!speed_check(a, mm->source, mm->decoded_lat, mm->decoded_lon, mm, CPR_NONE)) {
             mm->pos_bad = 1;
             // speed check failed, do nothing
@@ -1872,9 +1872,9 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         if (Modes.beast_reduce_filter_distance != -1
                 && now < a->seenPosReliable + 1 * MINUTES
                 && Modes.userLocationValid
-                && greatcircle(Modes.fUserLat, Modes.fUserLon, a->latReliable, a->lonReliable) > Modes.beast_reduce_filter_distance) {
+                && greatcircle(Modes.fUserLat, Modes.fUserLon, a->latReliable, a->lonReliable, 0) > Modes.beast_reduce_filter_distance) {
             mm->reduce_forward = 0;
-            //fprintf(stderr, "%.0f %0.f\n", greatcircle(Modes.fUserLat, Modes.fUserLon, a->latReliable, a->lonReliable) / 1852.0, Modes.beast_reduce_filter_distance / 1852.0);
+            //fprintf(stderr, "%.0f %0.f\n", greatcircle(Modes.fUserLat, Modes.fUserLon, a->latReliable, a->lonReliable, 0) / 1852.0, Modes.beast_reduce_filter_distance / 1852.0);
         }
         if (Modes.beast_reduce_filter_altitude != -1
                 && altReliable(a)
@@ -2795,7 +2795,7 @@ static void incrementReliable(struct aircraft *a, struct modesMessage *mm, uint6
 
     if (mm->source > SOURCE_JAERO && now > a->seenPosReliable + 2 * MINUTES
             && a->pos_reliable_odd <= 0 && a->pos_reliable_even <= 0) {
-        double distance = greatcircle(a->latReliable, a->lonReliable, mm->decoded_lat, mm->decoded_lon);
+        double distance = greatcircle(a->latReliable, a->lonReliable, mm->decoded_lat, mm->decoded_lon, 0);
         // if aircraft is close to last reliable position, treat new position as reliable immediately.
         // based on 2 minutes, 12 km equals 360 km/h or 194 knots
         if (distance < 12e3) {
