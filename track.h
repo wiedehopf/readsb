@@ -435,6 +435,8 @@ struct aircraft
   uint64_t next_reduce_forward_DF20;
   uint64_t next_reduce_forward_DF21;
   struct traceCache *traceCache;
+  double magneticDeclination;
+  uint64_t updatedDeclination;
 };
 
 /* Mode A/C tracking is done separately, not via the aircraft list,

@@ -62,7 +62,7 @@ static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint6
 static void position_bad(struct modesMessage *mm, struct aircraft *a);
 static void calc_wind(struct aircraft *a, uint64_t now);
 static void calc_temp(struct aircraft *a, uint64_t now);
-static inline int declination (struct aircraft *a, double *dec);
+static inline int declination(struct aircraft *a, double *dec, uint64_t now);
 static const char *source_string(datasource_t source);
 static void incrementReliable(struct aircraft *a, struct modesMessage *mm, uint64_t now, int odd);
 
@@ -1510,7 +1510,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             a->track = mm->heading;
         } else if (htype == HEADING_MAGNETIC) {
             double dec;
-            int err = declination(a, &dec);
+            int err = declination(a, &dec, now);
             if (accept_data(&a->mag_heading_valid, mm->source, mm, 1)) {
                 a->mag_heading = mm->heading;
 
@@ -2430,6 +2430,11 @@ static void calc_wind(struct aircraft *a, uint64_t now) {
     if (!trackDataValid(&a->position_valid) || a->airground == AG_GROUND)
         return;
 
+    if (now < a->wind_updated + 1 * SECONDS) {
+        // don't do wind calculation more often than necessary, precision isn't THAT good anyhow
+        return;
+    }
+
     if (trackDataAge(now, &a->tas_valid) > TRACK_WT_TIMEOUT
             || trackDataAge(now, &a->gs_valid) > TRACK_WT_TIMEOUT
             || trackDataAge(now, &a->track_valid) > TRACK_WT_TIMEOUT / 2
@@ -2495,9 +2500,16 @@ static void calc_temp(struct aircraft *a, uint64_t now) {
     a->oat_updated = now;
 }
 
-static inline int declination (struct aircraft *a, double *dec) {
+static inline int declination(struct aircraft *a, double *dec, uint64_t now) {
+    // only update delination every 30 seconds (per plane)
+    // it doesn't change that much assuming the plane doesn't move huge distances in that time
+    if (now < a->updatedDeclination + 5 * SECONDS) {
+        *dec = a->magneticDeclination;
+        return 0;
+    }
+
     double year;
-    time_t now_t = a->seen/1000;
+    time_t now_t = now/1000;
 
     struct tm utc;
     gmtime_r(&now_t, &utc);
@@ -2509,8 +2521,12 @@ static inline int declination (struct aircraft *a, double *dec) {
     double gv;
 
     int res = geomag_calc(a->altitude_baro * 0.0003048, a->lat, a->lon, year, dec, &dip, &ti, &gv);
-    if (res)
+    if (res) {
         *dec = 0.0;
+    } else {
+        a->updatedDeclination = now;
+        a->magneticDeclination = *dec;
+    }
     return res;
 }
 
