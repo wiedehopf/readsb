@@ -435,5 +435,5 @@ void anetCloseSocket(int fd) {
             fprintf(stderr, "Shutdown client socket failed.\n");
         }
     }
-    close(fd); // Finally call anetCloseSocket() socket
+    close(fd);
 }

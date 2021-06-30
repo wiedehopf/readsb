@@ -434,7 +434,14 @@ void apiUnlockMutex() {
 static void apiCloseConn(struct apiCon *con, struct apiThread *thread) {
     int fd = con->fd;
     epoll_ctl(thread->epfd, EPOLL_CTL_DEL, fd, NULL);
-    anetCloseSocket(fd);
+
+    if (shutdown(fd, SHUT_RDWR) < 0) { // Secondly, terminate the reliable delivery
+        if (errno != ENOTCONN && errno != EINVAL) { // SGI causes EINVAL
+            fprintf(stderr, "API: Shutdown client socket failed.\n");
+        }
+    }
+    close(fd);
+
     if (Modes.debug_api)
         fprintf(stderr, "%d: clo c: %d\n", thread->index, fd);
     sfree(con->request.buffer);

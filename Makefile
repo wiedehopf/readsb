@@ -8,14 +8,14 @@ AGGRESSIVE ?= no
 HAVE_BIASTEE ?= no
 
 CPPFLAGS += -DMODES_READSB_VERSION=\"$(READSB_VERSION)\"
-CPPFLAGS += -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE
-CPPFLAGS += -fstack-protector-strong -Wformat -Werror=format-security
+CPPFLAGS += -D_GNU_SOURCE
+CPPFLAGS += -D_FORTIFY_SOURCE=2 -fstack-protector-strong -Wformat -Werror=format-security
 
 #OPTIMIZE ?= -march=native
 
 DIALECT = -std=c11
 
-CFLAGS := $(DIALECT) -g -W -D_DEFAULT_SOURCE -Wall -Werror -fno-common -O2 $(OPTIMIZE) $(CFLAGS)
+CFLAGS := $(DIALECT) -g -W -D_DEFAULT_SOURCE -Wall -Werror -fno-common -O2 $(CFLAGS) $(OPTIMIZE)
 LIBS = -pthread -lpthread -lm -lz -lrt
 
 ifeq ($(shell $(CC) -c feature_test.c -o feature_test.o -Wno-format-truncation -Werror >/dev/null 2>&1 && echo 1 || echo 0), 1)
@@ -90,7 +90,7 @@ readsb.o: readsb.c *.h .version
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 readsb: readsb.o anet.o interactive.o mode_ac.o mode_s.o comm_b.o json_out.o net_io.o crc.o demod_2400.o stats.o cpr.o icao_filter.o track.o util.o fasthash.o convert.o sdr_ifile.o sdr_beast.o sdr.o ais_charset.o globe_index.o geomag.o receiver.o aircraft.o api.o $(SDR_OBJ) $(COMPAT)
-	$(CC) -g -o $@ $^ $(LDFLAGS) $(LIBS) $(LIBS_SDR) -lncurses
+	$(CC) -g -o $@ $^ $(LDFLAGS) $(LIBS) $(LIBS_SDR) -lncurses $(OPTIMIZE)
 
 viewadsb: readsb
 	cp -f readsb viewadsb
