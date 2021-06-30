@@ -201,7 +201,7 @@ double greatcircle(double lat0, double lon0, double lat1, double lon1, int appro
 
         double avglat = lat0 + (lat1 - lat0) / 2;
         double dmer = dlat / (2 * M_PI) * mc;
-        double dequ = dlon / (2 * M_PI) * ec * cos(avglat);
+        double dequ = dlon / (2 * M_PI) * ec * cosf(avglat);
         double pyth = sqrt(dmer * dmer + dequ * dequ);
 
         if (!approx && checkApproximation) {
