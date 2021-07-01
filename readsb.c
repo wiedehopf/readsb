@@ -88,7 +88,10 @@ static void sigtermHandler(int dummy) {
 
 void receiverPositionChanged(float lat, float lon, float alt) {
     log_with_timestamp("Autodetected receiver location: %.5f, %.5f at %.0fm AMSL", lat, lon, alt);
-    writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson()); // location changed
+
+    if (Modes.json_dir) {
+        writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson()); // location changed
+    }
 }
 
 

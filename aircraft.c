@@ -446,7 +446,9 @@ int dbUpdate() {
     gzclose(gzfp);
     free(cb.buffer);
     Modes.dbModificationTime = modTime;
-    writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
+    if (Modes.json_dir) {
+        writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
+    }
     return 1;
 DBU0:
     if (gzfp)
@@ -463,7 +465,7 @@ DBU0:
 int dbFinishUpdate() {
     // finish db update
     if (Modes.db2 && Modes.db2Index) {
-        if (Modes.debug_dbJson)
+        if (Modes.json_dir && Modes.debug_dbJson)
             dbToJson();
         free(Modes.dbIndex);
         free(Modes.db);
