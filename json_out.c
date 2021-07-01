@@ -1728,7 +1728,7 @@ struct char_buffer generateOutlineJson() {
     }
 
     // print the records in each direction
-    p = safe_snprintf(p, end, "{ \"points\": [");
+    p = safe_snprintf(p, end, "{ \"actualRange\": { \"last24h\": { \"points\": [");
     for (int i = 0; i < 360; i++) {
         if (record[i].lat || record[i].lon) {
             p = safe_snprintf(p, end, "\n[%.4f,%.4f,%d],",
@@ -1739,7 +1739,7 @@ struct char_buffer generateOutlineJson() {
     }
     if (*(p-1) == ',')
         p--; // remove last comma if it exists
-    p = safe_snprintf(p, end, "\n]}\n");
+    p = safe_snprintf(p, end, "\n]}}}\n");
 
     if (p >= end)
         fprintf(stderr, "buffer overrun outline json\n");
