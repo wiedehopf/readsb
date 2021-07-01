@@ -1030,6 +1030,9 @@ struct char_buffer generateAircraftBin() {
     memWrite(p, north);
     memWrite(p, east);
 
+    uint32_t messageCount = Modes.stats_current.messages_total + Modes.stats_alltime.messages_total;
+    memWrite(p, messageCount);
+
     if (p - buf > (int) elementSize)
         fprintf(stderr, "buffer overrun aircrafBin\n");
 
@@ -1131,6 +1134,9 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
     memWrite(p, west);
     memWrite(p, north);
     memWrite(p, east);
+
+    uint32_t messageCount = Modes.stats_current.messages_total + Modes.stats_alltime.messages_total;
+    memWrite(p, messageCount);
 
     if (p - buf > (int) elementSize)
         fprintf(stderr, "buffer overrun globeBin\n");
@@ -1690,6 +1696,8 @@ struct char_buffer generateReceiverJson() {
         p = safe_snprintf(p, end, " ]");
     }
 
+
+    p = safe_snprintf(p, end, ", \"aircraft_binCraft\": true");
     if (Modes.outline_json) {
         p = safe_snprintf(p, end, ", \"outlineJson\": true");
     }

@@ -182,21 +182,23 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
 
     new->signal = get8bitSignal(a);
 
-    if (a->position_valid.source == SOURCE_MLAT) {
-        new->receiverCount = a->receiverCountMlat;
-    } else {
-        uint16_t *set1 = a->receiverIds;
-        uint16_t set2[16] = { 0 };
-        int div = 0;
-        for (int k = 0; k < RECEIVERIDBUFFER; k++) {
-            int unequal = 0;
-            for (int j = 0; j < div; j++) {
-                unequal += (set1[k] != set2[j]);
+    if (Modes.json_globe_index) {
+        if (a->position_valid.source == SOURCE_MLAT) {
+            new->receiverCount = a->receiverCountMlat;
+        } else {
+            uint16_t *set1 = a->receiverIds;
+            uint16_t set2[16] = { 0 };
+            int div = 0;
+            for (int k = 0; k < RECEIVERIDBUFFER; k++) {
+                int unequal = 0;
+                for (int j = 0; j < div; j++) {
+                    unequal += (set1[k] != set2[j]);
+                }
+                if (unequal == div && set1[k])
+                    set2[div++] = set1[k];
             }
-            if (unequal == div && set1[k])
-                set2[div++] = set1[k];
+            new->receiverCount = div;
         }
-        new->receiverCount = div;
     }
 #define F(f) do { new->f##_valid = trackDataValid(&a->f##_valid); new->f *= new->f##_valid; } while (0)
     F(altitude_geom);

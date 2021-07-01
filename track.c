@@ -475,7 +475,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
         }
     }
-    if (inrange && mm->source == SOURCE_ADSB && mm->cpr_type != CPR_SURFACE
+    if (!Modes.userLocationValid && inrange && mm->source == SOURCE_ADSB && mm->cpr_type != CPR_SURFACE
             && a->pos_reliable_odd >= Modes.filter_persistence * 3 / 4
             && a->pos_reliable_even >= Modes.filter_persistence * 3 / 4
        ) {
@@ -716,12 +716,14 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         return;
     }
 
-    if (mm->source == SOURCE_MLAT && mm->receiverCountMlat) {
-        a->receiverCountMlat = mm->receiverCountMlat;
-    } else {
-        uint16_t simpleHash = (uint16_t) mm->receiverId;
-        simpleHash = simpleHash ? simpleHash : 1;
-        a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = simpleHash;
+    if (Modes.json_globe_index) {
+        if (mm->source == SOURCE_MLAT && mm->receiverCountMlat) {
+            a->receiverCountMlat = mm->receiverCountMlat;
+        } else {
+            uint16_t simpleHash = (uint16_t) mm->receiverId;
+            simpleHash = simpleHash ? simpleHash : 1;
+            a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = simpleHash;
+        }
     }
 
     if (mm->duplicate) {

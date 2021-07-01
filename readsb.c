@@ -481,13 +481,11 @@ static void *jsonThreadEntryPoint(void *arg) {
             writeJsonToFile(Modes.json_dir, "aircraft_recent.json", cb);
         }
 
-        if (Modes.onlyBin >= 2) {
-            struct char_buffer cb3 = generateAircraftBin();
-            writeJsonToGzip(Modes.json_dir, "aircraft.binCraft", cb3, 1);
-            sfree(cb3.buffer);
-        }
+        struct char_buffer cb3 = generateAircraftBin();
+        writeJsonToGzip(Modes.json_dir, "aircraft.binCraft", cb3, 1);
+        sfree(cb3.buffer);
 
-        if (Modes.binCraft) {
+        if (Modes.json_globe_index) {
             struct char_buffer cb2 = generateGlobeBin(-1, 1);
             writeJsonToGzip(Modes.json_dir, "globeMil_42777.binCraft", cb2, 5);
             sfree(cb2.buffer);
@@ -560,7 +558,7 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
     return NULL;
 }
 
-static void *binThreadEntryPoint(void *arg) {
+static void *globeBinEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
     srandom(get_seed());
 
@@ -1433,10 +1431,6 @@ static void configAfterParse() {
     } else if (Modes.heatmap || Modes.trace_focus != BADDR) {
         Modes.keep_traces = 35 * MINUTES; // heatmap is written every 30 minutes
     }
-
-    if (Modes.json_globe_index) {
-        Modes.binCraft = 1;
-    }
 }
 
 //
@@ -1564,8 +1558,8 @@ int main(int argc, char **argv) {
         apiInit();
     }
 
-    if (Modes.binCraft) {
-        pthread_create(&Modes.binThread, NULL, binThreadEntryPoint, NULL);
+    if (Modes.json_globe_index) {
+        pthread_create(&Modes.binThread, NULL, globeBinEntryPoint, NULL);
     }
 
     if (Modes.json_dir) {
@@ -1627,7 +1621,7 @@ int main(int argc, char **argv) {
             pthread_join(Modes.jsonTraceThread[i], NULL);
         }
     }
-    if (Modes.binCraft) {
+    if (Modes.json_globe_index) {
         pthread_mutex_lock(&Modes.binMutex);
         pthread_cond_signal(&Modes.binCond);
         pthread_mutex_unlock(&Modes.binMutex);
