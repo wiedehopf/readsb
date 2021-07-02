@@ -295,16 +295,19 @@ static void update_range_histogram(struct aircraft *a, uint64_t now) {
     if (range < Modes.stats_current.distance_min)
         Modes.stats_current.distance_min = range;
 
-    int degrees = nearbyint(bearing(Modes.fUserLat, Modes.fUserLon, lat, lon));
+    int rangeDirDirection = nearbyint(bearing(Modes.fUserLat, Modes.fUserLon, lat, lon));
+    rangeDirDirection %= RANGEDIRS_BUCKETS;
 
-    int hour = (now / (1 * HOURS));
-    static int lastHour;
-    if (hour != lastHour) {
-        memset(Modes.rangeDirs[hour % 24], 0, sizeof(Modes.rangeDirs[hour % 24]));
-        lastHour = hour;
+    int rangeDirHour = (now / (1 * HOURS)) % RANGEDIRS_HOURS;
+    static int lastRangeDirHour;
+    if (rangeDirHour != lastRangeDirHour) {
+        // RANGEDIRS_HOURS 25 holds the last 24 full hours and the current hour
+        // when the current hour changes, reset the data for it
+        memset(Modes.rangeDirs[rangeDirHour], 0, sizeof(Modes.rangeDirs[rangeDirHour]));
+        lastRangeDirHour = rangeDirHour;
     }
 
-    struct distCoords *record = &(Modes.rangeDirs[hour % 24][degrees % 360]);
+    struct distCoords *record = &(Modes.rangeDirs[rangeDirHour][rangeDirDirection]);
     if (range > record->distance) {
         record->distance = range;
         record->lat = lat;

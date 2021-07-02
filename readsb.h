@@ -315,6 +315,9 @@ typedef enum {
 
 #define STAT_BUCKETS 90 // 90 * 10 seconds = 15 min (max interval in stats.json)
 
+#define RANGEDIRS_BUCKETS 360
+#define RANGEDIRS_HOURS 25
+
 // Include subheaders after all the #defines are in place
 
 #include "toString.h"
@@ -608,7 +611,7 @@ struct _Modes
     // array for thread numbers
     int threadNumber[256];
 
-    struct distCoords rangeDirs[24][360];
+    struct distCoords rangeDirs[RANGEDIRS_HOURS][RANGEDIRS_BUCKETS ];
 };
 
 extern struct _Modes Modes;

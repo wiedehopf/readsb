@@ -1712,14 +1712,14 @@ struct char_buffer generateReceiverJson() {
 }
 struct char_buffer generateOutlineJson() {
     struct char_buffer cb;
-    size_t buflen = 1024 + 360 * 128;
+    size_t buflen = 1024 + RANGEDIRS_BUCKETS * 64;
     char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
 
-    // check for maximum over last 24h
-    struct distCoords record[360];
+    // check for maximum over last 24 full and current hour
+    struct distCoords record[RANGEDIRS_BUCKETS];
     memset(record, 0, sizeof(record));
-    for (int hour = 0; hour < 24; hour++) {
-        for (int i = 0; i < 360; i++) {
+    for (int hour = 0; hour < RANGEDIRS_HOURS; hour++) {
+        for (int i = 0; i < RANGEDIRS_BUCKETS; i++) {
             struct distCoords curr = Modes.rangeDirs[hour][i];
             if (curr.distance > record[i].distance) {
                 record[i] = curr;
@@ -1729,7 +1729,7 @@ struct char_buffer generateOutlineJson() {
 
     // print the records in each direction
     p = safe_snprintf(p, end, "{ \"actualRange\": { \"last24h\": { \"points\": [");
-    for (int i = 0; i < 360; i++) {
+    for (int i = 0; i < RANGEDIRS_BUCKETS; i++) {
         if (record[i].lat || record[i].lon) {
             p = safe_snprintf(p, end, "\n[%.4f,%.4f,%d],",
                     record[i].lat,
