@@ -874,7 +874,7 @@ static inline void flushClient(struct client *c, uint64_t now) {
         return;
     }
 
-    int bytesWritten = write(c->fd, psendq, toWrite);
+    int bytesWritten = send(c->fd, psendq, toWrite, 0);
     int err = errno;
 
     // If we get -1, it's only fatal if it's not EAGAIN/EWOULDBLOCK
@@ -2253,7 +2253,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
             left = MODES_CLIENT_BUF_SIZE - c->buflen - 1; // leave 1 extra byte for NUL termination in the ASCII case
             // If there is garbage, read more to discard it ASAP
         }
-        nread = read(c->fd, c->buf + c->buflen, left);
+        nread = recv(c->fd, c->buf + c->buflen, left, 0);
         int err = errno;
 
         // If we didn't get all the data we asked for, then return once we've processed what we did get.
