@@ -1,7 +1,20 @@
 #ifndef AIRCRAFT_H
 #define AIRCRAFT_H
 
-uint32_t aircraftHash(uint32_t addr);
+static inline uint32_t aircraftHash(uint32_t addr) {
+    uint64_t h = 0x30732349f7810465ULL ^ (4 * 0x2127599bf4325c37ULL);
+    uint64_t in = addr;
+    uint64_t v = in << 48;
+    v ^= in << 24;
+    v ^= in;
+    h ^= mix_fasthash(v);
+
+    h -= (h >> 32);
+    h &= (1ULL << 32) - 1;
+    h -= (h >> AIRCRAFT_HASH_BITS);
+
+    return h & (AIRCRAFT_BUCKETS - 1);
+}
 struct aircraft *aircraftGet(uint32_t addr);
 struct aircraft *aircraftCreate(struct modesMessage *mm);
 void freeAircraft(struct aircraft *a);
