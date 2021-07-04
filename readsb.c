@@ -1282,6 +1282,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         break;
                     case 's': Modes.debug_squawk = 1;
                         break;
+                    case 'p': Modes.debug_ping = 1;
+                        break;
                     default:
                         fprintf(stderr, "Unknown debugging flag: %c\n", *arg);
                         break;

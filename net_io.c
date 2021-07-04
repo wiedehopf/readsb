@@ -878,7 +878,8 @@ static inline void pong(struct client *c, uint16_t ping) {
         *p++ = 0x1a;
 
     c->sendq_len = p - c->sendq;
-    //fprintf(stderr, "Got Ping, sending Pong %04x\n", ping);
+    if (Modes.debug_ping)
+        fprintf(stderr, "Got Ping, sending Pong %04x\n", ping);
 }
 static inline void flushClient(struct client *c, uint64_t now) {
     if (!c->service) { fprintf(stderr, "report error: Ahlu8pie\n"); return; }
@@ -2093,12 +2094,15 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
         }
     }
     if (Modes.netReceiverId && c->pong) {
-        uint32_t pong = c->pong - 1;
-        uint32_t current = Modes.currentPing;
+        int pong = c->pong - 1;
+        int current = Modes.currentPing;
         if (current < pong)
             current += UINT16_MAX + 1;
-        if (current - pong > 1) {
-            //fprintf(stderr, "garbage due to pong:%u current:%u\n", pong, current);
+        int reject_delayed_threshold = 2;
+        if (current - pong > reject_delayed_threshold) {
+            if (1 && Modes.debug_ping)
+                fprintf(stderr, "reject_delayed %56s rId %016"PRIx64"%016"PRIx64" %02x/%02x\n",
+                        c->proxy_string, c->receiverId, c->receiverId2, pong, current);
             Modes.stats_current.remote_rejected_delayed++;
             // discard
             return 0;
