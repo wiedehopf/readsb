@@ -446,6 +446,7 @@ struct _Modes
     struct net_writer json_out; // SBS-format output
     struct net_writer vrs_out; // SBS-format output
     struct net_writer fatsv_out; // FATSV-format output
+    struct net_service *beast_in_service;
     uint16_t currentPing;
 
     int8_t apiUpdate; // creates json snippets also by non api stuff
