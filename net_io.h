@@ -123,6 +123,7 @@ struct client
     int sendq_len; // Amount of data in SendQ
     int sendq_max; // Max size of SendQ
     uint32_t garbage; // amount of garbage we have received from this client
+    uint32_t rejected_delayed;
     struct epoll_event epollEvent;
     struct net_connector *con;
     int8_t noTimestamps;
