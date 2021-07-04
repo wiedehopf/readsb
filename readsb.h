@@ -436,6 +436,7 @@ struct _Modes
     struct net_writer raw_out; // Raw output
     struct net_writer beast_out; // Beast-format output
     struct net_writer beast_reduce_out; // Reduced data Beast-format output
+    struct net_writer beast_in; // for sending pings to clients sending us beast data
     struct net_writer garbage_out; // Beast-format output
     struct net_writer sbs_out; // SBS-format output
     struct net_writer sbs_out_replay; // SBS-format output
@@ -445,6 +446,7 @@ struct _Modes
     struct net_writer json_out; // SBS-format output
     struct net_writer vrs_out; // SBS-format output
     struct net_writer fatsv_out; // FATSV-format output
+    uint16_t currentPing;
 
     int8_t apiUpdate; // creates json snippets also by non api stuff
     int8_t api; // enable api output

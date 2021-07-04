@@ -106,10 +106,8 @@ struct client
     int fd; // File descriptor
     int buflen; // Amount of data on buffer
     int8_t acceptSocket; // not really a client but rather an accept Socket ... only fd and epollEvent will be valid
-    int8_t noTimestamps;
-    int8_t noTimestampsSignaled;
-    int8_t modeac_requested; // 1 if this Beast output connection has asked for A/C
     int8_t receiverIdLocked; // receiverId has been transmitted by other side.
+    uint32_t pong;
     struct net_service *service; // Service this client is part of
     struct client* next; // Pointer to next client
     uint64_t bytesReceived;
@@ -121,12 +119,15 @@ struct client
     uint64_t connectedSince;
     uint64_t messageCounter; // counter for incoming data
     uint64_t positionCounter; // counter for incoming data
-    void *sendq;  // Write buffer - allocated later
+    char *sendq;  // Write buffer - allocated later
     int sendq_len; // Amount of data in SendQ
     int sendq_max; // Max size of SendQ
     uint32_t garbage; // amount of garbage we have received from this client
     struct epoll_event epollEvent;
     struct net_connector *con;
+    int8_t noTimestamps;
+    int8_t noTimestampsSignaled;
+    int8_t modeac_requested; // 1 if this Beast output connection has asked for A/C
     char buf[MODES_CLIENT_BUF_SIZE + 4]; // Read buffer+padding
     char proxy_string[256]; // store string received from PROXY protocol v1 (v2 not supported currently)
     char host[NI_MAXHOST]; // For logging
@@ -161,7 +162,6 @@ void sendBeastSettings (int fd, const char *settings);
 void modesInitNet (void);
 void modesQueueOutput (struct modesMessage *mm, struct aircraft *a);
 void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a);
-void modesNetSecondWork(void);
 void modesNetPeriodicWork (void);
 void modesReadSerialClient(void);
 void cleanupNetwork(void);

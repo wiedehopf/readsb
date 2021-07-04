@@ -335,6 +335,7 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
     target->remote_received_basestation_valid = st1->remote_received_basestation_valid + st2->remote_received_basestation_valid;
     target->remote_received_basestation_invalid = st1->remote_received_basestation_invalid + st2->remote_received_basestation_invalid;
     target->remote_rejected_bad = st1->remote_rejected_bad + st2->remote_rejected_bad;
+    target->remote_rejected_delayed = st1->remote_rejected_delayed + st2->remote_rejected_delayed;
     target->remote_malformed_beast = st1->remote_malformed_beast + st2->remote_malformed_beast;
     target->remote_rejected_unknown_icao = st1->remote_rejected_unknown_icao + st2->remote_rejected_unknown_icao;
     for (i = 0; i < MODES_MAX_BITERRORS + 1; ++i)
@@ -732,6 +733,7 @@ struct char_buffer generatePromFile() {
     p = safe_snprintf(p, end, "readsb_messages_modes_valid_fixed_bit %u\n", st->remote_accepted[1] + st->demod_accepted[1]);
     p = safe_snprintf(p, end, "readsb_messages_modes_invalid_bad %u\n", st->remote_rejected_bad + st->demod_rejected_bad);
     p = safe_snprintf(p, end, "readsb_messages_modes_invalid_unknown_icao %u\n", st->remote_rejected_unknown_icao + st->demod_rejected_unknown_icao);
+    p = safe_snprintf(p, end, "readsb_messages_modes_rejected_delayed %u\n", st->remote_rejected_delayed);
 
     p = safe_snprintf(p, end, "readsb_messages_basestation_valid %u\n", st->remote_received_basestation_valid);
     p = safe_snprintf(p, end, "readsb_messages_basestation_invalid %u\n", st->remote_received_basestation_invalid);
