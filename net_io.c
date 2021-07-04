@@ -2643,7 +2643,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                 if (eom > eod) // Incomplete message in buffer, retry later
                     break;
 
-                if (Modes.receiver_focus && c->receiverId != Modes.receiver_focus) {
+                if (Modes.receiver_focus && c->receiverId != Modes.receiver_focus && noEscape[0] != 'P') {
                     // advance to next message
                     som = eom;
                     continue;
