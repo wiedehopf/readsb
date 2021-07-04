@@ -883,7 +883,6 @@ static inline void pong(struct client *c, uint16_t ping) {
 }
 static inline void flushClient(struct client *c, uint64_t now) {
     if (!c->service) { fprintf(stderr, "report error: Ahlu8pie\n"); return; }
-
     int toWrite = c->sendq_len;
     char *psendq = c->sendq;
 
@@ -1876,7 +1875,7 @@ static uint16_t readPingEscaped(char *p) {
     res += *pu++;
     if (*pu == 0x1a)
         pu++;
-    //fprintf(stderr, "readPing: %04x\n", res);
+    //fprintf(stderr, "readPing: %d\n", res);
     return res;
 }
 static uint16_t readPing(char *p) {
@@ -1884,12 +1883,12 @@ static uint16_t readPing(char *p) {
     uint16_t res;
     res = *pu++ << 8;
     res += *pu++;
-    //fprintf(stderr, "readPing: %04x\n", res);
+    //fprintf(stderr, "readPing: %d\n", res);
     return res;
 }
 static void ping(struct net_writer *writer, uint64_t now) {
     //uint16_t newPing = UINT16_MAX - 2 + (uint16_t) (now / 1024 % 8);
-    uint16_t newPing = (uint16_t) (now / 1024);
+    uint16_t newPing = (uint16_t) (now / PING_INTERVAL);
     if (newPing == Modes.currentPing)
         return;
     char *p = prepareWrite(writer, 8);
@@ -1905,7 +1904,8 @@ static void ping(struct net_writer *writer, uint64_t now) {
     if (*(p-1) == 0x1a)
         *p++ = 0x1a;
 
-    //fprintf(stderr, "Sending Ping %04x\n", Modes.currentPing);
+    if (Modes.debug_ping)
+        fprintf(stderr, "Sending Ping %d\n", Modes.currentPing);
 
     completeWrite(writer, p);
     flushWrites(writer);
@@ -2094,15 +2094,22 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
         }
     }
     if (Modes.netReceiverId && c->pong) {
-        int pong = c->pong - 1;
-        int current = Modes.currentPing;
-        if (current < pong)
+        float pong = c->pong - 1;
+        float current = ((uint16_t) (now / PING_INTERVAL)) + (float) (now % PING_INTERVAL) / PING_INTERVAL;
+        // unsigned overflow
+        if (current + UINT16_MAX / 2 < pong)
             current += UINT16_MAX + 1;
-        int reject_delayed_threshold = 2;
+        // PING_INTERVAL / 1000 is how many seconds the pong is sometimes gonna be old even with an instant connection
+        // the client can't the newer pong before getting the newer ping
+        // allow for 1.5 seconds of round trip time, further adjustment as necessary
+        float reject_delayed_threshold = PING_INTERVAL / 1000.0 + 1.5;
         if (current - pong > reject_delayed_threshold) {
-            if (1 && Modes.debug_ping)
-                fprintf(stderr, "reject_delayed %56s rId %016"PRIx64"%016"PRIx64" %02x/%02x\n",
+            static uint64_t antiSpam;
+            if (now > antiSpam) {
+                antiSpam = now + 1 * SECONDS;
+                fprintf(stderr, "reject_delayed %56s rId %016"PRIx64"%016"PRIx64" %6.1f/%6.1f\n",
                         c->proxy_string, c->receiverId, c->receiverId2, pong, current);
+            }
             Modes.stats_current.remote_rejected_delayed++;
             c->rejected_delayed++;
             // discard
@@ -2482,6 +2489,10 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                     else
                         fprintf(stderr, "Garbage: Close: %s port %s sample: %s\n", c->host, c->port, sample);
                 }
+                modesCloseClient(c);
+                return;
+            }
+            if (c->rejected_delayed > 1000) {
                 modesCloseClient(c);
                 return;
             }

@@ -26,6 +26,8 @@
 
 #include <sys/socket.h>
 
+#define PING_INTERVAL 1024 // in milliseconds
+
 // Describes a networking service (group of connections)
 
 struct aircraft;
