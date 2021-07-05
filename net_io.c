@@ -910,9 +910,9 @@ static inline void pingClient(struct client *c, uint16_t ping) {
 }
 static void ping(struct net_service *service, uint64_t now) {
     uint16_t newPing = (uint16_t) (now / PING_INTERVAL);
-    // only send a ping every 16th interval or every 4 seconds
+    // only send a ping every 50th interval or every 5 seconds
     // the respoder will interpolate using the local clock
-    if (newPing < Modes.currentPing + 16)
+    if (newPing < Modes.currentPing + 5000 / PING_INTERVAL)
         return;
     Modes.currentPing = newPing;
     if (Modes.debug_ping)
@@ -2608,9 +2608,11 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                         c->noTimestamps = 1;
                         //fprintf(stderr, "source says: timestamps disabled\n");
                     }
-                    if (ch == 'p') {
-                        // enable ping
+                    if (ch == 'p' && Modes.ping) {
+                        // explicitely enable ping for this client
                         c->ping = 1;
+                        pingClient(c, now / PING_INTERVAL);
+                        flushClient(c, now);
                     }
                     som += 2;
                     continue;
