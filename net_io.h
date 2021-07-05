@@ -108,6 +108,8 @@ struct client
     int8_t acceptSocket; // not really a client but rather an accept Socket ... only fd and epollEvent will be valid
     int8_t receiverIdLocked; // receiverId has been transmitted by other side.
     uint32_t pong;
+    uint32_t ping;
+    uint64_t pingReceived;
     struct net_service *service; // Service this client is part of
     struct client* next; // Pointer to next client
     uint64_t bytesReceived;

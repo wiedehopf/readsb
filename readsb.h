@@ -318,10 +318,10 @@ typedef enum {
 #define RANGEDIRS_BUCKETS 360
 #define RANGEDIRS_HOURS 25
 
-#define PING_INTERVAL 1024 // in milliseconds
-#define PING_REJECT 3000 // in milliseconds
-#define PING_BUCKETS 12 // statistics on round trip time
-#define PING_BUCKETSIZE (0.25) // statistics on round trip time
+#define PING_INTERVAL 100 // in milliseconds, this is mostly set in stone for 'p' now ... let's stick with it
+#define PING_REJECT 2000 // in milliseconds
+#define PING_BUCKETS 20 // statistics on round trip time
+#define PING_BUCKETSIZE (0.1) // statistics on round trip time
 
 // Include subheaders after all the #defines are in place
 
@@ -494,6 +494,7 @@ struct _Modes
 
     int8_t net_verbatim; // if true, send the original message, not the CRC-corrected one
     int8_t netReceiverId;
+    int8_t ping;
     int8_t netReceiverIdPrint;
     int8_t netReceiverIdJson;
     int8_t netIngest;

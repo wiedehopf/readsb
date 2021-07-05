@@ -1209,6 +1209,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptNetReceiverId:
             Modes.netReceiverId = 1;
+            Modes.ping = 1;
             break;
         case OptNetReceiverIdJson:
             Modes.netReceiverIdJson = 1;

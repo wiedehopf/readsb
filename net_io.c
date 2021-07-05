@@ -862,6 +862,70 @@ static void modesCloseClient(struct client *c) {
         autoset_modeac();
 }
 
+static inline uint16_t readPingEscaped(char *p) {
+    unsigned char *pu = (unsigned char *) p;
+    uint16_t res;
+    res = *pu++ << 8;
+    if (*pu == 0x1a)
+        pu++;
+    res += *pu++;
+    if (*pu == 0x1a)
+        pu++;
+    if (0 && Modes.debug_ping)
+        fprintf(stderr, "readPing: %d\n", res);
+    return res;
+}
+static inline uint16_t readPing(char *p) {
+    unsigned char *pu = (unsigned char *) p;
+    uint16_t res;
+    res = *pu++ << 8;
+    res += *pu++;
+    if (0 && Modes.debug_ping)
+        fprintf(stderr, "readPing: %d\n", res);
+    return res;
+}
+static inline void pingClient(struct client *c, uint16_t ping) {
+    if (c->sendq_len + 6 >= c->sendq_max)
+        return;
+    char *p = c->sendq + c->sendq_len;
+
+    *p++ = 0x1a;
+    *p++ = 'p';
+    *p++ = ping >> 8;
+    if (*(p-1) == 0x1a)
+        *p++ = 0x1a;
+    *p++ = (uint8_t) ping;
+    if (*(p-1) == 0x1a)
+        *p++ = 0x1a;
+
+    c->sendq_len = p - c->sendq;
+    if (0 && Modes.debug_ping)
+        fprintf(stderr, "Sending Ping c: %d\n", ping);
+}
+static void ping(struct net_service *service, uint64_t now) {
+    uint16_t newPing = (uint16_t) (now / PING_INTERVAL);
+    // only send a ping every 16th interval or every 4 seconds
+    // the respoder will interpolate using the local clock
+    if (newPing < Modes.currentPing + 16)
+        return;
+    Modes.currentPing = newPing;
+    if (Modes.debug_ping)
+        fprintf(stderr, "Sending Ping: %d\n", newPing);
+    for (struct client *c = service->clients; c; c = c->next) {
+        if (!c->service)
+            continue;
+        // some devices can't deal with any data on the backchannel
+        // for the time being only send to receivers that send their UUID
+        if (Modes.netIngest && !c->receiverId2)
+            continue;
+        if (!c->pong && now > c->connectedSince + 20 * SECONDS)
+            continue;
+        pingClient(c, newPing);
+        flushClient(c, now);
+    }
+}
+
+
 static inline void flushClient(struct client *c, uint64_t now) {
     if (!c->service) { fprintf(stderr, "report error: Ahlu8pie\n"); return; }
     int toWrite = c->sendq_len;
@@ -932,7 +996,7 @@ static void flushWrites(struct net_writer *writer) {
         if (!c->service)
             continue;
         if (c->service->writer == writer->service->writer) {
-            if ((c->sendq_len + writer->dataUsed) >= c->sendq_max) {
+            if ((c->sendq_len + writer->dataUsed + 6) >= c->sendq_max) {
                 // Too much data in client SendQ.  Drop client - SendQ exceeded.
                 fprintf(stderr, "%s: Dropped due to full SendQ: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
                         c->service->descr, c->host, c->port,
@@ -940,6 +1004,7 @@ static void flushWrites(struct net_writer *writer) {
                 modesCloseClient(c);
                 continue;	// Go to the next client
             }
+            pingClient(c, c->ping + (now - c->pingReceived) / PING_INTERVAL);
             // Append the data to the end of the queue, increment len
             memcpy(c->sendq + c->sendq_len, writer->data, writer->dataUsed);
             c->sendq_len += writer->dataUsed;
@@ -1847,64 +1912,6 @@ static void signalNoTimestamps(struct net_writer *writer) {
         writer->noTimestamps = 1;
     }
 }
-static inline uint16_t readPingEscaped(char *p) {
-    unsigned char *pu = (unsigned char *) p;
-    uint16_t res;
-    res = *pu++ << 8;
-    if (*pu == 0x1a)
-        pu++;
-    res += *pu++;
-    if (*pu == 0x1a)
-        pu++;
-    //fprintf(stderr, "readPing: %d\n", res);
-    return res;
-}
-static inline uint16_t readPing(char *p) {
-    unsigned char *pu = (unsigned char *) p;
-    uint16_t res;
-    res = *pu++ << 8;
-    res += *pu++;
-    //fprintf(stderr, "readPing: %d\n", res);
-    return res;
-}
-static inline void pingClient(struct client *c, uint16_t ping) {
-    if (c->sendq_len + 6 >= c->sendq_max)
-        return;
-    char *p = c->sendq + c->sendq_len;
-
-    *p++ = 0x1a;
-    *p++ = 'P';
-    *p++ = ping >> 8;
-    if (*(p-1) == 0x1a)
-        *p++ = 0x1a;
-    *p++ = (uint8_t) ping;
-    if (*(p-1) == 0x1a)
-        *p++ = 0x1a;
-
-    c->sendq_len = p - c->sendq;
-    //fprintf(stderr, "Sending Ping c: %d\n", ping);
-}
-static void ping(struct net_service *service, uint64_t now) {
-    //uint16_t newPing = UINT16_MAX - 2 + (uint16_t) (now / 1024 % 8);
-    uint16_t newPing = (uint16_t) (now / PING_INTERVAL);
-    if (newPing == Modes.currentPing)
-        return;
-    Modes.currentPing = newPing;
-    if (Modes.debug_ping)
-        fprintf(stderr, "Sending Ping: %d\n", newPing);
-    for (struct client *c = service->clients; c; c = c->next) {
-        if (!c->service)
-            continue;
-        // some devices can't deal with any data on the backchannel
-        // for the time being only send to receivers that send their UUID
-        if (Modes.netIngest && !c->receiverId2)
-            continue;
-        if (!c->pong && now > c->connectedSince + 20 * SECONDS)
-            continue;
-        pingClient(c, newPing);
-        flushClient(c, now);
-    }
-}
 
 //
 // Handle a Beast command message.
@@ -1914,12 +1921,12 @@ static void ping(struct net_service *service, uint64_t now) {
 static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t now) {
     MODES_NOTUSED(remote);
     MODES_NOTUSED(now);
-    if (p[0] == 'P') {
+    if (p[0] == 'p') {
         // got ping
-        uint16_t ping = readPingEscaped(p+1);
-        pingClient(c, ping);
+        c->ping = readPingEscaped(p+1);
+        c->pingReceived = now;
         if (Modes.debug_ping)
-            fprintf(stderr, "Sending Pong: %d\n", ping);
+            fprintf(stderr, "Got Ping: %d\n", c->ping);
     } else if (p[0] == '1') {
         switch (p[1]) {
             case 'j':
@@ -2005,7 +2012,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
     } else if (ch == 'H') {
         decodeHulcMessage(p);
         return 0;
-    } else if (ch == 'P') {
+    } else if (ch == 'p') {
         // pong message
         c->pong = readPing(p) + 1;
         return 0;
@@ -2090,19 +2097,22 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
             }
         }
     }
-    if (Modes.netReceiverId && c->pong) {
+    if (Modes.ping && c->pong) {
         float pong = c->pong - 1;
         float current = ((uint16_t) (now / PING_INTERVAL)) + (float) (now % PING_INTERVAL) / PING_INTERVAL;
-        // unsigned overflow
+        // handle 16 bit overflow by making the 2 numbers comparable
         if (current + UINT16_MAX / 2 < pong)
             current += UINT16_MAX + 1;
-        // PING_INTERVAL / 1000 is how many seconds the pong is sometimes gonna be old even with an instant connection
-        // the client can't the newer pong before getting the newer ping
-        // allow for 3 seconds of round trip time, further adjustment as necessary
-        float reject_delayed_threshold = (PING_INTERVAL + PING_REJECT) / 1000.0;
+        // translate to seconds
+        current *= PING_INTERVAL / 1000.0;
+        pong *= PING_INTERVAL / 1000.0;
+
+        float reject_delayed_threshold = PING_REJECT / 1000.0;
         float diff = current - pong;
+
         int bucket = min(PING_BUCKETS - 1, (int) (diff / PING_BUCKETSIZE));
         Modes.stats_current.remote_ping_rtt[bucket]++;
+
         if (diff > reject_delayed_threshold) {
             static uint64_t antiSpam;
             if (now > antiSpam) {
@@ -2492,7 +2502,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                 modesCloseClient(c);
                 return;
             }
-            if (c->rejected_delayed > 1000) {
+            if (c->rejected_delayed > 60 * 1000) {
                 modesCloseClient(c);
                 return;
             }
@@ -2574,7 +2584,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                     read_uuid(c, p, eod);
                     ++som;
                     continue;
-                } else if (ch == 'P') {
+                } else if (ch == 'p') {
                     //unsigned char *pu = (unsigned char*) p;
                     //fprintf(stderr, "%x %x %x %x %x\n", pu[0], pu[1], pu[2], pu[3], pu[4]);
                     eom = p + 3;
@@ -2646,7 +2656,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                 if (eom > eod) // Incomplete message in buffer, retry later
                     break;
 
-                if (Modes.receiver_focus && c->receiverId != Modes.receiver_focus && noEscape[0] != 'P') {
+                if (Modes.receiver_focus && c->receiverId != Modes.receiver_focus && noEscape[0] != 'p') {
                     // advance to next message
                     som = eom;
                     continue;
@@ -2698,7 +2708,7 @@ beastWhileBreak:
                     eom = p + 2;
                 } else if (*p == 'W') {
                     eom = p + 2;
-                } else if (*p == 'P') {
+                } else if (*p == 'p') {
                     eom = p + 3;
                 } else {
                     // Not a valid beast command, skip 0x1a and try again
@@ -2908,7 +2918,7 @@ void modesNetPeriodicWork(void) {
         modesNetSecondWork(now);
     }
 
-    if (Modes.netReceiverId) {
+    if (Modes.ping) {
         ping(Modes.beast_in_service, now);
     }
 
