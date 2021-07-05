@@ -337,6 +337,11 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
     target->remote_rejected_bad = st1->remote_rejected_bad + st2->remote_rejected_bad;
     target->remote_rejected_delayed = st1->remote_rejected_delayed + st2->remote_rejected_delayed;
     target->remote_malformed_beast = st1->remote_malformed_beast + st2->remote_malformed_beast;
+
+    for (int i = 0; i < PING_BUCKETS; i++) {
+        target->remote_ping_rtt[i] = st1->remote_ping_rtt[i] + st2->remote_ping_rtt[i];
+    }
+
     target->remote_rejected_unknown_icao = st1->remote_rejected_unknown_icao + st2->remote_rejected_unknown_icao;
     for (i = 0; i < MODES_MAX_BITERRORS + 1; ++i)
         target->remote_accepted[i] = st1->remote_accepted[i] + st2->remote_accepted[i];
@@ -741,6 +746,10 @@ struct char_buffer generatePromFile() {
     p = safe_snprintf(p, end, "readsb_messages_modeac_valid %u\n", st->remote_received_modeac + st->demod_modeac);
 
     p = safe_snprintf(p, end, "readsb_network_malformed_beast_bytes %u\n", st->remote_malformed_beast);
+
+    for (int i = 0; i < PING_BUCKETS; i++) {
+        p = safe_snprintf(p, end, "readsb_network_messages_rtt_%1.2f %u\n", (i+1) * PING_BUCKETSIZE, st->remote_ping_rtt[i]);
+    }
 
     p = safe_snprintf(p, end, "readsb_tracks_all %u\n", st->unique_aircraft);
     p = safe_snprintf(p, end, "readsb_tracks_single_message %u\n", st->single_message_aircraft);

@@ -2098,9 +2098,12 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
             current += UINT16_MAX + 1;
         // PING_INTERVAL / 1000 is how many seconds the pong is sometimes gonna be old even with an instant connection
         // the client can't the newer pong before getting the newer ping
-        // allow for 1.5 seconds of round trip time, further adjustment as necessary
-        float reject_delayed_threshold = PING_INTERVAL / 1000.0 + 1.5;
-        if (current - pong > reject_delayed_threshold) {
+        // allow for 3 seconds of round trip time, further adjustment as necessary
+        float reject_delayed_threshold = (PING_INTERVAL + PING_REJECT) / 1000.0;
+        float diff = current - pong;
+        int bucket = min(PING_BUCKETS - 1, (int) (diff / PING_BUCKETSIZE));
+        Modes.stats_current.remote_ping_rtt[bucket]++;
+        if (diff > reject_delayed_threshold) {
             static uint64_t antiSpam;
             if (now > antiSpam) {
                 antiSpam = now + 1 * SECONDS;

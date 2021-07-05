@@ -318,6 +318,11 @@ typedef enum {
 #define RANGEDIRS_BUCKETS 360
 #define RANGEDIRS_HOURS 25
 
+#define PING_INTERVAL 1024 // in milliseconds
+#define PING_REJECT 3000 // in milliseconds
+#define PING_BUCKETS 12 // statistics on round trip time
+#define PING_BUCKETSIZE (0.25) // statistics on round trip time
+
 // Include subheaders after all the #defines are in place
 
 #include "toString.h"
