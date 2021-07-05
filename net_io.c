@@ -378,6 +378,12 @@ struct client *checkServiceConnected(struct net_connector *con) {
         if (fd != -1) {
             close(fd);
         }
+        // enable ping stuff
+        char signal[3] = { 0x1a, 'W', 'p' };
+        res = send(c->fd, signal, 3, 0);
+        if (res == 3) {
+            // whatever
+        }
     }
 
     return c;
@@ -916,7 +922,7 @@ static void ping(struct net_service *service, uint64_t now) {
             continue;
         // some devices can't deal with any data on the backchannel
         // for the time being only send to receivers that send their UUID
-        if (Modes.netIngest && !c->receiverId2)
+        if (Modes.netIngest && !c->ping)
             continue;
         if (!c->pong && now > c->connectedSince + 20 * SECONDS)
             continue;
@@ -1004,7 +1010,9 @@ static void flushWrites(struct net_writer *writer) {
                 modesCloseClient(c);
                 continue;	// Go to the next client
             }
-            pingClient(c, c->ping + (now - c->pingReceived) / PING_INTERVAL);
+            if (c->ping && c->pingReceived) {
+                pingClient(c, c->ping - 1 + (now - c->pingReceived) / PING_INTERVAL);
+            }
             // Append the data to the end of the queue, increment len
             memcpy(c->sendq + c->sendq_len, writer->data, writer->dataUsed);
             c->sendq_len += writer->dataUsed;
@@ -1923,10 +1931,10 @@ static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t no
     MODES_NOTUSED(now);
     if (p[0] == 'p') {
         // got ping
-        c->ping = readPingEscaped(p+1);
+        c->ping = readPingEscaped(p+1) + 1;
         c->pingReceived = now;
         if (Modes.debug_ping)
-            fprintf(stderr, "Got Ping: %d\n", c->ping);
+            fprintf(stderr, "Got Ping: %d\n", c->ping - 1);
     } else if (p[0] == '1') {
         switch (p[1]) {
             case 'j':
@@ -1948,6 +1956,7 @@ static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t no
                 break;
             case 'T':
                 break;
+
         }
     }
     return 0;
@@ -2014,7 +2023,10 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
         return 0;
     } else if (ch == 'p') {
         // pong message
-        c->pong = readPing(p) + 1;
+        // only accept pong message if not ingest or client ping "enabled"
+        if (!Modes.netIngest || c->ping) {
+            c->pong = readPing(p) + 1;
+        }
         return 0;
     } else {
         // unknown msg type
@@ -2595,6 +2607,10 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                     if (ch == 't') {
                         c->noTimestamps = 1;
                         //fprintf(stderr, "source says: timestamps disabled\n");
+                    }
+                    if (ch == 'p') {
+                        // enable ping
+                        c->ping = 1;
                     }
                     som += 2;
                     continue;
