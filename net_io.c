@@ -2129,7 +2129,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
             static uint64_t antiSpam;
             if (now > antiSpam) {
                 antiSpam = now + 1 * SECONDS;
-                fprintf(stderr, "reject_delayed %56s rId %016"PRIx64"%016"PRIx64" %6.1f/%6.1f\n",
+                fprintf(stderr, "reject_delayed %50s rId %016"PRIx64"%016"PRIx64" %6.1f/%6.1f\n",
                         c->proxy_string, c->receiverId, c->receiverId2, pong, current);
             }
             Modes.stats_current.remote_rejected_delayed++;
@@ -2399,7 +2399,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
             if (Modes.debug_net) {
                 if (Modes.netIngest && c->service->read_mode != READ_MODE_IGNORE && c->proxy_string[0] != '\0') {
                     double elapsed = (now - c->connectedSince) / 1000.0;
-                    fprintf(stderr, "disc: %56s rId %016"PRIx64"%016"PRIx64" %6.2f kbit/s for %6.1f s\n",
+                    fprintf(stderr, "disc: %50s rId %016"PRIx64"%016"PRIx64" %6.2f kbit/s for %6.1f s\n",
                             c->proxy_string, c->receiverId, c->receiverId2,
                             c->bytesReceived / 128.0 / elapsed, elapsed);
                 } else {
@@ -2421,7 +2421,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
 
                 if (Modes.netIngest && c->proxy_string[0] != '\0') {
                     double elapsed = (now - c->connectedSince) / 1000.0;
-                    fprintf(stderr, "disc: %56s rId %016"PRIx64"%016"PRIx64" %6.2f kbit/s for %6.1f s\n",
+                    fprintf(stderr, "disc: %50s rId %016"PRIx64"%016"PRIx64" %6.2f kbit/s for %6.1f s\n",
                             c->proxy_string, c->receiverId, c->receiverId2,
                             c->bytesReceived / 128.0 / elapsed, elapsed);
                 } else {
@@ -2471,7 +2471,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                     if (!eop) // incomplete proxy string (shouldn't happen but let's check anyhow)
                         break;
                     *eop = '\0';
-                    strncpy(c->proxy_string, proxy, sizeof(c->proxy_string));
+                    strncpy(c->proxy_string, proxy + 6, sizeof(c->proxy_string));
                     c->proxy_string[sizeof(c->proxy_string) - 1] = '\0'; // make sure it's null terminated
                     //fprintf(stderr, "%s\n", c->proxy_string);
                     *eop = '\r';
@@ -2783,7 +2783,7 @@ beastWhileBreak:
             c->receiverIdLocked = 1;
             if (Modes.netIngest && (Modes.debug_net)) {
                 if (c->proxy_string[0] != '\0')
-                    fprintf(stderr, "new c %56s rId %016"PRIx64"%016"PRIx64"\n", 
+                    fprintf(stderr, "new c %50s rId %016"PRIx64"%016"PRIx64"\n",
                             c->proxy_string, c->receiverId, c->receiverId2);
                 else
                     fprintf(stderr, "%s: new c from %s port %s rId %016"PRIx64"%016"PRIx64"\n",
@@ -3187,7 +3187,7 @@ struct char_buffer generateClientsJson() {
     p = safe_snprintf(p, end, "{ \"now\" : %.1f,\n", now / 1000.0);
     p = safe_snprintf(p, end, "  \"format\" : "
             "[ \"receiverId\", \"host:port\", \"avg. kbit/s\", \"conn time(s)\","
-            " \"messageCounter\", \"positionCounter\", \"messages/s\", \"positions/s\", \"rejected_delayed/s\" ],\n");
+            " \"messageCounter\", \"positionCounter\", \"messages/s\", \"positions/s\", \"rejected_delayed_percent\" ],\n");
 
     p = safe_snprintf(p, end, "  \"clients\" : [\n");
 
@@ -3208,7 +3208,7 @@ struct char_buffer generateClientsJson() {
             }
 
             double elapsed = (now - c->connectedSince) / 1000.0;
-            p = safe_snprintf(p, end, "[ \"%016"PRIx64"%016"PRIx64"\", \"%s\", %6.2f, %6.1f, %9.0f, %9.0f, %2.3f, %2.3f, %2.3f],\n",
+            p = safe_snprintf(p, end, "[ \"%016"PRIx64"%016"PRIx64"\", \"%50s\", %6.2f, %6.1f, %9.0f, %9.0f, %2.3f, %2.3f, %2.3f],\n",
                     c->receiverId,
                     c->receiverId2,
                     c->proxy_string,
@@ -3218,7 +3218,7 @@ struct char_buffer generateClientsJson() {
                     (double) c->positionCounter,
                     (double) c->messageCounter / elapsed,
                     (double) c->positionCounter / elapsed,
-                    (double) c->rejected_delayed / elapsed);
+                    (double) c->rejected_delayed / (c->messageCounter + 0.00000001));
 
 
             if (p >= end)

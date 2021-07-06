@@ -103,15 +103,18 @@ struct net_connector
 
 struct client
 {
+    struct client* next; // Pointer to next client
+    struct net_service *service; // Service this client is part of
     int fd; // File descriptor
     int buflen; // Amount of data on buffer
     int8_t acceptSocket; // not really a client but rather an accept Socket ... only fd and epollEvent will be valid
     int8_t receiverIdLocked; // receiverId has been transmitted by other side.
+    char *sendq;  // Write buffer - allocated later
+    int sendq_len; // Amount of data in SendQ
+    int sendq_max; // Max size of SendQ
     uint32_t pong;
     uint32_t ping;
     uint64_t pingReceived;
-    struct net_service *service; // Service this client is part of
-    struct client* next; // Pointer to next client
     uint64_t bytesReceived;
     uint64_t receiverId;
     uint64_t receiverId2;
@@ -121,20 +124,17 @@ struct client
     uint64_t connectedSince;
     uint64_t messageCounter; // counter for incoming data
     uint64_t positionCounter; // counter for incoming data
-    char *sendq;  // Write buffer - allocated later
-    int sendq_len; // Amount of data in SendQ
-    int sendq_max; // Max size of SendQ
-    uint32_t garbage; // amount of garbage we have received from this client
-    uint32_t rejected_delayed;
+    uint64_t garbage; // amount of garbage we have received from this client
+    uint64_t rejected_delayed;
     struct epoll_event epollEvent;
     struct net_connector *con;
     int8_t noTimestamps;
     int8_t noTimestampsSignaled;
     int8_t modeac_requested; // 1 if this Beast output connection has asked for A/C
-    char buf[MODES_CLIENT_BUF_SIZE + 4]; // Read buffer+padding
     char proxy_string[256]; // store string received from PROXY protocol v1 (v2 not supported currently)
     char host[NI_MAXHOST]; // For logging
     char port[NI_MAXSERV];
+    char buf[MODES_CLIENT_BUF_SIZE + 4]; // Read buffer+padding
 };
 
 // Common writer state for all output sockets of one type
