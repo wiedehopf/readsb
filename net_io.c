@@ -839,8 +839,8 @@ static void modesCloseClient(struct client *c) {
     if (Modes.netIngest) {
         double elapsed = (mstime() - c->connectedSince) / 1000.0;
         double kbitpersecond = c->bytesReceived / 128.0 / elapsed;
-        fprintf(stderr, "disc: rId %016"PRIx64"%016"PRIx64" %6.2f kbit/s for %6.1f s %50s\n",
-                c->receiverId, c->receiverId2, kbitpersecond, elapsed, c->proxy_string);
+        fprintf(stderr, "disc: rId %016"PRIx64"%016"PRIx64" %50s %6.2f kbit/s for %6.1f s\n",
+                c->receiverId, c->receiverId2, c->proxy_string, kbitpersecond, elapsed);
     }
     epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, c->fd, &c->epollEvent);
     anetCloseSocket(c->fd);
