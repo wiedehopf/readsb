@@ -911,22 +911,22 @@ static void ping(struct net_service *service, uint64_t now) {
     uint16_t newPing = (uint16_t) (now / PING_TIMEBASE);
     // only send a ping every 50th interval or every 5 seconds
     // the respoder will interpolate using the local clock
-    if (newPing < Modes.currentPing + 5000 / PING_TIMEBASE)
-        return;
-    Modes.currentPing = newPing;
-    if (Modes.debug_ping)
-        fprintf(stderr, "Sending Ping: %d\n", newPing);
-    for (struct client *c = service->clients; c; c = c->next) {
-        if (!c->service)
-            continue;
-        // some devices can't deal with any data on the backchannel
-        // for the time being only send to receivers that send their UUID
-        if (Modes.netIngest && !c->ping)
-            continue;
-        if (!c->pong && now > c->connectedSince + 20 * SECONDS)
-            continue;
-        pingClient(c, newPing);
-        flushClient(c, now);
+    if (newPing >= Modes.currentPing + (5000 / PING_TIMEBASE) || newPing < Modes.currentPing) {
+        Modes.currentPing = newPing;
+        if (Modes.debug_ping)
+            fprintf(stderr, "Sending Ping: %d\n", newPing);
+        for (struct client *c = service->clients; c; c = c->next) {
+            if (!c->service)
+                continue;
+            // some devices can't deal with any data on the backchannel
+            // for the time being only send to receivers that send their UUID
+            if (Modes.netIngest && !c->ping)
+                continue;
+            if (!c->pong && now > c->connectedSince + 20 * SECONDS)
+                continue;
+            pingClient(c, newPing);
+            flushClient(c, now);
+        }
     }
 }
 
@@ -2118,7 +2118,6 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
         current *= PING_TIMEBASE / 1000.0;
         pong *= PING_TIMEBASE / 1000.0;
 
-        float reject_delayed_threshold = PING_REJECT;
         float diff = current - pong;
 
         int bucket = min(PING_BUCKETS - 1, (int) (diff / PING_BUCKETSIZE));
@@ -2127,7 +2126,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
         if (diff < PING_DISCONNECT && mm.cpr_valid) {
             // don't discard CPRs, if we have better data speed_check generally will take care of delayed CPR messages
             // this way we get basic data even from high latency receivers
-        } else if (diff > reject_delayed_threshold) {
+        } else if (diff > PING_REJECT) {
             static uint64_t antiSpam;
             if (now > antiSpam) {
                 antiSpam = now + 1 * SECONDS;
