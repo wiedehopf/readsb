@@ -2135,7 +2135,11 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
             Modes.stats_current.remote_rejected_delayed++;
             c->rejected_delayed++;
             // discard
-            return 0;
+            if (diff > 15) {
+                return 1; // disconnect the client
+            } else {
+                return 0; // don't disconnect the client
+            }
         } else {
             //fprintf(stderr, "diff:%u pong:%u current:%u\n", current - pong, pong, current);
         }
