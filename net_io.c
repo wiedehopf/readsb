@@ -2118,13 +2118,16 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
         current *= PING_TIMEBASE / 1000.0;
         pong *= PING_TIMEBASE / 1000.0;
 
-        float reject_delayed_threshold = PING_REJECT / 1000.0;
+        float reject_delayed_threshold = PING_REJECT;
         float diff = current - pong;
 
         int bucket = min(PING_BUCKETS - 1, (int) (diff / PING_BUCKETSIZE));
         Modes.stats_current.remote_ping_rtt[bucket]++;
 
-        if (diff > reject_delayed_threshold) {
+        if (diff < PING_DISCONNECT && mm.cpr_valid) {
+            // don't discard CPRs, if we have better data speed_check generally will take care of delayed CPR messages
+            // this way we get basic data even from high latency receivers
+        } else if (diff > reject_delayed_threshold) {
             static uint64_t antiSpam;
             if (now > antiSpam) {
                 antiSpam = now + 1 * SECONDS;
@@ -2134,7 +2137,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
             Modes.stats_current.remote_rejected_delayed++;
             c->rejected_delayed++;
             // discard
-            if (diff > 15) {
+            if (diff > PING_DISCONNECT) {
                 return 1; // disconnect the client
             } else {
                 return 0; // don't disconnect the client
