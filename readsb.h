@@ -321,7 +321,7 @@ typedef enum {
 #define PING_INTERVAL 100 // in milliseconds, this is mostly set in stone for 'p' now ... let's stick with it
 #define PING_REJECT 2000 // in milliseconds
 #define PING_BUCKETS 20 // statistics on round trip time
-#define PING_BUCKETSIZE (0.1) // statistics on round trip time
+#define PING_BUCKETSIZE (0.2) // statistics on round trip time
 
 // Include subheaders after all the #defines are in place
 
