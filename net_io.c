@@ -909,10 +909,10 @@ static inline void pingClient(struct client *c, uint16_t ping) {
         fprintf(stderr, "Sending Ping c: %d\n", ping);
 }
 static void ping(struct net_service *service, uint64_t now) {
-    uint16_t newPing = (uint16_t) (now / PING_INTERVAL);
+    uint16_t newPing = (uint16_t) (now / PING_TIMEBASE);
     // only send a ping every 50th interval or every 5 seconds
     // the respoder will interpolate using the local clock
-    if (newPing < Modes.currentPing + 5000 / PING_INTERVAL)
+    if (newPing < Modes.currentPing + 5000 / PING_TIMEBASE)
         return;
     Modes.currentPing = newPing;
     if (Modes.debug_ping)
@@ -1002,16 +1002,16 @@ static void flushWrites(struct net_writer *writer) {
         if (!c->service)
             continue;
         if (c->service->writer == writer->service->writer) {
-            if ((c->sendq_len + writer->dataUsed + 6) >= c->sendq_max) {
+            if (c->ping && c->pingReceived) {
+                pingClient(c, c->ping - 1 + (now - c->pingReceived) / PING_TIMEBASE);
+            }
+            if ((c->sendq_len + writer->dataUsed) >= c->sendq_max) {
                 // Too much data in client SendQ.  Drop client - SendQ exceeded.
                 fprintf(stderr, "%s: Dropped due to full SendQ: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
                         c->service->descr, c->host, c->port,
                         c->fd, c->sendq_len, c->buflen);
                 modesCloseClient(c);
                 continue;	// Go to the next client
-            }
-            if (c->ping && c->pingReceived) {
-                pingClient(c, c->ping - 1 + (now - c->pingReceived) / PING_INTERVAL);
             }
             // Append the data to the end of the queue, increment len
             memcpy(c->sendq + c->sendq_len, writer->data, writer->dataUsed);
@@ -2111,13 +2111,13 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
     }
     if (Modes.ping && c->pong) {
         float pong = c->pong - 1;
-        float current = ((uint16_t) (now / PING_INTERVAL)) + (float) (now % PING_INTERVAL) / PING_INTERVAL;
+        float current = ((uint16_t) (now / PING_TIMEBASE)) + (float) (now % PING_TIMEBASE) / PING_TIMEBASE;
         // handle 16 bit overflow by making the 2 numbers comparable
         if (current + UINT16_MAX / 2 < pong)
             current += UINT16_MAX + 1;
         // translate to seconds
-        current *= PING_INTERVAL / 1000.0;
-        pong *= PING_INTERVAL / 1000.0;
+        current *= PING_TIMEBASE / 1000.0;
+        pong *= PING_TIMEBASE / 1000.0;
 
         float reject_delayed_threshold = PING_REJECT / 1000.0;
         float diff = current - pong;
@@ -2615,7 +2615,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                     if (ch == 'p' && Modes.ping) {
                         // explicitely enable ping for this client
                         c->ping = 1;
-                        pingClient(c, now / PING_INTERVAL);
+                        pingClient(c, now / PING_TIMEBASE);
                         flushClient(c, now);
                     }
                     som += 2;
