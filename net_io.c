@@ -2773,12 +2773,8 @@ beastWhileBreak:
         if (!c->receiverIdLocked && (c->bytesReceived > 512 || now > c->connectedSince + 10000)) {
             c->receiverIdLocked = 1;
             if (Modes.netIngest && (Modes.debug_net)) {
-                if (c->proxy_string[0] != '\0')
-                    fprintf(stderr, "new c %50s rId %016"PRIx64"%016"PRIx64"\n",
-                            c->proxy_string, c->receiverId, c->receiverId2);
-                else
-                    fprintf(stderr, "%s: new c from %s port %s rId %016"PRIx64"%016"PRIx64"\n",
-                            c->service->descr, c->host, c->port, c->receiverId, c->receiverId2);
+                fprintf(stderr, "new c rId %016"PRIx64"%016"PRIx64" %50s\n",
+                        c->receiverId, c->receiverId2, c->proxy_string);
             }
         }
 
