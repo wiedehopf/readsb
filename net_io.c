@@ -2129,8 +2129,8 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
             static uint64_t antiSpam;
             if (now > antiSpam) {
                 antiSpam = now + 1 * SECONDS;
-                fprintf(stderr, "reject_delayed %50s rId %016"PRIx64"%016"PRIx64" %6.1f/%6.1f\n",
-                        c->proxy_string, c->receiverId, c->receiverId2, pong, current);
+                fprintf(stderr, "reject_delayed:rId %016"PRIx64"%016"PRIx64" %2.1f %s\n",
+                        c->receiverId, c->receiverId2, diff, c->proxy_string);
             }
             Modes.stats_current.remote_rejected_delayed++;
             c->rejected_delayed++;
