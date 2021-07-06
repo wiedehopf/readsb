@@ -162,14 +162,7 @@ struct net_service *serviceInit(const char *descr, struct net_writer *writer, he
 
 
 static void setProxyString(struct client *c) {
-    if (strlen(c->host) + strlen(c->port) + 2 > sizeof(c->proxy_string))
-        return;
-    if (!c->host[0] || !c->port[0])
-        return;
-    strcpy(c->proxy_string, c->host);
-    uint32_t len = strlen(c->proxy_string);
-    c->proxy_string[len] = ':';
-    strcpy(c->proxy_string + len + 1, c->port);
+    snprintf(c->proxy_string, sizeof(c->proxy_string), "%s port %s", c->host, c->port);
     c->receiverId = fasthash64(c->proxy_string, strlen(c->proxy_string), 0x2127599bf4325c37ULL);
 }
 
@@ -842,6 +835,12 @@ static void modesCloseClient(struct client *c) {
     if (!c->service) {
         fprintf(stderr, "warning: double close of net client\n");
         return;
+    }
+    if (Modes.netIngest) {
+        double elapsed = (mstime() - c->connectedSince) / 1000.0;
+        double kbitpersecond = c->bytesReceived / 128.0 / elapsed;
+        fprintf(stderr, "disc: rId %016"PRIx64"%016"PRIx64" %6.2f kbit/s for %6.1f s %50s\n",
+                c->receiverId, c->receiverId2, kbitpersecond, elapsed, c->proxy_string);
     }
     epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, c->fd, &c->epollEvent);
     anetCloseSocket(c->fd);
@@ -2401,16 +2400,9 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
             }
             // Other errors
             if (Modes.debug_net) {
-                if (Modes.netIngest && c->service->read_mode != READ_MODE_IGNORE && c->proxy_string[0] != '\0') {
-                    double elapsed = (now - c->connectedSince) / 1000.0;
-                    fprintf(stderr, "disc: %50s rId %016"PRIx64"%016"PRIx64" %6.2f kbit/s for %6.1f s\n",
-                            c->proxy_string, c->receiverId, c->receiverId2,
-                            c->bytesReceived / 128.0 / elapsed, elapsed);
-                } else {
-                    fprintf(stderr, "%s: Socket Error: %s: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
-                            c->service->descr, strerror(err), c->host, c->port,
-                            c->fd, c->sendq_len, c->buflen);
-                }
+                fprintf(stderr, "%s: Socket Error: %s: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
+                        c->service->descr, strerror(err), c->host, c->port,
+                        c->fd, c->sendq_len, c->buflen);
             }
             modesCloseClient(c);
             return;
@@ -2421,17 +2413,9 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
             if (c->con) {
                 fprintf(stderr, "%s: Remote server disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
                         c->service->descr, c->con->address, c->con->port, c->fd, c->sendq_len, c->buflen);
-            } else if (Modes.debug_net) {
-
-                if (Modes.netIngest && c->proxy_string[0] != '\0') {
-                    double elapsed = (now - c->connectedSince) / 1000.0;
-                    fprintf(stderr, "disc: %50s rId %016"PRIx64"%016"PRIx64" %6.2f kbit/s for %6.1f s\n",
-                            c->proxy_string, c->receiverId, c->receiverId2,
-                            c->bytesReceived / 128.0 / elapsed, elapsed);
-                } else {
-                    fprintf(stderr, "%s: Listen client disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
-                            c->service->descr, c->host, c->port, c->fd, c->sendq_len, c->buflen);
-                }
+            } else if (Modes.debug_net && !Modes.netIngest) {
+                fprintf(stderr, "%s: Listen client disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
+                        c->service->descr, c->host, c->port, c->fd, c->sendq_len, c->buflen);
             }
             modesCloseClient(c);
             return;
