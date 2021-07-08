@@ -1811,14 +1811,14 @@ no_save_state:
         new->gs = (int16_t) nearbyint(10 * a->gs);
     }
 
-    if (trackVState(now, &a->geom_rate_valid, &a->position_valid)) {
-        new->flags.rate_valid = 1;
-        new->flags.rate_geom = 1;
-        new->rate = (int16_t) nearbyint(a->geom_rate / 32.0);
-    } else if (trackVState(now, &a->baro_rate_valid, &a->position_valid)) {
+    if (trackVState(now, &a->baro_rate_valid, &a->position_valid)) {
         new->flags.rate_valid = 1;
         new->flags.rate_geom = 0;
         new->rate = (int16_t) nearbyint(a->baro_rate / 32.0);
+    } else if (trackVState(now, &a->geom_rate_valid, &a->position_valid)) {
+        new->flags.rate_valid = 1;
+        new->flags.rate_geom = 1;
+        new->rate = (int16_t) nearbyint(a->geom_rate / 32.0);
     } else {
         new->rate = 0;
         new->flags.rate_valid = 0;
