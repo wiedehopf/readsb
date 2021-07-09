@@ -493,7 +493,7 @@ static inline int posReliable(struct aircraft *a) {
 static inline int altReliable(struct aircraft *a) {
     if (!trackDataValid(&a->altitude_baro_valid))
         return 0;
-    if (a->position_valid.source <= SOURCE_JAERO)
+    if (a->position_valid.source == SOURCE_JAERO)
         return 1;
     if (a->alt_reliable >= Modes.json_reliable + 1)
         return 1;

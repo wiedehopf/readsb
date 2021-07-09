@@ -1296,6 +1296,9 @@ static void updateAltitude(uint64_t now, struct aircraft *a, struct modesMessage
 accept_alt:
     if (accept_data(&a->altitude_baro_valid, mm->source, mm, 2)) {
         a->alt_reliable = min(ALTITUDE_BARO_RELIABLE_MAX , a->alt_reliable + (good_crc+1));
+        if (mm->source == SOURCE_MODE_S && a->altitude_baro_valid.last_source != mm->source) {
+            a->alt_reliable = 0;
+        }
         if (0 && a->addr == 0x4b2917 && abs(delta) > -1 && delta != alt) {
             fprintf(stderr, "Alt check S: %06x: %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
                     a->addr, a->alt_reliable, a->altitude_baro, alt,
