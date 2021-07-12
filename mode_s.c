@@ -772,6 +772,12 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
         if (mm->addrtype >= ADDR_OTHER)
             mm->addrtype = ADDR_OTHER;
     }
+    // ignore DF18 from this hexrange, bogus hexes set
+    // i'd like to not have such exceptions in this source but rather configure them some other way
+    // for the time being still gonna do it this way
+    if (mm->remote && mm->msgtype == 18 && mm->addr >= 0x899000 && mm->addr < 0x899200 && Modes.garbage_ports) {
+        mm->garbage = 1;
+    }
 
     // all done
     return 0;
