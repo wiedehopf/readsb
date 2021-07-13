@@ -1663,6 +1663,10 @@ int traceAdd(struct aircraft *a, uint64_t now) {
     if (!on_ground && elapsed > max_elapsed) // default 30000 ms
         goto save_state;
 
+    // SS2
+    if (a->addr == 0xa19b53 && elapsed > max_elapsed / 4)
+        goto save_state;
+
     if (on_ground && elapsed > 4 * max_elapsed)
         goto save_state;
 

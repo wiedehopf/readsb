@@ -374,6 +374,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     } else if (source <= SOURCE_MLAT && elapsed > 25 * SECONDS) {
         override = 1;
     } else if (a->addr == 0xa19b53) {
+        // SS2
         override = 1;
     }
 
