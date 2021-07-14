@@ -2403,6 +2403,7 @@ void writeInternalState() {
         snprintf(pathbuf, PATH_MAX, "%s/rangeDirs.gz", Modes.state_dir);
         gzFile gzfp = gzopen(pathbuf, "wb");
         if (gzfp) {
+            writeGz(gzfp, &Modes.lastRangeDirHour, sizeof(Modes.lastRangeDirHour), pathbuf);
             writeGz(gzfp, Modes.rangeDirs, sizeof(Modes.rangeDirs), pathbuf);
             gzclose(gzfp);
         }
@@ -2452,9 +2453,13 @@ void readInternalState() {
         if (gzfp) {
             cb = readWholeGz(gzfp, pathbuf);
             gzclose(gzfp);
-            if (cb.len == sizeof(Modes.rangeDirs)) {
-                fprintf(stderr, "actual range outline, read bytes: %zu\n", sizeof(Modes.rangeDirs));
-                memcpy(Modes.rangeDirs, cb.buffer, sizeof(Modes.rangeDirs));
+            if (cb.len == sizeof(Modes.lastRangeDirHour) + sizeof(Modes.rangeDirs)) {
+                fprintf(stderr, "actual range outline, read bytes: %zu\n", cb.len);
+
+                char *p = cb.buffer;
+                memcpy(&Modes.lastRangeDirHour, p, sizeof(Modes.lastRangeDirHour));
+                p += sizeof(Modes.lastRangeDirHour);
+                memcpy(Modes.rangeDirs, p, sizeof(Modes.rangeDirs));
             }
         }
     }

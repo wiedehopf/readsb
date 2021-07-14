@@ -622,6 +622,7 @@ struct _Modes
     // array for thread numbers
     int threadNumber[256];
 
+    int lastRangeDirHour;
     struct distCoords rangeDirs[RANGEDIRS_HOURS][RANGEDIRS_BUCKETS ];
 };
 

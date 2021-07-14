@@ -299,12 +299,11 @@ static void update_range_histogram(struct aircraft *a, uint64_t now) {
     rangeDirDirection %= RANGEDIRS_BUCKETS;
 
     int rangeDirHour = (now / (1 * HOURS)) % RANGEDIRS_HOURS;
-    static int lastRangeDirHour;
-    if (rangeDirHour != lastRangeDirHour) {
+    if (rangeDirHour != Modes.lastRangeDirHour) {
         // RANGEDIRS_HOURS 25 holds the last 24 full hours and the current hour
         // when the current hour changes, reset the data for it
         memset(Modes.rangeDirs[rangeDirHour], 0, sizeof(Modes.rangeDirs[rangeDirHour]));
-        lastRangeDirHour = rangeDirHour;
+        Modes.lastRangeDirHour = rangeDirHour;
     }
 
     struct distCoords *record = &(Modes.rangeDirs[rangeDirHour][rangeDirDirection]);
