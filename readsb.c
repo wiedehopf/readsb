@@ -1541,6 +1541,20 @@ int main(int argc, char **argv) {
         if (mkdir(Modes.state_dir, 0755) && errno != EEXIST) {
             perror(pathbuf);
         }
+
+        if (Modes.outline_json) {
+            struct char_buffer cb;
+            snprintf(pathbuf, PATH_MAX, "%s/rangeDirs.gz", Modes.state_dir);
+            gzFile gzfp = gzopen(pathbuf, "r");
+            if (gzfp) {
+                cb = readWholeGz(gzfp, pathbuf);
+                gzclose(gzfp);
+                if (cb.len == sizeof(Modes.rangeDirs)) {
+                    fprintf(stderr, "actual range outline, read bytes: %zu\n", sizeof(Modes.rangeDirs));
+                    memcpy(Modes.rangeDirs, cb.buffer, sizeof(Modes.rangeDirs));
+                }
+            }
+        }
     }
     // db update on startup
     if (!Modes.exit)

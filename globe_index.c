@@ -2397,6 +2397,16 @@ void writeInternalState() {
 
     double elapsed = stopWatch(&watch) / 1000.0;
     fprintf(stderr, " .......... done, saved %llu aircraft in %.3f seconds!\n", (unsigned long long) Modes.aircraftCount, elapsed);
+
+    if (Modes.outline_json) {
+        char pathbuf[PATH_MAX];
+        snprintf(pathbuf, PATH_MAX, "%s/rangeDirs.gz", Modes.state_dir);
+        gzFile gzfp = gzopen(pathbuf, "wb");
+        if (gzfp) {
+            writeGz(gzfp, Modes.rangeDirs, sizeof(Modes.rangeDirs), pathbuf);
+            gzclose(gzfp);
+        }
+    }
 }
 
 /*
