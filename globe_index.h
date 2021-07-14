@@ -57,6 +57,7 @@ void *load_blobs(void *arg);
 void *save_blobs(void *arg);
 void save_blob(int blob);
 void writeInternalState();
+void readInternalState();
 void *jsonTraceThreadEntryPoint(void *arg);
 ssize_t stateBytes(int len);
 ssize_t stateAllBytes(int len);

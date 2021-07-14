@@ -2409,6 +2409,57 @@ void writeInternalState() {
     }
 }
 
+void readInternalState() {
+    fprintf(stderr, "loading state .....\n");
+    struct timespec watch;
+    startWatch(&watch);
+    pthread_t threads[IO_THREADS];
+    int numbers[IO_THREADS];
+    for (int i = 0; i < IO_THREADS; i++) {
+        numbers[i] = i;
+        pthread_create(&threads[i], NULL, load_blobs, &numbers[i]);
+    }
+    for (int i = 0; i < IO_THREADS; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    uint64_t aircraftCount = 0; // includes quite old aircraft, just for checking hash table fill
+    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+        for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
+            aircraftCount++;
+        }
+    }
+    Modes.aircraftCount = aircraftCount;
+
+    double elapsed = stopWatch(&watch) / 1000.0;
+    fprintf(stderr, " .......... done, loaded %llu aircraft in %.3f seconds!\n", (unsigned long long) aircraftCount, elapsed);
+    fprintf(stderr, "aircraft table fill: %0.1f\n", aircraftCount / (double) AIRCRAFT_BUCKETS );
+
+    char pathbuf[PATH_MAX];
+
+    if (Modes.globe_history_dir && mkdir(Modes.globe_history_dir, 0755) && errno != EEXIST) {
+        perror(Modes.globe_history_dir);
+    }
+
+    if (mkdir(Modes.state_dir, 0755) && errno != EEXIST) {
+        perror(pathbuf);
+    }
+
+    if (Modes.outline_json) {
+        struct char_buffer cb;
+        snprintf(pathbuf, PATH_MAX, "%s/rangeDirs.gz", Modes.state_dir);
+        gzFile gzfp = gzopen(pathbuf, "r");
+        if (gzfp) {
+            cb = readWholeGz(gzfp, pathbuf);
+            gzclose(gzfp);
+            if (cb.len == sizeof(Modes.rangeDirs)) {
+                fprintf(stderr, "actual range outline, read bytes: %zu\n", sizeof(Modes.rangeDirs));
+                memcpy(Modes.rangeDirs, cb.buffer, sizeof(Modes.rangeDirs));
+            }
+        }
+    }
+}
+
 /*
 void *load_state(void *arg) {
     uint64_t now = mstime();
