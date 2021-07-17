@@ -24,11 +24,15 @@ How to build the package yourself:
 
 ### Push server support
 
-readsb tries to connect to a listening server, like a VRS push server.
+readsb connects to a listening server.
 
-For example feeding VRS at adsbexchange.com use the new parameters:
+Sending beast data (beast_out):
 ```
---net-connector feed.adsbexchange.com,30005,beast_out
+--net-connector 192.168.2.22,30004,beast_out
+```
+Receiving beast data (beast_in);
+```
+--net-connector 192.168.2.28,30005,beast_in
 ```
 
 ### BeastReduce output
@@ -37,15 +41,10 @@ Selectively forwards beast messages if the received data hasn't been forwarded i
 Data not related to the physical aircraft state are only forwarded every 500 ms (4 * `--net-beast-reduce-interval`).The messages of
 this output are normal beast messages and compatible with every program able to receive beast messages.
 
-## readsb Debian/Raspbian packages
+### Debian package
 
-It is designed to build as a Debian package.
-
-### Actually building it
-
-Build package with no additional receiver library dependencies: `dpkg-buildpackage -b`.
-
-Build with RTLSDR support: `dpkg-buildpackage -b --build-profiles=rtlsdr`
+- Build package with no additional receiver library dependencies: `dpkg-buildpackage -b`.
+- Build with RTLSDR support: `dpkg-buildpackage -b --build-profiles=rtlsdr`
 
 ## Building manually
 
@@ -58,30 +57,17 @@ librtlsdr.
 
 ## Configuration
 
-After installation, either by manual building or from package, you need to configure readsb service and web application.
+If required, edit `/etc/default/readsb` to set the service options, device type, network ports etc.
 
-Edit `/etc/default/readsb` to set the service options, device type, network ports etc.
+## rtl-sdr bias tee
 
-The web application is configured by editing `/usr/share/readsb/html/script/readsb/defaults.js` or `src/script/readsb/default.ts`
-prior to compilation. Several settings can be modified through web browser. These settings are stored inside browser indexedDB
-and are individual to users or browser profiles.
-
-## Note about bias tee support
-
-Bias tee support is available for RTL-SDR.com V3 dongles. If you wish to enable bias tee support,
-you must ensure that you are building this package with a version of librtlsdr installed that supports this capability.
-You can find suitable source packages [here](https://github.com/librtlsdr/librtlsdr). To enable the necessary
-support code when building, be sure to include preprocessor define macro HAVE_BIASTEE, e.g.:
-
-"make HAVE_BIASTEE=yes" will enable biastee support for RTLSDR interfaces.
-
-I personally prefer to use an little helper to just enable the bias tee before starting readsb:
+Use this utility independen of readsb:
 https://github.com/wiedehopf/adsb-wiki/wiki/RTL-Bias-Tee
 
 ## Global map of aircraft
 
 One of this forks main uses is to be the backend for the global map at https://adsbexchange.com/
-For that purpose it's used in conjunction with tar1090: https://github.com/wiedehopf/tar1090#0800-destroy-sd-card
+For that purpose it's used in conjunction with tar1090 with some extra options to cope with the number of aircraft and also record a history of flight paths: https://github.com/wiedehopf/tar1090#0800-destroy-sd-card
 
 ## --debug=S: speed check debugging output
 
