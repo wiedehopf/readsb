@@ -862,8 +862,11 @@ static void modesCloseClient(struct client *c) {
     if (Modes.netIngest) {
         double elapsed = (mstime() - c->connectedSince) / 1000.0;
         double kbitpersecond = c->bytesReceived / 128.0 / elapsed;
-        fprintf(stderr, "disc: rId %016"PRIx64"%016"PRIx64" %50s %6.2f kbit/s for %6.1f s\n",
-                c->receiverId, c->receiverId2, c->proxy_string, kbitpersecond, elapsed);
+
+        char uuid[64]; // needs 36 chars and null byte
+        sprint_uuid(c->receiverId, c->receiverId2, uuid);
+        fprintf(stderr, "disc: rId %s %50s %6.2f kbit/s for %6.1f s\n",
+                uuid, c->proxy_string, kbitpersecond, elapsed);
     }
     epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, c->fd, &c->epollEvent);
     anetCloseSocket(c->fd);
@@ -2161,8 +2164,10 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
             static uint64_t antiSpam;
             if (now > antiSpam) {
                 antiSpam = now + 1 * SECONDS;
-                fprintf(stderr, "reject_delayed:rId %016"PRIx64"%016"PRIx64" %2.1f %s\n",
-                        c->receiverId, c->receiverId2, diff, c->proxy_string);
+                char uuid[64]; // needs 36 chars and null byte
+                sprint_uuid(c->receiverId, c->receiverId2, uuid);
+                fprintf(stderr, "reject_delayed:rId %s %2.1f %s\n",
+                        uuid, diff, c->proxy_string);
             }
             Modes.stats_current.remote_rejected_delayed++;
             c->rejected_delayed++;
@@ -2803,8 +2808,10 @@ beastWhileBreak:
         if (!c->receiverIdLocked && (c->bytesReceived > 512 || now > c->connectedSince + 10000)) {
             c->receiverIdLocked = 1;
             if (Modes.netIngest && (Modes.debug_net)) {
-                fprintf(stderr, "new c rId %016"PRIx64"%016"PRIx64" %50s\n",
-                        c->receiverId, c->receiverId2, c->proxy_string);
+                char uuid[64]; // needs 36 chars and null byte
+                sprint_uuid(c->receiverId, c->receiverId2, uuid);
+                fprintf(stderr, "new c rId %s %50s\n",
+                        uuid, c->proxy_string);
             }
         }
 
@@ -3193,60 +3200,3 @@ static void read_uuid(struct client *c, char *p, char *eod) {
     return;
 }
 
-
-struct char_buffer generateClientsJson() {
-    struct char_buffer cb;
-    uint64_t now = mstime();
-
-    size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
-    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
-
-    p = safe_snprintf(p, end, "{ \"now\" : %.1f,\n", now / 1000.0);
-    p = safe_snprintf(p, end, "  \"format\" : "
-            "[ \"receiverId\", \"host:port\", \"avg. kbit/s\", \"conn time(s)\","
-            " \"messages/s\", \"positions/s\", \"rejected_delayed_percent\" ],\n");
-
-    p = safe_snprintf(p, end, "  \"clients\" : [\n");
-
-    for (struct net_service *s = Modes.services; s; s = s->next) {
-        for (struct client *c = s->clients; c; c = c->next) {
-            if (!c->service)
-                continue;
-            if (!s->read_handler)
-                continue;
-
-            // check if we have enough space
-            if ((p + 1000) >= end) {
-                int used = p - buf;
-                buflen *= 2;
-                buf = (char *) realloc(buf, buflen);
-                p = buf + used;
-                end = buf + buflen;
-            }
-
-            double elapsed = (now - c->connectedSince) / 1000.0;
-            p = safe_snprintf(p, end, "[ \"%016"PRIx64"%016"PRIx64"\", \"%50s\", %6.2f, %6.1f, %8.3f, %7.3f, %2.3f],\n",
-                    c->receiverId,
-                    c->receiverId2,
-                    c->proxy_string,
-                    c->bytesReceived / 128.0 / elapsed,
-                    elapsed,
-                    (double) c->messageCounter / elapsed,
-                    (double) c->positionCounter / elapsed,
-                    (double) c->rejected_delayed / (c->messageCounter + 0.00000001));
-
-
-            if (p >= end)
-                fprintf(stderr, "buffer overrun client json\n");
-        }
-    }
-
-    if (*(p-2) == ',')
-        *(p-2) = ' ';
-
-    p = safe_snprintf(p, end, "\n  ]\n}\n");
-
-    cb.len = p - buf;
-    cb.buffer = buf;
-    return cb;
-}

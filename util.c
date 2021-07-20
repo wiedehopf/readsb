@@ -351,3 +351,36 @@ void epollAllocEvents(struct epoll_event **events, int *maxEvents) {
         exit(1);
     }
 }
+char *sprint_uuid1(uint64_t id1, char *p) {
+    for (int i = 15; i >= 0; i--) {
+        int j = 15 - i;
+        if (j == 8 || j == 12)
+            *p++ = '-';
+        uint64_t val = (id1 >> (4 * i)) & 15;
+        if (val > 9)
+            *p++ = val - 10 + 'a';
+        else
+            *p++ = val + '0';
+    }
+    *p = '\0';
+    return p;
+}
+char *sprint_uuid2(uint64_t id2, char *p) {
+    for (int i = 15; i >= 0; i--) {
+        int j = 15 - i;
+        if (j == 0 || j == 4)
+            *p++ = '-';
+        uint64_t val = (id2 >> (4 * i)) & 15;
+        if (val > 9)
+            *p++ = val - 10 + 'a';
+        else
+            *p++ = val + '0';
+    }
+    *p = '\0';
+    return p;
+}
+char *sprint_uuid(uint64_t id1, uint64_t id2, char *p) {
+    p = sprint_uuid1(id1, p);
+    p = sprint_uuid2(id2, p);
+    return p;
+}

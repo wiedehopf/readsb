@@ -2038,3 +2038,63 @@ skip_fields:
     cb.buffer = buf;
     return cb;
 }
+
+struct char_buffer generateClientsJson() {
+    struct char_buffer cb;
+    uint64_t now = mstime();
+
+    size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
+    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
+
+    p = safe_snprintf(p, end, "{ \"now\" : %.1f,\n", now / 1000.0);
+    p = safe_snprintf(p, end, "  \"format\" : "
+            "[ \"receiverId\", \"host:port\", \"avg. kbit/s\", \"conn time(s)\","
+            " \"messages/s\", \"positions/s\", \"rejected_delayed_percent\" ],\n");
+
+    p = safe_snprintf(p, end, "  \"clients\" : [\n");
+
+    for (struct net_service *s = Modes.services; s; s = s->next) {
+        for (struct client *c = s->clients; c; c = c->next) {
+            if (!c->service)
+                continue;
+            if (!s->read_handler)
+                continue;
+
+            // check if we have enough space
+            if ((p + 1000) >= end) {
+                int used = p - buf;
+                buflen *= 2;
+                buf = (char *) realloc(buf, buflen);
+                p = buf + used;
+                end = buf + buflen;
+            }
+
+            char uuid[64]; // needs 36 chars and null byte
+            sprint_uuid(c->receiverId, c->receiverId2, uuid);
+            //fprintf(stderr, "c->receiverId: %016"PRIx64"\n", c->receiverId);
+
+            double elapsed = (now - c->connectedSince) / 1000.0;
+            p = safe_snprintf(p, end, "[\"%s\",\"%50s\",%6.2f,%6.1f,%8.3f,%7.3f,%2.3f],\n",
+                    uuid,
+                    c->proxy_string,
+                    c->bytesReceived / 128.0 / elapsed,
+                    elapsed,
+                    (double) c->messageCounter / elapsed,
+                    (double) c->positionCounter / elapsed,
+                    (double) c->rejected_delayed / (c->messageCounter + 0.00000001));
+
+
+            if (p >= end)
+                fprintf(stderr, "buffer overrun client json\n");
+        }
+    }
+
+    if (*(p-2) == ',')
+        *(p-2) = ' ';
+
+    p = safe_snprintf(p, end, "\n  ]\n}\n");
+
+    cb.len = p - buf;
+    cb.buffer = buf;
+    return cb;
+}

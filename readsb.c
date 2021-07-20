@@ -1247,8 +1247,19 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             fprintf(stderr, "leg_focus = %06x\n", Modes.leg_focus);
             break;
         case OptReceiverFocus:
-            Modes.receiver_focus = strtoull(arg, NULL, 16);
-            fprintf(stderr, "receiver_focus = %016"PRIx64"\n", Modes.receiver_focus);
+            {
+                char rfocus[16];
+                char *p = arg;
+                for (uint32_t i = 0; i < sizeof(rfocus); i++) {
+                    if (*p == '-')
+                        p++;
+                    rfocus[i] = *p;
+                    if (*p != 0)
+                        p++;
+                }
+                Modes.receiver_focus = strtoull(rfocus, NULL, 16);
+                fprintf(stderr, "receiver_focus = %016"PRIx64"\n", Modes.receiver_focus);
+            }
             break;
 
         case OptDebug:

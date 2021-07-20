@@ -261,9 +261,12 @@ struct char_buffer generateReceiversJson() {
                 end = buf + buflen;
             }
 
+            char uuid[64];
+            sprint_uuid1(r->id, uuid);
+
             double elapsed = (r->lastSeen - r->firstSeen) / 1000.0 + 1.0;
-            p = safe_snprintf(p, end, "[ \"%016"PRIx64"\", %6.2f, %6.2f, %0.2f, %0.2f, %0.2f, %0.2f ],\n",
-                    r->id,
+            p = safe_snprintf(p, end, "    [ \"%s\", %6.2f, %6.2f, %0.2f, %0.2f, %0.2f, %0.2f ],\n",
+                    uuid,
                     r->positionCounter / elapsed,
                     r->timedOutCounter * 3600.0 / elapsed,
                     r->latMin,
@@ -281,7 +284,7 @@ struct char_buffer generateReceiversJson() {
     if (*(p-2) == ',')
         *(p-2) = ' ';
 
-    p = safe_snprintf(p, end, "\n  ]\n}\n");
+    p = safe_snprintf(p, end, "  ]\n}\n");
 
     cb.len = p - buf;
     cb.buffer = buf;

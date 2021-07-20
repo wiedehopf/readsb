@@ -461,30 +461,31 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                     a->lat, a->lon, lat, lon);
         }
     }
+    if (!Modes.userLocationValid) {
+        if (!inrange && mm->source == SOURCE_ADSB
+                && distance - range > 800 && track_diff > 45
+                && a->pos_reliable_odd >= Modes.filter_persistence * 3 / 4
+                && a->pos_reliable_even >= Modes.filter_persistence * 3 / 4
+           ) {
+            struct receiver *r = receiverBad(mm->receiverId, a->addr, now);
+            if (r && Modes.debug_garbage && r->badCounter > 6) {
+                fprintf(stderr, "hex: %06x id: %016"PRIx64" #good: %6d #bad: %3.0f trackDiff: %3.0f: %7.2fkm/%7.2fkm in %4.1f s, max %4.0f kt\n",
+                        a->addr, r->id, r->goodCounter, r->badCounter,
+                        track_diff,
+                        distance / 1000.0,
+                        range / 1000.0,
+                        elapsed / 1000.0,
+                        speed
+                       );
 
-    if (!inrange && mm->source == SOURCE_ADSB
-            && distance - range > 800 && track_diff > 45
-            && a->pos_reliable_odd >= Modes.filter_persistence * 3 / 4
-            && a->pos_reliable_even >= Modes.filter_persistence * 3 / 4
-       ) {
-        struct receiver *r = receiverBad(mm->receiverId, a->addr, now);
-        if (r && Modes.debug_garbage && r->badCounter > 6) {
-            fprintf(stderr, "hex: %06x id: %016"PRIx64" #good: %6d #bad: %3.0f trackDiff: %3.0f: %7.2fkm/%7.2fkm in %4.1f s, max %4.0f kt\n",
-                    a->addr, r->id, r->goodCounter, r->badCounter,
-                    track_diff,
-                    distance / 1000.0,
-                    range / 1000.0,
-                    elapsed / 1000.0,
-                    speed
-                   );
-
+            }
         }
-    }
-    if (!Modes.userLocationValid && inrange && mm->source == SOURCE_ADSB && mm->cpr_type != CPR_SURFACE
-            && a->pos_reliable_odd >= Modes.filter_persistence * 3 / 4
-            && a->pos_reliable_even >= Modes.filter_persistence * 3 / 4
-       ) {
-        receiverPositionReceived(a, mm->receiverId, lat, lon, now);
+        if (inrange && mm->source == SOURCE_ADSB && mm->cpr_type != CPR_SURFACE
+                && a->pos_reliable_odd >= Modes.filter_persistence * 3 / 4
+                && a->pos_reliable_even >= Modes.filter_persistence * 3 / 4
+           ) {
+            receiverPositionReceived(a, mm->receiverId, lat, lon, now);
+        }
     }
 
     return inrange;
