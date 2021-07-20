@@ -321,34 +321,33 @@ static void checkServiceConnected(struct net_connector *con) {
     c->con = con;
     con->c = c;
 
-    if (!Modes.interactive) {
-        fprintf(stderr, "%s: Connection established: %s%s port %s\n",
-                con->service->descr, con->address, con->resolved_addr, con->port);
-    }
-
     // sending UUID if hostname matches adsbexchange
+    char uuid[130];
+    uuid[0] = '\0';
     if (c->sendq && strstr(con->address, "feed.adsbexchange.com")) {
-        char buf[130];
         char *sendq = c->sendq;
-        sendq[0] = 0x1A;
-        sendq[1] = 0xE4;
         int fd = open(Modes.uuidFile, O_RDONLY);
-        int res = (fd != -1) ? read(fd, c->sendq + 2, 128) : -1;
+        int res = -1;
+        if (fd != -1) {
+            res = read(fd, uuid, 128);
+            close(fd);
+        }
         if (res >= 16) {
-            if (res < 130)
-                buf[res] = '\0';
-            else
-                buf[129] = '\0';
-            strncpy(buf, c->sendq + 2, res);
-            fprintf(stderr, "UUID: %s\n", buf);
+            if (uuid[res - 1] == '\n') {
+                // remove trailing newline
+                res--;
+            }
+            uuid[res] = '\0';
+
+            sendq[0] = 0x1A;
+            sendq[1] = 0xE4;
+            strncpy(c->sendq + 2, uuid, res);
             c->sendq_len = res + 2;
             flushClient(c, mstime());
         } else {
+            uuid[0] = '\0';
             fprintf(stderr, "ERROR: Not a valid UUID: %s\n", Modes.uuidFile);
             fprintf(stderr, "Use this command to fix: sudo uuidgen > %s\n", Modes.uuidFile);
-        }
-        if (fd != -1) {
-            close(fd);
         }
         // enable ping stuff
         char signal[3] = { 0x1a, 'W', 'p' };
@@ -357,6 +356,16 @@ static void checkServiceConnected(struct net_connector *con) {
             // whatever
         }
     }
+    if (!Modes.interactive) {
+        if (uuid[0]) {
+            fprintf(stderr, "%s: Connection established: %s%s port %s (sending UUID: %s)\n",
+                    con->service->descr, con->address, con->resolved_addr, con->port, uuid);
+        } else {
+            fprintf(stderr, "%s: Connection established: %s%s port %s\n",
+                    con->service->descr, con->address, con->resolved_addr, con->port);
+        }
+    }
+
 }
 
 // Initiate an outgoing connection.
