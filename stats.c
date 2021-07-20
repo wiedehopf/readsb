@@ -768,12 +768,11 @@ struct char_buffer generatePromFile() {
 
     for (int i = 0; i < Modes.net_connectors_count; i++) {
         struct net_connector *con = Modes.net_connectors[i];
-        int value = 0;
-        if (!con->connected)
-            value = 2;
-        else if (now < con->lastConnect + 30 * SECONDS)
-            value = 1;
-        p = safe_snprintf(p, end, "readsb_net_connector_status{host=\"%s\",port=\"%s\"} %d\n",
+        int64_t value = 0;
+        if (con->connected) {
+            value = (now - con->lastConnect) / 1000.0;
+        }
+        p = safe_snprintf(p, end, "readsb_net_connector_status{host=\"%s\",port=\"%s\"} %"PRIu64"\n",
                 con->address, con->port, value);
     }
 
