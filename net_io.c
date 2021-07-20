@@ -106,6 +106,7 @@ static void *pthreadGetaddrinfo(void *param);
 
 static void flushClient(struct client *c, uint64_t now);
 static void read_uuid(struct client *c, char *p, char *eod);
+static void modesReadFromClient(struct client *c, uint64_t start);
 
 //
 //=========================================================================
@@ -254,30 +255,7 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     return c;
 }
 
-// Timer callback checking periodically whether the push service lost its server
-// connection and requires a re-connect.
-void serviceReconnectCallback(uint64_t now) {
-    // Loop through the connectors, and
-    //  - If it's not connected:
-    //    - If it's "connecting", check to see if the fd is ready
-    //    - Otherwise, if enough time has passed, try reconnecting
-
-    for (int i = 0; i < Modes.net_connectors_count; i++) {
-        struct net_connector *con = Modes.net_connectors[i];
-        if (!con->connected) {
-            if (con->connecting) {
-                // Check to see...
-                checkServiceConnected(con);
-            } else {
-                if (con->next_reconnect <= now) {
-                    serviceConnect(con);
-                }
-            }
-        }
-    }
-}
-
-struct client *checkServiceConnected(struct net_connector *con) {
+static void checkServiceConnected(struct net_connector *con) {
     int rv;
 
     struct pollfd pfd = {con->fd, (POLLIN | POLLOUT), 0};
@@ -285,9 +263,8 @@ struct client *checkServiceConnected(struct net_connector *con) {
     rv = poll(&pfd, 1, 0);
 
     if (rv == -1) {
-        // select() error, just return a NULL here, but log it
         fprintf(stderr, "checkServiceConnected: select() error: %s\n", strerror(errno));
-        return NULL;
+        return;
     }
 
     if (rv == 0) {
@@ -298,7 +275,7 @@ struct client *checkServiceConnected(struct net_connector *con) {
             con->connecting = 0;
             anetCloseSocket(con->fd);
         }
-        return NULL;
+        return;
     }
 
     // At this point, we need to check getsockopt() to see if we succeeded or failed...
@@ -309,7 +286,7 @@ struct client *checkServiceConnected(struct net_connector *con) {
         // Bad stuff going on, but clear this anyway
         con->connecting = 0;
         anetCloseSocket(con->fd);
-        return NULL;
+        return;
     }
 
     if (optval != 0) {
@@ -318,7 +295,7 @@ struct client *checkServiceConnected(struct net_connector *con) {
                 con->service->descr, con->address, con->resolved_addr, con->port, optval, strerror(optval));
         con->connecting = 0;
         anetCloseSocket(con->fd);
-        return NULL;
+        return;
     }
 
     // If we're able to create this "client", save the sockaddr info and print a msg
@@ -330,7 +307,7 @@ struct client *checkServiceConnected(struct net_connector *con) {
         fprintf(stderr, "createSocketClient failed on fd %d to %s%s port %s\n",
                 con->fd, con->address, con->resolved_addr, con->port);
         anetCloseSocket(con->fd);
-        return NULL;
+        return;
     }
 
     strncpy(c->host, con->address, sizeof(c->host) - 1);
@@ -340,7 +317,9 @@ struct client *checkServiceConnected(struct net_connector *con) {
     con->connecting = 0;
     con->connected = 1;
     con->lastConnect = mstime();
+    // link connection and client so we have access from one to the other
     c->con = con;
+    con->c = c;
 
     if (!Modes.interactive) {
         fprintf(stderr, "%s: Connection established: %s%s port %s\n",
@@ -378,13 +357,11 @@ struct client *checkServiceConnected(struct net_connector *con) {
             // whatever
         }
     }
-
-    return c;
 }
 
 // Initiate an outgoing connection.
 // Return the new client or NULL if the connection failed
-struct client *serviceConnect(struct net_connector *con) {
+static void serviceConnect(struct net_connector *con) {
 
     int fd;
 
@@ -411,12 +388,12 @@ struct client *serviceConnect(struct net_connector *con) {
             if (pthread_create(&con->thread, NULL, pthreadGetaddrinfo, con)) {
                 con->next_reconnect = mstime() + Modes.net_connector_delay;
                 fprintf(stderr, "%s: pthread_create ERROR for %s port %s: %s\n", con->service->descr, con->address, con->port, strerror(errno));
-                return NULL;
+                return;
             }
 
             con->gai_request_in_progress = 1;
             con->next_reconnect = mstime() + 20;
-            return NULL;
+            return;
         }
 
         // gai request is in progress, let's check if it's done
@@ -425,7 +402,7 @@ struct client *serviceConnect(struct net_connector *con) {
         if (!con->gai_request_done) {
             con->next_reconnect = mstime() + 20;
             pthread_mutex_unlock(&con->mutex);
-            return NULL;
+            return;
         }
         pthread_mutex_unlock(&con->mutex);
 
@@ -435,7 +412,7 @@ struct client *serviceConnect(struct net_connector *con) {
         if (pthread_join(con->thread, NULL)) {
             fprintf(stderr, "%s: pthread_join ERROR for %s port %s: %s\n", con->service->descr, con->address, con->port, strerror(errno));
             con->next_reconnect = mstime() + Modes.net_connector_delay;
-            return NULL;
+            return;
         }
 
         if (con->gai_error) {
@@ -443,7 +420,7 @@ struct client *serviceConnect(struct net_connector *con) {
             // limit name resolution attempts via backoff
             con->next_reconnect = mstime() + con->backoff;
             con->backoff = min(Modes.net_connector_delay, 2 * con->backoff);
-            return NULL;
+            return;
         }
 
         // SUCCESS, we got the address info
@@ -482,7 +459,7 @@ struct client *serviceConnect(struct net_connector *con) {
     if (fd == ANET_ERR) {
         fprintf(stderr, "%s: Connection to %s%s port %s failed: %s\n",
                 con->service->descr, con->address, con->resolved_addr, con->port, Modes.aneterr);
-        return NULL;
+        return;
     }
 
     con->connecting = 1;
@@ -495,7 +472,31 @@ struct client *serviceConnect(struct net_connector *con) {
     // Since this is a non-blocking connect, it will always return right away.
     // We'll need to periodically check to see if it did, in fact, connect, but do it once here.
 
-    return checkServiceConnected(con);
+    checkServiceConnected(con);
+}
+
+// Timer callback checking periodically whether the push service lost its server
+// connection and requires a re-connect.
+static void serviceReconnectCallback(uint64_t now) {
+    // Loop through the connectors, and
+    //  - If it's not connected:
+    //    - If it's "connecting", check to see if the fd is ready
+    //    - Otherwise, if enough time has passed, try reconnecting
+
+    for (int i = 0; i < Modes.net_connectors_count; i++) {
+        struct net_connector *con = Modes.net_connectors[i];
+        if (!con->connected) {
+            if (con->connecting) {
+                // Check to see...
+                checkServiceConnected(con);
+            } else if (con->next_reconnect <= now) {
+                serviceConnect(con);
+            }
+        }
+        if (Modes.net_heartbeat_interval && con->connected && con->c) {
+            modesReadFromClient(con->c, now);
+        }
+    }
 }
 
 // Set up the given service to listen on an address/port.
@@ -868,6 +869,7 @@ static void modesCloseClient(struct client *c) {
         // Clean this up and set the next_reconnect timer for another try.
         con->connecting = 0;
         con->connected = 0;
+        con->c = NULL;
 
         // successfull connection, decrement backoff by connection time
         con->backoff -= (now - con->lastConnect);
@@ -2409,7 +2411,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                 && c->last_read + Modes.net_heartbeat_interval + 5 * SECONDS <= now
            ) {
             fprintf(stderr, "%s: No data or heartbeat received for %.0f seconds, reconnecting: %s port %s\n",
-                    c->service->descr, (double)(Modes.net_heartbeat_interval + 5 * SECONDS),c->host, c->port);
+                    c->service->descr, (Modes.net_heartbeat_interval + 5 * SECONDS) / 1000.0, c->host, c->port);
             modesCloseClient(c);
             return;
         }

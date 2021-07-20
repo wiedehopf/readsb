@@ -86,6 +86,7 @@ struct net_connector
     int8_t connected;
     int8_t connecting;
     int fd;
+    struct client* c;
     uint64_t next_reconnect;
     uint64_t connect_timeout;
     uint64_t lastConnect; // timestamp for last connection establish
@@ -153,9 +154,6 @@ struct net_writer
 };
 
 struct net_service *serviceInit (const char *descr, struct net_writer *writer, heartbeat_fn hb_handler, read_mode_t mode, const char *sep, read_fn read_handler);
-struct client *serviceConnect(struct net_connector *con);
-void serviceReconnectCallback(uint64_t now);
-struct client *checkServiceConnected(struct net_connector *con);
 void serviceListen (struct net_service *service, char *bind_addr, char *bind_ports, int epfd);
 void serviceClose(struct net_service *s);
 struct client *createSocketClient (struct net_service *service, int fd);
