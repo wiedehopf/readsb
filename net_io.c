@@ -388,6 +388,9 @@ struct client *serviceConnect(struct net_connector *con) {
 
     int fd;
 
+    // make sure backoff is never too small
+    con->backoff = max(Modes.net_connector_delay / 32, con->backoff);
+
     if (con->try_addr && con->try_addr->ai_next) {
         // we have another address to try,
         // iterate the address info linked list
@@ -437,7 +440,9 @@ struct client *serviceConnect(struct net_connector *con) {
 
         if (con->gai_error) {
             fprintf(stderr, "%s: Name resolution for %s failed: %s\n", con->service->descr, con->address, gai_strerror(con->gai_error));
-            con->next_reconnect = mstime() + Modes.net_connector_delay;
+            // limit name resolution attempts via backoff
+            con->next_reconnect = mstime() + con->backoff;
+            con->backoff = min(Modes.net_connector_delay, 2 * con->backoff);
             return NULL;
         }
 
@@ -459,15 +464,19 @@ struct client *serviceConnect(struct net_connector *con) {
         memcpy(con->resolved_addr, tmp, sizeof(con->resolved_addr));
     }
 
-    if (!con->try_addr->ai_next) {
-        con->next_reconnect = mstime() + Modes.net_connector_delay;
-    } else {
-        con->next_reconnect = mstime() + 20;
-    }
-
     if (Modes.debug_net) {
         fprintf(stderr, "%s: Attempting connection to %s port %s ...\n", con->service->descr, con->address, con->port);
     }
+
+    if (!con->try_addr->ai_next) {
+        // limit tcp connection attemtps via backoff
+        con->next_reconnect = mstime() + con->backoff;
+        con->backoff = min(Modes.net_connector_delay, 2 * con->backoff);
+    } else {
+        // quickly try all IPs associated with a name if there are multiple
+        con->next_reconnect = mstime() + 20;
+    }
+
 
     fd = anetTcpNonBlockConnectAddr(Modes.aneterr, con->try_addr);
     if (fd == ANET_ERR) {
@@ -477,7 +486,7 @@ struct client *serviceConnect(struct net_connector *con) {
     }
 
     con->connecting = 1;
-    con->connect_timeout = mstime() + Modes.net_connector_delay / 2;
+    con->connect_timeout = mstime() + Modes.net_output_flush_interval + con->backoff;
     con->fd = fd;
 
     if (anetTcpKeepAlive(Modes.aneterr, fd) != ANET_OK)
@@ -853,13 +862,20 @@ static void modesCloseClient(struct client *c) {
     if (c->service->writer) {
         c->service->writer->connections--;
     }
-    if (c->con) {
+    struct net_connector *con = c->con;
+    if (con) {
+        uint64_t now = mstime();
         // Clean this up and set the next_reconnect timer for another try.
-        // If the connection had been established and didn't fail
-        // in the connection phase, reconnect immediately
-        c->con->connecting = 0;
-        c->con->connected = 0;
-        c->con->next_reconnect = mstime();
+        con->connecting = 0;
+        con->connected = 0;
+
+        // successfull connection, decrement backoff by connection time
+        con->backoff -= (now - con->lastConnect);
+        // make sure it's not too small
+        con->backoff = max(Modes.net_connector_delay / 32, con->backoff);
+
+        // if we were connected for some time, an immediate reconnect is expected
+        con->next_reconnect = con->lastConnect + con->backoff;
     }
 
     // mark it as inactive and ready to be freed
