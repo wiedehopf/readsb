@@ -389,7 +389,8 @@ struct client *serviceConnect(struct net_connector *con) {
     int fd;
 
     if (con->try_addr && con->try_addr->ai_next) {
-        // iterate the address info
+        // we have another address to try,
+        // iterate the address info linked list
         con->try_addr = con->try_addr->ai_next;
     } else {
         // get the address info
@@ -405,41 +406,44 @@ struct client *serviceConnect(struct net_connector *con) {
             con->gai_request_done = 0;
 
             if (pthread_create(&con->thread, NULL, pthreadGetaddrinfo, con)) {
-                con->next_reconnect = mstime() + 15000;
+                con->next_reconnect = mstime() + Modes.net_connector_delay;
                 fprintf(stderr, "%s: pthread_create ERROR for %s port %s: %s\n", con->service->descr, con->address, con->port, strerror(errno));
                 return NULL;
             }
 
             con->gai_request_in_progress = 1;
-            con->next_reconnect = mstime() + 10;
+            con->next_reconnect = mstime() + 20;
             return NULL;
-        } else {
-
-            pthread_mutex_lock(&con->mutex);
-            if (!con->gai_request_done) {
-                con->next_reconnect = mstime() + 50;
-                pthread_mutex_unlock(&con->mutex);
-                return NULL;
-            }
-            pthread_mutex_unlock(&con->mutex);
-
-            con->gai_request_in_progress = 0;
-
-            if (pthread_join(con->thread, NULL)) {
-                fprintf(stderr, "%s: pthread_join ERROR for %s port %s: %s\n", con->service->descr, con->address, con->port, strerror(errno));
-                con->next_reconnect = mstime() + 15000;
-                return NULL;
-            }
-
-            if (con->gai_error) {
-                fprintf(stderr, "%s: Name resolution for %s failed: %s\n", con->service->descr, con->address, gai_strerror(con->gai_error));
-                con->next_reconnect = mstime() + Modes.net_connector_delay;
-                return NULL;
-            }
-
-            con->try_addr = con->addr_info;
-            // SUCCESS!
         }
+
+        // gai request is in progress, let's check if it's done
+
+        pthread_mutex_lock(&con->mutex);
+        if (!con->gai_request_done) {
+            con->next_reconnect = mstime() + 20;
+            pthread_mutex_unlock(&con->mutex);
+            return NULL;
+        }
+        pthread_mutex_unlock(&con->mutex);
+
+        // gai request is done, join the thread that performed it
+        con->gai_request_in_progress = 0;
+
+        if (pthread_join(con->thread, NULL)) {
+            fprintf(stderr, "%s: pthread_join ERROR for %s port %s: %s\n", con->service->descr, con->address, con->port, strerror(errno));
+            con->next_reconnect = mstime() + Modes.net_connector_delay;
+            return NULL;
+        }
+
+        if (con->gai_error) {
+            fprintf(stderr, "%s: Name resolution for %s failed: %s\n", con->service->descr, con->address, gai_strerror(con->gai_error));
+            con->next_reconnect = mstime() + Modes.net_connector_delay;
+            return NULL;
+        }
+
+        // SUCCESS, we got the address info
+        // start with the first element of the linked list
+        con->try_addr = con->addr_info;
     }
 
     getnameinfo(con->try_addr->ai_addr, con->try_addr->ai_addrlen,
@@ -458,7 +462,7 @@ struct client *serviceConnect(struct net_connector *con) {
     if (!con->try_addr->ai_next) {
         con->next_reconnect = mstime() + Modes.net_connector_delay;
     } else {
-        con->next_reconnect = mstime() + 100;
+        con->next_reconnect = mstime() + 20;
     }
 
     if (Modes.debug_net) {
@@ -851,11 +855,11 @@ static void modesCloseClient(struct client *c) {
     }
     if (c->con) {
         // Clean this up and set the next_reconnect timer for another try.
-        // If the connection had been established and the connect didn't fail,
-        // only wait a short time to reconnect
+        // If the connection had been established and didn't fail
+        // in the connection phase, reconnect immediately
         c->con->connecting = 0;
         c->con->connected = 0;
-        c->con->next_reconnect = mstime() + Modes.net_connector_delay / 5;
+        c->con->next_reconnect = mstime();
     }
 
     // mark it as inactive and ready to be freed
