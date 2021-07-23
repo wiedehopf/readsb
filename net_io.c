@@ -1013,8 +1013,8 @@ static inline void flushClient(struct client *c, uint64_t now) {
             perror("epoll_ctl fail:");
     }
 
-    // If writing has failed for longer than 3 * flush_interval, disconnect.
-    uint64_t flushTimeout = max(500, 3 * Modes.net_output_flush_interval);
+    // If writing has failed for longer than 8 * flush_interval, disconnect.
+    uint64_t flushTimeout = max(800, 8 * Modes.net_output_flush_interval);
     if (c->last_flush + flushTimeout < now) {
         fprintf(stderr, "%s: Couldn't flush data for %.2fs (Insufficient bandwidth?): disconnecting: %s port %s (fd %d, SendQ %d)\n", c->service->descr, flushTimeout / 1000.0, c->host, c->port, c->fd, c->sendq_len);
         modesCloseClient(c);
