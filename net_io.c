@@ -2975,8 +2975,9 @@ void modesNetPeriodicWork(void) {
         for (struct net_service *s = Modes.services; s; s = s->next) {
             if (!s->writer)
                 continue;
-            if (s->writer->dataUsed && ((s->writer->lastWrite + Modes.net_output_flush_interval) <= now)) {
+            if (s->writer->dataUsed && now > s->writer->lastWrite + Modes.net_output_flush_interval) {
                 flushWrites(s->writer);
+                //fprintf(stderr, "%s: interval flush\n", s->descr);
             }
         }
     }
