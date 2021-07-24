@@ -2157,13 +2157,10 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
         int bucket = min(PING_BUCKETS - 1, (int) (diff / PING_BUCKETSIZE));
         Modes.stats_current.remote_ping_rtt[bucket]++;
 
-        if (diff < PING_DISCONNECT && mm.cpr_valid) {
-            // don't discard CPRs, if we have better data speed_check generally will take care of delayed CPR messages
-            // this way we get basic data even from high latency receivers
-        } else if (diff > PING_REJECT) {
+        if (diff > PING_REJECT) {
             static uint64_t antiSpam;
-            if (now > antiSpam) {
-                antiSpam = now + 1 * SECONDS;
+            if (now > antiSpam || diff > PING_DISCONNECT) {
+                antiSpam = now + 250; // limit to 4 messages a second
                 char uuid[64]; // needs 36 chars and null byte
                 sprint_uuid(c->receiverId, c->receiverId2, uuid);
                 fprintf(stderr, "reject_delayed:rId %s %2.1f %s\n",
@@ -2173,12 +2170,13 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
             c->rejected_delayed++;
             // discard
             if (diff > PING_DISCONNECT) {
-                return 1; // disconnect the client
-            } else {
-                return 0; // don't disconnect the client
+                return 1; // disconnect the client if the messages are delayed too much
             }
-        } else {
-            //fprintf(stderr, "diff:%u pong:%u current:%u\n", current - pong, pong, current);
+            // don't discard CPRs, if we have better data speed_check generally will take care of delayed CPR messages
+            // this way we get basic data even from high latency receiver
+            if (!mm.cpr_valid) {
+                return 0; // discard
+            }
         }
     }
 
