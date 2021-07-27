@@ -120,7 +120,11 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
     new->track_rate = (int16_t) nearbyint(a->track_rate * 100.0);
     new->roll = (int16_t) nearbyint(a->roll * 100.0);
 
-    new->track = (int16_t) nearbyint(a->track * 90.0);
+    if (trackDataValid(&a->track_valid))
+        new->track = (int16_t) nearbyint(a->track * 90.0);
+    else
+        new->track = (int16_t) nearbyint(a->calc_track * 90.0);
+
     new->mag_heading = (int16_t) nearbyint(a->mag_heading * 90.0);
     new->true_heading = (int16_t) nearbyint(a->true_heading * 90.0);
     new->nav_heading = (int16_t) nearbyint(a->nav_heading * 90.0);
