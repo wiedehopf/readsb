@@ -981,20 +981,29 @@ static void pingSenders(struct net_service *service, uint64_t now) {
 }
 static int pongReceived(struct client *c, uint64_t now) {
     c->pongReceived = now;
+    static uint64_t antiSpam;
 
     // times in milliseconds
+
 
     uint64_t pong = c->pong;
     uint64_t current = now & ((1 << 24) - 1);
     // handle 24 bit overflow by making the 2 numbers comparable
-    if (current < pong)
+    if (current + 60 * SECONDS < pong) {
         current += (1 << 24);
+    } else if (current < pong) {
+        // not sure why current would me smaller than pong ever
+        if (Modes.debug_ping && now > antiSpam) {
+            antiSpam = now + 100;
+            fprintf(stderr, "pongReceived strange: current < pong by %lu\n", (long) (pong - current));
+        }
+    }
 
     c->rtt = current - pong;
 
-    uint32_t bucket = 0;
+    int32_t bucket = 0;
     float bucketsize = PING_BUCKETBASE;
-    uint32_t bucketmax = 0;
+    int32_t bucketmax = 0;
     for (int i = 0; i < PING_BUCKETS; i++) {
         bucketmax += bucketsize;
         bucketmax = nearbyint(bucketmax / 10) * 10;
@@ -1018,12 +1027,11 @@ static int pongReceived(struct client *c, uint64_t now) {
     if (Modes.debug_ping && 0) {
         char uuid[64]; // needs 36 chars and null byte
         sprint_uuid(c->receiverId, c->receiverId2, uuid);
-        fprintf(stderr, "rId %s %d %4.0f %s\n",
-                uuid, c->rtt, c->recent_rtt, c->proxy_string);
+        fprintf(stderr, "rId %s %d %4.0f %s current: %lu pong: %lu\n",
+                uuid, c->rtt, c->recent_rtt, c->proxy_string, (long) current, (long) pong);
     }
 
     if (c->rtt > PING_REJECT) {
-        static uint64_t antiSpam;
         if (now > antiSpam || c->rtt > PING_DISCONNECT) {
             antiSpam = now + 250; // limit to 4 messages a second
             char uuid[64]; // needs 36 chars and null byte
