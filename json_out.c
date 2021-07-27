@@ -2071,7 +2071,7 @@ struct char_buffer generateClientsJson() {
 
             char uuid[64]; // needs 36 chars and null byte
             sprint_uuid(c->receiverId, c->receiverId2, uuid);
-            //fprintf(stderr, "c->receiverId: %016"PRIx64"\n", c->receiverId);
+            //fprintf(stderr, "printing rId %016"PRIx64"%016"PRIx64" %s\n", c->receiverId, c->receiverId2, uuid);
 
             double elapsed = (now - c->connectedSince) / 1000.0;
             p = safe_snprintf(p, end, "[\"%s\",\"%50s\",%6.2f,%6.1f,%8.3f,%7.3f,%2.3f,%4.0f],\n",

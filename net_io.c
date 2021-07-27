@@ -105,7 +105,7 @@ static void autoset_modeac();
 static void *pthreadGetaddrinfo(void *param);
 
 static void flushClient(struct client *c, uint64_t now);
-static void read_uuid(struct client *c, char *p, char *eod);
+static char *read_uuid(struct client *c, char *p, char *eod);
 static void modesReadFromClient(struct client *c, uint64_t start);
 
 //
@@ -2524,7 +2524,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
         c->bytesReceived += nread;
 
         char *som = c->buf; // first byte of next message
-        char *eod = som + c->buflen; // one byte past end of data
+        char *eod = c->buf + c->buflen; // one byte past end of data
         char *p;
         int remote = 1; // Messages will be marked remote by default
         if ((c->fd == Modes.beast_fd) && (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS)) {
@@ -2673,8 +2673,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                 } else if (ch == 0xe4) {
                     // read UUID and continue with next message
                     p++;
-                    read_uuid(c, p, eod);
-                    ++som;
+                    som = read_uuid(c, p, eod);
                     continue;
                 } else if (ch == 'P') {
                     //unsigned char *pu = (unsigned char*) p;
@@ -3199,9 +3198,9 @@ void cleanupNetwork(void) {
 
 }
 
-static void read_uuid(struct client *c, char *p, char *eod) {
+static char *read_uuid(struct client *c, char *p, char *eod) {
     if (c->receiverIdLocked) { // only allow the receiverId to be set once
-        return;
+        return p + 32;
     }
 
     unsigned char ch;
@@ -3211,12 +3210,14 @@ static void read_uuid(struct client *c, char *p, char *eod) {
     // read ascii to binary
     int j = 0;
     for (int i = 0; i < 128 && j < 32; i++) {
-        ch = *p++;
-
-        //fprintf(stderr, "%c", ch);
-        if (p >= eod)
+        if (p >= eod) {
+            fprintf(stderr, "read_uuid() incomplete: eod\n");
             break;
+        }
+        ch = *p++;
+        //fprintf(stderr, "%c", ch);
         if (0x1A == ch) {
+            fprintf(stderr, "read_uuid() incomplete: 0x1a\n");
             break;
         }
         if ('-' == ch || ' ' == ch) {
@@ -3246,11 +3247,10 @@ static void read_uuid(struct client *c, char *p, char *eod) {
         c->receiverId2 = receiverId2;
 
         if (0) {
-            fprintf(stderr, "ADDR %s,%s rId %016"PRIx64" UUID %.*s\n",
-                    c->host, c->port, c->receiverId,
-                    min(eod - start, 36), start);
+            fprintf(stderr, "reading rId %s -> %016"PRIx64"%016"PRIx64"\n", start, c->receiverId, c->receiverId2);
+            fprintf(stderr, "ADDR %s,%s rId %016"PRIx64" UUID %.*s\n", c->host, c->port, c->receiverId, min(eod - start, 36), start);
         }
     }
-    return;
+    return p;
 }
 
