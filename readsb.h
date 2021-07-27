@@ -318,7 +318,6 @@ typedef enum {
 #define RANGEDIRS_BUCKETS 360
 #define RANGEDIRS_HOURS 25
 
-#define PING_TIMEBASE 100 // in milliseconds, this is mostly set in stone for 'p' now ... let's stick with it
 #define PING_REJECT 3.0 // in seconds
 #define PING_DISCONNECT 15.0 // in seconds
 #define PING_BUCKETS 20 // statistics on round trip time
@@ -453,7 +452,7 @@ struct _Modes
     struct net_writer vrs_out; // SBS-format output
     struct net_writer fatsv_out; // FATSV-format output
     struct net_service *beast_in_service;
-    uint16_t currentPing;
+    uint32_t currentPing;
 
     int8_t apiUpdate; // creates json snippets also by non api stuff
     int8_t api; // enable api output

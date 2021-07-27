@@ -115,8 +115,8 @@ struct client
     int sendq_len; // Amount of data in SendQ
     int sendq_max; // Max size of SendQ
     int pingEnabled;
-    uint32_t ping;
-    uint32_t pong;
+    uint32_t ping; // only 24 bit are ever sent
+    uint32_t pong; // only 24 bit are ever sent
     uint64_t pingReceived;
     uint64_t pongReceived;
     uint64_t bytesReceived;

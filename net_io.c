@@ -350,7 +350,7 @@ static void checkServiceConnected(struct net_connector *con) {
             fprintf(stderr, "Use this command to fix: sudo uuidgen > %s\n", Modes.uuidFile);
         }
         // enable ping stuff
-        char signal[3] = { 0x1a, 'W', 'p' };
+        char signal[3] = { 0x1a, 'W', 'P' };
         res = send(c->fd, signal, 3, 0);
         if (res == 3) {
             // whatever
@@ -860,7 +860,7 @@ static void modesCloseClient(struct client *c) {
         return;
     }
     if (Modes.netIngest) {
-        double elapsed = (mstime() - c->connectedSince) / 1000.0;
+        double elapsed = (mstime() - c->connectedSince + 1) / 1000.0;
         double kbitpersecond = c->bytesReceived / 128.0 / elapsed;
 
         char uuid[64]; // needs 36 chars and null byte
@@ -901,10 +901,13 @@ static void modesCloseClient(struct client *c) {
         autoset_modeac();
 }
 
-static inline uint16_t readPingEscaped(char *p) {
+static inline uint32_t readPingEscaped(char *p) {
     unsigned char *pu = (unsigned char *) p;
-    uint16_t res;
-    res = *pu++ << 8;
+    uint32_t res = 0;
+    res += *pu++ << 16;
+    if (*pu == 0x1a)
+        pu++;
+    res += *pu++ << 8;
     if (*pu == 0x1a)
         pu++;
     res += *pu++;
@@ -914,22 +917,29 @@ static inline uint16_t readPingEscaped(char *p) {
         fprintf(stderr, "readPing: %d\n", res);
     return res;
 }
-static inline uint16_t readPing(char *p) {
+static inline uint32_t readPing(char *p) {
     unsigned char *pu = (unsigned char *) p;
-    uint16_t res;
-    res = *pu++ << 8;
+    uint32_t res = 0;
+    res += *pu++ << 16;
+    res += *pu++ << 8;
     res += *pu++;
     if (0 && Modes.debug_ping)
         fprintf(stderr, "readPing: %d\n", res);
     return res;
 }
-static inline void pingClient(struct client *c, uint16_t ping) {
-    if (c->sendq_len + 6 >= c->sendq_max)
+
+static void pingClient(struct client *c, uint32_t ping) {
+    // truncate to 24 bit for clarity
+    ping &= ((1 << 24) - 1);
+    if (c->sendq_len + 8 >= c->sendq_max)
         return;
     char *p = c->sendq + c->sendq_len;
 
     *p++ = 0x1a;
-    *p++ = 'p';
+    *p++ = 'P';
+    *p++ = ping >> 16;
+    if (*(p-1) == 0x1a)
+        *p++ = 0x1a;
     *p++ = ping >> 8;
     if (*(p-1) == 0x1a)
         *p++ = 0x1a;
@@ -941,13 +951,16 @@ static inline void pingClient(struct client *c, uint16_t ping) {
     if (0 && Modes.debug_ping)
         fprintf(stderr, "Sending Ping c: %d\n", ping);
 }
-static void pingReceivers(struct net_service *service, uint64_t now) {
+static void pong(struct client *c, uint64_t now) {
+    pingClient(c, c->ping + (now - c->pingReceived));
+}
+static void pingSenders(struct net_service *service, uint64_t now) {
     if (!Modes.ping)
         return;
-    uint16_t newPing = (uint16_t) (now / PING_TIMEBASE);
+    uint32_t newPing = now & ((1 << 24) - 1);
     // only send a ping every 50th interval or every 5 seconds
     // the respoder will interpolate using the local clock
-    if (newPing >= Modes.currentPing + (5000 / PING_TIMEBASE) || newPing < Modes.currentPing) {
+    if (newPing >= Modes.currentPing + 5000 || newPing < Modes.currentPing) {
         Modes.currentPing = newPing;
         if (Modes.debug_ping)
             fprintf(stderr, "Sending Ping: %d\n", newPing);
@@ -969,21 +982,22 @@ static int pongReceived(struct client *c, uint64_t now) {
     c->pongReceived = now;
 
     double pong = c->pong;
-    double current = ((uint16_t) (now / PING_TIMEBASE)) + (double) (now % PING_TIMEBASE) / PING_TIMEBASE;
-    // handle 16 bit overflow by making the 2 numbers comparable
-    if (current + UINT16_MAX / 2 < pong)
-        current += UINT16_MAX + 1;
+    double current = now & ((1 << 24) - 1);
+    // handle 24 bit overflow by making the 2 numbers comparable
+    if (current < pong)
+        current += (1 << 24);
+
     // translate to seconds
-    current *= PING_TIMEBASE / 1000.0;
-    pong *= PING_TIMEBASE / 1000.0;
+    current /= 1000.0;
+    pong /= 1000.0;
 
-    c->rtt =  current - pong;
+    c->rtt = current - pong;
 
-    int bucket = min(PING_BUCKETS - 1, (int) (c->rtt / PING_BUCKETSIZE));
+    uint32_t bucket = min(PING_BUCKETS - 1, (int) (c->rtt / PING_BUCKETSIZE));
     Modes.stats_current.remote_ping_rtt[bucket]++;
 
     c->recent_rtt = c->recent_rtt * 0.997 +  c->rtt * 0.003;
-    if (Modes.debug_ping && 0) { // for debugging
+    if (Modes.debug_ping && 0) {
         char uuid[64]; // needs 36 chars and null byte
         sprint_uuid(c->receiverId, c->receiverId2, uuid);
         fprintf(stderr, "rId %s %4.0f %4.0f %s\n",
@@ -1078,8 +1092,7 @@ static void flushWrites(struct net_writer *writer) {
             continue;
         if (c->service->writer == writer->service->writer) {
             if (c->pingReceived) {
-                // send pong to data receiver
-                pingClient(c, c->ping + (now - c->pingReceived) / PING_TIMEBASE);
+                pong(c, now);
             }
             if ((c->sendq_len + writer->dataUsed) >= c->sendq_max) {
                 // Too much data in client SendQ.  Drop client - SendQ exceeded.
@@ -2005,7 +2018,7 @@ static void signalNoTimestamps(struct net_writer *writer) {
 static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t now) {
     MODES_NOTUSED(remote);
     MODES_NOTUSED(now);
-    if (p[0] == 'p') {
+    if (p[0] == 'P') {
         // got ping
         c->ping = readPingEscaped(p+1);
         c->pingReceived = now;
@@ -2097,7 +2110,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
     } else if (ch == 'H') {
         decodeHulcMessage(p);
         return 0;
-    } else if (ch == 'p') {
+    } else if (ch == 'P') {
         // pong message
         // only accept pong message if not ingest or client ping "enabled"
         if (!Modes.netIngest || c->pingEnabled) {
@@ -2641,10 +2654,10 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                     read_uuid(c, p, eod);
                     ++som;
                     continue;
-                } else if (ch == 'p') {
+                } else if (ch == 'P') {
                     //unsigned char *pu = (unsigned char*) p;
                     //fprintf(stderr, "%x %x %x %x %x\n", pu[0], pu[1], pu[2], pu[3], pu[4]);
-                    eom = p + 3;
+                    eom = p + 4;
                 } else if (ch == 'W') {
                     // read command
                     p++;
@@ -2653,10 +2666,10 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                         c->noTimestamps = 1;
                         //fprintf(stderr, "source says: timestamps disabled\n");
                     }
-                    if (ch == 'p') {
+                    if (ch == 'P') {
                         // explicitely enable ping for this client
                         c->pingEnabled = 1;
-                        pingClient(c, now / PING_TIMEBASE);
+                        pingClient(c, now);
                         flushClient(c, now);
                     }
                     som += 2;
@@ -2719,7 +2732,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                 if (eom > eod) // Incomplete message in buffer, retry later
                     break;
 
-                if (Modes.receiver_focus && c->receiverId != Modes.receiver_focus && noEscape[0] != 'p') {
+                if (Modes.receiver_focus && c->receiverId != Modes.receiver_focus && noEscape[0] != 'P') {
                     // advance to next message
                     som = eom;
                     continue;
@@ -2769,10 +2782,10 @@ beastWhileBreak:
 
                 if (*p == '1') {
                     eom = p + 2;
-                } else if (*p == 'W') {
+                } else if (*p == 'W') { // W command
                     eom = p + 2;
-                } else if (*p == 'p') {
-                    eom = p + 3;
+                } else if (*p == 'P') { // ping from the receiver
+                    eom = p + 4;
                 } else {
                     // Not a valid beast command, skip 0x1a and try again
                     ++som;
@@ -2979,7 +2992,7 @@ void modesNetPeriodicWork(void) {
         modesNetSecondWork(now);
     }
 
-    pingReceivers(Modes.beast_in_service, now);
+    pingSenders(Modes.beast_in_service, now);
 
     int64_t elapsed2 = stopWatch(&watch);
 
