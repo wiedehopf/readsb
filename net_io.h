@@ -114,9 +114,11 @@ struct client
     char *sendq;  // Write buffer - allocated later
     int sendq_len; // Amount of data in SendQ
     int sendq_max; // Max size of SendQ
-    uint32_t pong;
+    int pingEnabled;
     uint32_t ping;
+    uint32_t pong;
     uint64_t pingReceived;
+    uint64_t pongReceived;
     uint64_t bytesReceived;
     uint64_t receiverId;
     uint64_t receiverId2;

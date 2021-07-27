@@ -324,7 +324,7 @@ static void checkServiceConnected(struct net_connector *con) {
     // sending UUID if hostname matches adsbexchange
     char uuid[130];
     uuid[0] = '\0';
-    if (Modes.debug_ping || (c->sendq && strstr(con->address, "feed.adsbexchange.com"))) {
+    if ((c->sendq && strstr(con->address, "feed.adsbexchange.com")) || Modes.debug_ping) {
         char *sendq = c->sendq;
         int fd = open(Modes.uuidFile, O_RDONLY);
         int res = -1;
@@ -941,7 +941,9 @@ static inline void pingClient(struct client *c, uint16_t ping) {
     if (0 && Modes.debug_ping)
         fprintf(stderr, "Sending Ping c: %d\n", ping);
 }
-static void ping(struct net_service *service, uint64_t now) {
+static void pingReceivers(struct net_service *service, uint64_t now) {
+    if (!Modes.ping)
+        return;
     uint16_t newPing = (uint16_t) (now / PING_TIMEBASE);
     // only send a ping every 50th interval or every 5 seconds
     // the respoder will interpolate using the local clock
@@ -954,9 +956,9 @@ static void ping(struct net_service *service, uint64_t now) {
                 continue;
             // some devices can't deal with any data on the backchannel
             // for the time being only send to receivers that enable it on connect
-            if (Modes.netIngest && !c->ping)
+            if (Modes.netIngest && !c->pingEnabled)
                 continue;
-            if (!c->pong && now > c->connectedSince + 20 * SECONDS)
+            if (!c->pongReceived && now > c->connectedSince + 20 * SECONDS)
                 continue;
             pingClient(c, newPing);
             flushClient(c, now);
@@ -964,7 +966,9 @@ static void ping(struct net_service *service, uint64_t now) {
     }
 }
 static int pongReceived(struct client *c, uint64_t now) {
-    double pong = c->pong - 1;
+    c->pongReceived = now;
+
+    double pong = c->pong;
     double current = ((uint16_t) (now / PING_TIMEBASE)) + (double) (now % PING_TIMEBASE) / PING_TIMEBASE;
     // handle 16 bit overflow by making the 2 numbers comparable
     if (current + UINT16_MAX / 2 < pong)
@@ -979,7 +983,7 @@ static int pongReceived(struct client *c, uint64_t now) {
     Modes.stats_current.remote_ping_rtt[bucket]++;
 
     c->recent_rtt = c->recent_rtt * 0.997 +  c->rtt * 0.003;
-    if (0) { // for debugging
+    if (Modes.debug_ping && 0) { // for debugging
         char uuid[64]; // needs 36 chars and null byte
         sprint_uuid(c->receiverId, c->receiverId2, uuid);
         fprintf(stderr, "rId %s %4.0f %4.0f %s\n",
@@ -1073,8 +1077,9 @@ static void flushWrites(struct net_writer *writer) {
         if (!c->service)
             continue;
         if (c->service->writer == writer->service->writer) {
-            if (c->ping && c->pingReceived) {
-                pingClient(c, c->ping - 1 + (now - c->pingReceived) / PING_TIMEBASE);
+            if (c->pingReceived) {
+                // send pong to data receiver
+                pingClient(c, c->ping + (now - c->pingReceived) / PING_TIMEBASE);
             }
             if ((c->sendq_len + writer->dataUsed) >= c->sendq_max) {
                 // Too much data in client SendQ.  Drop client - SendQ exceeded.
@@ -2002,10 +2007,10 @@ static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t no
     MODES_NOTUSED(now);
     if (p[0] == 'p') {
         // got ping
-        c->ping = readPingEscaped(p+1) + 1;
+        c->ping = readPingEscaped(p+1);
         c->pingReceived = now;
-        if (Modes.debug_ping)
-            fprintf(stderr, "Got Ping: %d\n", c->ping - 1);
+        if (0 && Modes.debug_ping)
+            fprintf(stderr, "Got Ping: %d\n", c->ping);
     } else if (p[0] == '1') {
         switch (p[1]) {
             case 'j':
@@ -2095,8 +2100,8 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
     } else if (ch == 'p') {
         // pong message
         // only accept pong message if not ingest or client ping "enabled"
-        if (!Modes.netIngest || c->ping) {
-            c->pong = readPing(p) + 1;
+        if (!Modes.netIngest || c->pingEnabled) {
+            c->pong = readPing(p);
             return pongReceived(c, now);
         }
         return 0;
@@ -2181,7 +2186,11 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
             }
         }
     }
-    if (c->rtt && c->rtt > PING_REJECT) {
+    if (c->pongReceived && c->pongReceived > now + 100) {
+        // if messages are received with more than 100 ms delay after a pong, recalculate c->rtt
+        pongReceived(c, now);
+    }
+    if (c->rtt && c->rtt > PING_REJECT && Modes.netIngest) {
         // don't discard CPRs, if we have better data speed_check generally will take care of delayed CPR messages
         // this way we get basic data even from high latency receivers
         // super high latency receivers are getting disconnected in pongReceived()
@@ -2644,15 +2653,9 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                         c->noTimestamps = 1;
                         //fprintf(stderr, "source says: timestamps disabled\n");
                     }
-                    if (ch == 'p' && Modes.ping) {
+                    if (ch == 'p') {
                         // explicitely enable ping for this client
-                        if (Modes.debug_ping) {
-                            char uuid[64]; // needs 36 chars and null byte
-                            sprint_uuid(c->receiverId, c->receiverId2, uuid);
-                            fprintf(stderr, "eping  rId %s %50s\n",
-                                    uuid, c->proxy_string);
-                        }
-                        c->ping = 1;
+                        c->pingEnabled = 1;
                         pingClient(c, now / PING_TIMEBASE);
                         flushClient(c, now);
                     }
@@ -2955,7 +2958,7 @@ void modesNetPeriodicWork(void) {
 
     // we only wait here in net-only mode
     int count = epoll_wait(Modes.net_epfd, Modes.net_events, Modes.net_maxEvents,
-            Modes.net_only ? Modes.net_output_flush_interval / 2 : 0);
+            Modes.net_output_flush_interval / 2);
 
     int64_t interval = stopWatch(&watch);
 
@@ -2976,15 +2979,13 @@ void modesNetPeriodicWork(void) {
         modesNetSecondWork(now);
     }
 
-    if (Modes.ping) {
-        ping(Modes.beast_in_service, now);
-    }
+    pingReceivers(Modes.beast_in_service, now);
 
     int64_t elapsed2 = stopWatch(&watch);
 
     static uint64_t next_flush_interval;
     if (now > next_flush_interval) {
-        next_flush_interval = now + Modes.net_output_flush_interval / 2;
+        next_flush_interval = now + Modes.net_output_flush_interval / 4;
         serviceReconnectCallback(now);
         // If we have data that has been waiting to be written for a while,
         // write it now.
