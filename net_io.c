@@ -1028,11 +1028,11 @@ static int pongReceived(struct client *c, uint64_t now) {
             antiSpam = now + 250; // limit to 4 messages a second
             char uuid[64]; // needs 36 chars and null byte
             sprint_uuid(c->receiverId, c->receiverId2, uuid);
-            fprintf(stderr, "reject_delay: rId %s %6.0f ms %s\n",
-                    uuid, c->rtt * 1000.0, c->proxy_string);
+            fprintf(stderr, "reject_delay: rId %s %6.0f ms %s pong: %u\n",
+                    uuid, c->rtt * 1000.0, c->proxy_string, c->pong);
         }
     }
-    if (c->rtt > PING_DISCONNECT) {
+    if (Modes.netIngest && c->rtt > PING_DISCONNECT) {
         return 1; // disconnect the client if the messages are delayed too much
     }
     return 0;
@@ -2587,10 +2587,6 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                     else
                         fprintf(stderr, "Garbage: Close: %s port %s sample: %s\n", c->host, c->port, sample);
                 }
-                modesCloseClient(c);
-                return;
-            }
-            if (c->rejected_delayed > 60 * 1000) {
                 modesCloseClient(c);
                 return;
             }
