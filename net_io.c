@@ -324,7 +324,7 @@ static void checkServiceConnected(struct net_connector *con) {
     // sending UUID if hostname matches adsbexchange
     char uuid[130];
     uuid[0] = '\0';
-    if (c->sendq && strstr(con->address, "feed.adsbexchange.com")) {
+    if (Modes.debug_ping || (c->sendq && strstr(con->address, "feed.adsbexchange.com"))) {
         char *sendq = c->sendq;
         int fd = open(Modes.uuidFile, O_RDONLY);
         int res = -1;
@@ -865,7 +865,7 @@ static void modesCloseClient(struct client *c) {
 
         char uuid[64]; // needs 36 chars and null byte
         sprint_uuid(c->receiverId, c->receiverId2, uuid);
-        fprintf(stderr, "disc: rId %s %50s %6.2f kbit/s for %6.1f s\n",
+        fprintf(stderr, "disconnected: rId %s %50s %6.2f kbit/s for %6.1f s\n",
                 uuid, c->proxy_string, kbitpersecond, elapsed);
     }
     epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, c->fd, &c->epollEvent);
@@ -953,7 +953,7 @@ static void ping(struct net_service *service, uint64_t now) {
             if (!c->service)
                 continue;
             // some devices can't deal with any data on the backchannel
-            // for the time being only send to receivers that send their UUID
+            // for the time being only send to receivers that enable it on connect
             if (Modes.netIngest && !c->ping)
                 continue;
             if (!c->pong && now > c->connectedSince + 20 * SECONDS)
@@ -962,6 +962,44 @@ static void ping(struct net_service *service, uint64_t now) {
             flushClient(c, now);
         }
     }
+}
+static int pongReceived(struct client *c, uint64_t now) {
+    double pong = c->pong - 1;
+    double current = ((uint16_t) (now / PING_TIMEBASE)) + (double) (now % PING_TIMEBASE) / PING_TIMEBASE;
+    // handle 16 bit overflow by making the 2 numbers comparable
+    if (current + UINT16_MAX / 2 < pong)
+        current += UINT16_MAX + 1;
+    // translate to seconds
+    current *= PING_TIMEBASE / 1000.0;
+    pong *= PING_TIMEBASE / 1000.0;
+
+    c->rtt =  current - pong;
+
+    int bucket = min(PING_BUCKETS - 1, (int) (c->rtt / PING_BUCKETSIZE));
+    Modes.stats_current.remote_ping_rtt[bucket]++;
+
+    c->recent_rtt = c->recent_rtt * 0.997 +  c->rtt * 0.003;
+    if (0) { // for debugging
+        char uuid[64]; // needs 36 chars and null byte
+        sprint_uuid(c->receiverId, c->receiverId2, uuid);
+        fprintf(stderr, "rId %s %4.0f %4.0f %s\n",
+                uuid, c->rtt * 1000.0, c->recent_rtt * 1000.0, c->proxy_string);
+    }
+
+    if (c->rtt > PING_REJECT) {
+        static uint64_t antiSpam;
+        if (now > antiSpam || c->rtt > PING_DISCONNECT) {
+            antiSpam = now + 250; // limit to 4 messages a second
+            char uuid[64]; // needs 36 chars and null byte
+            sprint_uuid(c->receiverId, c->receiverId2, uuid);
+            fprintf(stderr, "reject_delay: rId %s %6.0f ms %s\n",
+                    uuid, c->rtt * 1000.0, c->proxy_string);
+        }
+    }
+    if (c->rtt > PING_DISCONNECT) {
+        return 1; // disconnect the client if the messages are delayed too much
+    }
+    return 0;
 }
 
 
@@ -2059,6 +2097,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
         // only accept pong message if not ingest or client ping "enabled"
         if (!Modes.netIngest || c->ping) {
             c->pong = readPing(p) + 1;
+            return pongReceived(c, now);
         }
         return 0;
     } else {
@@ -2142,41 +2181,14 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
             }
         }
     }
-    if (Modes.ping && c->pong) {
-        float pong = c->pong - 1;
-        float current = ((uint16_t) (now / PING_TIMEBASE)) + (float) (now % PING_TIMEBASE) / PING_TIMEBASE;
-        // handle 16 bit overflow by making the 2 numbers comparable
-        if (current + UINT16_MAX / 2 < pong)
-            current += UINT16_MAX + 1;
-        // translate to seconds
-        current *= PING_TIMEBASE / 1000.0;
-        pong *= PING_TIMEBASE / 1000.0;
-
-        float diff = current - pong;
-
-        int bucket = min(PING_BUCKETS - 1, (int) (diff / PING_BUCKETSIZE));
-        Modes.stats_current.remote_ping_rtt[bucket]++;
-
-        if (diff > PING_REJECT) {
-            static uint64_t antiSpam;
-            if (now > antiSpam || diff > PING_DISCONNECT) {
-                antiSpam = now + 250; // limit to 4 messages a second
-                char uuid[64]; // needs 36 chars and null byte
-                sprint_uuid(c->receiverId, c->receiverId2, uuid);
-                fprintf(stderr, "reject_delayed:rId %s %2.1f %s\n",
-                        uuid, diff, c->proxy_string);
-            }
+    if (c->rtt && c->rtt > PING_REJECT) {
+        // don't discard CPRs, if we have better data speed_check generally will take care of delayed CPR messages
+        // this way we get basic data even from high latency receivers
+        // super high latency receivers are getting disconnected in pongReceived()
+        if (!mm.cpr_valid) {
             Modes.stats_current.remote_rejected_delayed++;
             c->rejected_delayed++;
-            // discard
-            if (diff > PING_DISCONNECT) {
-                return 1; // disconnect the client if the messages are delayed too much
-            }
-            // don't discard CPRs, if we have better data speed_check generally will take care of delayed CPR messages
-            // this way we get basic data even from high latency receiver
-            if (!mm.cpr_valid) {
-                return 0; // discard
-            }
+            return 0; // discard
         }
     }
 
@@ -2634,6 +2646,12 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                     }
                     if (ch == 'p' && Modes.ping) {
                         // explicitely enable ping for this client
+                        if (Modes.debug_ping) {
+                            char uuid[64]; // needs 36 chars and null byte
+                            sprint_uuid(c->receiverId, c->receiverId2, uuid);
+                            fprintf(stderr, "eping  rId %s %50s\n",
+                                    uuid, c->proxy_string);
+                        }
                         c->ping = 1;
                         pingClient(c, now / PING_TIMEBASE);
                         flushClient(c, now);
@@ -2808,7 +2826,7 @@ beastWhileBreak:
             if (Modes.netIngest && (Modes.debug_net)) {
                 char uuid[64]; // needs 36 chars and null byte
                 sprint_uuid(c->receiverId, c->receiverId2, uuid);
-                fprintf(stderr, "new c rId %s %50s\n",
+                fprintf(stderr, "new client:   rId %s %50s\n",
                         uuid, c->proxy_string);
             }
         }

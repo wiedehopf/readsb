@@ -751,7 +751,7 @@ struct char_buffer generatePromFile() {
 
     if (Modes.ping) {
         for (int i = 0; i < PING_BUCKETS; i++) {
-            p = safe_snprintf(p, end, "readsb_network_messages_rtt_%d %u\n", (int)((i+1) * PING_BUCKETSIZE * 1000), st->remote_ping_rtt[i]);
+            p = safe_snprintf(p, end, "readsb_network_packets_rtt_%d %u\n", (int)((i+1) * PING_BUCKETSIZE * 1000), st->remote_ping_rtt[i]);
         }
     }
 

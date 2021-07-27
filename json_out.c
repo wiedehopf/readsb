@@ -2049,7 +2049,7 @@ struct char_buffer generateClientsJson() {
     p = safe_snprintf(p, end, "{ \"now\" : %.1f,\n", now / 1000.0);
     p = safe_snprintf(p, end, "  \"format\" : "
             "[ \"receiverId\", \"host:port\", \"avg. kbit/s\", \"conn time(s)\","
-            " \"messages/s\", \"positions/s\", \"rejected_delayed_percent\" ],\n");
+            " \"messages/s\", \"positions/s\", \"rejected_delayed_percent\", \"recent_rtt(ms)\" ],\n");
 
     p = safe_snprintf(p, end, "  \"clients\" : [\n");
 
@@ -2074,14 +2074,15 @@ struct char_buffer generateClientsJson() {
             //fprintf(stderr, "c->receiverId: %016"PRIx64"\n", c->receiverId);
 
             double elapsed = (now - c->connectedSince) / 1000.0;
-            p = safe_snprintf(p, end, "[\"%s\",\"%50s\",%6.2f,%6.1f,%8.3f,%7.3f,%2.3f],\n",
+            p = safe_snprintf(p, end, "[\"%s\",\"%50s\",%6.2f,%6.1f,%8.3f,%7.3f,%2.3f,%4d],\n",
                     uuid,
                     c->proxy_string,
                     c->bytesReceived / 128.0 / elapsed,
                     elapsed,
                     (double) c->messageCounter / elapsed,
                     (double) c->positionCounter / elapsed,
-                    (double) c->rejected_delayed / (c->messageCounter + 0.00000001));
+                    (double) c->rejected_delayed / (c->messageCounter + 0.00000001),
+                    (int) (c->recent_rtt * 1000));
 
 
             if (p >= end)

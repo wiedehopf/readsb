@@ -128,6 +128,12 @@ struct client
     uint64_t positionCounter; // counter for incoming data
     uint64_t garbage; // amount of garbage we have received from this client
     uint64_t rejected_delayed;
+    double rtt; // last reported rtt in seconds
+    // crude IIR pseudo rolling average, old value factor 0.997
+    // cumulative weigth of last 100 packets is 0.26
+    // cumulative weigth of last 300 packets is 0.59
+    // cumulative weigth of last 600 packets is 0.84
+    double recent_rtt;
     struct epoll_event epollEvent;
     struct net_connector *con;
     int8_t noTimestamps;
