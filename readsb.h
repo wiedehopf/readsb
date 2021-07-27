@@ -601,8 +601,6 @@ struct _Modes
     struct timespec reader_cpu_accumulator; // CPU time used by the reader thread, copied out and reset by the main thread under the mutex
     struct mag_buf mag_buffers[MODES_MAG_BUFFERS]; // Converted magnitude buffers from RTL or file input
 
-    struct aircraft *scratch;
-
     uint64_t startup_time;
     uint64_t next_stats_update;
     uint64_t next_stats_display;
@@ -764,6 +762,9 @@ struct modesMessage
     double decoded_lon;
     unsigned decoded_nic;
     unsigned decoded_rc;
+
+    double distance_traveled; // set in speed_check, zero is invalid
+    float calculated_track; // set in speed_check, -1 is invalid
 
     commb_format_t commb_format; // Inferred format of a comm-b message
 

@@ -172,7 +172,6 @@ static void modesInitConfig(void) {
         reset_stats(&Modes.stats_10[i]);
     }
     //receiverTest();
-    Modes.scratch = malloc(sizeof(struct aircraft));
 }
 //
 //=========================================================================
@@ -806,7 +805,6 @@ static void cleanup_and_exit(int code) {
     geomag_destroy();
     interactiveCleanup();
     cleanup_globe_index();
-    sfree(Modes.scratch);
     sfree(Modes.dev_name);
     sfree(Modes.filename);
     sfree(Modes.prom_file);
