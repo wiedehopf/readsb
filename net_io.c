@@ -350,7 +350,8 @@ static void checkServiceConnected(struct net_connector *con) {
             fprintf(stderr, "Use this command to fix: sudo uuidgen > %s\n", Modes.uuidFile);
         }
         // enable ping stuff
-        char signal[3] = { 0x1a, 'W', 'P' };
+        // O for high resolution timer, both P and p already used for previous iterations
+        char signal[3] = { 0x1a, 'W', 'O' };
         res = send(c->fd, signal, 3, 0);
         if (res == 3) {
             // whatever
@@ -2677,7 +2678,8 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                         c->noTimestamps = 1;
                         //fprintf(stderr, "source says: timestamps disabled\n");
                     }
-                    if (ch == 'P') {
+                    if (ch == 'O') {
+                        // O for high resolution timer, both P and p already used for previous iterations
                         // explicitely enable ping for this client
                         c->pingEnabled = 1;
                         pingClient(c, now);
