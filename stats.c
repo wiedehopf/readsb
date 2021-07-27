@@ -750,8 +750,13 @@ struct char_buffer generatePromFile() {
     p = safe_snprintf(p, end, "readsb_network_malformed_beast_bytes %u\n", st->remote_malformed_beast);
 
     if (Modes.ping) {
+        float bucketsize = PING_BUCKETBASE;
+        float bucketmax = 0;
         for (int i = 0; i < PING_BUCKETS; i++) {
-            p = safe_snprintf(p, end, "readsb_network_packets_rtt_%d %u\n", (int)((i+1) * PING_BUCKETSIZE * 1000), st->remote_ping_rtt[i]);
+            bucketmax += bucketsize;
+            bucketmax = nearbyint(bucketmax / 10) * 10;
+            bucketsize *= PING_BUCKETMULT;
+            p = safe_snprintf(p, end, "readsb_network_packets_rtt_%d %u\n", (int) bucketmax, st->remote_ping_rtt[i]);
         }
     }
 

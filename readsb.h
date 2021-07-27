@@ -321,7 +321,8 @@ typedef enum {
 #define PING_REJECT 3.0 // in seconds
 #define PING_DISCONNECT 15.0 // in seconds
 #define PING_BUCKETS 20 // statistics on round trip time
-#define PING_BUCKETSIZE (0.2) // statistics on round trip time
+#define PING_BUCKETBASE (24)
+#define PING_BUCKETMULT (1.2)
 
 // Include subheaders after all the #defines are in place
 

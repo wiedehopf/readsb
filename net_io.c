@@ -993,7 +993,18 @@ static int pongReceived(struct client *c, uint64_t now) {
 
     c->rtt = current - pong;
 
-    uint32_t bucket = min(PING_BUCKETS - 1, (int) (c->rtt / PING_BUCKETSIZE));
+    uint32_t bucket = 0;
+    float bucketsize = PING_BUCKETBASE;
+    float bucketmax = 0;
+    for (int i = 0; i < PING_BUCKETS; i++) {
+        bucketmax += bucketsize;
+        bucketmax = nearbyint(bucketmax / 10) * 10;
+        bucketsize *= PING_BUCKETMULT;
+        if (c->rtt < bucketmax) {
+            bucket = i;
+            break;
+        }
+    }
     Modes.stats_current.remote_ping_rtt[bucket]++;
 
     c->recent_rtt = c->recent_rtt * 0.997 +  c->rtt * 0.003;
