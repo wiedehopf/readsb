@@ -318,11 +318,11 @@ typedef enum {
 #define RANGEDIRS_BUCKETS 360
 #define RANGEDIRS_HOURS 25
 
-#define PING_REJECT 3.0 // in seconds
-#define PING_DISCONNECT 15.0 // in seconds
+#define PING_REJECT (3 * SECONDS)
+#define PING_DISCONNECT (15 * SECONDS)
 #define PING_BUCKETS 20 // statistics on round trip time
-#define PING_BUCKETBASE (24)
-#define PING_BUCKETMULT (1.2)
+#define PING_BUCKETBASE (24) // milliseconds of first bucket
+#define PING_BUCKETMULT (1.2) // each bucket will grow by that factor
 
 // Include subheaders after all the #defines are in place
 

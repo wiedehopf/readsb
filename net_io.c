@@ -982,21 +982,19 @@ static void pingSenders(struct net_service *service, uint64_t now) {
 static int pongReceived(struct client *c, uint64_t now) {
     c->pongReceived = now;
 
-    double pong = c->pong;
-    double current = now & ((1 << 24) - 1);
+    // times in milliseconds
+
+    uint64_t pong = c->pong;
+    uint64_t current = now & ((1 << 24) - 1);
     // handle 24 bit overflow by making the 2 numbers comparable
     if (current < pong)
         current += (1 << 24);
-
-    // translate to seconds
-    current /= 1000.0;
-    pong /= 1000.0;
 
     c->rtt = current - pong;
 
     uint32_t bucket = 0;
     float bucketsize = PING_BUCKETBASE;
-    float bucketmax = 0;
+    uint32_t bucketmax = 0;
     for (int i = 0; i < PING_BUCKETS; i++) {
         bucketmax += bucketsize;
         bucketmax = nearbyint(bucketmax / 10) * 10;
@@ -1008,12 +1006,20 @@ static int pongReceived(struct client *c, uint64_t now) {
     }
     Modes.stats_current.remote_ping_rtt[bucket]++;
 
-    c->recent_rtt = c->recent_rtt * 0.997 +  c->rtt * 0.003;
+    // more quickly arrive at a sensible average
+    if (c->recent_rtt <= 0) {
+        c->recent_rtt = c->rtt;
+    } else if (c->bytesReceived < 5000) {
+        c->recent_rtt = c->recent_rtt * 0.9 +  c->rtt * 0.1;
+    } else {
+        c->recent_rtt = c->recent_rtt * 0.997 +  c->rtt * 0.003;
+    }
+
     if (Modes.debug_ping && 0) {
         char uuid[64]; // needs 36 chars and null byte
         sprint_uuid(c->receiverId, c->receiverId2, uuid);
-        fprintf(stderr, "rId %s %4.0f %4.0f %s\n",
-                uuid, c->rtt * 1000.0, c->recent_rtt * 1000.0, c->proxy_string);
+        fprintf(stderr, "rId %s %d %4.0f %s\n",
+                uuid, c->rtt, c->recent_rtt, c->proxy_string);
     }
 
     if (c->rtt > PING_REJECT) {

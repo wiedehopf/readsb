@@ -2082,7 +2082,7 @@ struct char_buffer generateClientsJson() {
                     (double) c->messageCounter / elapsed,
                     (double) c->positionCounter / elapsed,
                     (double) c->rejected_delayed / (c->messageCounter + 0.00000001),
-                    (int) (c->recent_rtt * 1000));
+                    (int) c->recent_rtt);
 
 
             if (p >= end)
