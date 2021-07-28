@@ -1043,11 +1043,18 @@ static int pongReceived(struct client *c, uint64_t now) {
             antiSpam = now + 250; // limit to 4 messages a second
             char uuid[64]; // needs 36 chars and null byte
             sprint_uuid(c->receiverId, c->receiverId2, uuid);
-            fprintf(stderr, "reject_delay: rId %s %6.0f ms %s pong: %u\n",
-                    uuid, c->rtt * 1000.0, c->proxy_string, c->pong);
+            fprintf(stderr, "reject_delay: rId %s %6d ms / %6.0f ms %s\n",
+                    uuid, c->rtt, c->recent_rtt, c->proxy_string);
         }
     }
     if (c->rtt > PING_REJECT / 2) {
+        if (now > antiSpam) {
+            antiSpam = now + 250; // limit to 4 messages a second
+            char uuid[64]; // needs 36 chars and null byte
+            sprint_uuid(c->receiverId, c->receiverId2, uuid);
+            fprintf(stderr, "reduce_signal rId %s %6d ms / %6.0f ms %s\n",
+                    uuid, c->rtt, c->recent_rtt, c->proxy_string);
+        }
         // tell the client to slow down via beast command
         // misuse pingReceived as a timeout variable
         if (c->pingReceived < now) {

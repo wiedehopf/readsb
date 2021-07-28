@@ -2049,7 +2049,7 @@ struct char_buffer generateClientsJson() {
     p = safe_snprintf(p, end, "{ \"now\" : %.1f,\n", now / 1000.0);
     p = safe_snprintf(p, end, "  \"format\" : "
             "[ \"receiverId\", \"host:port\", \"avg. kbit/s\", \"conn time(s)\","
-            " \"messages/s\", \"positions/s\", \"rejected_delayed_percent\", \"recent_rtt(ms)\" ],\n");
+            " \"messages/s\", \"positions/s\", \"reduce_signal\", \"recent_rtt(ms)\" ],\n");
 
     p = safe_snprintf(p, end, "  \"clients\" : [\n");
 
@@ -2073,15 +2073,16 @@ struct char_buffer generateClientsJson() {
             sprint_uuid(c->receiverId, c->receiverId2, uuid);
             //fprintf(stderr, "printing rId %016"PRIx64"%016"PRIx64" %s\n", c->receiverId, c->receiverId2, uuid);
 
+            int reduce_signaled = c->service->writer == &Modes.beast_in && c->pingReceived + 45 * SECONDS > now;
             double elapsed = (now - c->connectedSince) / 1000.0;
-            p = safe_snprintf(p, end, "[\"%s\",\"%50s\",%6.2f,%6.0f,%8.3f,%7.3f,%5.3f,%4.0f],\n",
+            p = safe_snprintf(p, end, "[\"%s\",\"%50s\",%6.2f,%6.0f,%8.3f,%7.3f,%2d,%5.0f],\n",
                     uuid,
                     c->proxy_string,
                     c->bytesReceived / 128.0 / elapsed,
                     elapsed,
                     (double) c->messageCounter / elapsed,
                     (double) c->positionCounter / elapsed,
-                    (double) c->rejected_delayed / (c->messageCounter + 0.00000001),
+                    reduce_signaled,
                     c->recent_rtt);
 
 
