@@ -2074,7 +2074,7 @@ struct char_buffer generateClientsJson() {
             //fprintf(stderr, "printing rId %016"PRIx64"%016"PRIx64" %s\n", c->receiverId, c->receiverId2, uuid);
 
             double elapsed = (now - c->connectedSince) / 1000.0;
-            p = safe_snprintf(p, end, "[\"%s\",\"%50s\",%6.2f,%6.1f,%8.3f,%7.3f,%2.3f,%4.0f],\n",
+            p = safe_snprintf(p, end, "[\"%s\",\"%50s\",%6.2f,%6.0f,%8.3f,%7.3f,%5.3f,%4.0f],\n",
                     uuid,
                     c->proxy_string,
                     c->bytesReceived / 128.0 / elapsed,

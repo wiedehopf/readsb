@@ -99,14 +99,18 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
     d->updated = now;
     d->stale = 0;
 
+    uint64_t reduceInterval = Modes.net_output_beast_reduce_interval;
+    if (Modes.doubleBeastReduceIntervalUntil > now) {
+        reduceInterval *= 2;
+    }
     if (now > d->next_reduce_forward && !mm->sbs_in) {
-        d->next_reduce_forward = now + Modes.net_output_beast_reduce_interval * 4;
+        d->next_reduce_forward = now + reduceInterval * 4;
         if (reduce_often == 1)
-            d->next_reduce_forward = now + Modes.net_output_beast_reduce_interval;
+            d->next_reduce_forward = now + reduceInterval;
         if (reduce_often == 2)
-            d->next_reduce_forward = now + Modes.net_output_beast_reduce_interval / 2;
+            d->next_reduce_forward = now + reduceInterval / 2;
         // make sure global CPR stays possible even at high interval:
-        if (Modes.net_output_beast_reduce_interval > 7000 && mm->cpr_valid) {
+        if (reduceInterval > 7000 && mm->cpr_valid) {
             d->next_reduce_forward = now + 7000;
         }
         mm->reduce_forward = 1;

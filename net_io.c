@@ -324,8 +324,8 @@ static void checkServiceConnected(struct net_connector *con) {
     // sending UUID if hostname matches adsbexchange
     char uuid[130];
     uuid[0] = '\0';
-    if ((c->sendq && strstr(con->address, "feed.adsbexchange.com")) || Modes.debug_ping) {
-        char *sendq = c->sendq;
+    if ((c->sendq && c->sendq_len + 256 < c->sendq_max)
+                && (strstr(con->address, "feed.adsbexchange.com") || Modes.debug_ping)) {
         int fd = open(Modes.uuidFile, O_RDONLY);
         int res = -1;
         if (fd != -1) {
@@ -339,23 +339,22 @@ static void checkServiceConnected(struct net_connector *con) {
             }
             uuid[res] = '\0';
 
-            sendq[0] = 0x1A;
-            sendq[1] = 0xE4;
-            strncpy(c->sendq + 2, uuid, res);
-            c->sendq_len = res + 2;
-            flushClient(c, mstime());
+            c->sendq[c->sendq_len++] = 0x1A;
+            c->sendq[c->sendq_len++] = 0xE4;
+            strncpy(c->sendq + c->sendq_len, uuid, res);
+            c->sendq_len += res;
         } else {
             uuid[0] = '\0';
             fprintf(stderr, "ERROR: Not a valid UUID: %s\n", Modes.uuidFile);
             fprintf(stderr, "Use this command to fix: sudo uuidgen > %s\n", Modes.uuidFile);
         }
+
         // enable ping stuff
         // O for high resolution timer, both P and p already used for previous iterations
-        char signal[3] = { 0x1a, 'W', 'O' };
-        res = send(c->fd, signal, 3, 0);
-        if (res == 3) {
-            // whatever
-        }
+        c->sendq[c->sendq_len++] = 0x1a;
+        c->sendq[c->sendq_len++] = 'W';
+        c->sendq[c->sendq_len++] = 'O';
+        flushClient(c, mstime());
     }
     if (!Modes.interactive) {
         if (uuid[0]) {
@@ -1039,6 +1038,18 @@ static int pongReceived(struct client *c, uint64_t now) {
             fprintf(stderr, "reject_delay: rId %s %6.0f ms %s pong: %u\n",
                     uuid, c->rtt * 1000.0, c->proxy_string, c->pong);
         }
+
+        // tell the client to slow down via beast command
+        // abuse pingReceived to not tell them too often
+        if (c->pingReceived < now) {
+            if (c->sendq_len + 3 < c->sendq_max) {
+                c->sendq[c->sendq_len++] = 0x1a;
+                c->sendq[c->sendq_len++] = 'W';
+                c->sendq[c->sendq_len++] = 'S';
+                c->pingReceived = now + 15 * SECONDS;
+            }
+            flushClient(c, now);
+        }
     }
     if (Modes.netIngest && c->rtt > PING_DISCONNECT) {
         return 1; // disconnect the client if the messages are delayed too much
@@ -1117,7 +1128,7 @@ static void flushWrites(struct net_writer *writer) {
         if (!c->service)
             continue;
         if (c->service->writer == writer->service->writer) {
-            if (c->pingReceived) {
+            if (c->pingEnabled) {
                 pong(c, now);
             }
             if ((c->sendq_len + writer->dataUsed) >= c->sendq_max) {
@@ -2048,6 +2059,7 @@ static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t no
         // got ping
         c->ping = readPingEscaped(p+1);
         c->pingReceived = now;
+        c->pingEnabled = 1;
         if (0 && Modes.debug_ping)
             fprintf(stderr, "Got Ping: %d\n", c->ping);
     } else if (p[0] == '1') {
@@ -2071,7 +2083,11 @@ static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t no
                 break;
             case 'T':
                 break;
-
+            // reduce data rate, double beast reduce interval for 30 seconds
+            case 'S':
+                Modes.doubleBeastReduceIntervalUntil = now + 30 * SECONDS;
+                fprintf(stderr, "%s: High latency, reducing data usage temporarily.\n", c->service->descr);
+                break;
         }
     }
     return 0;
