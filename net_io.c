@@ -209,6 +209,8 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     c->receiverId2 = 0;
     c->receiverIdLocked = 0;
 
+    c->recent_rtt = -1;
+
     //fprintf(stderr, "c->receiverId: %016"PRIx64"\n", c->receiverId);
 
     if (service->writer) {
@@ -930,20 +932,20 @@ static inline uint32_t readPing(char *p) {
 
 static void pingClient(struct client *c, uint32_t ping) {
     // truncate to 24 bit for clarity
-    ping &= ((1 << 24) - 1);
+    ping = ping & ((1 << 24) - 1);
     if (c->sendq_len + 8 >= c->sendq_max)
         return;
     char *p = c->sendq + c->sendq_len;
 
     *p++ = 0x1a;
     *p++ = 'P';
-    *p++ = ping >> 16;
+    *p++ = (uint8_t) (ping >> 16);
     if (*(p-1) == 0x1a)
         *p++ = 0x1a;
-    *p++ = ping >> 8;
+    *p++ = (uint8_t) (ping >> 8);
     if (*(p-1) == 0x1a)
         *p++ = 0x1a;
-    *p++ = (uint8_t) ping;
+    *p++ = (uint8_t) (ping >> 0);
     if (*(p-1) == 0x1a)
         *p++ = 0x1a;
 
@@ -952,6 +954,8 @@ static void pingClient(struct client *c, uint32_t ping) {
         fprintf(stderr, "Sending Ping c: %d\n", ping);
 }
 static void pong(struct client *c, uint64_t now) {
+    if (now < c->pingReceived)
+        fprintf(stderr, "WAT?! now < c->pingReceived\n");
     pingClient(c, c->ping + (now - c->pingReceived));
 }
 static void pingSenders(struct net_service *service, uint64_t now) {
@@ -988,11 +992,15 @@ static int pongReceived(struct client *c, uint64_t now) {
     uint64_t pong = c->pong;
     uint64_t current = now & ((1 << 24) - 1);
     // handle 24 bit overflow by making the 2 numbers comparable
-    if (current + 60 * SECONDS < pong) {
+    if (current + 1 * SECONDS < pong) {
         current += (1 << 24);
     } else if (current < pong) {
-        // not sure why current would me smaller than pong ever
-        if (Modes.debug_ping && now > antiSpam) {
+        // even without overflow, current can be smaller than pong due to
+        // the other clock ticking up a ms just after receiving the ping (with sub ms latency)
+        // but this clock ticked up just before sending the ping
+        // other clock anomalies can make this happen as well,
+        // even when debugging let's not log it unless the it's more than 3 ms
+        if (Modes.debug_ping && pong - current > 3 && now > antiSpam) {
             antiSpam = now + 100;
             fprintf(stderr, "pongReceived strange: current < pong by %lu\n", (long) (pong - current));
         }
@@ -2707,7 +2715,10 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                         // O for high resolution timer, both P and p already used for previous iterations
                         // explicitely enable ping for this client
                         c->pingEnabled = 1;
-                        pingClient(c, now);
+                        uint32_t newPing = now & ((1 << 24) - 1);
+                        if (Modes.debug_ping)
+                            fprintf(stderr, "Initial Ping: %d\n", newPing);
+                        pingClient(c, newPing);
                         flushClient(c, now);
                     }
                     som += 2;
