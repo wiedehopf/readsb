@@ -1046,9 +1046,10 @@ static int pongReceived(struct client *c, uint64_t now) {
             fprintf(stderr, "reject_delay: rId %s %6.0f ms %s pong: %u\n",
                     uuid, c->rtt * 1000.0, c->proxy_string, c->pong);
         }
-
+    }
+    if (c->rtt > PING_REJECT / 2) {
         // tell the client to slow down via beast command
-        // abuse pingReceived to not tell them too often
+        // misuse pingReceived as a timeout variable
         if (c->pingReceived < now) {
             if (c->sendq_len + 3 < c->sendq_max) {
                 c->sendq[c->sendq_len++] = 0x1a;
