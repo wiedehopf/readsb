@@ -819,8 +819,8 @@ static void modesAcceptClients(struct client *c, uint64_t now) {
             // drop new modes clients if the count nears max_fds ... we want some extra fds for other stuff
             anetCloseSocket(c->fd);
             static uint64_t antiSpam;
-            if (now > antiSpam + 30 * SECONDS) {
-                antiSpam = now;
+            if (now > antiSpam) {
+                antiSpam = now + 30 * SECONDS;
                 fprintf(stderr, "<3> Can't accept new connection, limited to %d clients, consider increasing ulimit!\n", maxModesClients);
             }
         }
@@ -2114,7 +2114,11 @@ static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t no
             // reduce data rate, double beast reduce interval for 30 seconds
             case 'S':
                 Modes.doubleBeastReduceIntervalUntil = now + PING_REDUCE_IVAL;
-                fprintf(stderr, "%s: High latency, reducing data usage temporarily.\n", c->service->descr);
+                static uint64_t antiSpam;
+                if (now > antiSpam) {
+                    antiSpam = now + 300 * SECONDS;
+                    fprintf(stderr, "%s: High latency, reducing data usage temporarily.\n", c->service->descr);
+                }
                 break;
         }
     }
