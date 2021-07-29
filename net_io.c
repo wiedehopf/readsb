@@ -861,14 +861,14 @@ static void modesCloseClient(struct client *c) {
         fprintf(stderr, "warning: double close of net client\n");
         return;
     }
-    if (Modes.netIngest) {
+    if (Modes.netIngest && c->garbage < GARBAGE_THRESHOLD) {
         double elapsed = (mstime() - c->connectedSince + 1) / 1000.0;
         double kbitpersecond = c->bytesReceived / 128.0 / elapsed;
 
         char uuid[64]; // needs 36 chars and null byte
         sprint_uuid(c->receiverId, c->receiverId2, uuid);
-        fprintf(stderr, "disconnected: rId %s %50s %6.2f kbit/s for %6.1f s\n",
-                uuid, c->proxy_string, kbitpersecond, elapsed);
+        fprintf(stderr, "disc: %6.1fs rId %s %50s %6.2f kbit/s\n",
+                elapsed, uuid, c->proxy_string, kbitpersecond);
     }
     epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, c->fd, &c->epollEvent);
     anetCloseSocket(c->fd);
@@ -901,6 +901,18 @@ static void modesCloseClient(struct client *c) {
 
     if (Modes.mode_ac_auto)
         autoset_modeac();
+}
+
+static void lockReceiverId(struct client *c) {
+    if (c->receiverIdLocked)
+        return;
+    c->receiverIdLocked = 1;
+    if (Modes.netIngest && Modes.debug_net && c->garbage < 50) {
+        char uuid[64]; // needs 36 chars and null byte
+        sprint_uuid(c->receiverId, c->receiverId2, uuid);
+        fprintf(stderr, "new client:   rId %s %50s\n",
+                uuid, c->proxy_string);
+    }
 }
 
 static inline uint32_t readPingEscaped(char *p) {
@@ -2616,7 +2628,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
 
 
             // disconnect garbage feeds
-            if (c->garbage > 512) {
+            if (c->garbage >= GARBAGE_THRESHOLD) {
                 if (1 || !Modes.netIngest || Modes.debug_receiver) {
                     *eod = '\0';
                     char sample[64];
@@ -2895,13 +2907,7 @@ beastWhileBreak:
         }
 
         if (!c->receiverIdLocked && (c->bytesReceived > 512 || now > c->connectedSince + 10000)) {
-            c->receiverIdLocked = 1;
-            if (Modes.netIngest && (Modes.debug_net)) {
-                char uuid[64]; // needs 36 chars and null byte
-                sprint_uuid(c->receiverId, c->receiverId2, uuid);
-                fprintf(stderr, "new client:   rId %s %50s\n",
-                        uuid, c->proxy_string);
-            }
+            lockReceiverId(c);
         }
 
         if (som > c->buf) { // We processed something - so
@@ -3244,15 +3250,16 @@ static char *read_uuid(struct client *c, char *p, char *eod) {
     uint64_t receiverId2 = 0;
     // read ascii to binary
     int j = 0;
+    char *breakReason = "";
     for (int i = 0; i < 128 && j < 32; i++) {
         if (p >= eod) {
-            fprintf(stderr, "read_uuid() incomplete: eod\n");
+            breakReason = "eod";
             break;
         }
         ch = *p++;
         //fprintf(stderr, "%c", ch);
         if (0x1A == ch) {
-            fprintf(stderr, "read_uuid() incomplete: 0x1a\n");
+            breakReason = "0x1a";
             break;
         }
         if ('-' == ch || ' ' == ch) {
@@ -3261,14 +3268,16 @@ static char *read_uuid(struct client *c, char *p, char *eod) {
 
         unsigned char x = 0xff;
 
-        if (ch <= 'f' && ch >= 'a')
+        if (ch <= 'f' && ch >= 'a') {
             x = ch - 'a' + 10;
-        else if (ch <= '9' && ch >= '0')
+        } else if (ch <= '9' && ch >= '0') {
             x = ch - '0';
-        else if (ch <= 'F' && ch >= 'A')
+        } else if (ch <= 'F' && ch >= 'A') {
             x = ch - 'A' + 10;
-        else
+        } else {
+            breakReason = "ill";
             break;
+        }
 
         if (j < 16)
             receiverId = receiverId << 4 | x; // set 4 bits and shift them up
@@ -3276,8 +3285,24 @@ static char *read_uuid(struct client *c, char *p, char *eod) {
             receiverId2 = receiverId2 << 4 | x; // set 4 bits and shift them up
         j++;
     }
+    int valid = j;
+    if (j < 32) {
+        while (j < 32) {
+            if (j < 16)
+                receiverId = receiverId << 4 | 0;
+            else if (j < 32)
+                receiverId2 = receiverId2 << 4 | 0;
+            j++;
+        }
+        if (valid > 5) {
+            char uuid[64]; // needs 36 chars and null byte
+            sprint_uuid(receiverId, receiverId2, uuid);
+            fprintf(stderr, "read_uuid() incomplete (%s): %s\n", breakReason, uuid);
+        }
+    }
 
-    if (j >= 16) {
+    if (valid >= 16) {
+
         c->receiverId = receiverId;
         c->receiverId2 = receiverId2;
 
@@ -3285,6 +3310,7 @@ static char *read_uuid(struct client *c, char *p, char *eod) {
             fprintf(stderr, "reading rId %s -> %016"PRIx64"%016"PRIx64"\n", start, c->receiverId, c->receiverId2);
             fprintf(stderr, "ADDR %s,%s rId %016"PRIx64" UUID %.*s\n", c->host, c->port, c->receiverId, min(eod - start, 36), start);
         }
+        lockReceiverId(c);
     }
     return p;
 }

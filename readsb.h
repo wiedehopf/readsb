@@ -327,6 +327,8 @@ typedef enum {
 #define PING_REDUCE (1500) // 1.5 seconds
 #define PING_REDUCE_IVAL (15 * SECONDS)
 
+#define GARBAGE_THRESHOLD (512)
+
 // Include subheaders after all the #defines are in place
 
 #include "toString.h"
