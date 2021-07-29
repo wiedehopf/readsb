@@ -2073,7 +2073,8 @@ struct char_buffer generateClientsJson() {
             sprint_uuid(c->receiverId, c->receiverId2, uuid);
             //fprintf(stderr, "printing rId %016"PRIx64"%016"PRIx64" %s\n", c->receiverId, c->receiverId2, uuid);
 
-            int reduce_signaled = c->service->writer == &Modes.beast_in && c->pingReceived + 45 * SECONDS > now;
+            int reduce_signaled = c->service->writer == &Modes.beast_in
+                && c->pingReceived + 60 * SECONDS - PING_REDUCE_IVAL / 2 > now;
             double elapsed = (now - c->connectedSince) / 1000.0;
             p = safe_snprintf(p, end, "[\"%s\",\"%50s\",%6.2f,%6.0f,%8.3f,%7.3f,%2d,%5.0f],\n",
                     uuid,

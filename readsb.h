@@ -324,6 +324,9 @@ typedef enum {
 #define PING_BUCKETBASE (24) // milliseconds of first bucket
 #define PING_BUCKETMULT (1.2) // each bucket will grow by that factor
 
+#define PING_REDUCE (1500) // 1.5 seconds
+#define PING_REDUCE_IVAL (15 * SECONDS)
+
 // Include subheaders after all the #defines are in place
 
 #include "toString.h"

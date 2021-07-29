@@ -131,10 +131,11 @@ struct client
     uint64_t garbage; // amount of garbage we have received from this client
     uint64_t rejected_delayed;
     int32_t rtt; // last reported rtt in milliseconds
-    // crude IIR pseudo rolling average, old value factor 0.997
-    // cumulative weigth of last 100 packets is 0.26
-    // cumulative weigth of last 300 packets is 0.59
-    // cumulative weigth of last 600 packets is 0.84
+    // crude IIR pseudo rolling average, old value factor 0.995
+    // cumulative weigth of last 100 packets is 0.39
+    // cumulative weigth of last 300 packets is 0.78
+    // cumulative weigth of last 600 packets is 0.95
+    // usually around 300 packets a minute for an ro-interval of 0.2
     double recent_rtt; // in milliseconds
     struct epoll_event epollEvent;
     struct net_connector *con;

@@ -1015,7 +1015,7 @@ static int pongReceived(struct client *c, uint64_t now) {
         bucketmax += bucketsize;
         bucketmax = nearbyint(bucketmax / 10) * 10;
         bucketsize *= PING_BUCKETMULT;
-        if (c->rtt < bucketmax) {
+        if (c->rtt <= bucketmax) {
             bucket = i;
             break;
         }
@@ -1028,7 +1028,7 @@ static int pongReceived(struct client *c, uint64_t now) {
     } else if (c->bytesReceived < 5000) {
         c->recent_rtt = c->recent_rtt * 0.9 +  c->rtt * 0.1;
     } else {
-        c->recent_rtt = c->recent_rtt * 0.997 +  c->rtt * 0.003;
+        c->recent_rtt = c->recent_rtt * 0.995 +  c->rtt * 0.005;
     }
 
     if (Modes.debug_ping && 0) {
@@ -1047,22 +1047,22 @@ static int pongReceived(struct client *c, uint64_t now) {
                     uuid, c->rtt, c->recent_rtt, c->proxy_string);
         }
     }
-    if (c->rtt > PING_REJECT / 2) {
-        if (now > antiSpam) {
-            antiSpam = now + 250; // limit to 4 messages a second
-            char uuid[64]; // needs 36 chars and null byte
-            sprint_uuid(c->receiverId, c->receiverId2, uuid);
-            fprintf(stderr, "reduce_signal rId %s %6d ms / %6.0f ms %s\n",
-                    uuid, c->rtt, c->recent_rtt, c->proxy_string);
-        }
+    if (c->rtt > PING_REDUCE) {
         // tell the client to slow down via beast command
         // misuse pingReceived as a timeout variable
         if (c->pingReceived < now) {
+            if (now > antiSpam) {
+                antiSpam = now + 250; // limit to 4 messages a second
+                char uuid[64]; // needs 36 chars and null byte
+                sprint_uuid(c->receiverId, c->receiverId2, uuid);
+                fprintf(stderr, "reduce_signal rId %s %6d ms / %6.0f ms %s\n",
+                        uuid, c->rtt, c->recent_rtt, c->proxy_string);
+            }
             if (c->sendq_len + 3 < c->sendq_max) {
                 c->sendq[c->sendq_len++] = 0x1a;
                 c->sendq[c->sendq_len++] = 'W';
                 c->sendq[c->sendq_len++] = 'S';
-                c->pingReceived = now + 15 * SECONDS;
+                c->pingReceived = now + PING_REDUCE_IVAL / 2;
             }
             flushClient(c, now);
         }
@@ -2101,7 +2101,7 @@ static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t no
                 break;
             // reduce data rate, double beast reduce interval for 30 seconds
             case 'S':
-                Modes.doubleBeastReduceIntervalUntil = now + 30 * SECONDS;
+                Modes.doubleBeastReduceIntervalUntil = now + PING_REDUCE_IVAL;
                 fprintf(stderr, "%s: High latency, reducing data usage temporarily.\n", c->service->descr);
                 break;
         }
