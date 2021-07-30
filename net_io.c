@@ -3037,8 +3037,10 @@ void modesNetPeriodicWork(void) {
     }
 
     // we only wait here in net-only mode
+    // NO WAIT WHEN USING AN SDR !! IMPORTANT !!
     int count = epoll_wait(Modes.net_epfd, Modes.net_events, Modes.net_maxEvents,
-            Modes.net_output_flush_interval / 2);
+            Modes.net_only ? Modes.net_output_flush_interval / 2 : 0);
+    // NO WAIT WHEN USING AN SDR !! IMPORTANT !!
 
     int64_t interval = stopWatch(&watch);
 
