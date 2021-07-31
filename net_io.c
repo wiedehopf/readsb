@@ -867,8 +867,8 @@ static void modesCloseClient(struct client *c) {
 
         char uuid[64]; // needs 36 chars and null byte
         sprint_uuid(c->receiverId, c->receiverId2, uuid);
-        fprintf(stderr, "disc: %6.1fs rId %s %50s %6.2f kbit/s\n",
-                elapsed, uuid, c->proxy_string, kbitpersecond);
+        fprintf(stderr, "disc: %6.1f s %6.2f kbit/s rId %s %s \n",
+                elapsed, kbitpersecond, uuid, c->proxy_string);
     }
     epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, c->fd, &c->epollEvent);
     anetCloseSocket(c->fd);
@@ -910,7 +910,7 @@ static void lockReceiverId(struct client *c) {
     if (Modes.netIngest && Modes.debug_net && c->garbage < 50) {
         char uuid[64]; // needs 36 chars and null byte
         sprint_uuid(c->receiverId, c->receiverId2, uuid);
-        fprintf(stderr, "new client:   rId %s %50s\n",
+        fprintf(stderr, "new client:                  rId %s %s\n",
                 uuid, c->proxy_string);
     }
 }
@@ -1042,6 +1042,11 @@ static int pongReceived(struct client *c, uint64_t now) {
     } else {
         c->recent_rtt = c->recent_rtt * 0.995 +  c->rtt * 0.005;
     }
+    if (c->latest_rtt <= 0) {
+        c->latest_rtt = c->rtt;
+    } else {
+        c->latest_rtt = c->latest_rtt * 0.9 +  c->rtt * 0.1;
+    }
 
     if (Modes.debug_ping && 0) {
         char uuid[64]; // needs 36 chars and null byte
@@ -1050,16 +1055,14 @@ static int pongReceived(struct client *c, uint64_t now) {
                 uuid, c->rtt, c->recent_rtt, c->proxy_string, (long) current, (long) pong);
     }
 
-    if (c->rtt > PING_REJECT) {
-        if (now > antiSpam || c->rtt > PING_DISCONNECT) {
+    if ((c->latest_rtt > PING_REJECT && now > antiSpam) || c->rtt > PING_DISCONNECT) {
             antiSpam = now + 250; // limit to 4 messages a second
             char uuid[64]; // needs 36 chars and null byte
             sprint_uuid(c->receiverId, c->receiverId2, uuid);
-            fprintf(stderr, "reject_delay: rId %s %6d ms / %6.0f ms %s\n",
-                    uuid, c->rtt, c->recent_rtt, c->proxy_string);
-        }
+            fprintf(stderr, "reject: %6.0f ms %6.0f ms  rId %s %s\n",
+                    c->latest_rtt, c->recent_rtt, uuid, c->proxy_string);
     }
-    if (c->rtt > PING_REDUCE) {
+    if (c->latest_rtt > PING_REDUCE) {
         // tell the client to slow down via beast command
         // misuse pingReceived as a timeout variable
         if (c->pingReceived < now) {
@@ -1067,8 +1070,8 @@ static int pongReceived(struct client *c, uint64_t now) {
                 antiSpam = now + 250; // limit to 4 messages a second
                 char uuid[64]; // needs 36 chars and null byte
                 sprint_uuid(c->receiverId, c->receiverId2, uuid);
-                fprintf(stderr, "reduce_signal rId %s %6d ms / %6.0f ms %s\n",
-                        uuid, c->rtt, c->recent_rtt, c->proxy_string);
+                fprintf(stderr, "reduce: %6.0f ms %6.0f ms  rId %s %s\n",
+                        c->latest_rtt, c->recent_rtt, uuid, c->proxy_string);
             }
             if (c->sendq_len + 3 < c->sendq_max) {
                 c->sendq[c->sendq_len++] = 0x1a;
@@ -2113,11 +2116,15 @@ static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t no
                 break;
             // reduce data rate, double beast reduce interval for 30 seconds
             case 'S':
-                Modes.doubleBeastReduceIntervalUntil = now + PING_REDUCE_IVAL;
-                static uint64_t antiSpam;
-                if (now > antiSpam) {
-                    antiSpam = now + 300 * SECONDS;
-                    fprintf(stderr, "%s: High latency, reducing data usage temporarily.\n", c->service->descr);
+                {
+                    static uint64_t antiSpam;
+                    // only log this at most every 5 minutes and only if it's already active
+                    // otherwise this is happens way too often (and isn't an issue)
+                    if (now < Modes.doubleBeastReduceIntervalUntil && now > antiSpam) {
+                        antiSpam = now + 300 * SECONDS;
+                        fprintf(stderr, "%s: High latency, reducing data usage temporarily.\n", c->service->descr);
+                    }
+                    Modes.doubleBeastReduceIntervalUntil = now + PING_REDUCE_IVAL;
                 }
                 break;
         }
@@ -2283,7 +2290,6 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
         // super high latency receivers are getting disconnected in pongReceived()
         if (!mm.cpr_valid) {
             Modes.stats_current.remote_rejected_delayed++;
-            c->rejected_delayed++;
             return 0; // discard
         }
     }
