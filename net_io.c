@@ -1065,7 +1065,7 @@ static int pongReceived(struct client *c, uint64_t now) {
     if (c->latest_rtt > PING_REDUCE) {
         // tell the client to slow down via beast command
         // misuse pingReceived as a timeout variable
-        if (c->pingReceived < now) {
+        if (now > c->pingReceived + PING_REDUCE_IVAL / 2) {
             if (now > antiSpam) {
                 antiSpam = now + 250; // limit to 4 messages a second
                 char uuid[64]; // needs 36 chars and null byte
@@ -1077,7 +1077,7 @@ static int pongReceived(struct client *c, uint64_t now) {
                 c->sendq[c->sendq_len++] = 0x1a;
                 c->sendq[c->sendq_len++] = 'W';
                 c->sendq[c->sendq_len++] = 'S';
-                c->pingReceived = now + PING_REDUCE_IVAL / 2;
+                c->pingReceived = now;
             }
             flushClient(c, now);
         }

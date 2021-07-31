@@ -2074,14 +2074,16 @@ struct char_buffer generateClientsJson() {
             //fprintf(stderr, "printing rId %016"PRIx64"%016"PRIx64" %s\n", c->receiverId, c->receiverId2, uuid);
 
             double elapsed = (now - c->connectedSince) / 1000.0;
-            p = safe_snprintf(p, end, "[\"%s\",\"%49s\",%6.2f,%6.0f,%8.3f,%7.3f,%5.0f,%5.0f],\n",
+            int reduceSignaled = c->service->writer == &Modes.beast_in
+                && c->pingReceived + 120 * SECONDS > now;
+            p = safe_snprintf(p, end, "[\"%s\",\"%49s\",%6.2f,%6.0f,%8.3f,%7.3f, %d,%5.0f],\n",
                     uuid,
                     c->proxy_string,
                     c->bytesReceived / 128.0 / elapsed,
                     elapsed,
                     (double) c->messageCounter / elapsed,
                     (double) c->positionCounter / elapsed,
-                    c->latest_rtt,
+                    reduceSignaled,
                     c->recent_rtt);
 
 
