@@ -2118,14 +2118,13 @@ static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t no
             case 'S':
                 {
                     static uint64_t antiSpam;
-                    // only log this at most every 5 minutes and only if it's already active
-                    // otherwise this is happens way too often (and isn't an issue)
+                    // only log this at most every 15 minutes and only if it's already active
                     if (now < Modes.doubleBeastReduceIntervalUntil && now > antiSpam) {
-                        antiSpam = now + 300 * SECONDS;
+                        antiSpam = now + 900 * SECONDS;
                         fprintf(stderr, "%s: High latency, reducing data usage temporarily.\n", c->service->descr);
                     }
-                    Modes.doubleBeastReduceIntervalUntil = now + PING_REDUCE_IVAL;
                 }
+                Modes.doubleBeastReduceIntervalUntil = now + PING_REDUCE_IVAL;
                 break;
         }
     }
