@@ -154,7 +154,8 @@ struct binCraft {
   // 104
   uint8_t receiverCount;
   uint8_t signal;
-  uint8_t reserved[2];
+  uint8_t extraFlags;
+  uint8_t reserved;
   // 108
   // javascript sucks, this must be a multiple of 4 bytes for Int32Array to work correctly
 } __attribute__ ((__packed__));

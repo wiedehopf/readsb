@@ -238,6 +238,9 @@ static int decodeBDS20(struct modesMessage *mm, bool store) {
             score += 6;
         } else {
             // Invalid
+            if (Modes.debug_callsign) {
+                fprintf(stderr, "%06x %8s (len: %d)\n", mm->addr, callsign, (int) strlen(callsign));
+            }
             return 0;
         }
     }

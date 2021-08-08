@@ -272,10 +272,10 @@ struct aircraft
   uint8_t paddingabc;
 
 
-  uint64_t unused2343;
+  uint64_t seenAdsbReliable; // last time we saw a reliable SOURCE_ADSB positions from this aircraft
   uint64_t addrtype_updated;
   float tat;
-  uint16_t unused232323;
+  uint16_t nogpsCounter;
   uint16_t receiverIdsNext;
   uint64_t seenPosReliable; // last time we saw a reliable position
   uint64_t lastPosReceiverId;

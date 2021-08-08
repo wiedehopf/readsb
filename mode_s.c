@@ -815,6 +815,9 @@ static void decodeESIdentAndCategory(struct modesMessage *mm) {
             mm->callsign_valid = 0;
         }
     }
+    if (mm->callsign_valid == 0 && Modes.debug_callsign) {
+        fprintf(stderr, "%06x %8s (len: %d)\n", mm->addr, callsign, (int) strlen(callsign));
+    }
 
     mm->category = ((0x0E - mm->metype) << 4) | mm->mesub;
     mm->category_valid = 1;

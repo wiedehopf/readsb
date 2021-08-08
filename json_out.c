@@ -961,6 +961,8 @@ static inline __attribute__((always_inline)) int includeGlobeJson(uint64_t now, 
     if (a->messages < 2)
         return 0;
 
+    if (a->nogpsCounter == 20 && now < a->seenPosReliable + 30 * MINUTES)
+        return 1;
     // check aircraft without position:
     if (a->position_valid.source == SOURCE_INVALID) {
         // don't include stale aircraft

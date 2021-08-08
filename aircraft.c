@@ -84,22 +84,28 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
         memcpy(new->typeCode, a->typeCode, sizeof(new->typeCode));
         new->dbFlags = a->dbFlags;
     }
+    new->extraFlags |= ((a->nogpsCounter == 20) << 0);
 
     new->messages = (uint16_t) a->messages;
 
     new->position_valid = posReliable(a);
 
-    new->seen_pos = (now - a->seen_pos) / 100.0 * new->position_valid;
+    new->seen_pos = (now - a->seen_pos) / 100.0;
 
-    new->pos_nic = a->pos_nic * new->position_valid;
-    new->pos_rc = a->pos_rc * new->position_valid;
+    new->pos_nic = a->pos_nic;
+    new->pos_rc = a->pos_rc;
 
-    new->lat = (int32_t) nearbyint(a->lat * 1E6) * new->position_valid;
-    new->lon = (int32_t) nearbyint(a->lon * 1E6) * new->position_valid;
+    if (new->position_valid) {
+        new->lat = (int32_t) nearbyint(a->lat * 1E6);
+        new->lon = (int32_t) nearbyint(a->lon * 1E6);
+    } else if (now < a->seenPosReliable + 60 * MINUTES) {
+        new->lat = (int32_t) nearbyint(a->latReliable * 1E6);
+        new->lon = (int32_t) nearbyint(a->lonReliable * 1E6);
+    }
 
     new->altitude_baro_valid = altReliable(a);
 
-    new->altitude_baro = (int16_t) nearbyint(a->altitude_baro / 25.0) * new->altitude_baro_valid;
+    new->altitude_baro = (int16_t) nearbyint(a->altitude_baro / 25.0);
 
     new->altitude_geom = (int16_t) nearbyint(a->altitude_geom / 25.0);
     new->baro_rate = (int16_t) nearbyint(a->baro_rate / 8.0);

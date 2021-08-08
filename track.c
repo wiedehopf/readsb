@@ -745,8 +745,11 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         mm->client->positionCounter++;
     }
 
-    if (trackDataAge(now, &a->track_valid) > TRACK_EXPIRE && mm->calculated_track != -1 && mm->distance_traveled >= 100) {
-        a->calc_track = mm->calculated_track;
+    if (mm->source != SOURCE_JAERO && mm->distance_traveled >= 100) {
+        if (mm->calculated_track != -1)
+            a->calc_track = mm->calculated_track;
+        else
+            a->calc_track = bearing(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon);
     }
 
     if (mm->source == SOURCE_JAERO && a->seenPosReliable) {
@@ -782,6 +785,10 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         a->latReliable = mm->decoded_lat;
         a->lonReliable = mm->decoded_lon;
         a->surfaceCPR_allow_ac_rel = 1; // allow ac relative CPR for ground positions
+
+        if (mm->source == SOURCE_ADSB) {
+            a->seenAdsbReliable = now;
+        }
     }
 
     a->pos_surface = trackDataValid(&a->airground_valid) && a->airground == AG_GROUND;
@@ -1890,6 +1897,26 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                 }
             }
         }
+    }
+    if (
+            mm->msgtype == 17
+            && mm->metype == 0
+            && mm->airground == AG_AIRBORNE
+            && a->position_valid.source < SOURCE_ADSB
+            && now < a->seenAdsbReliable + 15 * MINUTES
+            && a->nogpsCounter < 20
+            && a->gs > 45
+       ) {
+        a->nogpsCounter++;
+    }
+    if (a->nogpsCounter > 0) {
+        if (mm->cpr_valid && mm->msgtype == 17)
+        a->nogpsCounter--;
+        if (a->position_valid.source == SOURCE_ADSB)
+            a->nogpsCounter = 0;
+
+        if (now > a->seenAdsbReliable + 15 * MINUTES || a->seenAdsbReliable > now)
+            a->nogpsCounter = 0;
     }
 
     // forward DF0/DF11 every 2 * beast_reduce_interval for beast_reduce
