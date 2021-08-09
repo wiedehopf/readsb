@@ -711,6 +711,11 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         showPositionDebug(a, mm, now);
     }
 
+    // if we get the same position again but from an inferior source, assume it's delayed and treat as duplicate
+    if (now < a->seen_pos + 10 * MINUTES && mm->source < a->position_valid.last_source && mm->distance_traveled < 20) {
+        mm->duplicate = 1;
+        mm->pos_ignore = 1;
+    }
     if (now < a->seen_pos + 2 * SECONDS && a->lat == mm->decoded_lat && a->lon == mm->decoded_lon) {
         // don't use duplicate positions for beastReduce
         mm->duplicate = 1;
