@@ -1447,9 +1447,12 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     }
 
     // update addrtype
+    float newType = mm->addrtype == ADDR_MODE_S ? 4.5 : mm->addrtype;
+    float oldType = a->addrtype == ADDR_MODE_S ? 4.5 : a->addrtype;
+    // change type ranking without messing with enum :/
     if (
-            (mm->addrtype <= a->addrtype && now > 30 * 1000 + a->addrtype_updated)
-            || (mm->addrtype > a->addrtype && now > 90 * 1000 + a->addrtype_updated)
+            (newType <= oldType && now > 30 * 1000 + a->addrtype_updated)
+            || (newType > oldType && now > 90 * 1000 + a->addrtype_updated)
        ) {
 
         if (mm->addrtype == ADDR_ADSB_ICAO && a->position_valid.source != SOURCE_ADSB) {
