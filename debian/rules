@@ -24,7 +24,14 @@ CONFIG_SWITCH =
 ifneq ($(filter rtlsdr,$(DEB_BUILD_PROFILES)),)
 	CONFIG_SWITCH += 'RTLSDR=yes'
 	CONFIG_SWITCH += 'AIRCRAFT_HASH_BITS=15'
+endif
+
+ifneq ($(filter history,$(DEB_BUILD_PROFILES)),)
 	CONFIG_SWITCH += 'HISTORY=yes'
+endif
+
+ifneq ($(filter native,$(DEB_BUILD_PROFILES)),)
+	CONFIG_SWITCH += 'OPTIMIZE=-march=native'
 endif
 
 ifneq ($(filter plutosdr,$(DEB_BUILD_PROFILES)),)
@@ -36,7 +43,7 @@ ifneq ($(filter biastee,$(DEB_BUILD_PROFILES)),)
 endif
 
 override_dh_auto_build:
-	make -j4 $(CONFIG_SWITCH)
+	make -j2 $(CONFIG_SWITCH)
 
 override_dh_install:
 	dh_install
