@@ -122,8 +122,10 @@ void receiverPositionReceived(struct aircraft *a, uint64_t id, double lat, doubl
             r->badExtent = now;
 
             if (Modes.debug_receiver) {
-                fprintf(stderr, "receiverBadExtent: %0.0f nmi hex: %06x id: %016"PRIx64" #pos: %9"PRIu64" %12.5f %12.5f %4.0f %4.0f %4.0f %4.0f\n",
-                        distance / 1852.0, a->addr, r->id, r->positionCounter,
+                char uuid[32]; // needs 18 chars and null byte
+                sprint_uuid1(r->id, uuid);
+                fprintf(stderr, "receiverBadExtent: %0.0f nmi hex: %06x id: %s #pos: %9"PRIu64" %12.5f %12.5f %4.0f %4.0f %4.0f %4.0f\n",
+                        distance / 1852.0, a->addr, uuid, r->positionCounter,
                         lat, lon,
                         before.latMin, before.latMax,
                         before.lonMin, before.lonMax);

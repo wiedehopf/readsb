@@ -746,7 +746,9 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now,
         p = safe_snprintf(p, end, ",\"sbs_other\": true");
     */
     if (Modes.netReceiverIdPrint) {
-        p = safe_snprintf(p, end, ",\"rId\":%016"PRIx64"", a->lastPosReceiverId);
+        char uuid[32]; // needs 18 chars and null byte
+        sprint_uuid1(a->lastPosReceiverId, uuid);
+        p = safe_snprintf(p, end, ",\"rId\":%s", uuid);
     }
 
     if (printMode != 1) {
@@ -856,7 +858,9 @@ char *sprintAircraftRecent(char *p, char *end, struct aircraft *a, uint64_t now,
         if (a->category != 0)
             p = safe_snprintf(p, end, ",\"category\":\"%02X\"", a->category);
         if (Modes.netReceiverIdPrint) {
-            p = safe_snprintf(p, end, ",\"rId\":%016"PRIx64"", a->lastPosReceiverId);
+            char uuid[32]; // needs 18 chars and null byte
+            sprint_uuid1(a->lastPosReceiverId, uuid);
+            p = safe_snprintf(p, end, ",\"rId\":%s", uuid);
         }
     }
 

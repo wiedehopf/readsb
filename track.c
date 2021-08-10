@@ -1561,12 +1561,14 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                 static uint64_t antiSpam;
                 if (now > antiSpam + 15 * SECONDS || oldsquawk != a->squawk) {
                     antiSpam = now;
-                    fprintf(stderr, "%06x DF: %02d a->squawk: %04x -> %04x (receiverId: %016"PRIx64")\n",
+                    char uuid[32]; // needs 18 chars and null byte
+                    sprint_uuid1(mm->receiverId, uuid);
+                    fprintf(stderr, "%06x DF: %02d a->squawk: %04x -> %04x (receiverId: %s)\n",
                             a->addr,
                             mm->msgtype,
                             oldsquawk,
                             a->squawk,
-                            mm->receiverId);
+                            uuid);
                 }
             }
         }
