@@ -110,7 +110,7 @@ This file contains readsb list of recently seen aircraft. The keys are:
       LADD = dbFlags & 8;
    ```
 
-   * lastPosition: {lat, lon, age} when the regular lat and lon are older than 60 seconds they are no longer considered valid, this will provide the last position and show the age for the last position. aircraft will only be in the aircraft json if a position has been received in the last 60 seconds or if any message has been received in the last 30 seconds.
+   * lastPosition: {lat, lon, nic, rc, seen_pos} when the regular lat and lon are older than 60 seconds they are no longer considered valid, this will provide the last position and show the age for the last position. aircraft will only be in the aircraft json if a position has been received in the last 60 seconds or if any message has been received in the last 30 seconds.
 
   * rr_lat, rr_lon: If no ADS-B or MLAT position available, a rough estimated position for the aircraft based on the receiver’s estimated coordinates. (If used with multiple receivers / as an aggregation server with --net-ingest --net-receiver-id)
 

@@ -84,23 +84,24 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
         memcpy(new->typeCode, a->typeCode, sizeof(new->typeCode));
         new->dbFlags = a->dbFlags;
     }
-    new->extraFlags |= ((a->nogpsCounter == 20) << 0);
+    new->extraFlags |= ((a->nogpsCounter == NOGPS_MAX) << 0);
 
     new->messages = (uint16_t) a->messages;
 
     new->position_valid = posReliable(a);
 
-    new->seen_pos = (now - a->seen_pos) / 100.0;
-
-    new->pos_nic = a->pos_nic;
-    new->pos_rc = a->pos_rc;
-
     if (new->position_valid) {
+        new->seen_pos = (now - a->seen_pos) / 100.0;
         new->lat = (int32_t) nearbyint(a->lat * 1E6);
         new->lon = (int32_t) nearbyint(a->lon * 1E6);
-    } else if (now < a->seenPosReliable + 60 * MINUTES) {
+        new->pos_nic = a->pos_nic;
+        new->pos_rc = a->pos_rc;
+    } else if (now < a->seenPosReliable + 14 * 24 * HOURS) {
+        new->seen_pos = (now - a->seenPosReliable) / 100.0;
         new->lat = (int32_t) nearbyint(a->latReliable * 1E6);
         new->lon = (int32_t) nearbyint(a->lonReliable * 1E6);
+        new->pos_nic = a->pos_nic_reliable;
+        new->pos_rc = a->pos_rc_reliable;
     }
 
     new->altitude_baro_valid = altReliable(a);

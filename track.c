@@ -790,9 +790,15 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         a->seenPosReliable = now; // must be after traceAdd for trace stale detection
         a->latReliable = mm->decoded_lat;
         a->lonReliable = mm->decoded_lon;
+        a->pos_nic_reliable = mm->decoded_nic;
+        a->pos_rc_reliable = mm->decoded_rc;
         a->surfaceCPR_allow_ac_rel = 1; // allow ac relative CPR for ground positions
 
-        if (mm->source == SOURCE_ADSB) {
+        if (
+                mm->source == SOURCE_ADSB
+                && (mm->accuracy.nac_p_valid && mm->accuracy.nac_p >= 4) // 1 nmi
+                && mm->cpr_decoded && mm->decoded_rc <= 1852 // 1 nmi
+           ) {
             a->seenAdsbReliable = now;
         }
     }
@@ -1911,23 +1917,23 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     }
     if (
             mm->msgtype == 17
-            && mm->metype == 0
-            && mm->airground == AG_AIRBORNE
-            && a->position_valid.source < SOURCE_ADSB
-            && now < a->seenAdsbReliable + 15 * MINUTES
-            && a->nogpsCounter < 20
-            && a->gs > 45
+            && (
+                mm->metype == 0 // no position
+                || (mm->accuracy.nac_p_valid && mm->accuracy.nac_p <= 2) // 4 nmi
+                || (mm->cpr_decoded && mm->decoded_rc >= 7408) // 4 nmi
+               )
+            && a->gs > 50
+            && a->airground != AG_GROUND
+            && now < a->seenAdsbReliable + NOGPS_DWELL
+            && a->nogpsCounter < NOGPS_MAX
        ) {
         a->nogpsCounter++;
     }
     if (a->nogpsCounter > 0) {
-        if (mm->cpr_valid && mm->msgtype == 17)
-        a->nogpsCounter--;
-        if (a->position_valid.source == SOURCE_ADSB)
+        if (now > a->seenAdsbReliable + NOGPS_DWELL)
             a->nogpsCounter = 0;
-
-        if (now > a->seenAdsbReliable + 15 * MINUTES || a->seenAdsbReliable > now)
-            a->nogpsCounter = 0;
+        if (mm->cpr_valid && now < a->seenAdsbReliable + 1 * SECONDS)
+            a->nogpsCounter--;
     }
 
     // forward DF0/DF11 every 2 * beast_reduce_interval for beast_reduce

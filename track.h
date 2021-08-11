@@ -74,6 +74,9 @@
 #define TRACK_EXPIRE_JAERO (33*MINUTES)
 #define TRACK_EXPIRE_ROUGH (5 * MINUTES)
 
+#define NOGPS_DWELL (15 * MINUTES)
+#define NOGPS_MAX (20)
+
 // 2.5 seconds maximum between messages used for calculating wind / temperature
 #define TRACK_WT_TIMEOUT (2500)
 
@@ -437,6 +440,11 @@ struct aircraft
   struct traceCache *traceCache;
   double magneticDeclination;
   uint64_t updatedDeclination;
+
+  uint16_t pos_nic_reliable;
+  uint16_t pos_rc_reliable;
+  uint16_t pad222;
+  uint16_t pad333;
 };
 
 /* Mode A/C tracking is done separately, not via the aircraft list,

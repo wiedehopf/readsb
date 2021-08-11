@@ -707,10 +707,14 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now,
             if (now < a->rr_seen + 2 * MINUTES) {
                 p = safe_snprintf(p, end, ",\"rr_lat\":%.1f,\"rr_lon\":%.1f", a->rr_lat, a->rr_lon);
             }
-            if (trackDataAge(now, &a->position_valid) < TRACK_EXPIRE_LONG) {
-                p = safe_snprintf(p, end, ",\"lastPosition\":{\"lat\":%f,\"lon\":%f,\"age\":%.1f}",
-                        a->lat, a->lon, trackDataAge(now, &a->position_valid) / 1000.0);
+            if (now < a->seenPosReliable + 14 * 24 * HOURS) {
+                p = safe_snprintf(p, end, ",\"lastPosition\":{\"lat\":%f,\"lon\":%f,\"nic\":%u,\"rc\":%u,\"seen_pos\":%.1f}",
+                        a->latReliable, a->lonReliable, a->pos_nic_reliable, a->pos_rc_reliable,
+                        (now < a->seenPosReliable) ? 0 : ((now - a->seenPosReliable) / 1000.0));
             }
+        }
+        if (a->nogpsCounter == NOGPS_MAX && now < a->seenAdsbReliable + NOGPS_DWELL) {
+            p = safe_snprintf(p, end, ",\"gpsOkBefore\":%.1f", a->seenAdsbReliable / 1000.0);
         }
     }
 
@@ -965,7 +969,7 @@ static inline __attribute__((always_inline)) int includeGlobeJson(uint64_t now, 
     if (a->messages < 2)
         return 0;
 
-    if (a->nogpsCounter == 20 && now < a->seenPosReliable + 30 * MINUTES)
+    if (a->nogpsCounter == NOGPS_MAX && now < a->seenAdsbReliable + NOGPS_DWELL)
         return 1;
     // check aircraft without position:
     if (a->position_valid.source == SOURCE_INVALID) {
@@ -988,6 +992,8 @@ static inline __attribute__((always_inline)) int includeAircraftJson(uint64_t no
     if (a->messages < 2)
         return 0;
 
+    if (a->nogpsCounter == NOGPS_MAX && now < a->seenAdsbReliable + NOGPS_DWELL)
+        return 1;
     // check aircraft without position:
     if (a->position_valid.source == SOURCE_INVALID) {
         // don't include stale aircraft
