@@ -159,6 +159,7 @@ static int compare_validity(const data_validity *lhs, const data_validity *rhs) 
 
 // define for testing some approximations:
 #define CHECK_APPROXIMATIONS (0)
+#define DEGR (0.01745329251f) // 1 degree in radian
 double greatcircle(double lat0, double lon0, double lat1, double lon1, int approx) {
     if (lat0 == lat1 && lon0 == lon1) {
         return 0;
@@ -175,7 +176,6 @@ double greatcircle(double lat0, double lon0, double lat1, double lon1, int appro
 
     double hav = 0;
     if (CHECK_APPROXIMATIONS) {
-        // use haversine for small distances for better numerical stability
         double a = sin(dlat / 2) * sin(dlat / 2) + cos(lat0) * cos(lat1) * sin(dlon / 2) * sin(dlon / 2);
         hav = 6371e3 * 2 * atan2(sqrt(a), sqrt(1.0 - a));
     }
@@ -192,14 +192,14 @@ double greatcircle(double lat0, double lon0, double lat1, double lon1, int appro
     // difference to haversine is less than 0.04 percent for up to 3 degrees of lat/lon difference
     // this isn't an issue for us and due to the oblateness and this calculation taking it into account, this calculation might actually be more accurate for small distances but i can't be bothered to check.
     //
-    if (approx || (dlat < toRad(3) && dlon < toRad(3) && fabs(lat1) < toRad(80))) {
+    if (approx || (dlat < 3 * DEGR && dlon < 3 * DEGR && fabs(lat1) < 80 * DEGR)) {
         // calculate the equivalent length of the latitude and longitude difference
         // use pythagoras to get the distance
 
         // Equatorial radius: e = (6378.1370 km) -> circumference: 2 * pi * e = 40 075.016 km
         // Polar radius: p = (6356.7523 km) -> quarter meridian from wiki: 10 001.965 km
-        double ec = 40075016; // equatorial circumerence
-        double mc = 4 * 10001965; // meridial circumference
+        float ec = 40075016; // equatorial circumerence
+        float mc = 4 * 10001965; // meridial circumference
         if (CHECK_APPROXIMATIONS) {
             // let's check the diff against haversine assuming the same spherical earth
             // normally we use some corrections here for the oblateness of the earth
@@ -208,14 +208,14 @@ double greatcircle(double lat0, double lon0, double lat1, double lon1, int appro
             mc = 2 * M_PI * 6371e3;
         }
 
-        double avglat = lat0 + (lat1 - lat0) / 2;
-        double dmer = dlat / (2 * M_PI) * mc;
-        double dequ = dlon / (2 * M_PI) * ec * cosf(avglat);
-        double pyth = sqrt(dmer * dmer + dequ * dequ);
+        float avglat = lat0 + (lat1 - lat0) / 2;
+        float dmer = (float) dlat / (2 * (float) M_PI) * mc;
+        float dequ = (float) dlon / (2 * (float) M_PI) * ec * cosf(avglat);
+        float pyth = sqrtf(dmer * dmer + dequ * dequ);
 
         if (!approx && CHECK_APPROXIMATIONS) {
             double errorPercent = fabs(hav - pyth) / hav * 100;
-            if (errorPercent > 0.04) {
+            if (errorPercent > 0.03) {
                 fprintf(stderr, "pos: %.1f, %.1f dlat: %.5f dlon %.5f hav: %.1f errorPercent: %.3f\n", toDeg(lat0), toDeg(lon0), toDeg(dlat), toDeg(dlon), hav, errorPercent);
             }
         }
@@ -225,12 +225,12 @@ double greatcircle(double lat0, double lon0, double lat1, double lon1, int appro
 
     // spherical law of cosines
     // use float calculations if latitudes differ sufficiently
-    if (dlat > toRad(1) && dlon > toRad(1)) {
+    if (dlat > 1 * DEGR && dlon > 1 * DEGR) {
         // error
-        double slocf =  6371e3 * acosf(sinf(lat0) * sinf(lat1) + cosf(lat0) * cosf(lat1) * cosf(dlon));
+        double slocf =  6371e3f * acosf(sinf(lat0) * sinf(lat1) + cosf(lat0) * cosf(lat1) * cosf(dlon));
         if (CHECK_APPROXIMATIONS) {
             double errorPercent = fabs(hav - slocf) / hav * 100;
-            if (errorPercent > 0.05) {
+            if (errorPercent > 0.025) {
                 fprintf(stderr, "pos: %.1f, %.1f dlat: %.5f dlon %.5f hav: %.1f errorPercent: %.3f\n", toDeg(lat0), toDeg(lon0), toDeg(dlat), toDeg(dlon), hav, errorPercent);
             }
         }
@@ -241,7 +241,7 @@ double greatcircle(double lat0, double lon0, double lat1, double lon1, int appro
 
     if (CHECK_APPROXIMATIONS) {
         double errorPercent = fabs(hav - sloc) / hav * 100;
-        if (errorPercent > 0.05) {
+        if (errorPercent > 0.025) {
             fprintf(stderr, "pos: %.1f, %.1f dlat: %.5f dlon %.5f sloc: %.1f errorPercent: %.3f\n", toDeg(lat0), toDeg(lon0), toDeg(dlat), toDeg(dlon), sloc, errorPercent);
         }
     }
@@ -257,9 +257,9 @@ static double bearing(double lat0, double lon0, double lat1, double lon1) {
 
     // using float variants except for sin close to zero
 
-    double y = sinf(lon1-lon0)*cosf(lat1);
-    double x = cosf(lat0)*sinf(lat1) - sinf(lat0)*cosf(lat1)*cosf(lon1-lon0);
-    double res = atan2f(y, x) * (180 / M_PI) + 360;
+    float y = sinf(lon1-lon0)*cosf(lat1);
+    float x = cosf(lat0)*sinf(lat1) - sinf(lat0)*cosf(lat1)*cosf(lon1-lon0);
+    float res = atan2f(y, x) * (180 / (float) M_PI) + 360;
 
     if (CHECK_APPROXIMATIONS) {
         // check against using double trigonometric functions
@@ -269,16 +269,17 @@ static double bearing(double lat0, double lon0, double lat1, double lon1) {
         double x = cos(lat0)*sin(lat1) - sin(lat0)*cos(lat1)*cos(lon1-lon0);
         double res2 = (atan2(y, x) * (180 / M_PI) + 360);
         double diff = fabs(res2 - res);
-        if (diff > 0.5) {
-            fprintf(stderr, "%.2f %.2f %.2f %.2f\n",
-                    diff, res, res2,
-                    greatcircle(toDeg(lat0), toDeg(lon0), toDeg(lat1), toDeg(lon1), 0));
+        double dist = greatcircle(toDeg(lat0), toDeg(lon0), toDeg(lat1), toDeg(lon1), 1);
+        if ((diff > 0.2 && dist > 150) || diff > 2) {
+            fprintf(stderr, "errorDeg: %.2f %.2f %.2f dist: %.2f km\n",
+                    diff, res, res2, dist / 1000.0);
         }
     }
     while (res > 360)
         res -= 360;
     return res;
 }
+#undef DEGR
 
 static void update_range_histogram(struct aircraft *a, uint64_t now) {
     if (!Modes.userLocationValid)
@@ -337,12 +338,12 @@ static void update_range_histogram(struct aircraft *a, uint64_t now) {
 
 static int speed_check(struct aircraft *a, datasource_t source, double lat, double lon, struct modesMessage *mm, cpr_local_t cpr_local) {
     uint64_t elapsed;
-    double distance;
-    double range;
-    double speed;
-    double calc_track = 0;
-    double track_diff = -1;
-    double track_bonus = 0;
+    float distance;
+    float range;
+    float speed;
+    float calc_track = 0;
+    float track_diff = -1;
+    float track_bonus = 0;
     int inrange;
     int override = -1;
     uint64_t now = a->seen;
@@ -385,7 +386,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         // use the larger of the current and earlier speed
         speed = (a->gs_last_pos > a->gs) ? a->gs_last_pos : a->gs;
         // add 2 knots for every second we haven't known the speed
-        speed = speed + (3*trackDataAge(now, &a->gs_valid)/1000.0);
+        speed = speed + (3 * trackDataAge(now, &a->gs_valid)/1000.0f);
     } else if (trackDataValid(&a->tas_valid)) {
         speed = a->tas * 4 / 3;
     } else if (trackDataValid(&a->ias_valid)) {
@@ -401,7 +402,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     //  current speed + 1/3
     //  surface speed min 20kt, max 150kt
     //  airborne speed min 200kt, no max
-    speed = speed * 1.3;
+    speed = speed * 1.3f;
     if (surface) {
         if (speed < 20)
             speed = 20;
@@ -425,8 +426,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         calc_track = bearing(a->lat, a->lon, lat, lon);
         mm->calculated_track = calc_track;
         track_diff = fabs(norm_diff(a->track - calc_track, 180));
-        track_bonus = speed * (90.0 - track_diff) / 90.0;
-        speed += track_bonus * (1.1 - trackDataAge(now, &a->track_valid) / 5000);
+        track_bonus = speed * (90.0f - track_diff) / 90.0f;
+        speed += track_bonus * (1.1f - trackDataAge(now, &a->track_valid) / 5000);
         if (track_diff > 160) {
             mm->pos_ignore = 1; // don't decrement pos_reliable
         }
@@ -434,7 +435,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
     // 100m (surface) base distance to allow for minor errors, no airborne base distance due to ground track cross check
     // plus distance covered at the given speed for the elapsed time + 1 seconds.
-    range = (surface ? 0.1e3 : 0.0e3) + ((elapsed + 1000.0) / 1000.0) * (speed * 1852.0 / 3600.0);
+    range = (surface ? 0.1e3f : 0.0e3f) + ((elapsed + 1000.0f) / 1000.0f) * (speed * 1852.0f / 3600.0f);
 
     inrange = (distance <= range);
 
