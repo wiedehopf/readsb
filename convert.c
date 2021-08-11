@@ -84,18 +84,14 @@ static void convert_uc8_nodc(void *iq_data,
     } while(0)
 
     // unroll this a bit
-    for (i = 0; i < (nsamples >> 3); ++i) {
-        DO_ONE_SAMPLE;
-        DO_ONE_SAMPLE;
-        DO_ONE_SAMPLE;
-        DO_ONE_SAMPLE;
+    for (i = 0; i < (nsamples / 4); ++i) {
         DO_ONE_SAMPLE;
         DO_ONE_SAMPLE;
         DO_ONE_SAMPLE;
         DO_ONE_SAMPLE;
     }
 
-    for (i = 0; i < (nsamples & 7); ++i) {
+    for (i = 0; i < (nsamples % 4); ++i) {
         DO_ONE_SAMPLE;
     }
 
@@ -485,6 +481,10 @@ iq_convert_fn init_converter(input_format_t format,
         // if the converter does filtering, make sure it has no effect
         (*out_state)->dc_b = 1.0;
         (*out_state)->dc_a = 0.0;
+    }
+
+    if (Modes.sdr_type == SDR_IFILE) {
+        fprintf(stderr, "init_converter: using %s\n", converters_table[i].description);
     }
 
     return converters_table[i].fn;
