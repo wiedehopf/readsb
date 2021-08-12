@@ -497,6 +497,7 @@ struct _Modes
     int8_t debug_squawk;
     int8_t debug_ping;
     int8_t debug_callsign;
+    int8_t debug_nogps;
     int8_t filter_persistence; // Maximum number of consecutive implausible positions from global CPR to invalidate a known position
 
     int8_t net_verbatim; // if true, send the original message, not the CRC-corrected one

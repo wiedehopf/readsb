@@ -76,6 +76,7 @@
 
 #define NOGPS_DWELL (15 * MINUTES)
 #define NOGPS_MAX (20)
+#define NOGPS_SHOW (18)
 
 // 2.5 seconds maximum between messages used for calculating wind / temperature
 #define TRACK_WT_TIMEOUT (2500)

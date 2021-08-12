@@ -84,7 +84,7 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
         memcpy(new->typeCode, a->typeCode, sizeof(new->typeCode));
         new->dbFlags = a->dbFlags;
     }
-    new->extraFlags |= ((a->nogpsCounter == NOGPS_MAX) << 0);
+    new->extraFlags |= ((a->nogpsCounter >= NOGPS_SHOW) << 0);
 
     new->messages = (uint16_t) a->messages;
 

@@ -796,7 +796,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
 
         if (
                 mm->source == SOURCE_ADSB
-                && (mm->accuracy.nac_p_valid && mm->accuracy.nac_p >= 4) // 1 nmi
+                && trackDataValid(&a->nac_p_valid) && a->nac_p >= 4 // 1 nmi
                 && mm->cpr_decoded && mm->decoded_rc <= 1852 // 1 nmi
            ) {
             a->seenAdsbReliable = now;
@@ -1915,25 +1915,33 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             }
         }
     }
-    if (
-            mm->msgtype == 17
-            && (
-                mm->metype == 0 // no position
-                || (mm->accuracy.nac_p_valid && mm->accuracy.nac_p <= 2) // 4 nmi
-                || (mm->cpr_decoded && mm->decoded_rc >= 7408) // 4 nmi
-               )
-            && a->gs > 50
-            && a->airground != AG_GROUND
-            && now < a->seenAdsbReliable + NOGPS_DWELL
-            && a->nogpsCounter < NOGPS_MAX
-       ) {
-        a->nogpsCounter++;
-    }
-    if (a->nogpsCounter > 0) {
-        if (now > a->seenAdsbReliable + NOGPS_DWELL)
-            a->nogpsCounter = 0;
-        if (mm->cpr_valid && now < a->seenAdsbReliable + 1 * SECONDS)
-            a->nogpsCounter--;
+    if (1) {
+        int oldNogpsCounter = a->nogpsCounter;
+        if (
+                mm->msgtype == 17
+                && (
+                    mm->metype == 0 // no position
+                    || (mm->accuracy.nac_p_valid && mm->accuracy.nac_p <= 2) // 4 nmi
+                    || (mm->cpr_decoded && mm->decoded_rc >= 7408) // 4 nmi
+                   )
+                && a->gs > 50
+                && a->airground != AG_GROUND
+                && now < a->seenAdsbReliable + NOGPS_DWELL
+                && a->nogpsCounter < NOGPS_MAX
+           ) {
+            a->nogpsCounter++;
+        }
+        if (a->nogpsCounter > 0) {
+            if (now > a->seenAdsbReliable + NOGPS_DWELL) {
+                a->nogpsCounter = 0;
+            }
+            if (mm->cpr_valid && now < a->seenAdsbReliable + 1 * SECONDS) {
+                a->nogpsCounter--;
+            }
+        }
+        if (Modes.debug_nogps && oldNogpsCounter != a->nogpsCounter) {
+            fprintf(stderr, "%06x nogps %d -> %d\n", a->addr, oldNogpsCounter, a->nogpsCounter);
+        }
     }
 
     // forward DF0/DF11 every 2 * beast_reduce_interval for beast_reduce
