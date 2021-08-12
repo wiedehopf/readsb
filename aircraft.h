@@ -1,22 +1,27 @@
 #ifndef AIRCRAFT_H
 #define AIRCRAFT_H
 
-static inline uint32_t aircraftHash(uint32_t addr) {
-    uint64_t h = 0x30732349f7810465ULL ^ (4 * 0x2127599bf4325c37ULL);
-    uint64_t in = addr;
-    uint64_t v = in << 48;
-    v ^= in << 24;
-    v ^= in;
+static inline uint32_t addrHash(uint32_t addr, uint32_t bits) {
+    const uint64_t m = 0x880355f21e6d1965ULL;
+    uint64_t h = 0x30732349f7810465ULL ^ (4 * m);
+
+    uint64_t v = addr;
     h ^= mix_fasthash(v);
+    h *= m;
 
-    h -= (h >> 32);
-    h &= (1ULL << 32) - 1;
-    h -= (h >> AIRCRAFT_HASH_BITS);
+    // like the fasthash32 implementation, Fermat residue
+    uint32_t res = h - (h >> 32);
 
-    return h & (AIRCRAFT_BUCKETS - 1);
+    // something like Fermat residue to reduce even more
+    res -= (res >> bits);
+    // mask to fit the requested bit width
+    res &= (((uint64_t) 1) << bits) - 1;
+
+    return res;
 }
+
 struct aircraft *aircraftGet(uint32_t addr);
-struct aircraft *aircraftCreate(struct modesMessage *mm);
+struct aircraft *aircraftCreate(uint32_t addr);
 void freeAircraft(struct aircraft *a);
 
 typedef struct dbEntry {
@@ -30,7 +35,6 @@ typedef struct dbEntry {
     char year[4];
 } dbEntry;
 
-uint32_t dbHash(uint32_t addr);
 dbEntry *dbGet(uint32_t addr, dbEntry **index);
 void dbPut(uint32_t addr, dbEntry **index, dbEntry *d);
 

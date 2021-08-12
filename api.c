@@ -3,19 +3,8 @@
 #define API_HASH_BITS (16)
 #define API_BUCKETS (1 << API_HASH_BITS)
 
-static uint32_t apiHash(uint32_t addr) {
-    uint64_t h = 0x30732349f7810465ULL ^ (4 * 0x2127599bf4325c37ULL);
-    uint64_t in = addr;
-    uint64_t v = in << 48;
-    v ^= in << 24;
-    v ^= in;
-    h ^= mix_fasthash(v);
-
-    h -= (h >> 32);
-    h &= (1ULL << 32) - 1;
-    h -= (h >> API_HASH_BITS);
-
-    return h & (API_BUCKETS - 1);
+static inline uint32_t apiHash(uint32_t addr) {
+    return addrHash(addr, API_HASH_BITS);
 }
 
 static int compareLon(const void *p1, const void *p2) {

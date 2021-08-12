@@ -1,18 +1,11 @@
 #include "readsb.h"
 
-uint32_t dbHash(uint32_t addr) {
-    uint64_t h = 0x30732349f7810465ULL ^ (4 * 0x2127599bf4325c37ULL);
-    uint64_t in = addr;
-    uint64_t v = in << 48;
-    v ^= in << 24;
-    v ^= in;
-    h ^= mix_fasthash(v);
+static inline uint32_t dbHash(uint32_t addr) {
+    return addrHash(addr, DB_HASH_BITS);
+}
 
-    h -= (h >> 32);
-    h &= (1ULL << 32) - 1;
-    h -= (h >> DB_HASH_BITS);
-
-    return h & (DB_BUCKETS - 1);
+static inline uint32_t aircraftHash(uint32_t addr) {
+    return addrHash(addr, AIRCRAFT_HASH_BITS);
 }
 
 struct aircraft *aircraftGet(uint32_t addr) {
@@ -30,9 +23,7 @@ void freeAircraft(struct aircraft *a) {
         free(a);
 }
 
-struct aircraft *aircraftCreate(struct modesMessage *mm) {
-    uint32_t addr = mm->addr;
-
+struct aircraft *aircraftCreate(uint32_t addr) {
     struct aircraft *a = aircraftGet(addr);
     if (a)
         return a;
@@ -44,7 +35,7 @@ struct aircraft *aircraftCreate(struct modesMessage *mm) {
     a->size_struct_aircraft = sizeof(struct aircraft);
 
     // Now initialise things that should not be 0/NULL to their defaults
-    a->addr = mm->addr;
+    a->addr = addr;
     a->addrtype = ADDR_UNKNOWN;
 
     // defaults until we see a message otherwise

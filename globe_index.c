@@ -662,18 +662,21 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
         return -1;
 
     struct aircraft *source = (struct aircraft *) *p;
-    struct aircraft *a;
 
     if (end - *p < (int) source->size_struct_aircraft)
         return -1;
 
-    if (source->size_struct_aircraft < sizeof(struct aircraft)) {
-        a = calloc(1, sizeof(struct aircraft)); // null the new fields that were added
-        memcpy(a, *p, source->size_struct_aircraft);
-    } else {
-        a = malloc(sizeof(struct aircraft));
-        memcpy(a, *p, sizeof(struct aircraft));
+    if (aircraftGet(source->addr)) {
+        fprintf(stderr, "%06x aircraft already exists, can't be loaded!\n", source->addr);
+        return 0;
     }
+
+    struct aircraft *a = aircraftCreate(source->addr);
+
+    struct aircraft *preserveNext = a->next;
+    memcpy(a, *p, source->size_struct_aircraft);
+    a->next = preserveNext;
+
     *p += source->size_struct_aircraft;
 
     if (!size_changed && source->size_struct_aircraft != sizeof(struct aircraft)) {
@@ -749,26 +752,6 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
 
     if (a->seen > now)
         a->seen = 0;
-
-    struct aircraft *old = aircraftGet(a->addr);
-    uint32_t hash = aircraftHash(a->addr);
-    if (old) {
-        struct aircraft **c = (struct aircraft **) &Modes.aircraft[hash];
-        while (*c && *c != old) {
-            c = &((*c)->next);
-        }
-        if (*c == old) {
-            a->next = old->next;
-            *c = a;
-            freeAircraft(old);
-        } else {
-            freeAircraft(a);
-            fprintf(stderr, "%06x aircraft replacement failed!\n", old->addr);
-        }
-    } else {
-        a->next = Modes.aircraft[hash];
-        Modes.aircraft[hash] = a;
-    }
 
     if (a->trace_next_perm < now) {
         a->trace_next_perm = now + 1 * MINUTES + random() % (5 * MINUTES);

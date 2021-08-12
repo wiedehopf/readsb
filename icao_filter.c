@@ -29,9 +29,15 @@
 
 // Maintain two tables and switch between them to age out entries.
 
-static uint32_t icao_filter_a[AIRCRAFT_BUCKETS];
-static uint32_t icao_filter_b[AIRCRAFT_BUCKETS];
+#define filterBits (16)
+#define filterBuckets (1LL << filterBits)
+static uint32_t icao_filter_a[filterBuckets];
+static uint32_t icao_filter_b[filterBuckets];
 static uint32_t *icao_filter_active;
+
+static inline uint32_t filterHash(uint32_t addr) {
+    return addrHash(addr, filterBits);
+}
 
 #define EMPTY 0xFFFFFFFF
 
@@ -43,9 +49,9 @@ void icaoFilterInit() {
 
 void icaoFilterAdd(uint32_t addr) {
     uint32_t h, h0;
-    h0 = h = aircraftHash(addr);
+    h0 = h = filterHash(addr);
     while (icao_filter_active[h] != EMPTY && icao_filter_active[h] != addr) {
-        h = (h + 1) & (AIRCRAFT_BUCKETS - 1);
+        h = (h + 1) & (filterBuckets - 1);
         if (h == h0) {
             fprintf(stderr, "ICAO hash table full, increase AIRCRAFT_HASH_BITS\n");
             return;
@@ -56,11 +62,11 @@ void icaoFilterAdd(uint32_t addr) {
 
     /* disable as it's not being used
     // also add with a zeroed top byte, for handling DF20/21 with Data Parity
-    h0 = h = aircraftHash(addr & 0x00ffff);
+    h0 = h = filterHash(addr & 0x00ffff);
     while (icao_filter_active[h] != EMPTY && (icao_filter_active[h] & 0x00ffff) != (addr & 0x00ffff)) {
-        h = (h + 1) & (AIRCRAFT_BUCKETS - 1);
+        h = (h + 1) & (filterBuckets - 1);
         if (h == h0) {
-            fprintf(stderr, "ICAO hash table full, increase AIRCRAFT_BUCKETS\n");
+            fprintf(stderr, "ICAO hash table full, increase filterBuckets\n");
             return;
         }
     }
@@ -72,9 +78,9 @@ void icaoFilterAdd(uint32_t addr) {
 int icaoFilterTest(uint32_t addr) {
     uint32_t h, h0;
 
-    h0 = h = aircraftHash(addr);
+    h0 = h = filterHash(addr);
     while (icao_filter_a[h] != EMPTY && icao_filter_a[h] != addr) {
-        h = (h + 1) & (AIRCRAFT_BUCKETS - 1);
+        h = (h + 1) & (filterBuckets - 1);
         if (h == h0)
             break;
     }
@@ -83,7 +89,7 @@ int icaoFilterTest(uint32_t addr) {
 
     h = h0;
     while (icao_filter_b[h] != EMPTY && icao_filter_b[h] != addr) {
-        h = (h + 1) & (AIRCRAFT_BUCKETS - 1);
+        h = (h + 1) & (filterBuckets - 1);
         if (h == h0)
             break;
     }
@@ -95,7 +101,14 @@ int icaoFilterTest(uint32_t addr) {
 
 // call this periodically:
 void icaoFilterExpire() {
+    int occupied = 0;
+    for (int i = 0; i < filterBuckets; i++) {
+        if (icao_filter_active[i] != EMPTY)
+            occupied++;
+    }
+    //fprintf(stderr, "icao_filter fill %.2f %%\n", occupied * 100.0 / filterBuckets);
     if (icao_filter_active == icao_filter_a) {
+
         memset(icao_filter_b, 0xFF, sizeof(icao_filter_b));
         icao_filter_active = icao_filter_b;
     } else {

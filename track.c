@@ -1400,7 +1400,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     a = aircraftGet(mm->addr);
     if (!a) { // If it's a currently unknown aircraft....
         if (addressReliable(mm)) {
-            a = aircraftCreate(mm); // ., create a new record for it,
+            a = aircraftCreate(mm->addr); // ., create a new record for it,
         } else {
             //fprintf(stderr, "%06x: !a && !addressReliable(mm)\n", mm->addr);
             return NULL;
@@ -1984,6 +1984,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (!a->onActiveList) {
         a->onActiveList = 1;
         ca_add(&Modes.aircraftActive, a);
+        //fprintf(stderr, "active len %d\n", Modes.aircraftActive.len);
     }
     // never forward duplicate positions
     if (mm->duplicate) {
