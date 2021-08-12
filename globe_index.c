@@ -2444,6 +2444,7 @@ void readInternalState() {
                 p += sizeof(Modes.lastRangeDirHour);
                 memcpy(Modes.rangeDirs, p, sizeof(Modes.rangeDirs));
             }
+            free(cb.buffer);
         }
     }
 }
