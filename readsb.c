@@ -861,6 +861,8 @@ static void cleanup_and_exit(int code) {
     }
     ca_destroy(&Modes.aircraftActive);
 
+    icaoFilterDestroy();
+
     exit(code);
 }
 

@@ -26,6 +26,7 @@
 
 // Call once:
 void icaoFilterInit ();
+void icaoFilterDestroy();
 
 // Add an address to the filter
 void icaoFilterAdd (uint32_t addr);

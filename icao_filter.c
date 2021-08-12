@@ -24,16 +24,17 @@
 #include "readsb.h"
 
 // Open-addressed hash table with linear probing.
-// We store each address twice to handle Data/Parity
-// which need to match on a partial address (top 16 bits only).
 
 // Maintain two tables and switch between them to age out entries.
 
-#define filterBits (16)
-#define filterBuckets (1LL << filterBits)
-static uint32_t icao_filter_a[filterBuckets];
-static uint32_t icao_filter_b[filterBuckets];
+static uint32_t filterBits;
+static uint32_t filterBuckets;
+static size_t filterSize;
+static uint32_t *icao_filter_a;
+static uint32_t *icao_filter_b;
 static uint32_t *icao_filter_active;
+
+static uint32_t occupied;
 
 static inline uint32_t filterHash(uint32_t addr) {
     return addrHash(addr, filterBits);
@@ -42,9 +43,65 @@ static inline uint32_t filterHash(uint32_t addr) {
 #define EMPTY 0xFFFFFFFF
 
 void icaoFilterInit() {
-    memset(icao_filter_a, 0xFF, sizeof(icao_filter_a));
-    memset(icao_filter_b, 0xFF, sizeof(icao_filter_b));
+    filterBits = 8;
+    filterBuckets = 1ULL << filterBits;
+    filterSize = filterBuckets * sizeof(uint32_t);
+    occupied = 0;
+    sfree(icao_filter_a);
+    sfree(icao_filter_b);
+    icao_filter_a = malloc(filterSize);
+    icao_filter_b = malloc(filterSize);
+    memset(icao_filter_a, 0xFF, filterSize);
+    memset(icao_filter_b, 0xFF, filterSize);
     icao_filter_active = icao_filter_a;
+}
+void icaoFilterDestroy() {
+    sfree(icao_filter_a);
+    sfree(icao_filter_b);
+}
+
+static void icaoFilterResize(uint32_t bits) {
+    uint32_t oldBuckets = filterBuckets;
+    uint32_t *oldActive = icao_filter_active;
+    uint32_t *oldA = icao_filter_a;
+    uint32_t *oldB = icao_filter_b;
+
+    filterBits = bits;
+    filterBuckets = 1ULL << filterBits;
+    filterSize = filterBuckets * sizeof(uint32_t);
+
+    if (filterSize > 100000)
+        fprintf(stderr, "icao_filter: increasing size to %d kB!\n", (int) filterSize / 1024);
+
+    icao_filter_a = malloc(filterSize);
+    icao_filter_b = malloc(filterSize);
+    memset(icao_filter_a, 0xFF, filterSize);
+    memset(icao_filter_b, 0xFF, filterSize);
+
+    // reset occupied count
+    occupied = 0;
+    icao_filter_active = icao_filter_a;
+    for (uint32_t i = 0; i < oldBuckets; i++) {
+        if (oldActive[i] != EMPTY) {
+            icaoFilterAdd(oldActive[i]);
+        }
+    }
+    sfree(oldA);
+    sfree(oldB);
+}
+
+// call this periodically:
+void icaoFilterExpire() {
+    // reset occupied count
+    occupied = 0;
+    if (icao_filter_active == icao_filter_a) {
+
+        memset(icao_filter_b, 0xFF, filterSize);
+        icao_filter_active = icao_filter_b;
+    } else {
+        memset(icao_filter_a, 0xFF, filterSize);
+        icao_filter_active = icao_filter_a;
+    }
 }
 
 void icaoFilterAdd(uint32_t addr) {
@@ -53,26 +110,18 @@ void icaoFilterAdd(uint32_t addr) {
     while (icao_filter_active[h] != EMPTY && icao_filter_active[h] != addr) {
         h = (h + 1) & (filterBuckets - 1);
         if (h == h0) {
-            fprintf(stderr, "ICAO hash table full, increase AIRCRAFT_HASH_BITS\n");
+            fprintf(stderr, "ICAO hash table full, this shouldn't happen\n");
             return;
         }
     }
-    if (icao_filter_active[h] == EMPTY)
+    if (icao_filter_active[h] == EMPTY) {
+        occupied++;
         icao_filter_active[h] = addr;
+    }
 
-    /* disable as it's not being used
-    // also add with a zeroed top byte, for handling DF20/21 with Data Parity
-    h0 = h = filterHash(addr & 0x00ffff);
-    while (icao_filter_active[h] != EMPTY && (icao_filter_active[h] & 0x00ffff) != (addr & 0x00ffff)) {
-        h = (h + 1) & (filterBuckets - 1);
-        if (h == h0) {
-            fprintf(stderr, "ICAO hash table full, increase filterBuckets\n");
-            return;
-        }
+    if (occupied > filterBuckets / 2 && filterBits < 20) {
+        icaoFilterResize(filterBits + 1);
     }
-    if (icao_filter_active[h] == EMPTY)
-        icao_filter_active[h] = addr;
-    */
 }
 
 int icaoFilterTest(uint32_t addr) {
@@ -97,22 +146,4 @@ int icaoFilterTest(uint32_t addr) {
         return 1;
 
     return 0;
-}
-
-// call this periodically:
-void icaoFilterExpire() {
-    int occupied = 0;
-    for (int i = 0; i < filterBuckets; i++) {
-        if (icao_filter_active[i] != EMPTY)
-            occupied++;
-    }
-    //fprintf(stderr, "icao_filter fill %.2f %%\n", occupied * 100.0 / filterBuckets);
-    if (icao_filter_active == icao_filter_a) {
-
-        memset(icao_filter_b, 0xFF, sizeof(icao_filter_b));
-        icao_filter_active = icao_filter_b;
-    } else {
-        memset(icao_filter_a, 0xFF, sizeof(icao_filter_a));
-        icao_filter_active = icao_filter_a;
-    }
 }
