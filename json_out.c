@@ -713,7 +713,7 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now,
                         (now < a->seenPosReliable) ? 0 : ((now - a->seenPosReliable) / 1000.0));
             }
         }
-        if (a->nogpsCounter >= NOGPS_SHOW && now < a->seenAdsbReliable + NOGPS_DWELL) {
+        if (a->nogpsCounter >= NOGPS_SHOW && now < a->seenAdsbReliable + NOGPS_DWELL && now > a->seenAdsbReliable + 15 * SECONDS) {
             p = safe_snprintf(p, end, ",\"gpsOkBefore\":%.1f", a->seenAdsbReliable / 1000.0);
         }
     }
@@ -969,7 +969,7 @@ static inline __attribute__((always_inline)) int includeGlobeJson(uint64_t now, 
     if (a->messages < 2)
         return 0;
 
-    if (a->nogpsCounter >= NOGPS_SHOW && now < a->seenAdsbReliable + NOGPS_DWELL)
+    if (a->nogpsCounter >= NOGPS_SHOW && now < a->seenAdsbReliable + NOGPS_DWELL && now > a->seenAdsbReliable + 15 * SECONDS)
         return 1;
     // check aircraft without position:
     if (a->position_valid.source == SOURCE_INVALID) {
@@ -992,7 +992,7 @@ static inline __attribute__((always_inline)) int includeAircraftJson(uint64_t no
     if (a->messages < 2)
         return 0;
 
-    if (a->nogpsCounter >= NOGPS_SHOW && now < a->seenAdsbReliable + NOGPS_DWELL)
+    if (a->nogpsCounter >= NOGPS_SHOW && now < a->seenAdsbReliable + NOGPS_DWELL && now > a->seenAdsbReliable + 15 * SECONDS)
         return 1;
     // check aircraft without position:
     if (a->position_valid.source == SOURCE_INVALID) {
