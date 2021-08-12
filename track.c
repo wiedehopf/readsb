@@ -1984,7 +1984,6 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (!a->onActiveList) {
         a->onActiveList = 1;
         ca_add(&Modes.aircraftActive, a);
-        quickAdd(a);
         //fprintf(stderr, "active len %d\n", Modes.aircraftActive.len);
     }
     // never forward duplicate positions
@@ -2166,7 +2165,6 @@ static void removeStaleRange(int start, int end, uint64_t now) {
                 if (a->onActiveList) {
                     a->onActiveList = 0;
                     ca_remove(&Modes.aircraftActive, a);
-                    quickRemove(a);
                 }
 
                 // Remove the element from the linked list
@@ -2206,7 +2204,6 @@ static void activeUpdate(uint64_t now) {
                 || (a->position_valid.source != SOURCE_JAERO && now > a->seen + TRACK_EXPIRE_LONG + 2 * MINUTES)
            ) {
             a->onActiveList = 0;
-            quickRemove(a);
 
             if (a->globe_index >= 0) {
                 set_globe_index(a, -5);
@@ -2227,6 +2224,7 @@ static void activeUpdate(uint64_t now) {
             }
         }
     }
+    quickInit();
     pthread_mutex_unlock(&ca->mutex);
 }
 
@@ -2235,7 +2233,6 @@ void trackRemoveStale(uint64_t now) {
     //fprintf(stderr, "removeStale()\n");
     //fprintf(stderr, "removeStale start: running for %ld ms\n", mstime() - Modes.startup_time);
 
-    quickInit();
     activeUpdate(now);
 
     static int part;

@@ -8,12 +8,17 @@ static inline uint32_t addrHash(uint32_t addr, uint32_t bits) {
     uint64_t v = addr;
     h ^= mix_fasthash(v);
     h *= m;
+    h = mix_fasthash(h);
 
-    // like the fasthash32 implementation, Fermat residue
-    uint32_t res = h - (h >> 32);
+    // collapse to required bit width while retaining as much info as possible
 
-    // something like Fermat residue to reduce even more
-    res -= (res >> bits);
+    uint32_t res = h ^ (h >> 32);
+
+    if (bits < 16)
+        res ^= (res >> 16);
+
+    res ^= (res >> bits);
+
     // mask to fit the requested bit width
     res &= (((uint64_t) 1) << bits) - 1;
 

@@ -11,10 +11,10 @@ static inline uint32_t aircraftHash(uint32_t addr) {
 #define EMPTY 0xFFFFFFFF
 #define quickMinBits 8
 #define quickMaxBits 16
+#define quickStride 8
 static int quickBits;
 static int quickBuckets;
 static int quickSize;
-static int quickUsed;
 
 struct ap {
     uint32_t addr;
@@ -25,51 +25,70 @@ static struct ap *quick;
 
 static void quickResize(int bits) {
     quickBits = bits;
-    quickBuckets = 1LL << bits;
+    quickBuckets = (1LL << bits) + quickStride;
     quickSize = sizeof(struct ap) * quickBuckets;
-    fprintf(stderr, "quickLookup: size to %.1f kB!\n", quickSize / 1024.0f);
-    struct ap *old = quick;
-    struct ap *new = malloc(quickSize);
-    memset(new, 0xFF, quickSize);
-    quickUsed = 0;
-    quick = new;
-    sfree(old);
+
+    if (quickBuckets > 32000)
+        fprintf(stderr, "quickLookup: changing size to %d!\n", (int) quickBuckets);
+
+    sfree(quick);
+    quick = malloc(quickSize);
+    memset(quick, 0xFF, quickSize);
 }
 
 static struct ap *quickGet(uint32_t addr) {
     uint32_t hash = addrHash(addr, quickBits);
-    struct ap *res = &(quick[hash]);
-    if (res->addr == addr)
-        return res;
-    else
-        return NULL;
+    for (unsigned i = 0; i < quickStride; i++) {
+        struct ap *q = &(quick[hash + i]);
+        if (q->addr == addr) {
+            return q;
+        }
+    }
+    return NULL;
 }
 void quickRemove(struct aircraft *a) {
     struct ap *q = quickGet(a->addr);
     if (q) {
         q->addr = EMPTY;
-        quickUsed--;
+        q->ptr = NULL;
     }
+    //fprintf(stderr, "r: %06x\n", a->addr);
 }
 void quickAdd(struct aircraft *a) {
-    uint32_t hash = addrHash(a->addr, quickBits);
-    struct ap *res = &(quick[hash]);
-    if (res->addr == a->addr)
+    struct ap *q = quickGet(a->addr);
+    if (q)
         return;
-    if (res->addr == EMPTY)
-        quickUsed++;
-    quick[hash].addr = a->addr;
-    quick[hash].ptr = a;
+
+    uint32_t hash = addrHash(a->addr, quickBits);
+
+    for (unsigned i = 0; i < quickStride; i++) {
+        q = &quick[hash + i];
+        if (q->addr == EMPTY) {
+            q->addr = a->addr;
+            q->ptr = a;
+            return;
+        }
+    }
 }
 
 void quickInit() {
-    if (quickBits > quickMinBits && quickUsed < quickBuckets / 16) {
+    if (quickBits > quickMinBits && Modes.aircraftActive.len < quickBuckets / 9) {
         quickResize(quickBits - 1);
     } else if (quickBits < quickMinBits) {
         quickResize(quickMinBits);
-    } else if (quickBits < quickMaxBits && quickUsed > quickBuckets / 2) {
+    } else if (quickBits < quickMaxBits && Modes.aircraftActive.len > quickBuckets / 3) {
         quickResize(quickBits + 1);
     }
+
+    /*
+    for (int i = 0; i < quickBuckets; i++) {
+        if (quick[i].addr == EMPTY)
+            fprintf(stderr, " ");
+        else
+            fprintf(stderr, ".");
+    }
+    fprintf(stderr, "\n");
+    */
 }
 void quickDestroy() {
     sfree(quick);
@@ -87,6 +106,9 @@ struct aircraft *aircraftGet(uint32_t addr) {
 
     while (a && a->addr != addr) {
         a = a->next;
+    }
+    if (a) {
+        quickAdd(a);
     }
     return a;
 }
