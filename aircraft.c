@@ -8,7 +8,81 @@ static inline uint32_t aircraftHash(uint32_t addr) {
     return addrHash(addr, AIRCRAFT_HASH_BITS);
 }
 
+#define EMPTY 0xFFFFFFFF
+#define quickMinBits 8
+#define quickMaxBits 16
+static int quickBits;
+static int quickBuckets;
+static int quickSize;
+static int quickUsed;
+
+struct ap {
+    uint32_t addr;
+    struct aircraft *ptr;
+};
+
+static struct ap *quick;
+
+static void quickResize(int bits) {
+    quickBits = bits;
+    quickBuckets = 1LL << bits;
+    quickSize = sizeof(struct ap) * quickBuckets;
+    fprintf(stderr, "quickLookup: size to %.1f kB!\n", quickSize / 1024.0f);
+    struct ap *old = quick;
+    struct ap *new = malloc(quickSize);
+    memset(new, 0xFF, quickSize);
+    quickUsed = 0;
+    quick = new;
+    sfree(old);
+}
+
+static struct ap *quickGet(uint32_t addr) {
+    uint32_t hash = addrHash(addr, quickBits);
+    struct ap *res = &(quick[hash]);
+    if (res->addr == addr)
+        return res;
+    else
+        return NULL;
+}
+void quickRemove(struct aircraft *a) {
+    struct ap *q = quickGet(a->addr);
+    if (q) {
+        q->addr = EMPTY;
+        quickUsed--;
+    }
+}
+void quickAdd(struct aircraft *a) {
+    uint32_t hash = addrHash(a->addr, quickBits);
+    struct ap *res = &(quick[hash]);
+    if (res->addr == a->addr)
+        return;
+    if (res->addr == EMPTY)
+        quickUsed++;
+    quick[hash].addr = a->addr;
+    quick[hash].ptr = a;
+}
+
+void quickInit() {
+    if (quickBits > quickMinBits && quickUsed < quickBuckets / 16) {
+        quickResize(quickBits - 1);
+    } else if (quickBits < quickMinBits) {
+        quickResize(quickMinBits);
+    } else if (quickBits < quickMaxBits && quickUsed > quickBuckets / 2) {
+        quickResize(quickBits + 1);
+    }
+}
+void quickDestroy() {
+    sfree(quick);
+}
+
+
 struct aircraft *aircraftGet(uint32_t addr) {
+
+    struct ap *q = quickGet(addr);
+    if (q) {
+        return q->ptr;
+    }
+
     struct aircraft *a = Modes.aircraft[aircraftHash(addr)];
 
     while (a && a->addr != addr) {
@@ -18,9 +92,9 @@ struct aircraft *aircraftGet(uint32_t addr) {
 }
 
 void freeAircraft(struct aircraft *a) {
-        traceCleanup(a);
-
-        free(a);
+    quickRemove(a);
+    traceCleanup(a);
+    free(a);
 }
 
 struct aircraft *aircraftCreate(uint32_t addr) {

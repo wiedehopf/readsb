@@ -41,9 +41,11 @@ static inline uint32_t filterHash(uint32_t addr) {
 }
 
 #define EMPTY 0xFFFFFFFF
+#define MINBITS 8
+#define MAXBITS 20
 
 void icaoFilterInit() {
-    filterBits = 8;
+    filterBits = MINBITS;
     filterBuckets = 1ULL << filterBits;
     filterSize = filterBuckets * sizeof(uint32_t);
     occupied = 0;
@@ -71,7 +73,7 @@ static void icaoFilterResize(uint32_t bits) {
     filterSize = filterBuckets * sizeof(uint32_t);
 
     if (filterSize > 100000)
-        fprintf(stderr, "icao_filter: increasing size to %d kB!\n", (int) filterSize / 1024);
+        fprintf(stderr, "icao_filter: changing size to %d kB!\n", (int) filterSize / 1024);
 
     icao_filter_a = malloc(filterSize);
     icao_filter_b = malloc(filterSize);
@@ -92,6 +94,9 @@ static void icaoFilterResize(uint32_t bits) {
 
 // call this periodically:
 void icaoFilterExpire() {
+    if (occupied < filterBuckets / 8 && filterBits > MINBITS) {
+        icaoFilterResize(filterBits - 1);
+    }
     // reset occupied count
     occupied = 0;
     if (icao_filter_active == icao_filter_a) {

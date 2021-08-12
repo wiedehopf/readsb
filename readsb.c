@@ -172,6 +172,7 @@ static void modesInitConfig(void) {
         reset_stats(&Modes.stats_10[i]);
     }
     //receiverTest();
+
 }
 //
 //=========================================================================
@@ -304,6 +305,8 @@ static void modesInit(void) {
     icaoFilterAdd(Modes.show_only);
 
     init_globe_index();
+
+    quickInit();
 }
 
 static void lockThreads() {
@@ -862,6 +865,7 @@ static void cleanup_and_exit(int code) {
     ca_destroy(&Modes.aircraftActive);
 
     icaoFilterDestroy();
+    quickDestroy();
 
     exit(code);
 }
