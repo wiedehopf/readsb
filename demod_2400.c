@@ -212,12 +212,12 @@ static inline __attribute__((always_inline)) uint8_t slice_byte(uint16_t **pPtr,
     return theByte;
 }
 
-static void score_phase(int try_phase, uint16_t *m, int j, unsigned char **bestmsg, int *bestscore, int *bestphase, unsigned char **msg, unsigned char *msg1, unsigned char *msg2) {
+static void score_phase(int try_phase, uint16_t *pa, unsigned char **bestmsg, int *bestscore, int *bestphase, unsigned char **msg, unsigned char *msg1, unsigned char *msg2) {
     Modes.stats_current.demod_preamblePhase[try_phase - 4]++;
     uint16_t *pPtr;
     int phase, score, bytelen;
 
-    pPtr = &m[j + 19] + (try_phase / 5);
+    pPtr = pa + 19 + (try_phase / 5);
     phase = try_phase % 5;
 
     (*msg)[0] = slice_byte(&pPtr, &phase);
@@ -265,10 +265,10 @@ void demodulate2400(struct mag_buf *mag) {
     static struct modesMessage zeroMessage;
     struct modesMessage mm;
     unsigned char msg1[MODES_LONG_MSG_BYTES], msg2[MODES_LONG_MSG_BYTES], *msg;
-    uint32_t j;
 
-    unsigned char *bestmsg;
-    int bestscore, bestphase;
+    unsigned char *bestmsg = NULL;
+    int bestscore;
+    int bestphase = 0;
 
     uint16_t *m = mag->data;
     uint32_t mlen = mag->length;
@@ -285,8 +285,10 @@ void demodulate2400(struct mag_buf *mag) {
     if (Modes.sdr_type == SDR_IFILE)
         Modes.ifile_now = mag->sysTimestamp;
 
-    for (j = 0; j < mlen; j++) {
-        uint16_t *pa = &m[j];
+    uint16_t *pa = m;
+    uint16_t *stop = m + mlen;
+    // don't go all the way to mlen because we increment pa in the pre-check up to 3 times
+    for (; pa < stop; pa++) {
         int32_t pa_mag, base_noise, ref_level;
         int msglen;
 
@@ -319,9 +321,7 @@ void demodulate2400(struct mag_buf *mag) {
 
         ref_level >>= 5; // divide by 32
 
-        bestmsg = NULL;
         bestscore = -42;
-        bestphase = -1;
 
         int32_t diff_2_3 =  pa[2] - pa[3];
         int32_t sum_1_4 = pa[1] + pa[4];
@@ -334,10 +334,10 @@ void demodulate2400(struct mag_buf *mag) {
         pa_mag = common3456 - diff_10_11;
         if (pa_mag >= ref_level) {
             // peaks at 1,3,9,11-12: phase 3
-            score_phase(4, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
+            score_phase(4, pa, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
             // peaks at 1,3,9,12: phase 4
-            score_phase(5, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
+            score_phase(5, pa, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
         }
 
         // sample#: 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
@@ -346,10 +346,10 @@ void demodulate2400(struct mag_buf *mag) {
         pa_mag = common3456 + diff_10_11;
         if (pa_mag >= ref_level) {
             // peaks at 1,3-4,9-10,12: phase 5
-            score_phase(6, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
+            score_phase(6, pa, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
             // peaks at 1,4,10,12: phase 6
-            score_phase(7, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
+            score_phase(7, pa, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
         }
 
         // peaks at 1-2,4,10,12: phase 7
@@ -357,7 +357,7 @@ void demodulate2400(struct mag_buf *mag) {
         // phase 7: 0/3 3\1/5\0 0 0 0 1/5\0/4\2 0 0 0 0 0 0 X3
         pa_mag = sum_1_4 + 2 * diff_2_3 + diff_10_11 + pa[12];
         if (pa_mag >= ref_level)
-            score_phase(8, m, j, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
+            score_phase(8, pa, &bestmsg, &bestscore, &bestphase, &msg, msg1, msg2);
 
 
         // no preamble detected
@@ -386,7 +386,7 @@ void demodulate2400(struct mag_buf *mag) {
         // For consistency with how the Beast / Radarcape does it,
         // we report the timestamp at the end of bit 56 (even if
         // the frame is a 112-bit frame)
-        mm.timestampMsg = mag->sampleTimestamp + j * 5 + (8 + 56) * 12 + bestphase;
+        mm.timestampMsg = mag->sampleTimestamp + (pa -m) * 5 + (8 + 56) * 12 + bestphase;
 
         // compute message receive time as block-start-time + difference in the 12MHz clock
         mm.sysTimestampMsg = mag->sysTimestamp + receiveclock_ms_elapsed(mag->sampleTimestamp, mm.timestampMsg);
@@ -421,7 +421,7 @@ void demodulate2400(struct mag_buf *mag) {
             int k;
 
             for (k = 0; k < signal_len; ++k) {
-                uint32_t mag = m[j + 19 + k];
+                uint32_t mag = pa[19 + k];
                 scaled_signal_power += mag * mag;
             }
 
@@ -443,10 +443,10 @@ void demodulate2400(struct mag_buf *mag) {
         //  where the preamble of the second message clobbered the last
         //  few bits of the first message, but the message bits didn't
         //  overlap)
-        //j += msglen * 12 / 5;
+        //pa += msglen * 12 / 5;
         //
         // let's test something, only jump part of the message and let the preamble detection handle the rest.
-        j += msglen * 8 / 4;
+        pa += msglen * 8 / 4;
 
         // Pass data to the next layer
         useModesMessage(&mm);
