@@ -15,8 +15,23 @@ see the LICENSE file for details
 I'd recommend this script to automatically install it:
 - https://github.com/wiedehopf/adsb-scripts/wiki/Automatic-installation-for-readsb
 
-How to build the package yourself:
+Or build the package yourself:
+```
+sudo apt update
+sudo apt install --no-install-recommends --no-install-suggests -y \
+    git build-essential debhelper libusb-1.0-0-dev \
+    librtlsdr-dev librtlsdr0 \
+    libncurses5-dev zlib1g-dev zlib1g
+git clone --depth 20 https://github.com/wiedehopf/readsb.git
+cd readsb
+export DEB_BUILD_OPTIONS=noddebs
+dpkg-buildpackage -b -Prtlsdr -ui -uc -us
+sudo dpkg -i ../readsb_*.deb
+```
+
+Or check here for more build instructions and other useful stuff:
 - https://github.com/wiedehopf/adsb-wiki/wiki/Building-readsb-from-source
+- https://github.com/wiedehopf/adsb-wiki/wiki/Raspbian-Lite:-ADS-B-receiver
 
 ### aircraft.json format:
 
