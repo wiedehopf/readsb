@@ -305,7 +305,26 @@ void demodulate2400(struct mag_buf *mag) {
         // phase 7: 0/3 3\1/5\0 0 0 0 1/5\0/4\2 0 0 0 0 0 0 X3
 
         // do a pre-check to reduce CPU usage
-        if (!(pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]))
+        // some silly unrolling that cuts CPU cycles
+        // due to plenty room in the message buffer for decoding
+        // we can with pa go beyond stop without a buffer overrun ...
+
+        if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
+        pa++; if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
+        pa++; if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
+        pa++; if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
+        pa++; if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
+        pa++; if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
+        pa++; if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
+        pa++; if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
+        pa++; if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
+        pa++; if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
+
+        continue;
+
+after_pre:
+        // ... but we must NOT decode if have ran past stop
+        if (!(pa < stop))
             continue;
 
         // 5 noise samples
