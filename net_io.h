@@ -139,8 +139,6 @@ struct client
     double recent_rtt; // in milliseconds
     struct epoll_event epollEvent;
     struct net_connector *con;
-    int8_t noTimestamps;
-    int8_t noTimestampsSignaled;
     int8_t modeac_requested; // 1 if this Beast output connection has asked for A/C
     char proxy_string[256]; // store string received from PROXY protocol v1 (v2 not supported currently)
     char host[NI_MAXHOST]; // For logging

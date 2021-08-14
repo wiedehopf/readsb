@@ -223,14 +223,6 @@ struct client *createGenericClient(struct net_service *service, int fd) {
         service->writer->lastReceiverId = 0; // make sure to resend receiverId
 
         service->writer->connections++;
-
-        if (service->writer->noTimestamps) {
-            char signal[3] = { 0x1a, 'W', 't' };
-            int res = send(c->fd, signal, 3, 0);
-            if (res == 3) {
-                // whatever
-            }
-        }
     }
     service->connections++;
     Modes.modesClientCount++;
@@ -1254,43 +1246,31 @@ static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *wri
     } else {
         return;
     }
-    if (writer->noTimestamps) {
-        if (mm->remote && mm->timestampMsg == 0 && mm->msgtype != 18) {
-            // no timestamp means low quality, don't forward at all
-            return;
-        }
-        if (mm->source == SOURCE_MLAT) {
-            // removing timestamps makes MLAT undetectable, discard MLAT messages
-            return;
-        }
-    }
 
-    if (!writer->noTimestamps) {
-        /* timestamp, big-endian */
-        *p++ = (ch = (mm->timestampMsg >> 40));
-        if (0x1A == ch) {
-            *p++ = ch;
-        }
-        *p++ = (ch = (mm->timestampMsg >> 32));
-        if (0x1A == ch) {
-            *p++ = ch;
-        }
-        *p++ = (ch = (mm->timestampMsg >> 24));
-        if (0x1A == ch) {
-            *p++ = ch;
-        }
-        *p++ = (ch = (mm->timestampMsg >> 16));
-        if (0x1A == ch) {
-            *p++ = ch;
-        }
-        *p++ = (ch = (mm->timestampMsg >> 8));
-        if (0x1A == ch) {
-            *p++ = ch;
-        }
-        *p++ = (ch = (mm->timestampMsg));
-        if (0x1A == ch) {
-            *p++ = ch;
-        }
+    /* timestamp, big-endian */
+    *p++ = (ch = (mm->timestampMsg >> 40));
+    if (0x1A == ch) {
+        *p++ = ch;
+    }
+    *p++ = (ch = (mm->timestampMsg >> 32));
+    if (0x1A == ch) {
+        *p++ = ch;
+    }
+    *p++ = (ch = (mm->timestampMsg >> 24));
+    if (0x1A == ch) {
+        *p++ = ch;
+    }
+    *p++ = (ch = (mm->timestampMsg >> 16));
+    if (0x1A == ch) {
+        *p++ = ch;
+    }
+    *p++ = (ch = (mm->timestampMsg >> 8));
+    if (0x1A == ch) {
+        *p++ = ch;
+    }
+    *p++ = (ch = (mm->timestampMsg));
+    if (0x1A == ch) {
+        *p++ = ch;
     }
 
     sig = nearbyint(sqrt(mm->signalLevel) * 255);
@@ -2067,17 +2047,6 @@ void sendBeastSettings(int fd, const char *settings) {
     anetWrite(fd, buf, len);
 }
 
-static void signalNoTimestamps(struct net_writer *writer) {
-    char *p = prepareWrite(writer, 3);
-    if (p) {
-        *p++ = 0x1a;
-        *p++ = 'W';
-        *p++ = 't';
-        completeWrite(writer, p);
-        writer->noTimestamps = 1;
-    }
-}
-
 //
 // Handle a Beast command message.
 // Currently, we just look for the Mode A/C command message
@@ -2105,15 +2074,6 @@ static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t no
         autoset_modeac();
     } else if (p[0] == 'W') {
         switch (p[1]) {
-            // disable timestamps: 0x1a 'W' 't'
-            case 't':
-                if (c->service->writer == &Modes.beast_reduce_out) {
-                    fprintf(stderr, "%s: Disabling timestamps.\n", c->service->descr);
-                    signalNoTimestamps(c->service->writer);
-                }
-                break;
-            case 'T':
-                break;
             // reduce data rate, double beast reduce interval for 30 seconds
             case 'S':
                 {
@@ -2210,12 +2170,10 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
     mm.remote = remote;
 
     mm.timestampMsg = 0;
-    if (!c->noTimestamps) {
-        // Grab the timestamp (big endian format)
-        for (j = 0; j < 6; j++) {
-            ch = *p++;
-            mm.timestampMsg = mm.timestampMsg << 8 | (ch & 255);
-        }
+    // Grab the timestamp (big endian format)
+    for (j = 0; j < 6; j++) {
+        ch = *p++;
+        mm.timestampMsg = mm.timestampMsg << 8 | (ch & 255);
     }
 
     // record reception time as the time we read it.
@@ -2590,14 +2548,6 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
         // check for PROXY v1 header if connection is new / low bytes received
         if (Modes.netIngest && c->bytesReceived <= 2 * MODES_CLIENT_BUF_SIZE) {
             // disable this for the time being
-            if (0 && !c->noTimestampsSignaled) {
-                char signal[3] = { 0x1a, 'W', 't' };
-                int res = write(c->fd, signal, 3);
-                if (res == 3) {
-                    c->noTimestampsSignaled = 1;
-                    //fprintf(stderr, "yay\n");
-                }
-            }
             if (c->buflen > 5 && som[0] == 'P' && som[1] == 'R') {
                 // NUL-terminate so we are free to use strstr()
                 // nb: we never fill the last byte of the buffer with read data (see above) so this is safe
@@ -2705,11 +2655,11 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
 
                 ch = *p;
                 if (ch == '2') {
-                    eom = p + 1 + 6 * !c->noTimestamps + 1 + MODES_SHORT_MSG_BYTES;
+                    eom = p + 1 + 6 + 1 + MODES_SHORT_MSG_BYTES;
                 } else if (ch == '3') {
-                    eom = p + 1 + 6 * !c->noTimestamps + 1 + MODES_LONG_MSG_BYTES;
+                    eom = p + 1 + 6 + 1 + MODES_LONG_MSG_BYTES;
                 } else if (ch == '1') {
-                    eom = p + 1 + 6 * !c->noTimestamps + 1 + MODEAC_MSG_BYTES;
+                    eom = p + 1 + 6 + 1 + MODEAC_MSG_BYTES;
                     if (0) {
                         char sample[256];
                         char *sampleStart = som - 32;
@@ -2736,10 +2686,6 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                     // read command
                     p++;
                     ch = *p;
-                    if (ch == 't') {
-                        c->noTimestamps = 1;
-                        //fprintf(stderr, "source says: timestamps disabled\n");
-                    }
                     if (ch == 'O') {
                         // O for high resolution timer, both P and p already used for previous iterations
                         // explicitely enable ping for this client
