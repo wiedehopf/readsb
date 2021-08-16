@@ -1914,14 +1914,11 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             }
         }
     }
-    if (1) {
+    if (mm->msgtype == 17) {
         int oldNogpsCounter = a->nogpsCounter;
         if (
-                mm->msgtype == 17
-                && (
-                    mm->metype == 0 // no position
-                    || (mm->accuracy.nac_p_valid && mm->accuracy.nac_p <= 2) // 4 nmi
-                   )
+                // no position info or uncertainty >= 4 nmi
+                (mm->metype == 0 || (mm->accuracy.nac_p_valid && mm->accuracy.nac_p <= 2) )
                 && a->gs > 50
                 && a->airground != AG_GROUND
                 && now < a->seenAdsbReliable + NOGPS_DWELL
@@ -1934,7 +1931,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             if (now > a->seenAdsbReliable + NOGPS_DWELL) {
                 a->nogpsCounter = 0;
             }
-            if (mm->cpr_valid && now < a->seenAdsbReliable + 1 * SECONDS) {
+
+            // position info during last 10 seconds and uncertainty <= 1 nmi
+            if (mm->source == SOURCE_ADSB && mm->accuracy.nac_p_valid && mm->accuracy.nac_p >= 4
+                    && now < a->seenAdsbReliable + 10 * SECONDS) {
                 a->nogpsCounter--;
             }
         }
