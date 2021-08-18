@@ -1764,6 +1764,9 @@ no_save_state:
     new->lat = (int32_t) nearbyint(a->lat * 1E6);
     new->lon = (int32_t) nearbyint(a->lon * 1E6);
     new->timestamp = now;
+#if defined(TRACKS_UUID)
+    new->receiverId = a->lastPosReceiverId;
+#endif
 
 
     /*

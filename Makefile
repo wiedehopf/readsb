@@ -6,6 +6,7 @@ BLADERF ?= no
 PLUTOSDR ?= no
 AGGRESSIVE ?= no
 HAVE_BIASTEE ?= no
+TRACKS_UUID ?= no
 
 CPPFLAGS += -DMODES_READSB_VERSION=\"$(READSB_VERSION)\"
 CPPFLAGS += -D_GNU_SOURCE
@@ -38,6 +39,9 @@ ifeq ($(STATS_PHASE),yes)
   CPPFLAGS += -DSTATS_PHASE
 endif
 
+ifeq ($(TRACKS_UUID), yes)
+	CPPFLAGS += -DTRACKS_UUID
+endif
 ifeq ($(RTLSDR), yes)
   SDR_OBJ += sdr_rtlsdr.o
   CPPFLAGS += -DENABLE_RTLSDR

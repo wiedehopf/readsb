@@ -703,6 +703,11 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now,
             p = safe_snprintf(p, end, ",\"lat\":%f,\"lon\":%f,\"nic\":%u,\"rc\":%u,\"seen_pos\":%.1f",
                     a->lat, a->lon, a->pos_nic, a->pos_rc,
                     (now < a->position_valid.updated) ? 0 : ((now - a->position_valid.updated) / 1000.0));
+#if defined(TRACKS_UUID)
+            char uuid[32]; // needs 18 chars and null byte
+            sprint_uuid1(a->lastPosReceiverId, uuid);
+            p = safe_snprintf(p, end, ",\"rId\":\"%s\"", uuid);
+#endif
         } else {
             if (now < a->rr_seen + 2 * MINUTES) {
                 p = safe_snprintf(p, end, ",\"rr_lat\":%.1f,\"rr_lon\":%.1f", a->rr_lat, a->rr_lon);
@@ -1419,6 +1424,11 @@ static char *sprintTracePoint(char *p, char *end, struct aircraft *a, int i, uin
     } else {
         p = safe_snprintf(p, end, ",null");
     }
+#if defined(TRACKS_UUID)
+    char uuid[32]; // needs 18 chars and null byte
+    sprint_uuid1(trace->receiverId, uuid);
+    p = safe_snprintf(p, end, ",\"%s\"", uuid);
+#endif
     p = safe_snprintf(p, end, "]");
 
     return p;

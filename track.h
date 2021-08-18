@@ -127,6 +127,9 @@ struct state
   int16_t gs;
   int16_t track;
   int16_t rate;
+#if defined(TRACKS_UUID)
+  uint64_t receiverId;
+#endif
 } __attribute__ ((__packed__));
 
 struct state_all
