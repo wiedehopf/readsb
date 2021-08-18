@@ -2536,6 +2536,9 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
 
         char *som = c->buf; // first byte of next message
         char *eod = c->buf + c->buflen; // one byte past end of data
+        // NUL-terminate so we are free to use strstr()
+        // nb: we never fill the last byte of the buffer with read data (see above) so this is safe
+        *eod = '\0';
         char *p;
         int remote = 1; // Messages will be marked remote by default
         if ((c->fd == Modes.beast_fd) && (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS)) {
@@ -2549,9 +2552,6 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
         if (Modes.netIngest && c->bytesReceived <= 2 * MODES_CLIENT_BUF_SIZE) {
             // disable this for the time being
             if (c->buflen > 5 && som[0] == 'P' && som[1] == 'R') {
-                // NUL-terminate so we are free to use strstr()
-                // nb: we never fill the last byte of the buffer with read data (see above) so this is safe
-                *eod = '\0';
                 char *proxy = strstr(som, "PROXY ");
                 char *eop = strstr(som, "\r\n");
                 if (proxy && proxy == som) {
@@ -3251,10 +3251,10 @@ static char *read_uuid(struct client *c, char *p, char *eod) {
                 receiverId2 = receiverId2 << 4 | 0;
             j++;
         }
-        if (valid > 5) {
+        if (1 || valid > 5) {
             char uuid[64]; // needs 36 chars and null byte
             sprint_uuid(receiverId, receiverId2, uuid);
-            fprintf(stderr, "read_uuid() incomplete (%s): %s\n", breakReason, uuid);
+            fprintf(stderr, "read_uuid() incomplete (%s): UUID |%.*s| -> |%s|\n", breakReason, min(36, eod - start), start, uuid);
         }
     }
 
@@ -3263,9 +3263,11 @@ static char *read_uuid(struct client *c, char *p, char *eod) {
         c->receiverId = receiverId;
         c->receiverId2 = receiverId2;
 
-        if (0) {
-            fprintf(stderr, "reading rId %s -> %016"PRIx64"%016"PRIx64"\n", start, c->receiverId, c->receiverId2);
-            fprintf(stderr, "ADDR %s,%s rId %016"PRIx64" UUID %.*s\n", c->host, c->port, c->receiverId, min(eod - start, 36), start);
+        if (Modes.debug_uuid) {
+            char uuid[64]; // needs 36 chars and null byte
+            sprint_uuid(receiverId, receiverId2, uuid);
+            fprintf(stderr, "reading UUID |%.*s| -> |%s|\n", min(36, eod - start), start, uuid);
+            //fprintf(stderr, "ADDR %s,%s rId %016"PRIx64" UUID %.*s\n", c->host, c->port, c->receiverId, min(eod - start, 36), start);
         }
         lockReceiverId(c);
     }

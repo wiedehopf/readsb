@@ -382,5 +382,6 @@ char *sprint_uuid2(uint64_t id2, char *p) {
 char *sprint_uuid(uint64_t id1, uint64_t id2, char *p) {
     p = sprint_uuid1(id1, p);
     p = sprint_uuid2(id2, p);
+    *p = '\0';
     return p;
 }
