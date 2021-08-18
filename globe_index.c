@@ -2090,7 +2090,8 @@ int handleHeatmap(uint64_t now) {
                     break;
                 if (trace[i].timestamp > end)
                     break;
-                if (trace[i].timestamp > start && i % 4 == 0) {
+                // get callsign and squawk from up to 2 mins before the half hour we write for
+                if (trace[i].timestamp + (uint64_t) (2 * MINUTES) > start && i % 4 == 0) {
                     struct state_all *all = &(a->trace_all[i/4]);
                     uint64_t *cs = (uint64_t *) &(all->callsign);
                     if (*cs != callsign || squawk != all->squawk) {
