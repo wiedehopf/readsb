@@ -1047,6 +1047,8 @@ static int pongReceived(struct client *c, uint64_t now) {
                 uuid, c->rtt, c->recent_rtt, c->proxy_string, (long) current, (long) pong);
     }
 
+    // only log if the average is greater the rejection threshold, don't log for single packet events
+    // actual discard / rejection happens elsewhere int the code
     if ((c->latest_rtt > PING_REJECT && now > antiSpam) || c->rtt > PING_DISCONNECT) {
             antiSpam = now + 250; // limit to 4 messages a second
             char uuid[64]; // needs 36 chars and null byte
