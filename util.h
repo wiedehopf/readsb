@@ -33,6 +33,21 @@
 
 #define sfree(x) do { free(x); x = NULL; } while (0)
 
+int tryJoinThread(pthread_t *thread, uint64_t timeout);
+typedef struct {
+    pthread_t pthread;
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+    char *name;
+    int8_t joined;
+    int8_t joinFailed;
+} threadT;
+void threadDestroyAll();
+void threadInit(threadT *thread, char *name);
+void threadCreate(threadT *thread, const pthread_attr_t *attr, void *(*start_routine) (void *), void *arg);
+void threadTimedWait(threadT *thread, struct timespec *ts, uint64_t increment);
+void threadSignalJoin(threadT *thread);
+
 struct char_buffer
 {
     char *buffer;

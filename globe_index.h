@@ -58,7 +58,7 @@ void *save_blobs(void *arg);
 void save_blob(int blob);
 void writeInternalState();
 void readInternalState();
-void *jsonTraceThreadEntryPoint(void *arg);
+void *traceEntryPoint(void *arg);
 ssize_t stateBytes(int len);
 ssize_t stateAllBytes(int len);
 void traceRealloc(struct aircraft *a, int len);

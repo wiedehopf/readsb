@@ -176,6 +176,96 @@ void incTimedwait(struct timespec *target, uint64_t increment) {
     }
 }
 
+#define uThreadMax (32)
+static threadT *uThreads[uThreadMax];
+static int uThreadCount = 0;
+
+// if a thread fails to terminate within milliseconds timeout
+// return 0 on successful join, non-zero otherwise
+// 50 ms granularity
+int tryJoinThread(pthread_t *thread, uint64_t timeout) {
+    int err = 0;
+    int step = 1; // granularity
+    uint64_t countdown = timeout / step + 1;
+    while (countdown-- > 0 && (err = pthread_tryjoin_np(*thread, NULL))) {
+        msleep(step);
+    }
+    return err;
+}
+
+void threadInit(threadT *thread, char *name) {
+    if (uThreadCount >= uThreadMax) {
+        fprintf(stderr, "util.c: increase uThreadmax!\n");
+        exit(1);
+    }
+    if (uThreadCount == 0) {
+        memset(uThreads, 0, sizeof (uThreads));
+    }
+    memset(thread, 0, sizeof (threadT));
+    pthread_mutex_init(&Modes.data_mutex, NULL);
+    pthread_cond_init(&Modes.data_cond, NULL);
+    thread->name = strdup(name);
+    uThreads[uThreadCount++] = thread;
+    thread->joined = 1;
+}
+void threadCreate(threadT *thread, const pthread_attr_t *attr, void *(*start_routine) (void *), void *arg) {
+    if (!thread->joined) {
+        fprintf(stderr, "threadCreate() thread %s failed: not joined\n", thread->name);
+        exit(1);
+    }
+    int res = pthread_create(&thread->pthread, attr, start_routine, arg);
+    if (res != 0) {
+        fprintf(stderr, "threadCreate() pthread_create() failed: %s\n", strerror(res));
+        exit(1);
+    }
+    thread->joined = 0;
+    thread->joinFailed = 0;
+}
+static void threadDestroy(threadT *thread) {
+    // if the join didn't work, don't clean up
+    if (!thread->joined) {
+        fprintf(stderr, "threadDestroy() thread %s failed: not joined\n", thread->name);
+        return;
+    }
+
+    pthread_mutex_destroy(&thread->mutex);
+    pthread_cond_destroy(&thread->cond);
+    sfree(thread->name);
+}
+void threadDestroyAll() {
+    for (int i = 0; i < uThreadCount; i++) {
+        threadDestroy(uThreads[i]);
+    }
+    uThreadCount = 0;
+}
+void threadTimedWait(threadT *thread, struct timespec *ts, uint64_t increment) {
+    // don't wait when we want to exit
+    if (Modes.exit)
+        return;
+    incTimedwait(ts, increment);
+    int err = pthread_cond_timedwait(&thread->cond, &thread->mutex, ts);
+    if (err && err != ETIMEDOUT)
+        fprintf(stderr, "%s thread: pthread_cond_timedwait unexpected error: %s\n", thread->name, strerror(err));
+}
+static void *sacEntry(void *arg) {
+    threadT *thread = (threadT *) arg;
+    pthread_mutex_lock(&thread->mutex);
+    pthread_cond_signal(&thread->cond);
+    pthread_mutex_unlock(&thread->mutex);
+    return NULL;
+}
+void threadSignalJoin(threadT *thread) {
+    pthread_t sac;
+    pthread_create(&sac, NULL, sacEntry, thread);
+    uint64_t timeout = Modes.joinTimeout;
+    if (tryJoinThread(&sac, timeout) == 0) {
+        thread->joined = 1;
+    } else {
+        thread->joinFailed = 1;
+        fprintf(stderr, "%s thread: threadSignalJoin timed out after %.1f seconds, undefined behaviour may result!\n", thread->name, (double) timeout / SECONDS);
+    }
+}
+
 struct char_buffer readWholeFile(int fd, char *errorContext) {
     struct char_buffer cb = {0};
     struct stat fileinfo = {0};

@@ -190,9 +190,9 @@ static int findInCircle(struct apiBuffer *buffer, struct apiCircle *circle, stru
 }
 
 static struct char_buffer apiReq(struct apiThread *thread, double *box, uint32_t *hexList, int hexCount, struct apiCircle *circle) {
-    pthread_mutex_lock(&Modes.apiMutex[thread->index]);
+    pthread_mutex_lock(&thread->mutex);
     int flip = Modes.apiFlip;
-    pthread_mutex_unlock(&Modes.apiMutex[thread->index]);
+    pthread_mutex_unlock(&thread->mutex);
     struct apiBuffer *buffer = &Modes.apiBuffer[flip];
 
     struct char_buffer cb = { 0 };
@@ -401,8 +401,8 @@ int apiUpdate(struct craftArray *ca) {
     pthread_mutex_unlock(&Modes.apiFlipMutex);
     apiUnlockMutex();
 
-    pthread_cond_signal(&Modes.jsonCond);
-    pthread_cond_signal(&Modes.jsonGlobeCond);
+    pthread_cond_signal(&Threads.json.cond);
+    pthread_cond_signal(&Threads.globeJson.cond);
 
     return buffer->len;
 }
@@ -410,12 +410,12 @@ int apiUpdate(struct craftArray *ca) {
 // lock for flipping apiFlip
 void apiLockMutex() {
     for (int i = 0; i < API_THREADS; i++) {
-        pthread_mutex_lock(&Modes.apiMutex[i]);
+        pthread_mutex_lock(&Modes.apiThread[i].mutex);
     }
 }
 void apiUnlockMutex() {
     for (int i = 0; i < API_THREADS; i++) {
-        pthread_mutex_unlock(&Modes.apiMutex[i]);
+        pthread_mutex_unlock(&Modes.apiThread[i].mutex);
     }
 }
 
@@ -741,8 +741,6 @@ static void *apiThreadEntryPoint(void *arg) {
             perror("epoll_ctl fail:");
     }
 
-    pthread_mutex_init(&thread->mutex, NULL);
-    pthread_mutex_lock(&thread->mutex);
     int count = 0;
     struct epoll_event *events = NULL;
     int maxEvents = 0;
@@ -757,9 +755,9 @@ static void *apiThreadEntryPoint(void *arg) {
         count = epoll_wait(thread->epfd, events, maxEvents, 1000);
 
         if (loop++ % 5) {
-            pthread_mutex_lock(&Modes.apiMutex[thread->index]);
+            pthread_mutex_lock(&thread->mutex);
             end_cpu_timing(&cpu_timer, &Modes.stats_current.api_worker_cpu);
-            pthread_mutex_unlock(&Modes.apiMutex[thread->index]);
+            pthread_mutex_unlock(&thread->mutex);
             start_cpu_timing(&cpu_timer);
         }
 
@@ -783,21 +781,19 @@ static void *apiThreadEntryPoint(void *arg) {
         }
     }
 
-    pthread_mutex_lock(&Modes.apiMutex[thread->index]);
+    pthread_mutex_lock(&thread->mutex);
     end_cpu_timing(&cpu_timer, &Modes.stats_current.api_worker_cpu);
-    pthread_mutex_unlock(&Modes.apiMutex[thread->index]);
+    pthread_mutex_unlock(&thread->mutex);
 
     close(thread->epfd);
     sfree(events);
-    pthread_mutex_unlock(&thread->mutex);
-    pthread_mutex_destroy(&thread->mutex);
     return NULL;
 }
 
 static void *apiUpdateEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
     srandom(get_seed());
-    pthread_mutex_lock(&Modes.apiUpdateMutex);
+    pthread_mutex_lock(&Threads.apiUpdate.mutex);
 
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
@@ -816,12 +812,9 @@ static void *apiUpdateEntryPoint(void *arg) {
         //uint64_t elapsed = stopWatch(&watch);
         //fprintf(stderr, "api req took: %.5f s, got %d aircraft!\n", elapsed / 1000.0, n);
 
-        incTimedwait(&ts, Modes.json_interval);
-        int err = pthread_cond_timedwait(&Modes.apiUpdateCond, &Modes.apiUpdateMutex, &ts);
-        if (err && err != ETIMEDOUT)
-            fprintf(stderr, "main thread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
+        threadTimedWait(&Threads.apiUpdate, &ts, Modes.json_interval);
     }
-    pthread_mutex_unlock(&Modes.apiUpdateMutex);
+    pthread_mutex_unlock(&Threads.apiUpdate.mutex);
     return NULL;
 }
 
@@ -830,20 +823,15 @@ void apiBufferInit() {
         Modes.apiBuffer[i].hashList = malloc(API_BUCKETS * sizeof(struct apiEntry*));
     }
     for (int i = 0; i < API_THREADS; i++) {
-        pthread_mutex_init(&Modes.apiMutex[i], NULL);
+        pthread_mutex_init(&Modes.apiThread[i].mutex, NULL);
     }
-    pthread_mutex_init(&Modes.apiUpdateMutex, NULL);
-    pthread_cond_init(&Modes.apiUpdateCond, NULL);
     apiUpdate(&Modes.aircraftActive); // run an initial apiUpdate
-    pthread_create(&Modes.apiUpdateThread, NULL, apiUpdateEntryPoint, NULL);
+    threadCreate(&Threads.apiUpdate, NULL, apiUpdateEntryPoint, NULL);
 }
 
 void apiBufferCleanup() {
 
-    pthread_cond_signal(&Modes.apiUpdateCond);
-    pthread_join(Modes.apiUpdateThread, NULL);
-    pthread_mutex_destroy(&Modes.apiUpdateMutex);
-    pthread_cond_destroy(&Modes.apiUpdateCond);
+    threadSignalJoin(&Threads.apiUpdate);
 
     for (int i = 0; i < 2; i++) {
         sfree(Modes.apiBuffer[i].list);
@@ -852,7 +840,7 @@ void apiBufferCleanup() {
     }
 
     for (int i = 0; i < API_THREADS; i++) {
-        pthread_mutex_destroy(&Modes.apiMutex[i]);
+        pthread_mutex_init(&Modes.apiThread[i].mutex, NULL);
     }
 }
 

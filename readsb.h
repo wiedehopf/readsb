@@ -310,6 +310,7 @@ typedef enum {
 #define STATE_BLOBS 256 // change naming scheme if increasing this
 #define IO_THREADS 8
 #define TRACE_THREADS 6
+#define LOCK_THREADS_MAX 32
 #define PERIODIC_UPDATE 200 // don't use values larger than 200 ... some hard-coded stuff
 #define API_THREADS 4
 
@@ -376,38 +377,35 @@ struct mag_buf
 
 // Program global state
 
-struct _Modes
-{ // Internal state
-    pthread_mutex_t mainMutex;
-    pthread_cond_t mainCond;
-
-    pthread_cond_t data_cond; // Conditional variable associated
-    pthread_t reader_thread;
-    pthread_mutex_t data_mutex; // Mutex to synchronize buffer access
-    pthread_t decodeThread; // thread writing json
-    pthread_t jsonThread; // thread writing json
-    pthread_t jsonGlobeThread; // thread writing json
-    pthread_t binThread; // thread writing binCraft
-    pthread_mutex_t decodeMutex;
-    pthread_mutex_t jsonMutex;
-    pthread_mutex_t jsonGlobeMutex;
-    pthread_mutex_t binMutex;
-    pthread_cond_t decodeCond;
-    pthread_cond_t jsonCond;
-    pthread_cond_t jsonGlobeCond;
-    pthread_cond_t binCond;
+struct _Threads {
+    threadT upkeep; // runs trackPeriodicUpdate, locks most other threads when doing its thing
+    threadT decode; // thread doing demodulation, decoding and networking
+    threadT json; // thread writing json
+    threadT globeJson; // thread writing json
+    threadT globeBin; // thread writing binCraft
+    threadT misc;
+    threadT apiUpdate;
 
     // writing icao trace jsons
-    pthread_t jsonTraceThread[TRACE_THREADS];
-    pthread_mutex_t jsonTraceMutex[TRACE_THREADS];
-    pthread_cond_t jsonTraceCond[TRACE_THREADS];
+    threadT trace[TRACE_THREADS];
+};
+extern struct _Threads Threads;
+
+struct _Modes
+{ // Internal state
+    pthread_cond_t data_cond; // Conditional variable associated
+    pthread_mutex_t data_mutex; // Mutex to synchronize buffer access
+    pthread_t reader_thread;
 
     pthread_mutex_t traceDebugMutex;
 
-    pthread_t miscThread;
-    pthread_mutex_t miscMutex;
-    pthread_cond_t miscCond;
-    int8_t miscThreadRunning;
+    int lockThreadsCount;
+    threadT *lockThreads[LOCK_THREADS_MAX];
+
+    struct timespec lockStart;
+    pthread_mutex_t lockStartMutex;
+    char *currentLock;
+    uint64_t joinTimeout;
 
     unsigned first_free_buffer; // Entry in mag_buffers that will next be filled with input.
     unsigned first_filled_buffer; // Entry in mag_buffers that has valid data and will be demodulated next. If equal to next_free_buffer, there is no unprocessed data.
@@ -468,11 +466,7 @@ struct _Modes
 
     struct apiBuffer apiBuffer[2];
     struct apiThread apiThread[API_THREADS];
-    pthread_mutex_t apiMutex[API_THREADS]; // each api thread has its own mutex to read apiFlip
     pthread_mutex_t apiFlipMutex; // mutex to read apiFlip
-    pthread_t apiUpdateThread;
-    pthread_mutex_t apiUpdateMutex;
-    pthread_cond_t apiUpdateCond;
 
     // Configuration
     int8_t nfix_crc; // Number of crc bit error(s) to correct

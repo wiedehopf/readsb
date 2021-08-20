@@ -156,21 +156,6 @@ static sdr_handler *current_handler() {
 // of never returning in some cases
 //
 
-
-// if a thread fails to terminate within milliseconds timeout
-// return 0 on successful join, non-zero otherwise
-// 50 ms granularity
-static int tryJoinThread(pthread_t thread, int timeout) {
-    int err = 0;
-    int step = 50; // granularity
-    int countdown = timeout / step + 1;
-    while (countdown-- > 0 && (err = pthread_tryjoin_np(thread, NULL))) {
-        msleep(step);
-    }
-    return err;
-}
-
-
 static void *sdrOpenThreadEntry(void *arg) {
     bool *res = (bool *) arg;
     *res = current_handler()->open();
@@ -178,10 +163,10 @@ static void *sdrOpenThreadEntry(void *arg) {
 }
 
 bool sdrOpen() {
-    pthread_t manageThread = current_handler()->manageThread;
+    pthread_t *manageThread = &current_handler()->manageThread;
     bool res = false;
 
-    pthread_create(&manageThread, NULL, sdrOpenThreadEntry, &res);
+    pthread_create(manageThread, NULL, sdrOpenThreadEntry, &res);
 
     // Wait on open handler to finish:
     if (tryJoinThread(manageThread, SDR_TIMEOUT)) {
@@ -215,7 +200,7 @@ void sdrCancel() {
 
 bool sdrClose() {
     bool fatal = false;
-    pthread_t manageThread = current_handler()->manageThread;
+    pthread_t *manageThread = &current_handler()->manageThread;
 
     // wait on the thread started by sdrCancel to finish
     if (tryJoinThread(manageThread, SDR_TIMEOUT)) {
@@ -226,7 +211,7 @@ bool sdrClose() {
 
 
     // Wait on readerThread to finish
-    if (tryJoinThread(Modes.reader_thread, SDR_TIMEOUT)) {
+    if (tryJoinThread(&Modes.reader_thread, SDR_TIMEOUT)) {
         fprintf(stderr, "<3> FATAL: SDR receive thread termination timed out, will raise SIGKILL!\n");
         fatal = true;
     } else {
@@ -236,7 +221,7 @@ bool sdrClose() {
 
 
     // Call close() asynchronously:
-    pthread_create(&manageThread, NULL, sdrCloseThreadEntry, NULL);
+    pthread_create(manageThread, NULL, sdrCloseThreadEntry, NULL);
     if (tryJoinThread(manageThread, SDR_TIMEOUT)) {
         fprintf(stderr, "<3> FATAL: Clean closing of the SDR resource timed out, will raise SIGKILL!\n");
         fatal = true;

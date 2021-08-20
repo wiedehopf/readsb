@@ -2329,10 +2329,10 @@ static void miscStuff() {
 }
 
 
-void *miscThreadEntryPoint(void *arg) {
+void *miscEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
 
-    pthread_mutex_lock(&Modes.miscMutex);
+    pthread_mutex_lock(&Threads.misc.mutex);
 
     srandom(get_seed());
     struct timespec ts;
@@ -2341,25 +2341,13 @@ void *miscThreadEntryPoint(void *arg) {
     while (!Modes.exit) {
 
         if (mstime() < Modes.next_remove_stale) {
-
-            Modes.miscThreadRunning = 1;
-
-            pthread_mutex_unlock(&Modes.miscMutex);
             miscStuff();
-            pthread_mutex_lock(&Modes.miscMutex);
-
-            Modes.miscThreadRunning = 0;
         }
 
-
-        incTimedwait(&ts, 250); // check every quarter second if there is something to do
-
-        int err = pthread_cond_timedwait(&Modes.miscCond, &Modes.miscMutex, &ts);
-        if (err && err != ETIMEDOUT)
-            fprintf(stderr, "main thread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
+        threadTimedWait(&Threads.misc, &ts, 250); // check every quarter second if there is something to do
     }
 
-    pthread_mutex_unlock(&Modes.miscMutex);
+    pthread_mutex_unlock(&Threads.misc.mutex);
 
     pthread_exit(NULL);
 }

@@ -2936,14 +2936,14 @@ void netFreeClients() {
     }
 }
 
-static int handleEpoll(int count) {
+static void handleEpoll(int count) {
     uint64_t now = mstime();
 
     int i;
     for (i = 0; i < count; i++) {
         struct epoll_event event = Modes.net_events[i];
         if (event.data.ptr == &Modes.exitEventfd)
-            return -1; // not a client, program is exiting
+            return;
 
         struct client *cl = (struct client *) Modes.net_events[i].data.ptr;
         if (!cl) { fprintf(stderr, "handleEpoll: epollEvent.data.ptr == NULL\n"); continue; }
@@ -2958,12 +2958,10 @@ static int handleEpoll(int count) {
     }
 
     // modesReadFromClient calls useModesMessage which needs to happen under decode lock
-    pthread_mutex_lock(&Modes.decodeMutex);
     for (i = 0; i < count; i++) {
         struct epoll_event event = Modes.net_events[i];
         if (event.data.ptr == &Modes.exitEventfd) {
-            pthread_mutex_unlock(&Modes.decodeMutex);
-            return -1; // not a client, program is exiting
+            return;
         }
 
         struct client *cl = (struct client *) Modes.net_events[i].data.ptr;
@@ -2973,9 +2971,6 @@ static int handleEpoll(int count) {
             modesReadFromClient(cl, now);
         }
     }
-    pthread_mutex_unlock(&Modes.decodeMutex);
-
-    return i;
 }
 //
 // Perform periodic network work
@@ -2989,17 +2984,20 @@ void modesNetPeriodicWork(void) {
         epollAllocEvents(&Modes.net_events, &Modes.net_maxEvents);
     }
 
+    // unlock decode mutex for waiting in handleEpoll
+    pthread_mutex_unlock(&Threads.decode.mutex);
+
     // we only wait here in net-only mode
     // NO WAIT WHEN USING AN SDR !! IMPORTANT !!
     int count = epoll_wait(Modes.net_epfd, Modes.net_events, Modes.net_maxEvents,
             Modes.net_only ? Modes.net_output_flush_interval / 2 : 0);
     // NO WAIT WHEN USING AN SDR !! IMPORTANT !!
 
+    pthread_mutex_lock(&Threads.decode.mutex);
+
     int64_t interval = stopWatch(&watch);
 
-    if (handleEpoll(count) == -1) {
-        return; // program exiting
-    }
+    handleEpoll(count);
 
     if (count == Modes.net_maxEvents) {
         epollAllocEvents(&Modes.net_events, &Modes.net_maxEvents);

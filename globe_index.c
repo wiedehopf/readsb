@@ -793,7 +793,7 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
     return 0;
 }
 
-void *jsonTraceThreadEntryPoint(void *arg) {
+void *traceEntryPoint(void *arg) {
 
     int thread = * (int *) arg;
 
@@ -814,7 +814,7 @@ void *jsonTraceThreadEntryPoint(void *arg) {
     // write each part every 5 seconds
     uint64_t sleep_ms = 5 * SECONDS / n_parts;
 
-    pthread_mutex_lock(&Modes.jsonTraceMutex[thread]);
+    pthread_mutex_lock(&Threads.trace[thread].mutex);
 
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
@@ -847,13 +847,10 @@ void *jsonTraceThreadEntryPoint(void *arg) {
 
         end_cpu_timing(&start_time, &Modes.stats_current.trace_json_cpu[thread]);
 
-        incTimedwait(&ts, sleep_ms);
-        int err = pthread_cond_timedwait(&Modes.jsonTraceCond[thread], &Modes.jsonTraceMutex[thread], &ts);
-        if (err && err != ETIMEDOUT)
-            fprintf(stderr, "jsonTraceThread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
+        threadTimedWait(&Threads.trace[thread], &ts, sleep_ms);
     }
 
-    pthread_mutex_unlock(&Modes.jsonTraceMutex[thread]);
+    pthread_mutex_unlock(&Threads.trace[thread].mutex);
 
     return NULL;
 }

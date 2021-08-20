@@ -55,6 +55,7 @@
 #include "help.h"
 
 struct _Modes Modes;
+struct _Threads Threads;
 
 static void backgroundTasks(uint64_t now);
 static error_t parse_opt(int key, char *arg, struct argp_state *state);
@@ -64,15 +65,15 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state);
 //
 static void cleanup_and_exit(int code);
 
-static void setExit() {
-    Modes.exit = 1; // Signal to threads that we are done
+static void setExit(int arg) {
+    Modes.exit = arg; // Signal to threads that we are done
     uint64_t one = 1;
     int res = write(Modes.exitEventfd, &one, sizeof(one));
     MODES_NOTUSED(res);
 }
 static void sigintHandler(int dummy) {
     MODES_NOTUSED(dummy);
-    setExit();
+    setExit(1);
 
     signal(SIGINT, SIG_DFL); // reset signal handler - bit extra safety
     log_with_timestamp("Caught SIGINT, shutting down..\n");
@@ -80,7 +81,7 @@ static void sigintHandler(int dummy) {
 
 static void sigtermHandler(int dummy) {
     MODES_NOTUSED(dummy);
-    setExit();
+    setExit(1);
 
     signal(SIGTERM, SIG_DFL); // reset signal handler - bit extra safety
     log_with_timestamp("Caught SIGTERM, shutting down..\n");
@@ -151,6 +152,9 @@ static void modesInitConfig(void) {
     Modes.acasFD1 = -1; // set to -1 so it's clear we don't have that fd
     Modes.acasFD2 = -1; // set to -1 so it's clear we don't have that fd
 
+    Modes.currentLock = "unset";
+    Modes.joinTimeout = 30 * SECONDS;
+
     Modes.filterDF = -1; // don't filter when set to -1
     Modes.cpr_focus = BADDR;
     Modes.leg_focus = BADDR;
@@ -183,32 +187,24 @@ static void modesInit(void) {
     Modes.next_stats_update = roundSeconds(10, 5, now + 10 * SECONDS);
     Modes.next_stats_display = now + Modes.stats;
 
-    pthread_mutex_init(&Modes.mainMutex, NULL);
-    pthread_cond_init(&Modes.mainCond, NULL);
-
     pthread_mutex_init(&Modes.data_mutex, NULL);
     pthread_cond_init(&Modes.data_cond, NULL);
 
-    pthread_mutex_init(&Modes.decodeMutex, NULL);
-    pthread_cond_init(&Modes.decodeCond, NULL);
-
-    pthread_mutex_init(&Modes.jsonGlobeMutex, NULL);
-    pthread_cond_init(&Modes.jsonGlobeCond, NULL);
-
-    pthread_mutex_init(&Modes.binMutex, NULL);
-    pthread_cond_init(&Modes.binCond, NULL);
-
-    pthread_mutex_init(&Modes.jsonMutex, NULL);
-    pthread_cond_init(&Modes.jsonCond, NULL);
-
-    pthread_mutex_init(&Modes.miscMutex, NULL);
-    pthread_cond_init(&Modes.miscCond, NULL);
-
-    for (int i = 0; i < TRACE_THREADS; i++) {
-        pthread_mutex_init(&Modes.jsonTraceMutex[i], NULL);
-        pthread_cond_init(&Modes.jsonTraceCond[i], NULL);
-    }
     pthread_mutex_init(&Modes.traceDebugMutex, NULL);
+    pthread_mutex_init(&Modes.lockStartMutex, NULL);
+
+    threadInit(&Threads.upkeep, "upkeep");
+    threadInit(&Threads.decode, "decode");
+    threadInit(&Threads.json, "json");
+    threadInit(&Threads.globeJson, "globeJson");
+    threadInit(&Threads.globeBin, "globeBin");
+    threadInit(&Threads.misc, "misc");
+    threadInit(&Threads.apiUpdate, "apiUpdate");
+    for (int i = 0; i < TRACE_THREADS; i++) {
+        char buf[32];
+        sprintf(buf, "trace%d", i);
+        threadInit(&Threads.trace[i], buf);
+    }
 
     for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
         ca_init(&Modes.globeLists[i]);
@@ -310,28 +306,23 @@ static void modesInit(void) {
 }
 
 static void lockThreads() {
-    pthread_mutex_lock(&Modes.jsonMutex);
-    pthread_mutex_lock(&Modes.miscMutex);
-    pthread_mutex_lock(&Modes.apiUpdateMutex);
-    for (int i = 0; i < TRACE_THREADS; i++) {
-        pthread_mutex_lock(&Modes.jsonTraceMutex[i]);
-    }
-    pthread_mutex_lock(&Modes.jsonGlobeMutex);
+    pthread_mutex_lock(&Modes.lockStartMutex);
+    startWatch(&Modes.lockStart);
+    pthread_mutex_unlock(&Modes.lockStartMutex);
 
-    pthread_mutex_lock(&Modes.decodeMutex);
+    for (int i = 0; i < Modes.lockThreadsCount; i++) {
+        Modes.currentLock = Modes.lockThreads[i]->name;
+        pthread_mutex_lock(&Modes.lockThreads[i]->mutex);
+    }
+    Modes.currentLock = "locked";
 }
 
 static void unlockThreads() {
-
-    pthread_mutex_unlock(&Modes.decodeMutex);
-
-    pthread_mutex_unlock(&Modes.apiUpdateMutex);
-    pthread_mutex_unlock(&Modes.miscMutex);
-    pthread_mutex_unlock(&Modes.jsonGlobeMutex);
-    pthread_mutex_unlock(&Modes.jsonMutex);
-    for (int i = 0; i < TRACE_THREADS; i++) {
-        pthread_mutex_unlock(&Modes.jsonTraceMutex[i]);
+    Modes.currentLock = "unlocking";
+    for (int i = 0; i < Modes.lockThreadsCount; i++) {
+        pthread_mutex_unlock(&Modes.lockThreads[i]->mutex);
     }
+    Modes.currentLock = "unlocked";
 }
 
 //
@@ -359,17 +350,20 @@ static void trackPeriodicUpdate() {
     struct timespec start_time;
     start_monotonic_timing(&start_time);
 
-    if (!Modes.miscThreadRunning && now > Modes.next_remove_stale) {
+
+    if (now > Modes.next_remove_stale && pthread_mutex_trylock(&Threads.misc.mutex) == 0) {
         trackRemoveStale(now);
         if (now > Modes.next_remove_stale + 10 * SECONDS && Modes.next_remove_stale) {
             fprintf(stderr, "removeStale delayed by %.1f seconds\n", (now - Modes.next_remove_stale) / 1000.0);
         }
         Modes.next_remove_stale = now + 1 * SECONDS;
+        pthread_mutex_unlock(&Threads.misc.mutex);
     }
     int64_t elapsed1 = stopWatch(&watch);
 
     if (Modes.mode_ac && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 2)
         trackMatchAC(now);
+
 
     if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 4)
         netFreeClients();
@@ -380,7 +374,9 @@ static void trackPeriodicUpdate() {
     if (Modes.updateStats)
         statsUpdate(now); // needs to happen under lock
 
+
     checkNewDayLocked(now);
+
 
     int nParts = 5 * MINUTES / PERIODIC_UPDATE;
     receiverTimeout((upcount % nParts), nParts, now);
@@ -436,7 +432,7 @@ static void trackPeriodicUpdate() {
 // We read data using a thread, so the main thread only handles decoding
 // without caring about data acquisition
 //
-static void *readerThreadEntryPoint(void *arg) {
+static void *readerEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
     srandom(get_seed());
 
@@ -445,14 +441,14 @@ static void *readerThreadEntryPoint(void *arg) {
     // Wake the main thread (if it's still waiting)
     pthread_mutex_lock(&Modes.data_mutex);
     if (!Modes.exit)
-        Modes.exit = 2; // unexpected exit
+        setExit(2); // unexpected exit
     pthread_cond_signal(&Modes.data_cond);
     pthread_mutex_unlock(&Modes.data_mutex);
 
     return NULL;
 }
 
-static void *jsonThreadEntryPoint(void *arg) {
+static void *jsonEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
     srandom(get_seed());
 
@@ -461,7 +457,7 @@ static void *jsonThreadEntryPoint(void *arg) {
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
 
-    pthread_mutex_lock(&Modes.jsonMutex);
+    pthread_mutex_lock(&Threads.json.mutex);
 
     while (!Modes.exit) {
 
@@ -514,26 +510,23 @@ static void *jsonThreadEntryPoint(void *arg) {
 
         end_cpu_timing(&start_time, &Modes.stats_current.aircraft_json_cpu);
 
-        incTimedwait(&ts, Modes.json_interval * 3 / 2);
-
-        int err = pthread_cond_timedwait(&Modes.jsonCond, &Modes.jsonMutex, &ts);
-        if (err && err != ETIMEDOUT)
-            fprintf(stderr, "json thread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
+        // we should exit this wait early due to a cond_signal from api.c
+        threadTimedWait(&Threads.json, &ts, Modes.json_interval * 3);
     }
 
-    pthread_mutex_unlock(&Modes.jsonMutex);
+    pthread_mutex_unlock(&Threads.json.mutex);
 
     return NULL;
 }
 
-static void *jsonGlobeThreadEntryPoint(void *arg) {
+static void *globeJsonEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
     srandom(get_seed());
 
     if (Modes.onlyBin > 0)
         return NULL;
 
-    pthread_mutex_lock(&Modes.jsonGlobeMutex);
+    pthread_mutex_lock(&Threads.globeJson.mutex);
 
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
@@ -553,13 +546,11 @@ static void *jsonGlobeThreadEntryPoint(void *arg) {
 
         end_cpu_timing(&start_time, &Modes.stats_current.globe_json_cpu);
 
-        incTimedwait(&ts, Modes.json_interval * 3 / 2);
-        int err = pthread_cond_timedwait(&Modes.jsonGlobeCond, &Modes.jsonGlobeMutex, &ts);
-        if (err && err != ETIMEDOUT)
-            fprintf(stderr, "json thread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
+        // we should exit this wait early due to a cond_signal from api.c
+        threadTimedWait(&Threads.globeJson, &ts, Modes.json_interval * 3);
     }
 
-    pthread_mutex_unlock(&Modes.jsonGlobeMutex);
+    pthread_mutex_unlock(&Threads.globeJson.mutex);
     return NULL;
 }
 
@@ -573,7 +564,7 @@ static void *globeBinEntryPoint(void *arg) {
     uint64_t sleep_ms = Modes.json_interval / n_parts / 2;
     // write globe binCraft at double speed
 
-    pthread_mutex_lock(&Modes.binMutex);
+    pthread_mutex_lock(&Threads.globeBin.mutex);
 
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
@@ -604,21 +595,19 @@ static void *globeBinEntryPoint(void *arg) {
         part %= n_parts;
         end_cpu_timing(&start_time, &Modes.stats_current.bin_cpu);
 
-        incTimedwait(&ts, sleep_ms);
-
-        int err = pthread_cond_timedwait(&Modes.binCond, &Modes.binMutex, &ts);
-        if (err && err != ETIMEDOUT)
-            fprintf(stderr, "binGlobeThread: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
+        threadTimedWait(&Threads.globeBin, &ts, sleep_ms);
     }
 
-    pthread_mutex_unlock(&Modes.binMutex);
+    pthread_mutex_unlock(&Threads.globeBin.mutex);
 
     return NULL;
 }
 
-static void *decodeThreadEntryPoint(void *arg) {
+static void *decodeEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
     srandom(get_seed());
+
+    pthread_mutex_lock(&Threads.decode.mutex);
 
     modesInitNet();
 
@@ -658,7 +647,7 @@ static void *decodeThreadEntryPoint(void *arg) {
         uint32_t maxSleep = 80; // in ms
         // Create the thread that will read the data from the device.
         pthread_mutex_lock(&Modes.data_mutex);
-        pthread_create(&Modes.reader_thread, NULL, readerThreadEntryPoint, NULL);
+        pthread_create(&Modes.reader_thread, NULL, readerEntryPoint, NULL);
 
         while (!Modes.exit) {
             struct timespec start_time;
@@ -683,35 +672,33 @@ static void *decodeThreadEntryPoint(void *arg) {
                 // stuff at the same time.
                 pthread_mutex_unlock(&Modes.data_mutex);
 
-                // decoding require decodeMutex
-                pthread_mutex_lock(&Modes.decodeMutex);
-
                 demodulate2400(buf);
                 if (Modes.mode_ac) {
                     demodulate2400AC(buf);
                 }
 
-                pthread_mutex_unlock(&Modes.decodeMutex);
+                pthread_mutex_lock(&Modes.data_mutex);
 
                 Modes.stats_current.samples_processed += buf->length;
                 Modes.stats_current.samples_dropped += buf->dropped;
                 end_cpu_timing(&start_time, &Modes.stats_current.demod_cpu);
 
                 // Mark the buffer we just processed as completed.
-                pthread_mutex_lock(&Modes.data_mutex);
                 Modes.first_filled_buffer = (Modes.first_filled_buffer + 1) % MODES_MAG_BUFFERS;
                 pthread_cond_signal(&Modes.data_cond);
-                pthread_mutex_unlock(&Modes.data_mutex);
                 watchdogCounter = 50;
             } else {
                 // Nothing to process this time around.
-                pthread_mutex_unlock(&Modes.data_mutex);
                 if (--watchdogCounter <= 0) {
                     fprintf(stderr, "<3> SDR wedged, exiting! (check power supply / avoid using an USB extension / SDR might be defective)");
-                    Modes.exit = 2;
+                    pthread_mutex_unlock(&Modes.data_mutex);
+                    setExit(2);
                     break;
                 }
             }
+
+            // unlock data mutex for backgroundTasks
+            pthread_mutex_unlock(&Modes.data_mutex);
 
             start_cpu_timing(&start_time);
             backgroundTasks(mstime());
@@ -727,12 +714,17 @@ static void *decodeThreadEntryPoint(void *arg) {
                  * this is fairly aggressive as all our network I/O runs out of the background work!
                  */
 
+                // unlock decode mutex while waiting
+                pthread_mutex_unlock(&Threads.decode.mutex);
+
                 incTimedwait(&ts, maxSleep);
 
                 // This unlocks Modes.data_mutex, and waits for Modes.data_cond
                 int err = pthread_cond_timedwait(&Modes.data_cond, &Modes.data_mutex, &ts);
                 if (err && err != ETIMEDOUT)
                     fprintf(stderr, "decode: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
+
+                pthread_mutex_lock(&Threads.decode.mutex);
             }
         }
 
@@ -740,6 +732,40 @@ static void *decodeThreadEntryPoint(void *arg) {
 
         sdrCancel();
     }
+
+    pthread_mutex_unlock(&Threads.decode.mutex);
+    return NULL;
+}
+
+static void *upkeepEntryPoint(void *arg) {
+    MODES_NOTUSED(arg);
+    srandom(get_seed());
+
+    pthread_mutex_lock(&Threads.upkeep.mutex);
+
+    for (int i = 0; i < TRACE_THREADS; i++) {
+        Modes.lockThreads[Modes.lockThreadsCount++] = &Threads.trace[i];
+    }
+    Modes.lockThreads[Modes.lockThreadsCount++] = &Threads.apiUpdate;
+    Modes.lockThreads[Modes.lockThreadsCount++] = &Threads.globeJson;
+    Modes.lockThreads[Modes.lockThreadsCount++] = &Threads.globeBin;
+    Modes.lockThreads[Modes.lockThreadsCount++] = &Threads.json;
+    Modes.lockThreads[Modes.lockThreadsCount++] = &Threads.decode;
+    if (Modes.lockThreadsCount > LOCK_THREADS_MAX) {
+        fprintf(stderr, "FATAL: LOCK_THREADS_MAX insufficient!\n");
+        exit(1);
+    }
+
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+
+    while (!Modes.exit) {
+        trackPeriodicUpdate();
+
+        threadTimedWait(&Threads.upkeep, &ts, PERIODIC_UPDATE);
+    }
+
+    pthread_mutex_unlock(&Threads.upkeep.mutex);
 
     return NULL;
 }
@@ -794,7 +820,6 @@ static void backgroundTasks(uint64_t now) {
     if (Modes.net) {
         modesNetPeriodicWork();
     }
-
 }
 
 //=========================================================================
@@ -1538,9 +1563,9 @@ int main(int argc, char **argv) {
 
     Modes.exitEventfd = eventfd(0, EFD_NONBLOCK);
 
-    pthread_create(&Modes.decodeThread, NULL, decodeThreadEntryPoint, NULL);
+    threadCreate(&Threads.decode, NULL, decodeEntryPoint, NULL);
 
-    pthread_create(&Modes.miscThread, NULL, miscThreadEntryPoint, NULL);
+    threadCreate(&Threads.misc, NULL, miscEntryPoint, NULL);
 
     if (Modes.api || (Modes.json_dir && Modes.onlyBin < 2)) {
         // provide a json buffer
@@ -1553,18 +1578,18 @@ int main(int argc, char **argv) {
     }
 
     if (Modes.json_globe_index) {
-        pthread_create(&Modes.binThread, NULL, globeBinEntryPoint, NULL);
+        threadCreate(&Threads.globeBin, NULL, globeBinEntryPoint, NULL);
     }
 
     if (Modes.json_dir) {
-        pthread_create(&Modes.jsonThread, NULL, jsonThreadEntryPoint, NULL);
+        threadCreate(&Threads.json, NULL, jsonEntryPoint, NULL);
 
         if (Modes.json_globe_index) {
             // globe_xxxx.json
-            pthread_create(&Modes.jsonGlobeThread, NULL, jsonGlobeThreadEntryPoint, NULL);
+            threadCreate(&Threads.globeJson, NULL, globeJsonEntryPoint, NULL);
 
             for (int i = 0; i < TRACE_THREADS; i++) {
-                pthread_create(&Modes.jsonTraceThread[i], NULL, jsonTraceThreadEntryPoint, &Modes.threadNumber[i]);
+                threadCreate(&Threads.trace[i], NULL, traceEntryPoint, &Modes.threadNumber[i]);
             }
         }
 
@@ -1574,59 +1599,54 @@ int main(int argc, char **argv) {
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
 
+    threadCreate(&Threads.upkeep, NULL, upkeepEntryPoint, NULL);
+
     int mainEpfd = my_epoll_create();
     struct epoll_event *events = NULL;
     int maxEvents = 1;
     epollAllocEvents(&events, &maxEvents);
 
     while (!Modes.exit) {
-        if (epoll_wait(mainEpfd, events, maxEvents, PERIODIC_UPDATE) > 0) {
-            break; // any events must be on exitEventfd
+        if (epoll_wait(mainEpfd, events, maxEvents, 5 * SECONDS) > 0) {
+            continue;
         }
-        trackPeriodicUpdate();
+
+        pthread_mutex_lock(&Modes.lockStartMutex);
+        int64_t elapsed = stopWatch(&Modes.lockStart);
+        pthread_mutex_unlock(&Modes.lockStartMutex);
+
+        if (elapsed > 30 * SECONDS) {
+            fprintf(stderr, "<3>FATAL: lockThreads() took %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed / SECONDS);
+            fprintf(stderr, "<3>lockThreads() probably hung on %s\n", Modes.currentLock);
+
+            Modes.joinTimeout = 2 * SECONDS;
+            setExit(2);
+            break;
+        }
     }
 
     close(mainEpfd);
     sfree(events);
 
+    threadSignalJoin(&Threads.upkeep);
+
     if (Modes.json_dir) {
+        threadSignalJoin(&Threads.json);
 
-        pthread_mutex_lock(&Modes.jsonMutex);
-        pthread_cond_signal(&Modes.jsonCond);
-        pthread_mutex_unlock(&Modes.jsonMutex);
-        pthread_join(Modes.jsonThread, NULL); // Wait on json writer thread exit
-
+        // mark this instance as deactivated, webinterface won't load
         char pathbuf[PATH_MAX];
         snprintf(pathbuf, PATH_MAX, "%s/receiver.json", Modes.json_dir);
         unlink(pathbuf);
 
         if (Modes.json_globe_index) {
-            pthread_mutex_lock(&Modes.jsonGlobeMutex);
-            pthread_cond_signal(&Modes.jsonGlobeCond);
-            pthread_mutex_unlock(&Modes.jsonGlobeMutex);
-            pthread_join(Modes.jsonGlobeThread, NULL); // Wait on json writer thread exit
+            threadSignalJoin(&Threads.globeJson);
+            threadSignalJoin(&Threads.globeBin);
+            for (int i = 0; i < TRACE_THREADS; i++) {
+                threadSignalJoin(&Threads.trace[i]);
+            }
         }
     }
-    if (Modes.json_dir && Modes.json_globe_index) {
-        for (int i = 0; i < TRACE_THREADS; i++) {
-            pthread_mutex_lock(&Modes.jsonTraceMutex[i]);
-            pthread_cond_signal(&Modes.jsonTraceCond[i]);
-            pthread_mutex_unlock(&Modes.jsonTraceMutex[i]);
-            pthread_join(Modes.jsonTraceThread[i], NULL);
-        }
-    }
-    if (Modes.json_globe_index) {
-        pthread_mutex_lock(&Modes.binMutex);
-        pthread_cond_signal(&Modes.binCond);
-        pthread_mutex_unlock(&Modes.binMutex);
-        pthread_join(Modes.binThread, NULL);
-    }
-
-    pthread_mutex_lock(&Modes.miscMutex);
-    pthread_cond_signal(&Modes.miscCond);
-    pthread_mutex_unlock(&Modes.miscMutex);
-    pthread_join(Modes.miscThread, NULL);
-    pthread_mutex_destroy(&Modes.miscMutex);
+    threadSignalJoin(&Threads.misc);
 
     // after miscThread for the moment
     if (Modes.api) {
@@ -1637,40 +1657,25 @@ int main(int argc, char **argv) {
         apiBufferCleanup();
     }
 
-    pthread_mutex_lock(&Modes.decodeMutex);
-    pthread_cond_signal(&Modes.decodeCond);
-    pthread_mutex_unlock(&Modes.decodeMutex);
+    threadSignalJoin(&Threads.decode);
 
-    pthread_join(Modes.decodeThread, NULL);
+    if (Modes.exit < 2) {
+        // force stats to be done, this must happen before network cleanup as it checks network stuff
+        Modes.next_stats_update = 0;
+        trackPeriodicUpdate();
 
-    // force stats to be done, this must happen before network cleanup as it checks network stuff
-    Modes.next_stats_update = 0;
-    trackPeriodicUpdate();
-    // ------------
-
-    /* Cleanup network setup */
-    cleanupNetwork();
+        /* Cleanup network setup */
+        cleanupNetwork();
+    }
 
     if (Modes.state_dir) {
         writeInternalState();
     }
 
-    pthread_mutex_destroy(&Modes.decodeMutex);
-    pthread_mutex_destroy(&Modes.jsonMutex);
-    pthread_mutex_destroy(&Modes.jsonGlobeMutex);
-    pthread_mutex_destroy(&Modes.binMutex);
-    pthread_cond_destroy(&Modes.decodeCond);
-    pthread_cond_destroy(&Modes.jsonCond);
-    pthread_cond_destroy(&Modes.jsonGlobeCond);
-    pthread_cond_destroy(&Modes.binCond);
-    for (int i = 0; i < TRACE_THREADS; i++) {
-        pthread_mutex_destroy(&Modes.jsonTraceMutex[i]);
-        pthread_cond_destroy(&Modes.jsonTraceCond[i]);
-    }
-    pthread_mutex_destroy(&Modes.traceDebugMutex);
+    threadDestroyAll();
 
-    pthread_mutex_destroy(&Modes.mainMutex);
-    pthread_cond_destroy(&Modes.mainCond);
+    pthread_mutex_destroy(&Modes.traceDebugMutex);
+    pthread_mutex_destroy(&Modes.lockStartMutex);
 
     // If --stats were given, print statistics
     if (Modes.stats) {
