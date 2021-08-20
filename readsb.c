@@ -76,7 +76,7 @@ static void sigintHandler(int dummy) {
     setExit(1);
 
     signal(SIGINT, SIG_DFL); // reset signal handler - bit extra safety
-    log_with_timestamp("Caught SIGINT, shutting down..\n");
+    log_with_timestamp("Caught SIGINT, shutting down...");
 }
 
 static void sigtermHandler(int dummy) {
@@ -84,7 +84,7 @@ static void sigtermHandler(int dummy) {
     setExit(1);
 
     signal(SIGTERM, SIG_DFL); // reset signal handler - bit extra safety
-    log_with_timestamp("Caught SIGTERM, shutting down..\n");
+    log_with_timestamp("Caught SIGTERM, shutting down...");
 }
 
 void receiverPositionChanged(float lat, float lon, float alt) {
