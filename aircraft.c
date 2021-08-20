@@ -28,7 +28,7 @@ static void quickResize(int bits) {
     quickBuckets = (1LL << bits) + quickStride;
     quickSize = sizeof(struct ap) * quickBuckets;
 
-    if (quickBuckets > 32000)
+    if (quickBuckets > 256000)
         fprintf(stderr, "quickLookup: changing size to %d!\n", (int) quickBuckets);
 
     sfree(quick);

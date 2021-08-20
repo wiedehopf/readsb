@@ -72,7 +72,7 @@ static void icaoFilterResize(uint32_t bits) {
     filterBuckets = 1ULL << filterBits;
     filterSize = filterBuckets * sizeof(uint32_t);
 
-    if (filterBuckets > 32000)
+    if (filterBuckets > 256000)
         fprintf(stderr, "icao_filter: changing size to %d!\n", (int) filterBuckets);
 
     icao_filter_a = malloc(filterSize);
