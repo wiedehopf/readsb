@@ -156,81 +156,29 @@ static sdr_handler *current_handler() {
 // of never returning in some cases
 //
 
-static void *sdrOpenThreadEntry(void *arg) {
-    bool *res = (bool *) arg;
-    *res = current_handler()->open();
-    pthread_exit(NULL);
-}
-
 bool sdrOpen() {
-    pthread_t *manageThread = &current_handler()->manageThread;
-    bool res = false;
-
-    pthread_create(manageThread, NULL, sdrOpenThreadEntry, &res);
-
-    // Wait on open handler to finish:
-    if (tryJoinThread(manageThread, SDR_TIMEOUT)) {
-        fprintf(stderr, "<3> FATAL: sdrOpen() timed out, will raise SIGKILL, clean exit not possible!\n");
-        log_with_timestamp("Raising SIGKILL!");
-        raise(SIGKILL);
-    }
-    return res;
+    return current_handler()->open();
 }
 
 void sdrRun() {
+    // Create the thread that will read the data from the device.
     return current_handler()->run();
 }
 
-static void *sdrCancelThreadEntry(void *arg) {
-    MODES_NOTUSED(arg);
-    current_handler()->cancel();
-    pthread_exit(NULL);
-}
-
-static void *sdrCloseThreadEntry(void *arg) {
-    MODES_NOTUSED(arg);
-    current_handler()->close();
-    pthread_exit(NULL);
-}
-
 void sdrCancel() {
-    // Call cancel() asynchronously:
-    pthread_create(&current_handler()->manageThread, NULL, sdrCancelThreadEntry, NULL);
+    current_handler()->cancel();
 }
 
-bool sdrClose() {
-    bool fatal = false;
-    pthread_t *manageThread = &current_handler()->manageThread;
+void sdrClose() {
+    current_handler()->close();
+}
 
-    // wait on the thread started by sdrCancel to finish
-    if (tryJoinThread(manageThread, SDR_TIMEOUT)) {
-        fprintf(stderr, "<3> FATAL: The SDR being stopped timed out, will raise SIGKILL!\n");
-        log_with_timestamp("Raising SIGKILL!");
-        raise(SIGKILL);
-    }
-
-
-    // Wait on readerThread to finish
-    if (tryJoinThread(&Modes.reader_thread, SDR_TIMEOUT)) {
-        fprintf(stderr, "<3> FATAL: SDR receive thread termination timed out, will raise SIGKILL!\n");
-        fatal = true;
-    } else {
-        pthread_cond_destroy(&Modes.data_cond); // Thread cleanup - only after the reader thread is dead!
-        pthread_mutex_destroy(&Modes.data_mutex);
-    }
-
-
-    // Call close() asynchronously:
-    pthread_create(manageThread, NULL, sdrCloseThreadEntry, NULL);
-    if (tryJoinThread(manageThread, SDR_TIMEOUT)) {
-        fprintf(stderr, "<3> FATAL: Clean closing of the SDR resource timed out, will raise SIGKILL!\n");
-        fatal = true;
-    }
-
-    if (fatal) {
-        log_with_timestamp("Raising SIGKILL!");
-        raise(SIGKILL);
-    }
-
-    return true;
+void lockReader() {
+    pthread_mutex_lock(&Threads.reader.mutex);
+}
+void unlockReader() {
+    pthread_mutex_unlock(&Threads.reader.mutex);
+}
+void wakeDecode() {
+    pthread_cond_signal(&Threads.decode.cond);
 }

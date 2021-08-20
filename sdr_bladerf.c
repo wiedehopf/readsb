@@ -298,26 +298,27 @@ static void *handle_bladerf_samples(struct bladerf *dev,
     // record initial time for later sys timestamp calculation
     uint64_t entryTimestamp = mstime();
 
-    pthread_mutex_lock(&Modes.data_mutex);
+    lockReader();
     if (Modes.exit) {
-        pthread_mutex_unlock(&Modes.data_mutex);
+        unlockReader();
         return BLADERF_STREAM_SHUTDOWN;
     }
+
 
     unsigned next_free_buffer = (Modes.first_free_buffer + 1) % MODES_MAG_BUFFERS;
     struct mag_buf *outbuf = &Modes.mag_buffers[Modes.first_free_buffer];
     struct mag_buf *lastbuf = &Modes.mag_buffers[(Modes.first_free_buffer + MODES_MAG_BUFFERS - 1) % MODES_MAG_BUFFERS];
     unsigned free_bufs = (Modes.first_filled_buffer - next_free_buffer + MODES_MAG_BUFFERS) % MODES_MAG_BUFFERS;
 
+    unlockReader();
+
     if (free_bufs == 0 || (dropping && free_bufs < MODES_MAG_BUFFERS / 2)) {
         // FIFO is full. Drop this block.
         dropping = true;
-        pthread_mutex_unlock(&Modes.data_mutex);
         return samples;
     }
 
     dropping = false;
-    pthread_mutex_unlock(&Modes.data_mutex);
 
     // Copy trailing data from last block (or reset if not valid)
     if (outbuf->dropped == 0) {
@@ -404,7 +405,7 @@ static void *handle_bladerf_samples(struct bladerf *dev,
         outbuf->mean_power /= blocks_processed;
 
         // Push the new data to the demodulation thread
-        pthread_mutex_lock(&Modes.data_mutex);
+        lockReader();
 
         // accumulate CPU while holding the mutex, and restart measurement
         end_cpu_timing(&thread_cpu, &Modes.reader_cpu_accumulator);
@@ -414,8 +415,8 @@ static void *handle_bladerf_samples(struct bladerf *dev,
         Modes.mag_buffers[next_free_buffer].length = 0; // just in case
         Modes.first_free_buffer = next_free_buffer;
 
-        pthread_cond_signal(&Modes.data_cond);
-        pthread_mutex_unlock(&Modes.data_mutex);
+        wakeDecoder();
+        unlockReader();
     }
 
     return samples;

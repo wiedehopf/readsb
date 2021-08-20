@@ -187,12 +187,10 @@ static void modesInit(void) {
     Modes.next_stats_update = roundSeconds(10, 5, now + 10 * SECONDS);
     Modes.next_stats_display = now + Modes.stats;
 
-    pthread_mutex_init(&Modes.data_mutex, NULL);
-    pthread_cond_init(&Modes.data_cond, NULL);
-
     pthread_mutex_init(&Modes.traceDebugMutex, NULL);
     pthread_mutex_init(&Modes.lockStartMutex, NULL);
 
+    threadInit(&Threads.reader, "reader");
     threadInit(&Threads.upkeep, "upkeep");
     threadInit(&Threads.decode, "decode");
     threadInit(&Threads.json, "json");
@@ -436,14 +434,17 @@ static void *readerEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
     srandom(get_seed());
 
+    if (!sdrOpen()) {
+        setExit(2); // unexpected exit
+        log_with_timestamp("sdrOpen() failed, exiting!");
+        return NULL;
+    }
+
     sdrRun();
 
     // Wake the main thread (if it's still waiting)
-    pthread_mutex_lock(&Modes.data_mutex);
     if (!Modes.exit)
         setExit(2); // unexpected exit
-    pthread_cond_signal(&Modes.data_cond);
-    pthread_mutex_unlock(&Modes.data_mutex);
 
     return NULL;
 }
@@ -644,92 +645,71 @@ static void *decodeEntryPoint(void *arg) {
 
         int watchdogCounter = 50; // about 5 seconds
 
-        uint32_t maxSleep = 80; // in ms
-        // Create the thread that will read the data from the device.
-        pthread_mutex_lock(&Modes.data_mutex);
-        pthread_create(&Modes.reader_thread, NULL, readerEntryPoint, NULL);
-
         while (!Modes.exit) {
             struct timespec start_time;
 
-            // Modes.data_mutex is locked, and possibly we have data.
-
+            lockReader();
+            // reader is locked, and possibly we have data.
             // copy out reader CPU time and reset it
             add_timespecs(&Modes.reader_cpu_accumulator, &Modes.stats_current.reader_cpu, &Modes.stats_current.reader_cpu);
             Modes.reader_cpu_accumulator.tv_sec = 0;
             Modes.reader_cpu_accumulator.tv_nsec = 0;
 
+            struct mag_buf *buf = NULL;
             if (Modes.first_free_buffer != Modes.first_filled_buffer) {
                 // FIFO is not empty, process one buffer.
-
-                struct mag_buf *buf;
-
-                start_cpu_timing(&start_time);
                 buf = &Modes.mag_buffers[Modes.first_filled_buffer];
+            } else {
+                buf = NULL;
+            }
+            unlockReader();
 
-                // Process data after releasing the lock, so that the capturing
-                // thread can read data while we perform computationally expensive
-                // stuff at the same time.
-                pthread_mutex_unlock(&Modes.data_mutex);
-
+            if (buf) {
+                start_cpu_timing(&start_time);
                 demodulate2400(buf);
                 if (Modes.mode_ac) {
                     demodulate2400AC(buf);
                 }
-
-                pthread_mutex_lock(&Modes.data_mutex);
 
                 Modes.stats_current.samples_processed += buf->length;
                 Modes.stats_current.samples_dropped += buf->dropped;
                 end_cpu_timing(&start_time, &Modes.stats_current.demod_cpu);
 
                 // Mark the buffer we just processed as completed.
+                lockReader();
                 Modes.first_filled_buffer = (Modes.first_filled_buffer + 1) % MODES_MAG_BUFFERS;
-                pthread_cond_signal(&Modes.data_cond);
+                pthread_cond_signal(&Threads.reader.cond);
+                unlockReader();
+
                 watchdogCounter = 50;
             } else {
                 // Nothing to process this time around.
                 if (--watchdogCounter <= 0) {
                     fprintf(stderr, "<3> SDR wedged, exiting! (check power supply / avoid using an USB extension / SDR might be defective)");
-                    pthread_mutex_unlock(&Modes.data_mutex);
                     setExit(2);
                     break;
                 }
             }
 
-            // unlock data mutex for backgroundTasks
-            pthread_mutex_unlock(&Modes.data_mutex);
-
             start_cpu_timing(&start_time);
             backgroundTasks(mstime());
             end_cpu_timing(&start_time, &Modes.stats_current.background_cpu);
 
-            pthread_mutex_lock(&Modes.data_mutex);
+            lockReader();
+            int newData = (Modes.first_free_buffer != Modes.first_filled_buffer);
+            unlockReader();
 
-            uint64_t now = mstime();
-
-            if (Modes.first_free_buffer == Modes.first_filled_buffer || now > Modes.next_remove_stale + 5 * SECONDS) {
+            if (!newData) {
                 /* wait for more data.
                  * we should be getting data every 50-60ms. wait for max 80 before we give up and do some background work.
                  * this is fairly aggressive as all our network I/O runs out of the background work!
                  */
-
-                // unlock decode mutex while waiting
-                pthread_mutex_unlock(&Threads.decode.mutex);
-
-                incTimedwait(&ts, maxSleep);
-
-                // This unlocks Modes.data_mutex, and waits for Modes.data_cond
-                int err = pthread_cond_timedwait(&Modes.data_cond, &Modes.data_mutex, &ts);
-                if (err && err != ETIMEDOUT)
-                    fprintf(stderr, "decode: pthread_cond_timedwait unexpected error: %s\n", strerror(err));
-
-                pthread_mutex_lock(&Threads.decode.mutex);
+                threadTimedWait(&Threads.decode, &ts, 80);
+            }
+            if (mstime() > Modes.next_remove_stale + 5 * SECONDS) {
+                threadTimedWait(&Threads.decode, &ts, 5);
             }
         }
-
-        pthread_mutex_unlock(&Modes.data_mutex);
-
         sdrCancel();
     }
 
@@ -1497,7 +1477,8 @@ int main(int argc, char **argv) {
     Modes.ifile_now = Modes.startup_time;
     srandom(get_seed());
 
-    // signal handlers:
+    // signal handling stuff
+    Modes.exitEventfd = eventfd(0, EFD_NONBLOCK);
     signal(SIGINT, sigintHandler);
     signal(SIGTERM, sigtermHandler);
     signal(SIGUSR1, SIG_IGN);
@@ -1522,11 +1503,6 @@ int main(int argc, char **argv) {
     //log_with_timestamp("%s starting up.", MODES_READSB_VARIANT);
 
     modesInit();
-
-    if (Modes.sdr_type != SDR_NONE && !sdrOpen()) {
-        log_with_timestamp("sdrOpen() failed, exiting!");
-        cleanup_and_exit(1);
-    }
 
     // init stats:
     Modes.stats_current.start = Modes.stats_current.end =
@@ -1561,7 +1537,9 @@ int main(int argc, char **argv) {
     if (!Modes.exit)
         dbFinishUpdate();
 
-    Modes.exitEventfd = eventfd(0, EFD_NONBLOCK);
+    if (Modes.sdr_type != SDR_NONE) {
+        threadCreate(&Threads.reader, NULL, readerEntryPoint, NULL);
+    }
 
     threadCreate(&Threads.decode, NULL, decodeEntryPoint, NULL);
 
@@ -1628,6 +1606,10 @@ int main(int argc, char **argv) {
 
     close(mainEpfd);
     sfree(events);
+
+    if (Modes.sdr_type != SDR_NONE) {
+        threadSignalJoin(&Threads.reader);
+    }
 
     threadSignalJoin(&Threads.upkeep);
 

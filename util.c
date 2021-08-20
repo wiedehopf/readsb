@@ -56,11 +56,6 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-void msleep(uint64_t ms) {
-    struct timespec slp = {ms / 1000, (ms % 1000) * 1000 * 1000};
-    nanosleep(&slp, NULL);
-}
-
 uint64_t mstime(void) {
     if (Modes.sdr_type == SDR_IFILE)
         return Modes.ifile_now;
@@ -189,19 +184,6 @@ void incTimedwait(struct timespec *target, uint64_t increment) {
 static threadT *uThreads[uThreadMax];
 static int uThreadCount = 0;
 
-// if a thread fails to terminate within milliseconds timeout
-// return 0 on successful join, non-zero otherwise
-// 50 ms granularity
-int tryJoinThread(pthread_t *thread, uint64_t timeout) {
-    int err = 0;
-    int step = 1; // granularity
-    uint64_t countdown = timeout / step + 1;
-    while (countdown-- > 0 && (err = pthread_tryjoin_np(*thread, NULL))) {
-        msleep(step);
-    }
-    return err;
-}
-
 void threadInit(threadT *thread, char *name) {
     if (uThreadCount >= uThreadMax) {
         fprintf(stderr, "util.c: increase uThreadmax!\n");
@@ -211,8 +193,8 @@ void threadInit(threadT *thread, char *name) {
         memset(uThreads, 0, sizeof (uThreads));
     }
     memset(thread, 0, sizeof (threadT));
-    pthread_mutex_init(&Modes.data_mutex, NULL);
-    pthread_cond_init(&Modes.data_cond, NULL);
+    pthread_mutex_init(&thread->mutex, NULL);
+    pthread_cond_init(&thread->cond, NULL);
     thread->name = strdup(name);
     uThreads[uThreadCount++] = thread;
     thread->joined = 1;
@@ -256,22 +238,21 @@ void threadTimedWait(threadT *thread, struct timespec *ts, uint64_t increment) {
     if (err && err != ETIMEDOUT)
         fprintf(stderr, "%s thread: pthread_cond_timedwait unexpected error: %s\n", thread->name, strerror(err));
 }
-static void *sacEntry(void *arg) {
-    threadT *thread = (threadT *) arg;
-    pthread_mutex_lock(&thread->mutex);
-    pthread_cond_signal(&thread->cond);
-    pthread_mutex_unlock(&thread->mutex);
-    return NULL;
-}
+
 void threadSignalJoin(threadT *thread) {
-    pthread_t sac;
-    pthread_create(&sac, NULL, sacEntry, thread);
-    uint64_t timeout = Modes.joinTimeout;
-    if (tryJoinThread(&sac, timeout) == 0) {
+    int timeout = Modes.joinTimeout;
+    int err = 0;
+    while ((err = pthread_tryjoin_np(thread->pthread, NULL)) && timeout-- > 0) {
+        pthread_cond_signal(&thread->cond);
+        msleep(1);
+    }
+    if (err == 0) {
         thread->joined = 1;
     } else {
         thread->joinFailed = 1;
         fprintf(stderr, "%s thread: threadSignalJoin timed out after %.1f seconds, undefined behaviour may result!\n", thread->name, (double) timeout / SECONDS);
+        Modes.joinTimeout /= 2;
+        Modes.joinTimeout = max(Modes.joinTimeout, 2 * SECONDS);
     }
 }
 

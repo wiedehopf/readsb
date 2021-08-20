@@ -177,7 +177,7 @@ static void plutosdrCallback(int16_t *buf, uint32_t len) {
     static int dropping = 0;
     static uint64_t sampleCounter = 0;
 
-    pthread_mutex_lock(&Modes.data_mutex);
+    lockReader();
 
     next_free_buffer = (Modes.first_free_buffer + 1) % MODES_MAG_BUFFERS;
     outbuf = &Modes.mag_buffers[Modes.first_free_buffer];
@@ -209,12 +209,12 @@ static void plutosdrCallback(int16_t *buf, uint32_t len) {
         dropping = 1;
         outbuf->dropped += slen;
         sampleCounter += slen;
-        pthread_mutex_unlock(&Modes.data_mutex);
+        unlockReader();
         return;
     }
 
     dropping = 0;
-    pthread_mutex_unlock(&Modes.data_mutex);
+    unlockReader();
 
     outbuf->sampleTimestamp = sampleCounter * 12e6 / Modes.sample_rate;
     sampleCounter += slen;
@@ -230,7 +230,7 @@ static void plutosdrCallback(int16_t *buf, uint32_t len) {
     outbuf->length = slen;
     PLUTOSDR.converter(buf, &outbuf->data[Modes.trailing_samples], slen, PLUTOSDR.converter_state, &outbuf->mean_level, &outbuf->mean_power);
 
-    pthread_mutex_lock(&Modes.data_mutex);
+    lockReader();
 
     Modes.mag_buffers[next_free_buffer].dropped = 0;
     Modes.mag_buffers[next_free_buffer].length = 0;
@@ -239,8 +239,8 @@ static void plutosdrCallback(int16_t *buf, uint32_t len) {
     end_cpu_timing(&thread_cpu, &Modes.reader_cpu_accumulator);
     start_cpu_timing(&thread_cpu);
 
-    pthread_cond_signal(&Modes.data_cond);
-    pthread_mutex_unlock(&Modes.data_mutex);
+    wakeDecode();
+    unlockReader();
 }
 
 void plutosdrRun() {

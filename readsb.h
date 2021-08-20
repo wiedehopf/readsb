@@ -380,6 +380,9 @@ struct mag_buf
 struct _Threads {
     threadT upkeep; // runs trackPeriodicUpdate, locks most other threads when doing its thing
     threadT decode; // thread doing demodulation, decoding and networking
+
+    threadT reader;
+
     threadT json; // thread writing json
     threadT globeJson; // thread writing json
     threadT globeBin; // thread writing binCraft
@@ -393,10 +396,6 @@ extern struct _Threads Threads;
 
 struct _Modes
 { // Internal state
-    pthread_cond_t data_cond; // Conditional variable associated
-    pthread_mutex_t data_mutex; // Mutex to synchronize buffer access
-    pthread_t reader_thread;
-
     pthread_mutex_t traceDebugMutex;
 
     int lockThreadsCount;

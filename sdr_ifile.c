@@ -173,7 +173,10 @@ void ifileRun() {
 
     clock_gettime(CLOCK_MONOTONIC, &next_buffer_delivery);
 
-    pthread_mutex_lock(&Modes.data_mutex);
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+
+    lockReader();
     while (!Modes.exit && !eof) {
         ssize_t nread, toread;
         void *r;
@@ -184,13 +187,13 @@ void ifileRun() {
         next_free_buffer = (Modes.first_free_buffer + 1) % MODES_MAG_BUFFERS;
         if (next_free_buffer == Modes.first_filled_buffer) {
             // no space for output yet
-            pthread_cond_wait(&Modes.data_cond, &Modes.data_mutex);
+            threadTimedWait(&Threads.reader, &ts, 50);
             continue;
         }
 
         outbuf = &Modes.mag_buffers[Modes.first_free_buffer];
         lastbuf = &Modes.mag_buffers[(Modes.first_free_buffer + MODES_MAG_BUFFERS - 1) % MODES_MAG_BUFFERS];
-        pthread_mutex_unlock(&Modes.data_mutex);
+        unlockReader();
 
         // Compute the sample timestamp for the start of the block
         outbuf->sampleTimestamp = sampleCounter * 12e6 / Modes.sample_rate;
@@ -238,23 +241,22 @@ void ifileRun() {
         }
 
         // Push the new data to the main thread
-        pthread_mutex_lock(&Modes.data_mutex);
+        lockReader();
         Modes.first_free_buffer = next_free_buffer;
         // accumulate CPU while holding the mutex, and restart measurement
         end_cpu_timing(&thread_cpu, &Modes.reader_cpu_accumulator);
         start_cpu_timing(&thread_cpu);
-        pthread_cond_signal(&Modes.data_cond);
+        wakeDecode();
     }
 
-    // Wait for the main thread to consume all data
+    // Wait for the main thread to consume all data (reader still locked here)
     while (!Modes.exit && Modes.first_filled_buffer != Modes.first_free_buffer) {
-        pthread_cond_signal(&Modes.data_cond);
-        pthread_cond_wait(&Modes.data_cond, &Modes.data_mutex);
+        wakeDecode();
+        threadTimedWait(&Threads.reader, &ts, 50);
     }
 
     Modes.exit = 1;
-    pthread_cond_signal(&Modes.data_cond);
-    pthread_mutex_unlock(&Modes.data_mutex);
+    unlockReader();
 }
 
 void ifileClose() {

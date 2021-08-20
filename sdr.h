@@ -32,6 +32,10 @@ bool sdrHandleOption (int argc, char *argv);
 bool sdrOpen ();
 void sdrRun ();
 void sdrCancel ();
-bool sdrClose ();
+void sdrClose ();
+
+void lockReader();
+void unlockReader();
+void wakeDecode();
 
 #endif

@@ -58,7 +58,10 @@ struct char_buffer readWholeFile(int fd, char *errorContext);
 struct char_buffer readWholeGz(gzFile gzfp, char *errorContext);
 int writeGz(gzFile gzfp, void *source, int toWrite, char *errorContext);
 
-void msleep(uint64_t ms);
+static inline void msleep(uint64_t ms) {
+    struct timespec slp = {ms / 1000, (ms % 1000) * 1000 * 1000};
+    nanosleep(&slp, NULL);
+}
 
 /* Returns system time in milliseconds */
 uint64_t mstime (void);

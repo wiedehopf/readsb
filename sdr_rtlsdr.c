@@ -278,19 +278,18 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
     MODES_NOTUSED(ctx);
 
     // Lock the data buffer variables before accessing them
-    pthread_mutex_lock(&Modes.data_mutex);
+    lockReader();
 
     next_free_buffer = (Modes.first_free_buffer + 1) % MODES_MAG_BUFFERS;
     outbuf = &Modes.mag_buffers[Modes.first_free_buffer];
     lastbuf = &Modes.mag_buffers[(Modes.first_free_buffer + MODES_MAG_BUFFERS - 1) % MODES_MAG_BUFFERS];
     free_bufs = (Modes.first_filled_buffer - next_free_buffer + MODES_MAG_BUFFERS) % MODES_MAG_BUFFERS;
 
-    // Paranoia! Unlikely, but let's go for belt and suspenders here
+    unlockReader();
 
     if (len != MODES_RTL_BUF_SIZE) {
         fprintf(stderr, "weirdness: rtlsdr gave us a block with an unusual size (got %u bytes, expected %u bytes)\n",
                 (unsigned) len, (unsigned) MODES_RTL_BUF_SIZE);
-
         if (len > MODES_RTL_BUF_SIZE) {
             // wat?! Discard the start.
             unsigned discard = (len - MODES_RTL_BUF_SIZE + 1) / 2;
@@ -299,7 +298,6 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
             len -= discard * 2;
         }
     }
-
     slen = len / 2; // Drops any trailing odd sample, that's OK
 
     if (free_bufs == 0 || (dropping && free_bufs < MODES_MAG_BUFFERS / 2)) {
@@ -307,9 +305,9 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
         dropping = 1;
         outbuf->dropped += slen;
         sampleCounter += slen;
+
         // make extra sure that the decode thread isn't sleeping
-        pthread_cond_signal(&Modes.data_cond);
-        pthread_mutex_unlock(&Modes.data_mutex);
+        wakeDecode();
 
         if (--antiSpam <= 0 && !Modes.exit) {
             fprintf(stderr, "FIFO dropped, suppressing this message for 30 seconds.\n");
@@ -317,9 +315,7 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
         }
         return;
     }
-
     dropping = 0;
-    pthread_mutex_unlock(&Modes.data_mutex);
 
     // Compute the sample timestamp and system timestamp for the start of the block
     outbuf->sampleTimestamp = sampleCounter * 12e6 / Modes.sample_rate;
@@ -352,7 +348,7 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
     RTLSDR.converter(buf, &outbuf->data[Modes.trailing_samples], slen, RTLSDR.converter_state, &outbuf->mean_level, &outbuf->mean_power);
 
     // Push the new data to the demodulation thread
-    pthread_mutex_lock(&Modes.data_mutex);
+    lockReader();
 
     Modes.mag_buffers[next_free_buffer].dropped = 0;
     Modes.mag_buffers[next_free_buffer].length = 0; // just in case
@@ -362,8 +358,8 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
     end_cpu_timing(&rtlsdr_thread_cpu, &Modes.reader_cpu_accumulator);
     start_cpu_timing(&rtlsdr_thread_cpu);
 
-    pthread_cond_signal(&Modes.data_cond);
-    pthread_mutex_unlock(&Modes.data_mutex);
+    wakeDecode();
+    unlockReader();
 }
 
 void rtlsdrRun() {
