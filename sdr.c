@@ -160,9 +160,13 @@ bool sdrOpen() {
     return current_handler()->open();
 }
 
+bool sdrHasRun() {
+    return (current_handler()->run != noRun);
+}
+
 void sdrRun() {
     // Create the thread that will read the data from the device.
-    return current_handler()->run();
+    current_handler()->run();
 }
 
 void sdrCancel() {

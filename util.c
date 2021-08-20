@@ -240,6 +240,8 @@ void threadTimedWait(threadT *thread, struct timespec *ts, uint64_t increment) {
 }
 
 void threadSignalJoin(threadT *thread) {
+    if (thread->joined)
+        return;
     int timeout = Modes.joinTimeout;
     int err = 0;
     while ((err = pthread_tryjoin_np(thread->pthread, NULL)) && timeout-- > 0) {

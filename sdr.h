@@ -31,6 +31,7 @@ void sdrInitConfig ();
 bool sdrHandleOption (int argc, char *argv);
 bool sdrOpen ();
 void sdrRun ();
+bool sdrHasRun();
 void sdrCancel ();
 void sdrClose ();
 

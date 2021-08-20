@@ -434,12 +434,6 @@ static void *readerEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
     srandom(get_seed());
 
-    if (!sdrOpen()) {
-        setExit(2); // unexpected exit
-        log_with_timestamp("sdrOpen() failed, exiting!");
-        return NULL;
-    }
-
     sdrRun();
 
     // Wake the main thread (if it's still waiting)
@@ -1538,7 +1532,14 @@ int main(int argc, char **argv) {
         dbFinishUpdate();
 
     if (Modes.sdr_type != SDR_NONE) {
-        threadCreate(&Threads.reader, NULL, readerEntryPoint, NULL);
+        if (!sdrOpen()) {
+            setExit(2); // unexpected exit
+            log_with_timestamp("sdrOpen() failed, exiting!");
+            cleanup_and_exit(1);
+        }
+        if (sdrHasRun()) {
+            threadCreate(&Threads.reader, NULL, readerEntryPoint, NULL);
+        }
     }
 
     threadCreate(&Threads.decode, NULL, decodeEntryPoint, NULL);
