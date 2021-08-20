@@ -1494,8 +1494,8 @@ int traceAdd(struct aircraft *a, uint64_t now) {
     int64_t elapsed = 0;
     int64_t elapsed_buffered = 0;
 
-    int64_t min_elapsed = TRACE_MIN_ELAPSED;
     int64_t max_elapsed = Modes.json_trace_interval;
+    int64_t min_elapsed = min(TRACE_MIN_ELAPSED, max_elapsed);
     float turn_density = 4.5;
 
     float max_speed_diff = 5.0;
@@ -1622,8 +1622,8 @@ int traceAdd(struct aircraft *a, uint64_t now) {
     if (elapsed > 10 * max_elapsed)
         goto save_state;
 
-    // don't record non moving targets
-    if (distance < 35)
+    // don't record non moving targets ... unless json-interval is set to less than 5 seconds
+    if (distance < 25 && max_elapsed > 5 * SECONDS)
         goto no_save_state;
 
     // record trace precisely if we have a TCAS advisory
