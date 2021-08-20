@@ -359,7 +359,7 @@ static void trackPeriodicUpdate() {
         Modes.next_remove_stale = now + 1 * SECONDS;
         pthread_mutex_unlock(&Threads.misc.mutex);
     }
-    int64_t elapsed1 = stopWatch(&watch);
+    int64_t elapsed1 = lapWatch(&watch);
 
     if (Modes.mode_ac && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 2)
         trackMatchAC(now);
@@ -381,7 +381,7 @@ static void trackPeriodicUpdate() {
     int nParts = 5 * MINUTES / PERIODIC_UPDATE;
     receiverTimeout((upcount % nParts), nParts, now);
 
-    int64_t elapsed2 = stopWatch(&watch);
+    int64_t elapsed2 = lapWatch(&watch);
 
     unlockThreads();
 
@@ -1615,6 +1615,7 @@ int main(int argc, char **argv) {
         int64_t elapsed = stopWatch(&Modes.lockStart);
         pthread_mutex_unlock(&Modes.lockStartMutex);
 
+        //fprintf(stderr, "lockThreads() took %.1f seconds!\n", (double) elapsed / SECONDS);
         if (elapsed > 30 * SECONDS) {
             fprintf(stderr, "<3>FATAL: lockThreads() took %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed / SECONDS);
             fprintf(stderr, "<3>lockThreads() probably hung on %s\n", Modes.currentLock);

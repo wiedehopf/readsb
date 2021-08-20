@@ -93,6 +93,7 @@ void end_monotonic_timing (const struct timespec *start_time, struct timespec *a
 void startWatch(struct timespec *start_time);
 // return elapsed time and set start_time to current time
 int64_t stopWatch(struct timespec *start_time);
+int64_t lapWatch(struct timespec *start_time);
 
 // get nanoseconds and some other stuff for use with srand
 unsigned int get_seed();

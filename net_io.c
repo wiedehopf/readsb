@@ -2995,7 +2995,7 @@ void modesNetPeriodicWork(void) {
 
     pthread_mutex_lock(&Threads.decode.mutex);
 
-    int64_t interval = stopWatch(&watch);
+    int64_t interval = lapWatch(&watch);
 
     handleEpoll(count);
 
@@ -3003,7 +3003,7 @@ void modesNetPeriodicWork(void) {
         epollAllocEvents(&Modes.net_events, &Modes.net_maxEvents);
     }
 
-    int64_t elapsed1 = stopWatch(&watch);
+    int64_t elapsed1 = lapWatch(&watch);
 
     uint64_t now = mstime();
 
@@ -3014,7 +3014,7 @@ void modesNetPeriodicWork(void) {
 
     pingSenders(Modes.beast_in_service, now);
 
-    int64_t elapsed2 = stopWatch(&watch);
+    int64_t elapsed2 = lapWatch(&watch);
 
     static uint64_t next_flush_interval;
     if (now > next_flush_interval) {
@@ -3032,7 +3032,7 @@ void modesNetPeriodicWork(void) {
         }
     }
 
-    int64_t elapsed3 = stopWatch(&watch);
+    int64_t elapsed3 = lapWatch(&watch);
 
     static uint64_t antiSpam;
     if ((elapsed1 > 150 || elapsed2 > 150 || elapsed3 > 150 || interval > 1100) && now > antiSpam + 5 * SECONDS) {
