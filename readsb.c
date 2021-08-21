@@ -152,7 +152,7 @@ static void modesInitConfig(void) {
     Modes.acasFD1 = -1; // set to -1 so it's clear we don't have that fd
     Modes.acasFD2 = -1; // set to -1 so it's clear we don't have that fd
 
-    Modes.currentLock = "unset";
+    Modes.currentTask = "unset";
     Modes.joinTimeout = 30 * SECONDS;
 
     Modes.filterDF = -1; // don't filter when set to -1
@@ -188,7 +188,7 @@ static void modesInit(void) {
     Modes.next_stats_display = now + Modes.stats;
 
     pthread_mutex_init(&Modes.traceDebugMutex, NULL);
-    pthread_mutex_init(&Modes.lockStartMutex, NULL);
+    pthread_mutex_init(&Modes.hungTimerMutex, NULL);
 
     threadInit(&Threads.reader, "reader");
     threadInit(&Threads.upkeep, "upkeep");
@@ -304,23 +304,16 @@ static void modesInit(void) {
 }
 
 static void lockThreads() {
-    pthread_mutex_lock(&Modes.lockStartMutex);
-    startWatch(&Modes.lockStart);
-    pthread_mutex_unlock(&Modes.lockStartMutex);
-
     for (int i = 0; i < Modes.lockThreadsCount; i++) {
-        Modes.currentLock = Modes.lockThreads[i]->name;
+        Modes.currentTask = Modes.lockThreads[i]->name;
         pthread_mutex_lock(&Modes.lockThreads[i]->mutex);
     }
-    Modes.currentLock = "locked";
 }
 
 static void unlockThreads() {
-    Modes.currentLock = "unlocking";
     for (int i = 0; i < Modes.lockThreadsCount; i++) {
         pthread_mutex_unlock(&Modes.lockThreads[i]->mutex);
     }
-    Modes.currentLock = "unlocked";
 }
 
 //
@@ -328,6 +321,10 @@ static void unlockThreads() {
 //
 
 static void trackPeriodicUpdate() {
+    pthread_mutex_lock(&Modes.hungTimerMutex);
+    startWatch(&Modes.hungTimer1);
+    pthread_mutex_unlock(&Modes.hungTimerMutex);
+    Modes.currentTask = "trackPeriodic_start";
     static uint32_t upcount;
     upcount++; // free running counter, first iteration is with 1
 
@@ -336,7 +333,9 @@ static void trackPeriodicUpdate() {
     // adding aircraft does not need to be done with locking:
     // the worst case is that the newly added aircraft is skipped as it's not yet
     // in the cache used by the json threads.
+    Modes.currentTask = "locking";
     lockThreads();
+    Modes.currentTask = "locked";
 
     uint64_t now = mstime();
 
@@ -350,38 +349,53 @@ static void trackPeriodicUpdate() {
 
 
     if (now > Modes.next_remove_stale && pthread_mutex_trylock(&Threads.misc.mutex) == 0) {
+        pthread_mutex_lock(&Modes.hungTimerMutex);
+        startWatch(&Modes.hungTimer2);
+        pthread_mutex_unlock(&Modes.hungTimerMutex);
+
+        Modes.currentTask = "trackRemoveStale";
         trackRemoveStale(now);
-        if (now > Modes.next_remove_stale + 10 * SECONDS && Modes.next_remove_stale) {
-            fprintf(stderr, "removeStale delayed by %.1f seconds\n", (now - Modes.next_remove_stale) / 1000.0);
-        }
         Modes.next_remove_stale = now + 1 * SECONDS;
         pthread_mutex_unlock(&Threads.misc.mutex);
     }
+
     int64_t elapsed1 = lapWatch(&watch);
 
-    if (Modes.mode_ac && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 2)
+    if (Modes.mode_ac && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 2) {
+        Modes.currentTask = "trackMatchAC";
         trackMatchAC(now);
+    }
 
 
-    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 4)
+    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 4) {
+        Modes.currentTask = "netFreeClients";
         netFreeClients();
+    }
 
-    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 3)
+    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 3) {
+        Modes.currentTask = "checkDisplayStats";
         checkDisplayStats(now);
+    }
 
-    if (Modes.updateStats)
+    if (Modes.updateStats) {
+        Modes.currentTask = "statsUpdate";
         statsUpdate(now); // needs to happen under lock
+    }
 
 
+    Modes.currentTask = "checkNewDayLocked";
     checkNewDayLocked(now);
 
 
+    Modes.currentTask = "receiverTimeout";
     int nParts = 5 * MINUTES / PERIODIC_UPDATE;
     receiverTimeout((upcount % nParts), nParts, now);
 
     int64_t elapsed2 = lapWatch(&watch);
 
+    Modes.currentTask = "unlocking";
     unlockThreads();
+    Modes.currentTask = "unlocked";
 
     static uint64_t antiSpam;
     if ((elapsed1 > 150 || elapsed2 > 150) && now > antiSpam + 30 * SECONDS) {
@@ -393,6 +407,7 @@ static void trackPeriodicUpdate() {
     //fprintf(stderr, "removeStale took %"PRIu64" ms, running for %ld ms\n", elapsed, now - Modes.startup_time);
 
     if (Modes.updateStats) {
+        Modes.currentTask = "statsReset";
         statsResetCount();
         uint32_t aircraftCount = 0;
         for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
@@ -403,6 +418,7 @@ static void trackPeriodicUpdate() {
             }
         }
 
+        Modes.currentTask = "statsWrite";
         statsWrite();
         Modes.updateStats = 0;
 
@@ -415,6 +431,7 @@ static void trackPeriodicUpdate() {
         }
     }
     if (Modes.outline_json) {
+        Modes.currentTask = "outlineJson";
         static uint64_t nextOutlineWrite;
         if (now > nextOutlineWrite) {
             writeJsonToFile(Modes.json_dir, "outline.json", generateOutlineJson());
@@ -422,6 +439,7 @@ static void trackPeriodicUpdate() {
         }
     }
     end_monotonic_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
+    Modes.currentTask = "trackPeriodic_end";
 }
 
 //
@@ -1589,16 +1607,23 @@ int main(int argc, char **argv) {
             continue;
         }
 
-        pthread_mutex_lock(&Modes.lockStartMutex);
-        int64_t elapsed = stopWatch(&Modes.lockStart);
-        pthread_mutex_unlock(&Modes.lockStartMutex);
+        pthread_mutex_lock(&Modes.hungTimerMutex);
+        int64_t elapsed1 = stopWatch(&Modes.hungTimer1);
+        int64_t elapsed2 = stopWatch(&Modes.hungTimer2);
+        pthread_mutex_unlock(&Modes.hungTimerMutex);
 
         //fprintf(stderr, "lockThreads() took %.1f seconds!\n", (double) elapsed / SECONDS);
-        if (elapsed > 30 * SECONDS) {
-            fprintf(stderr, "<3>FATAL: lockThreads() took %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed / SECONDS);
-            fprintf(stderr, "<3>lockThreads() probably hung on %s\n", Modes.currentLock);
+        if (elapsed1 > 10 * SECONDS) {
+            fprintf(stderr, "<3>FATAL: trackPeriodicUpdate() interval %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed1 / SECONDS);
+            fprintf(stderr, "<3>lockThreads() probably hung on %s\n", Modes.currentTask);
 
             Modes.joinTimeout = 2 * SECONDS;
+            setExit(2);
+            break;
+        }
+        if (elapsed2 > 30 * SECONDS) {
+            fprintf(stderr, "<3>FATAL: removeStale() interval %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed2 / SECONDS);
+            Modes.joinTimeout = 5 * SECONDS;
             setExit(2);
             break;
         }
@@ -1658,7 +1683,7 @@ int main(int argc, char **argv) {
     threadDestroyAll();
 
     pthread_mutex_destroy(&Modes.traceDebugMutex);
-    pthread_mutex_destroy(&Modes.lockStartMutex);
+    pthread_mutex_destroy(&Modes.hungTimerMutex);
 
     // If --stats were given, print statistics
     if (Modes.stats) {

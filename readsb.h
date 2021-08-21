@@ -401,9 +401,10 @@ struct _Modes
     int lockThreadsCount;
     threadT *lockThreads[LOCK_THREADS_MAX];
 
-    struct timespec lockStart;
-    pthread_mutex_t lockStartMutex;
-    char *currentLock;
+    struct timespec hungTimer1;
+    struct timespec hungTimer2;
+    pthread_mutex_t hungTimerMutex;
+    char *currentTask;
     uint64_t joinTimeout;
 
     unsigned first_free_buffer; // Entry in mag_buffers that will next be filled with input.
