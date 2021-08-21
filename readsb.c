@@ -615,27 +615,26 @@ static void *decodeEntryPoint(void *arg) {
 
     interactiveInit();
 
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    uint64_t now = mstime();
     if (Modes.net_only) {
         while (!Modes.exit) {
             struct timespec start_time;
 
-            start_cpu_timing(&start_time);
-
-            uint64_t now = mstime();
-
             // in case we're not waiting in backgroundTasks and trackPeriodic doesn't have a chance to schedule
             if (now > Modes.next_remove_stale + 5 * SECONDS) {
-                msleep(20);
+                threadTimedWait(&Threads.decode, &ts, 15);
             }
+            start_cpu_timing(&start_time);
 
             // sleep via epoll_wait in net_periodic_work
+            now = mstime();
             backgroundTasks(now);
 
             end_cpu_timing(&start_time, &Modes.stats_current.background_cpu);
         }
     } else {
-        struct timespec ts;
-        clock_gettime(CLOCK_REALTIME, &ts);
 
         int watchdogCounter = 50; // about 5 seconds
 
@@ -684,9 +683,9 @@ static void *decodeEntryPoint(void *arg) {
                     break;
                 }
             }
-
             start_cpu_timing(&start_time);
-            backgroundTasks(mstime());
+            now = mstime();
+            backgroundTasks(now);
             end_cpu_timing(&start_time, &Modes.stats_current.background_cpu);
 
             lockReader();
@@ -700,7 +699,7 @@ static void *decodeEntryPoint(void *arg) {
                  */
                 threadTimedWait(&Threads.decode, &ts, 80);
             }
-            if (mstime() > Modes.next_remove_stale + 5 * SECONDS) {
+            if (now > Modes.next_remove_stale + 5 * SECONDS) {
                 threadTimedWait(&Threads.decode, &ts, 5);
             }
         }

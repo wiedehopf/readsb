@@ -172,7 +172,6 @@ void modesInitNet (void);
 void modesQueueOutput (struct modesMessage *mm, struct aircraft *a);
 void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a);
 void modesNetPeriodicWork (void);
-void modesReadSerialClient(void);
 void cleanupNetwork(void);
 void netFreeClients();
 

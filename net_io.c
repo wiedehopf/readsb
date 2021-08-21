@@ -3057,30 +3057,6 @@ void modesNetPeriodicWork(void) {
     }
 }
 
-/**
- * Reads data from serial client (GNS5894) via SignalIO trigger and
- * writes output. Speed up data handling since we have no influence on
- * flow control in that case.
- * Other periodic work is still done in function above and triggered from
- * backgroundTasks().
- */
-void modesReadSerialClient(void) {
-    struct net_service *s;
-    struct client *c;
-    uint64_t now = mstime();
-
-    // Search and read from marked serial client only
-    for (s = Modes.services; s; s = s->next) {
-        if (s->read_handler && s->serial_service) {
-            for (c = s->clients; c; c = c->next) {
-                if (!c->service)
-                    continue;
-                modesReadFromClient(c, now);
-            }
-        }
-    }
-}
-
 void writeJsonToNet(struct net_writer *writer, struct char_buffer cb) {
     int len = cb.len;
     int written = 0;
