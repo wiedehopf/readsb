@@ -517,7 +517,7 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
                 // we are conservative here: only accept corrected messages that
                 // match an existing aircraft.
                 addr = getbits(msg, 9, 32);
-                if (!icaoFilterTest(addr)) {
+                if (!icaoFilterTest(addr) || Modes.debug_bogus) {
                     return -1;
                 }
             }
@@ -546,7 +546,7 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
 
                 // we are conservative here: only accept corrected messages that
                 // match an existing aircraft.
-                if (addr1 != addr2 && !icaoFilterTest(addr2)) {
+                if (addr1 != addr2 && !icaoFilterTest(addr2) && !Modes.debug_bogus) {
                     return -1;
                 }
             }
@@ -1829,11 +1829,11 @@ void displayModesMessage(struct modesMessage *mm) {
         return; // Enough for --raw mode
     }
 
-    if (mm->msgtype < 32)
-        printf("CRC: %06x\n", mm->crc);
-
-    if (mm->correctedbits != 0)
-        printf("No. of bit errors fixed: %d\n", mm->correctedbits);
+    if (mm->msgtype < 32) {
+        printf("hex: %06x      ", mm->addr);
+        printf("CRC: %06x      ", mm->crc);
+        printf("fixed bits: %d\n", mm->correctedbits);
+    }
 
     if (mm->signalLevel > 0)
         printf("RSSI: %.1f dBFS\n", 10 * log10(mm->signalLevel));
@@ -1841,7 +1841,7 @@ void displayModesMessage(struct modesMessage *mm) {
     if (mm->score)
         printf("Score: %d\n", mm->score);
 
-    if (mm->receiverId) {
+    if (mm->receiverId && !Modes.debug_bogus) {
         char uuid[32]; // needs 18 chars and null byte
         sprint_uuid1(mm->receiverId, uuid);
         printf("receiverId: %s\n", uuid);
@@ -1852,7 +1852,14 @@ void displayModesMessage(struct modesMessage *mm) {
     else
         printf("receiverTime: %.2fus\n", mm->timestampMsg / 12.0);
 
-    printf("systemTime: %.3fs\n", mm->sysTimestampMsg / 1000.0);
+    if (!Modes.debug_bogus) {
+        time_t nowTime = nearbyint(mm->sysTimestampMsg / 1000.0);
+        struct tm local;
+        localtime_r(&nowTime, &local);
+        char timebuf[512];
+        strftime(timebuf, 128, "%T", &local);
+        printf("systemTime: %.3fs      %s\n", mm->sysTimestampMsg / 1000.0, timebuf);
+    }
 
     if (mm->sbs_in) {
             printf("SBS  addr:%06X\n", mm->addr);
@@ -2209,6 +2216,9 @@ void useModesMessage(struct modesMessage *mm) {
 
     // In non-interactive non-quiet mode, display messages on standard output
     if (!Modes.quiet || (mm->addr == Modes.show_only)) {
+        displayModesMessage(mm);
+    }
+    if (Modes.debug_bogus && a && a->messages == 1 && a->registration[0] == 0) {
         displayModesMessage(mm);
     }
 
