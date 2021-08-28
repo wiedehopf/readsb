@@ -2216,8 +2216,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
         } else {
             Modes.stats_current.demod_preambles++;
         }
-        result = decodeModesMessage(&mm, NULL);
-        mm.decodeResult = result;
+        result = decodeModesMessage(&mm);
         if (result < 0) {
             if (result == -1) {
                 if (remote) {
@@ -2387,7 +2386,7 @@ static int decodeHexMessage(struct client *c, char *hex, int remote, uint64_t no
         int result;
 
         Modes.stats_current.remote_received_modes++;
-        result = decodeModesMessage(&mm, NULL);
+        result = decodeModesMessage(&mm);
         if (result < 0) {
             if (result == -1)
                 Modes.stats_current.remote_rejected_unknown_icao++;

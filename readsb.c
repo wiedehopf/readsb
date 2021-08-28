@@ -1007,6 +1007,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptShowOnly:
             Modes.show_only = (uint32_t) strtol(arg, NULL, 16);
+            Modes.decode_all = 1;
             Modes.interactive = 0;
             Modes.quiet = 1;
             //Modes.cpr_focus = Modes.show_only;
@@ -1323,6 +1324,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                     case 'u': Modes.debug_uuid = 1;
                         break;
                     case 'b': Modes.debug_bogus = 1;
+                              Modes.decode_all = 1;
                         break;
                     default:
                         fprintf(stderr, "Unknown debugging flag: %c\n", *arg);
@@ -1459,6 +1461,8 @@ static void configAfterParse() {
     if (Modes.mode_ac)
         Modes.mode_ac_auto = 0;
 
+    if (!Modes.quiet)
+        Modes.decode_all = 1;
 
     if (Modes.viewadsb && Modes.net_connectors_count == 0) {
         Modes.net_connectors_count++; // activate the default net-connector for viewadsb

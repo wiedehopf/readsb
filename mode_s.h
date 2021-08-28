@@ -31,7 +31,7 @@
 // Functions exported from mode_s.c
 //
 int scoreModesMessage (unsigned char *msg, int validbits);
-int decodeModesMessage (struct modesMessage *mm, unsigned char *msg);
+int decodeModesMessage (struct modesMessage *mm);
 void displayModesMessage (struct modesMessage *mm);
 void useModesMessage (struct modesMessage *mm);
 

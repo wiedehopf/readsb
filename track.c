@@ -1367,9 +1367,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         modeAC_count[modeAToIndex(mm->squawk)]++;
         return NULL;
     }
-    if (mm->addr == HEX_UNKNOWN) {
+    if (mm->decodeResult < 0)
         return NULL;
-    }
 
     struct aircraft *a;
     unsigned int cpr_new = 0;
