@@ -456,8 +456,7 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
 
     mm->msgbits = modesMessageLenByType(mm->msgtype);
     mm->crc = modesChecksum(msg, mm->msgbits);
-    mm->addr = 0;
-
+    mm->addr = HEX_UNKNOWN; // set non zero default address
     mm->addrtype = ADDR_UNKNOWN;
 
     // Do checksum work and set fields that depend on the CRC
@@ -477,6 +476,7 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
             // These message types use Address/Parity, i.e. our CRC syndrome is the sender's ICAO address.
             // We can't tell if the CRC is correct or not as we don't know the correct address.
             // Accept the message if it appears to be from a previously-seen aircraft
+            mm->maybe_addr = mm->crc;
             if (!icaoFilterTest(mm->crc)) {
                 return -1;
             }
@@ -493,11 +493,11 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
             // the CRC we can still try to detect/correct errors.
 
             mm->IID = mm->crc & 0x7f;
+            mm->maybe_addr = getbits(msg, 9, 32);
             if (mm->crc & 0xffff80) {
                 // Try to diagnose based on the _full_ CRC
                 // i.e. under the assumption that IID = 0
 
-                int addr;
                 struct errorinfo *ei = modesChecksumDiagnose(mm->crc, mm->msgbits);
                 if (!ei) {
                     return -2; // couldn't fix it
@@ -516,8 +516,9 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
                 // check whether the corrected message looks sensible
                 // we are conservative here: only accept corrected messages that
                 // match an existing aircraft.
-                addr = getbits(msg, 9, 32);
-                if (!icaoFilterTest(addr) || Modes.debug_bogus) {
+                int addr = getbits(msg, 9, 32);
+                mm->maybe_addr = addr;
+                if (!icaoFilterTest(addr)) {
                     return -1;
                 }
             }
@@ -544,9 +545,10 @@ int decodeModesMessage(struct modesMessage *mm, unsigned char *msg) {
                 modesChecksumFix(msg, ei);
                 addr2 = getbits(msg, 9, 32);
 
+                mm->maybe_addr = addr2;
                 // we are conservative here: only accept corrected messages that
                 // match an existing aircraft.
-                if (addr1 != addr2 && !icaoFilterTest(addr2) && !Modes.debug_bogus) {
+                if (addr1 != addr2 && !icaoFilterTest(addr2)) {
                     return -1;
                 }
             }
@@ -1830,9 +1832,13 @@ void displayModesMessage(struct modesMessage *mm) {
     }
 
     if (mm->msgtype < 32) {
-        printf("hex: %06x      ", mm->addr);
+        if (mm->addr == HEX_UNKNOWN)
+            printf("hex: unknown      ");
+        else
+            printf("hex: %s%06x      ", (mm->addr & MODES_NON_ICAO_ADDRESS) ? "~" : " ", mm->addr & 0xFFFFFF);
         printf("CRC: %06x      ", mm->crc);
-        printf("fixed bits: %d\n", mm->correctedbits);
+        printf("fixed bits: %d      ", mm->correctedbits);
+        printf("decode res: %d\n", mm->decodeResult);
     }
 
     if (mm->signalLevel > 0)
@@ -1961,10 +1967,12 @@ void displayModesMessage(struct modesMessage *mm) {
         printf("  Comm-B format: %s\n", commb_format_to_string(mm->commb_format));
     }
 
-    if (mm->addr & MODES_NON_ICAO_ADDRESS) {
-        printf("  Other Address: %06X (%s)\n", mm->addr & 0xFFFFFF, addrtype_enum_string(mm->addrtype));
-    } else {
-        printf("  ICAO Address:  %06X (%s)\n", mm->addr, addrtype_enum_string(mm->addrtype));
+    if (mm->addr != HEX_UNKNOWN) {
+        if (mm->addr & MODES_NON_ICAO_ADDRESS) {
+            printf("  Other Address: %06X (%s)\n", mm->addr & 0xFFFFFF, addrtype_enum_string(mm->addrtype));
+        } else {
+            printf("  ICAO Address:  %06X (%s)\n", mm->addr, addrtype_enum_string(mm->addrtype));
+        }
     }
 
     if (mm->airground != AG_INVALID) {
@@ -2215,12 +2223,20 @@ void useModesMessage(struct modesMessage *mm) {
     a = trackUpdateFromMessage(mm);
 
     // In non-interactive non-quiet mode, display messages on standard output
-    if (!Modes.quiet || (mm->addr == Modes.show_only)) {
+    if (!Modes.quiet || mm->addr == Modes.show_only) {
         displayModesMessage(mm);
     }
-    if (Modes.debug_bogus && a && a->messages == 1 && a->registration[0] == 0) {
-        displayModesMessage(mm);
+    if (Modes.debug_bogus) {
+        if (a && a->messages == 1 && a->registration[0] == 0) {
+            displayModesMessage(mm);
+        } else if (!a) {
+            if (mm->addr != HEX_UNKNOWN && !dbGet(mm->addr, Modes.dbIndex))
+                displayModesMessage(mm);
+            if (mm->addr == HEX_UNKNOWN && !dbGet(mm->maybe_addr, Modes.dbIndex))
+                displayModesMessage(mm);
+        }
     }
+
 
     // Feed output clients.
     // If in --net-verbatim mode, do this for all messages.

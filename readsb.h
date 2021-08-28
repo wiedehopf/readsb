@@ -139,6 +139,8 @@
 #define MODES_NET_SNDBUF_SIZE (64*1024)
 #define MODES_NET_SNDBUF_MAX  (7)
 
+#define HEX_UNKNOWN (0xDEADBEEF)
+
 
 #define INVALID_ALTITUDE (-9999)
 
@@ -634,20 +636,25 @@ extern struct _Modes Modes;
 
 struct modesMessage
 {
-    uint64_t timestampMsg; // Timestamp of the message (12MHz clock)
-    uint64_t sysTimestampMsg; // Timestamp of the message (system time)
-    uint64_t receiverId; // zero if not transmitted
     // Generic fields
     unsigned char msg[MODES_LONG_MSG_BYTES]; // Binary message.
     unsigned char verbatim[MODES_LONG_MSG_BYTES]; // Binary message, as originally received before correction
-    int msgbits; // Number of bits in message
+    double signalLevel; // RSSI, in the range [0..1], as a fraction of full-scale power
+    struct client *client; // network client this message came from, NULL otherwise
+
+    uint64_t timestampMsg; // Timestamp of the message (12MHz clock)
+    uint64_t sysTimestampMsg; // Timestamp of the message (system time)
+    uint64_t receiverId; // zero if not transmitted
     int msgtype; // Downlink format #
-    uint32_t crc; // Message CRC
-    int correctedbits; // No. of bits corrected
-    uint32_t addr; // Address Announced
-    addrtype_t addrtype; // address format / source
-    int score; // Scoring from scoreModesMessage, if used
+    int16_t msgbits; // Number of bits in message
+    int16_t score; // Scoring from scoreModesMessage, if used
     uint16_t receiverCountMlat; // number of receivers for MLAT messages
+    int8_t correctedbits; // No. of bits corrected
+    int8_t decodeResult;
+    uint32_t crc; // Message CRC
+    uint32_t addr; // Address Announced
+    uint32_t maybe_addr; // probably the address, good chance to be wrong
+    addrtype_t addrtype; // address format / source
     bool remote; // If set this message is from a remote station
     bool sbs_in; // Signifies this message is coming from basestation input
     bool reduce_forward; // forward this message for reduced beast output
@@ -657,8 +664,6 @@ struct modesMessage
     bool pos_bad; // speed_check failed
     bool jsonPos; // output a json position
     datasource_t source; // Characterizes the overall message source
-    double signalLevel; // RSSI, in the range [0..1], as a fraction of full-scale power
-    struct client *client; // network client this message came from, NULL otherwise
     // Raw data, just extracted directly from the message
     // The names reflect the field names in Annex 4
     unsigned IID; // extracted from CRC of DF11s
@@ -731,8 +736,6 @@ struct modesMessage
     heading_type_t heading_type; // how to interpret 'track_or_heading'
     float track_rate; // Rate of change of track, degrees/second
     float roll; // Roll, degrees, negative is left roll
-
-
 
     struct
     {

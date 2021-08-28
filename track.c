@@ -376,7 +376,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     } else if (source <= SOURCE_MLAT && elapsed > 25 * SECONDS) {
         override = 1;
     } else if (a->addr == 0xa19b53) {
-        // SS2
+        // Virgin SS2
         override = 1;
     }
 
@@ -1362,18 +1362,19 @@ discard_alt:
 //
 
 struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
-    struct aircraft *a;
-    unsigned int cpr_new = 0;
-    mm->calculated_track = -1;
-
     if (mm->msgtype == 32) {
         // Mode A/C, just count it (we ignore SPI)
         modeAC_count[modeAToIndex(mm->squawk)]++;
         return NULL;
     }
-    if (mm->addr == 0 && mm->msgtype == 0) {
+    if (mm->addr == HEX_UNKNOWN) {
         return NULL;
     }
+
+    struct aircraft *a;
+    unsigned int cpr_new = 0;
+    mm->calculated_track = -1;
+
 
     if (CHECK_APPROXIMATIONS) {
         // great circle random testing stuff ...

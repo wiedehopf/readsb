@@ -419,6 +419,7 @@ after_pre:
         // Decode the received message
         {
             int result = decodeModesMessage(&mm, bestmsg);
+            mm.decodeResult = result;
             if (result < 0) {
                 if (result == -1)
                     Modes.stats_current.demod_rejected_unknown_icao++;

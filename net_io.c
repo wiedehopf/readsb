@@ -2217,6 +2217,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
             Modes.stats_current.demod_preambles++;
         }
         result = decodeModesMessage(&mm, NULL);
+        mm.decodeResult = result;
         if (result < 0) {
             if (result == -1) {
                 if (remote) {
