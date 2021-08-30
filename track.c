@@ -591,14 +591,18 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
                 fprintf(stderr, "Global range check failed: %06x: %.3f,%.3f, max range %.1fkm, actual %.1fkm\n",
                         a->addr, *lat, *lon, Modes.maxRange / 1000.0, range / 1000.0);
             }
-            Modes.stats_current.cpr_global_range_checks++;
+
+
+            if (mm->source != SOURCE_MLAT)
+                Modes.stats_current.cpr_global_range_checks++;
             return (-2); // we consider an out-of-range value to be bad data
         }
     }
 
     // check speed limit
     if (!speed_check(a, mm->source, *lat, *lon, mm, CPR_GLOBAL)) {
-        Modes.stats_current.cpr_global_speed_checks++;
+        if (mm->source != SOURCE_MLAT)
+            Modes.stats_current.cpr_global_speed_checks++;
         return -2;
     }
 
@@ -685,14 +689,16 @@ static int doLocalCPR(struct aircraft *a, struct modesMessage *mm, double *lat, 
     if (range_limit > 0) {
         double range = greatcircle(reflat, reflon, *lat, *lon, 0);
         if (range > range_limit) {
-            Modes.stats_current.cpr_local_range_checks++;
+            if (mm->source != SOURCE_MLAT)
+                Modes.stats_current.cpr_local_range_checks++;
             return (-1);
         }
     }
 
     // check speed limit
     if (!speed_check(a, mm->source, *lat, *lon, mm, CPR_LOCAL)) {
-        Modes.stats_current.cpr_local_speed_checks++;
+        if (mm->source != SOURCE_MLAT)
+            Modes.stats_current.cpr_local_speed_checks++;
         return -2;
     }
 
@@ -831,7 +837,8 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
     a->pos_surface = trackDataValid(&a->airground_valid) && a->airground == AG_GROUND;
 
     if (surface) {
-        ++Modes.stats_current.cpr_surface;
+        if (mm->source != SOURCE_MLAT)
+            Modes.stats_current.cpr_surface++;
 
         // Surface: 25 seconds if >25kt or speed unknown, 50 seconds otherwise
         if (mm->gs_valid && mm->gs.selected <= 25)
@@ -839,7 +846,8 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
         else
             max_elapsed = 25000;
     } else {
-        ++Modes.stats_current.cpr_airborne;
+        if (mm->source != SOURCE_MLAT)
+            Modes.stats_current.cpr_airborne++;
 
         // Airborne: 10 seconds
         max_elapsed = 10000;
@@ -859,6 +867,8 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
         if (location_result == -2) {
             // Global CPR failed because the position produced implausible results.
             // This is bad data.
+            if (mm->source != SOURCE_MLAT)
+                Modes.stats_current.cpr_global_bad++;
 
             mm->pos_bad = 1;
         } else if (location_result == -1) {
@@ -869,14 +879,17 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
             }
             // No local reference for surface position available, or the two messages crossed a zone.
             // Nonfatal, try again later.
-            Modes.stats_current.cpr_global_skipped++;
+            if (mm->source != SOURCE_MLAT)
+                Modes.stats_current.cpr_global_skipped++;
         } else {
             if (accept_data(&a->position_valid, mm->source, mm, a, 2)) {
-                Modes.stats_current.cpr_global_ok++;
+                if (mm->source != SOURCE_MLAT)
+                    Modes.stats_current.cpr_global_ok++;
 
                 globalCPR = 1;
             } else {
-                Modes.stats_current.cpr_global_skipped++;
+                if (mm->source != SOURCE_MLAT)
+                    Modes.stats_current.cpr_global_skipped++;
                 location_result = -2;
             }
         }
@@ -895,17 +908,21 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
 
             mm->pos_bad = 1;
         } else if (location_result >= 0 && accept_data(&a->position_valid, mm->source, mm, a, 2)) {
-            Modes.stats_current.cpr_local_ok++;
+            if (mm->source != SOURCE_MLAT)
+                Modes.stats_current.cpr_local_ok++;
             mm->cpr_relative = 1;
 
             if (location_result == 1) {
-                Modes.stats_current.cpr_local_aircraft_relative++;
+                if (mm->source != SOURCE_MLAT)
+                    Modes.stats_current.cpr_local_aircraft_relative++;
             }
             if (location_result == 2) {
-                Modes.stats_current.cpr_local_receiver_relative++;
+                if (mm->source != SOURCE_MLAT)
+                    Modes.stats_current.cpr_local_receiver_relative++;
             }
         } else {
-            Modes.stats_current.cpr_local_skipped++;
+            if (mm->source != SOURCE_MLAT)
+                Modes.stats_current.cpr_local_skipped++;
             location_result = -1;
         }
     }
@@ -2400,9 +2417,6 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
         return;
     if (mm->source < a->position_valid.source)
         return;
-
-
-    Modes.stats_current.cpr_global_bad++;
 
 
     if (a->addr == Modes.cpr_focus)
