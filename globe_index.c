@@ -1054,7 +1054,7 @@ static void mark_legs(struct aircraft *a, int start) {
                 low = high - threshold * 9/10;
             } else if (last_high < last_low) {
                 int bla = max(0, last_low_index - 3);
-                while (bla >= 0) {
+                while(bla > 0) {
                     if (0 && a->addr == Modes.leg_focus) {
                         fprintf(stderr, "bla: %d %d %d %d\n", bla, a->trace[bla].altitude * 25,
                                 a->trace[bla].flags.altitude_valid,
@@ -1066,6 +1066,8 @@ static void mark_legs(struct aircraft *a, int start) {
                     }
                     bla--;
                 }
+                if (bla < 0)
+                    fprintf(stderr, "wat asdf bla? %d\n", bla);
                 major_descent = a->trace[bla].timestamp;
                 major_descent_index = bla;
                 if (a->addr == Modes.leg_focus) {
@@ -2448,6 +2450,49 @@ void readInternalState() {
             free(cb.buffer);
         }
     }
+}
+void traceDelete() {
+    struct hexInterval* entry = Modes.deleteTrace;
+    while (entry) {
+        struct hexInterval* curr = entry;
+
+        struct aircraft *a = aircraftGet(curr->hex);
+        if (!a || !a->trace)
+            continue;
+
+        traceUsePosBuffered(a);
+
+        int i = 0;
+        int start = 0;
+        int end = a->trace_len;
+        for (; i < a->trace_len; i++) {
+            if (a->trace[i].timestamp <= curr->from * 1000) {
+                start = i;
+            } else {
+                break;
+            }
+        }
+        for (; i < a->trace_len; i++) {
+            if (a->trace[i].timestamp >= curr->to * 1000) {
+                end = i;
+                break;
+            }
+        }
+        // align to a multiple of 4
+        start = start / 4 * 4;
+        end = min(a->trace_len, ((end / 4) + 1) * 4);
+        if (end >= a->trace_len) {
+            a->trace_len = start;
+        } else {
+            memmove(a->trace + start, a->trace + end, stateBytes(end - start));
+        }
+        uint64_t now = mstime();
+        traceMaintenance(a, now);
+        scheduleMemBothWrite(a, now);
+        entry = entry->next;
+        sfree(curr);
+    }
+    Modes.deleteTrace = NULL;;
 }
 
 /*

@@ -80,6 +80,7 @@
 //    handled via non-blocking I/O and manually polling clients to see if
 //    they have something new to share with us when reading is needed.
 
+static int handleCommandSocket(struct client *c, char *p, int remote, uint64_t now);
 static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t now);
 static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now);
 static int decodeHexMessage(struct client *c, char *hex, int remote, uint64_t now);
@@ -550,7 +551,8 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
                         buf, service->descr, Modes.aneterr);
                 exit(1);
             }
-            chmod(buf, 0666);
+            sfree(service->unixSocket);
+            service->unixSocket = strdup(buf);
             newfds[0] = fd;
             nfds = 1;
         } else {
@@ -618,6 +620,7 @@ void serviceClose(struct net_service *s) {
     if (s->writer && s->writer->data) {
         sfree(s->writer->data);
     }
+    sfree(s->unixSocket);
     sfree(s);
 }
 
@@ -734,6 +737,15 @@ void modesInitNet(void) {
         sfree(jaero);
     }
 
+    if (Modes.json_dir && Modes.json_globe_index && Modes.globe_history_dir) {
+        /* command input */
+        struct net_service *commandService = serviceInit("command input", NULL, NULL, READ_MODE_ASCII, "\n", handleCommandSocket);
+        char commandSocket[PATH_MAX];
+        snprintf(commandSocket, PATH_MAX, "unix:%s/cmd.sock", Modes.json_dir);
+        serviceListen(commandService, Modes.net_bind_address, commandSocket, Modes.net_epfd);
+        chmod(commandSocket, 0600);
+    }
+
     raw_in = serviceInit("Raw TCP input", NULL, NULL, READ_MODE_ASCII, "\n", decodeHexMessage);
     serviceListen(raw_in, Modes.net_bind_address, Modes.net_input_raw_ports, Modes.net_epfd);
 
@@ -818,7 +830,10 @@ static void modesAcceptClients(struct client *c, uint64_t now) {
         }
 
         c = createSocketClient(s, fd);
-        if (c) {
+        if (s->unixSocket && c) {
+            strcpy(c->host, s->unixSocket);
+            fprintf(stderr, "%s: new c at %s\n", c->service->descr, s->unixSocket);
+        } else if (c) {
             // We created the client, save the sockaddr info and 'hostport'
             getnameinfo(saddr, slen,
                     c->host, sizeof(c->host),
@@ -2049,6 +2064,32 @@ void sendBeastSettings(int fd, const char *settings) {
     anetWrite(fd, buf, len);
 }
 
+static int handleCommandSocket(struct client *c, char *p, int remote, uint64_t now) {
+    MODES_NOTUSED(c);
+    MODES_NOTUSED(remote);
+    MODES_NOTUSED(now);
+    char *delim = " ";
+    char *cmd = strtok(p, delim);
+    if (strcmp(cmd, "deleteTrace") == 0) {
+        char *t1 = strtok(NULL, delim);
+        char *t2 = strtok(NULL, delim);
+        char *t3 = strtok(NULL, delim);
+        if (!t1 || !t2 || !t3) {
+            fprintf(stderr, "commandSocket deleteTrace: not enough tokens\n");
+            return 0;
+        }
+        struct hexInterval* new = malloc(sizeof(struct hexInterval));
+        new->hex = (uint32_t) strtol(t1, NULL, 16);
+        new->from = (uint64_t) strtol(t2, NULL, 10);
+        new->to = (uint64_t) strtol(t3, NULL, 10);
+        new->next = Modes.deleteTrace;
+        Modes.deleteTrace = new;
+        fprintf(stderr, "Deleting %06x from %lld to %lld\n", new->hex, (long long) new->from, (long long) new->to);
+    } else {
+        fprintf(stderr, "commandSocket: unrecognized command\n");
+    }
+    return 0;
+}
 //
 // Handle a Beast command message.
 // Currently, we just look for the Mode A/C command message

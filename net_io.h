@@ -69,6 +69,7 @@ struct net_service
     struct client *clients; // linked list of clients connected to this service
     int *listener_fds; // listening FDs
     struct client *listenSockets; // dummy client structs for all open sockets for epoll commonality
+    char* unixSocket; // path of unix socket
 };
 
 // Client connection

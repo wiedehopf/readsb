@@ -356,6 +356,7 @@ static void trackPeriodicUpdate() {
         Modes.currentTask = "trackRemoveStale";
         trackRemoveStale(now);
         Modes.next_remove_stale = now + 1 * SECONDS;
+        traceDelete();
         pthread_mutex_unlock(&Threads.misc.mutex);
     }
 

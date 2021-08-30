@@ -95,4 +95,12 @@ struct heatEntry {
     int16_t gs;
 } __attribute__ ((__packed__));
 
+void traceDelete();
+struct hexInterval {
+    struct hexInterval* next;
+    uint32_t hex;
+    uint64_t from;
+    uint64_t to;
+};
+
 #endif

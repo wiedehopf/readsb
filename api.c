@@ -847,6 +847,9 @@ void apiBufferCleanup() {
 void apiInit() {
     Modes.apiService.descr = "API output";
     serviceListen(&Modes.apiService, Modes.net_bind_address, Modes.net_output_api_ports, -1);
+    if (strncmp(Modes.net_output_api_ports, "unix:", 5) == 0) {
+        chmod(Modes.net_output_api_ports + 5, 0666);
+    }
     if (Modes.apiService.listener_count <= 0) {
         Modes.api = 0;
         return;
