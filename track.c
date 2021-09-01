@@ -445,11 +445,14 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     }
 
     if (elapsed > 1 * SECONDS || distance > 0) {
-        if ((source > SOURCE_MLAT && track_diff < 190 && !inrange && (Modes.debug_cpr || Modes.debug_speed_check))
-                || (a->addr == Modes.cpr_focus)) {
+        if (
+                (source > SOURCE_MLAT && track_diff < 190 && !inrange
+                 && (Modes.debug_cpr || Modes.debug_speed_check)
+                ) || (a->addr == Modes.cpr_focus)
+           ) {
 
             //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
-            fprintf(stderr, "%5.1fs %06x: %s %s %s %s R:%2d tD:%3.0f  %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
+            fprintf(stderr, "%5.1fs %06x %s %s %s %s R:%2d tD:%3.0f  %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
                     (now % (600 * SECONDS)) / 1000.0,
                     a->addr,
                     mm->cpr_odd ? "O" : "E",
@@ -587,8 +590,10 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
     if (Modes.maxRange > 0 && Modes.userLocationValid) {
         double range = greatcircle(Modes.fUserLat, Modes.fUserLon, *lat, *lon, 0);
         if (range > Modes.maxRange) {
-            if (a->addr == Modes.cpr_focus) {
-                fprintf(stderr, "Global range check failed: %06x: %.3f,%.3f, max range %.1fkm, actual %.1fkm\n",
+            if (a->addr == Modes.cpr_focus || Modes.debug_bogus) {
+                fprintf(stderr, "%5llu %5.1f Global range check failed: %06x %.3f,%.3f, max range %.1fkm, actual %.1fkm\n",
+                        (long long) mm->timestampMsg % 65536,
+                        10 * log10(mm->signalLevel),
                         a->addr, *lat, *lon, Modes.maxRange / 1000.0, range / 1000.0);
             }
 
@@ -942,9 +947,7 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
             incrementReliable(a, mm, now, mm->cpr_odd);
 
         setPosition(a, mm, now);
-    }
-
-    if (location_result == -1 && a->addr == Modes.cpr_focus) {
+    } else if (location_result == -1 && a->addr == Modes.cpr_focus) {
         fprintf(stderr, "%5.1fs %d: mm->cpr: (%d) (%d) %s %s, %s age: %0.1f sources o: %s %s e: %s %s lpos src: %s \n",
                 (now % (600 * SECONDS)) / 1000.0,
                 location_result,
@@ -1355,12 +1358,15 @@ accept_alt:
     return;
 discard_alt:
     a->alt_reliable = a->alt_reliable - (good_crc+1);
-    if (0 && a->addr == 0x4b2917)
-        fprintf(stderr, "Alt check F: %06x: %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
+    if (Modes.debug_bogus) {
+        fprintf(stderr, "%6llx %5.1f Alt check F: %06x %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
+                (long long) mm->timestampMsg % 0x1000000,
+                10 * log10(mm->signalLevel),
                 a->addr, a->alt_reliable, a->altitude_baro, alt,
                 source_string(a->altitude_baro_valid.source),
                 source_string(mm->source),
                 min_fpm/1000.0, max_fpm/1000.0, fpm/1000.0);
+    }
     if (a->alt_reliable <= 0) {
         //fprintf(stderr, "Altitude INVALIDATED: %06x\n", a->addr);
         a->alt_reliable = 0;

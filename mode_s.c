@@ -2251,6 +2251,12 @@ void useModesMessage(struct modesMessage *mm) {
         displayModesMessage(mm);
     }
     if (Modes.debug_bogus) {
+        if (!Modes.synthetic_now) {
+            Modes.startup_time = mstime() - mm->timestampMsg / 12000U;
+        }
+        Modes.synthetic_now = Modes.startup_time + mm->timestampMsg / 12000U;
+    }
+    if (0 && Modes.debug_bogus) {
         if (a && a->messages == 1 && a->registration[0] == 0) {
             displayModesMessage(mm);
         } else if (!a) {

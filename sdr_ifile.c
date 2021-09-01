@@ -77,6 +77,7 @@ void ifileInitConfig(void) {
     ifile.readbuf = NULL;
     ifile.converter = NULL;
     ifile.converter_state = NULL;
+    Modes.synthetic_now = Modes.startup_time;
 }
 
 bool ifileHandleOption(int argc, char *argv) {

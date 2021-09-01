@@ -283,7 +283,7 @@ void demodulate2400(struct mag_buf *mag) {
 
     // advance ifile artificial clock even if we don't receive anything
     if (Modes.sdr_type == SDR_IFILE)
-        Modes.ifile_now = mag->sysTimestamp;
+        Modes.synthetic_now = mag->sysTimestamp;
 
     uint16_t *pa = m;
     uint16_t *stop = m + mlen;
@@ -412,7 +412,7 @@ after_pre:
 
         // advance ifile artifical clock for every message received
         if (Modes.sdr_type == SDR_IFILE)
-            Modes.ifile_now = mm.sysTimestampMsg;
+            Modes.synthetic_now = mm.sysTimestampMsg;
 
         mm.score = bestscore;
 

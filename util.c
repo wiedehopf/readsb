@@ -57,8 +57,8 @@
 #include <sys/time.h>
 
 uint64_t mstime(void) {
-    if (Modes.sdr_type == SDR_IFILE)
-        return Modes.ifile_now;
+    if (Modes.synthetic_now)
+        return Modes.synthetic_now;
 
     struct timeval tv;
     uint64_t mst;
@@ -67,6 +67,15 @@ uint64_t mstime(void) {
     mst = ((uint64_t) tv.tv_sec)*1000;
     mst += tv.tv_usec / 1000;
     return mst;
+}
+
+int snprintHMS(char *buf, size_t bufsize, uint64_t now) {
+    time_t nowTime = nearbyint(now / 1000.0);
+    struct tm local;
+    localtime_r(&nowTime, &local);
+    char timebuf[128];
+    strftime(timebuf, 128, "%T", &local);
+    return snprintf(buf, bufsize, "%s.%03d", timebuf, (int) (now % 1000));
 }
 
 uint64_t msThreadTime(void) {

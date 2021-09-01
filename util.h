@@ -66,6 +66,8 @@ static inline void msleep(uint64_t ms) {
 /* Returns system time in milliseconds */
 uint64_t mstime (void);
 
+int snprintHMS(char *buf, size_t bufsize, uint64_t now);
+
 uint64_t msThreadTime(void);
 
 /* Returns the time elapsed, in nanoseconds, from t1 to t2,

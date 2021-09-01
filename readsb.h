@@ -571,7 +571,7 @@ struct _Modes
     struct net_connector **net_connectors; // client connectors
     int net_connectors_count;
     int net_connectors_size;
-    uint64_t ifile_now;
+    int64_t synthetic_now;
     char *uuidFile;
     char *filename; // Input form file, --ifile option
     char *net_bind_address; // Bind address
