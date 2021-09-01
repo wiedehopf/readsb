@@ -2256,10 +2256,11 @@ void useModesMessage(struct modesMessage *mm) {
         }
         Modes.synthetic_now = Modes.startup_time + mm->timestampMsg / 12000U;
     }
-    if (0 && Modes.debug_bogus) {
-        if (a && a->messages == 1 && a->registration[0] == 0) {
-            displayModesMessage(mm);
-        } else if (!a) {
+    if (Modes.debug_bogus) {
+        if (a && a->messages == 1 && a->registration[0] == 0 && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
+            fprintf(stderr, "%06x\n", mm->addr);
+            //displayModesMessage(mm);
+        } else if (0 && !a) {
             if (mm->addr != HEX_UNKNOWN && !dbGet(mm->addr, Modes.dbIndex))
                 displayModesMessage(mm);
             if (mm->addr == HEX_UNKNOWN && !dbGet(mm->maybe_addr, Modes.dbIndex))

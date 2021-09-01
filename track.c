@@ -1358,7 +1358,10 @@ accept_alt:
     return;
 discard_alt:
     a->alt_reliable = a->alt_reliable - (good_crc+1);
-    if (Modes.debug_bogus) {
+    if (Modes.debug_bogus
+            && trackDataAge(now, &a->baro_rate_valid) < 20 * SECONDS
+            && trackDataAge(now, &a->altitude_baro_valid) < 20 * SECONDS
+       ) {
         fprintf(stderr, "%6llx %5.1f Alt check F: %06x %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
                 (long long) mm->timestampMsg % 0x1000000,
                 10 * log10(mm->signalLevel),

@@ -753,8 +753,10 @@ static void *upkeepEntryPoint(void *arg) {
 
     while (!Modes.exit) {
         trackPeriodicUpdate();
-
-        threadTimedWait(&Threads.upkeep, &ts, PERIODIC_UPDATE);
+        uint64_t wait = PERIODIC_UPDATE;
+        if (Modes.synthetic_now)
+            wait = 20;
+        threadTimedWait(&Threads.upkeep, &ts, wait);
     }
 
     pthread_mutex_unlock(&Threads.upkeep.mutex);
@@ -1619,7 +1621,7 @@ int main(int argc, char **argv) {
         pthread_mutex_unlock(&Modes.hungTimerMutex);
 
         //fprintf(stderr, "lockThreads() took %.1f seconds!\n", (double) elapsed / SECONDS);
-        if (elapsed1 > 10 * SECONDS) {
+        if (elapsed1 > 10 * SECONDS && !Modes.synthetic_now) {
             fprintf(stderr, "<3>FATAL: trackPeriodicUpdate() interval %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed1 / SECONDS);
             fprintf(stderr, "<3>lockThreads() probably hung on %s\n", Modes.currentTask);
 
@@ -1627,7 +1629,7 @@ int main(int argc, char **argv) {
             setExit(2);
             break;
         }
-        if (elapsed2 > 30 * SECONDS) {
+        if (elapsed2 > 30 * SECONDS && !Modes.synthetic_now) {
             fprintf(stderr, "<3>FATAL: removeStale() interval %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed2 / SECONDS);
             Modes.joinTimeout = 5 * SECONDS;
             setExit(2);
