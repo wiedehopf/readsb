@@ -250,7 +250,7 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     return c;
 }
 
-static void checkServiceConnected(struct net_connector *con) {
+static void checkServiceConnected(struct net_connector *con, uint64_t now) {
     int rv;
 
     struct pollfd pfd = {con->fd, (POLLIN | POLLOUT), 0};
@@ -264,7 +264,7 @@ static void checkServiceConnected(struct net_connector *con) {
 
     if (rv == 0) {
         // If we've exceeded our connect timeout, bail but try again.
-        if (mstime() >= con->connect_timeout) {
+        if (now >= con->connect_timeout) {
             fprintf(stderr, "%s: Connection timed out: %s:%s port %s\n",
                     con->service->descr, con->address, con->port, con->resolved_addr);
             con->connecting = 0;
@@ -311,7 +311,7 @@ static void checkServiceConnected(struct net_connector *con) {
 
     con->connecting = 0;
     con->connected = 1;
-    con->lastConnect = mstime();
+    con->lastConnect = now;
     // link connection and client so we have access from one to the other
     c->con = con;
     con->c = c;
@@ -349,7 +349,7 @@ static void checkServiceConnected(struct net_connector *con) {
         c->sendq[c->sendq_len++] = 0x1a;
         c->sendq[c->sendq_len++] = 'W';
         c->sendq[c->sendq_len++] = 'O';
-        flushClient(c, mstime());
+        flushClient(c, now);
     }
     if (!Modes.interactive) {
         if (uuid[0]) {
@@ -365,7 +365,7 @@ static void checkServiceConnected(struct net_connector *con) {
 
 // Initiate an outgoing connection.
 // Return the new client or NULL if the connection failed
-static void serviceConnect(struct net_connector *con) {
+static void serviceConnect(struct net_connector *con, uint64_t now) {
 
     int fd;
 
@@ -390,13 +390,13 @@ static void serviceConnect(struct net_connector *con) {
             con->gai_request_done = 0;
 
             if (pthread_create(&con->thread, NULL, pthreadGetaddrinfo, con)) {
-                con->next_reconnect = mstime() + Modes.net_connector_delay;
+                con->next_reconnect = now + Modes.net_connector_delay;
                 fprintf(stderr, "%s: pthread_create ERROR for %s port %s: %s\n", con->service->descr, con->address, con->port, strerror(errno));
                 return;
             }
 
             con->gai_request_in_progress = 1;
-            con->next_reconnect = mstime() + 20;
+            con->next_reconnect = now + 20;
             return;
         }
 
@@ -404,7 +404,7 @@ static void serviceConnect(struct net_connector *con) {
 
         pthread_mutex_lock(&con->mutex);
         if (!con->gai_request_done) {
-            con->next_reconnect = mstime() + 20;
+            con->next_reconnect = now + 20;
             pthread_mutex_unlock(&con->mutex);
             return;
         }
@@ -415,14 +415,14 @@ static void serviceConnect(struct net_connector *con) {
 
         if (pthread_join(con->thread, NULL)) {
             fprintf(stderr, "%s: pthread_join ERROR for %s port %s: %s\n", con->service->descr, con->address, con->port, strerror(errno));
-            con->next_reconnect = mstime() + Modes.net_connector_delay;
+            con->next_reconnect = now + Modes.net_connector_delay;
             return;
         }
 
         if (con->gai_error) {
             fprintf(stderr, "%s: Name resolution for %s failed: %s\n", con->service->descr, con->address, gai_strerror(con->gai_error));
             // limit name resolution attempts via backoff
-            con->next_reconnect = mstime() + con->backoff;
+            con->next_reconnect = now + con->backoff;
             con->backoff = min(Modes.net_connector_delay, 2 * con->backoff);
             return;
         }
@@ -451,11 +451,11 @@ static void serviceConnect(struct net_connector *con) {
 
     if (!con->try_addr->ai_next) {
         // limit tcp connection attemtps via backoff
-        con->next_reconnect = mstime() + con->backoff;
+        con->next_reconnect = now + con->backoff;
         con->backoff = min(Modes.net_connector_delay, 2 * con->backoff);
     } else {
         // quickly try all IPs associated with a name if there are multiple
-        con->next_reconnect = mstime() + 20;
+        con->next_reconnect = now + 20;
     }
 
 
@@ -467,7 +467,7 @@ static void serviceConnect(struct net_connector *con) {
     }
 
     con->connecting = 1;
-    con->connect_timeout = mstime() + Modes.net_output_flush_interval + con->backoff;
+    con->connect_timeout = now + Modes.net_output_flush_interval + con->backoff;
     con->fd = fd;
 
     if (anetTcpKeepAlive(Modes.aneterr, fd) != ANET_OK)
@@ -476,7 +476,7 @@ static void serviceConnect(struct net_connector *con) {
     // Since this is a non-blocking connect, it will always return right away.
     // We'll need to periodically check to see if it did, in fact, connect, but do it once here.
 
-    checkServiceConnected(con);
+    checkServiceConnected(con, now);
 }
 
 // Timer callback checking periodically whether the push service lost its server
@@ -492,9 +492,9 @@ static void serviceReconnectCallback(uint64_t now) {
         if (!con->connected) {
             if (con->connecting) {
                 // Check to see...
-                checkServiceConnected(con);
+                checkServiceConnected(con, now);
             } else if (con->next_reconnect <= now) {
-                serviceConnect(con);
+                serviceConnect(con, now);
             }
         }
         if (Modes.net_heartbeat_interval && con->connected && con->c) {
@@ -892,8 +892,13 @@ static void modesCloseClient(struct client *c) {
         con->connected = 0;
         con->c = NULL;
 
+        uint64_t sinceLastConnect = now - con->lastConnect;
         // successfull connection, decrement backoff by connection time
-        con->backoff -= (now - con->lastConnect);
+        if (sinceLastConnect > con->backoff) {
+            con->backoff = 0;
+        } else {
+            con->backoff -= sinceLastConnect;
+        }
         // make sure it's not too small
         con->backoff = max(Modes.net_connector_delay / 32, con->backoff);
 
