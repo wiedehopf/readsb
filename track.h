@@ -575,8 +575,7 @@ indexToModeA (unsigned index)
 }
 
 static inline int
-min (int a, int b)
-{
+min32(int32_t a, int32_t b) {
   if (a < b)
     return a;
   else
@@ -584,8 +583,22 @@ min (int a, int b)
 }
 
 static inline int
-max (int a, int b)
-{
+max32(int32_t a, int32_t b) {
+  if (a > b)
+    return a;
+  else
+    return b;
+}
+static inline int
+min(int64_t a, int64_t b) {
+  if (a < b)
+    return a;
+  else
+    return b;
+}
+
+static inline int
+max(int64_t a, int64_t b) {
   if (a > b)
     return a;
   else
