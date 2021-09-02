@@ -591,7 +591,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
         double range = greatcircle(Modes.fUserLat, Modes.fUserLon, *lat, *lon, 0);
         if (range > Modes.maxRange) {
             if (a->addr == Modes.cpr_focus || Modes.debug_bogus) {
-                fprintf(stderr, "%5llu %5.1f Global range check failed: %06x %.3f,%.3f, max range %.1fkm, actual %.1fkm\n",
+                fprintf(stdout, "%5llu %5.1f Global range check failed: %06x %.3f,%.3f, max range %.1fkm, actual %.1fkm\n",
                         (long long) mm->timestampMsg % 65536,
                         10 * log10(mm->signalLevel),
                         a->addr, *lat, *lon, Modes.maxRange / 1000.0, range / 1000.0);
@@ -1347,7 +1347,7 @@ accept_alt:
             a->alt_reliable = 0;
         }
         if (0 && a->addr == 0x4b2917 && abs(delta) > -1 && delta != alt) {
-            fprintf(stderr, "Alt check S: %06x: %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
+            fprintf(stdout, "Alt check S: %06x: %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
                     a->addr, a->alt_reliable, a->altitude_baro, alt,
                     source_string(a->altitude_baro_valid.source),
                     source_string(mm->source),
@@ -1362,7 +1362,7 @@ discard_alt:
             && trackDataAge(now, &a->baro_rate_valid) < 20 * SECONDS
             && trackDataAge(now, &a->altitude_baro_valid) < 20 * SECONDS
        ) {
-        fprintf(stderr, "%6llx %5.1f Alt check F: %06x %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
+        fprintf(stdout, "%6llx %5.1f Alt check F: %06x %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
                 (long long) mm->timestampMsg % 0x1000000,
                 10 * log10(mm->signalLevel),
                 a->addr, a->alt_reliable, a->altitude_baro, alt,
@@ -1371,7 +1371,7 @@ discard_alt:
                 min_fpm/1000.0, max_fpm/1000.0, fpm/1000.0);
     }
     if (a->alt_reliable <= 0) {
-        //fprintf(stderr, "Altitude INVALIDATED: %06x\n", a->addr);
+        //fprintf(stdout, "Altitude INVALIDATED: %06x\n", a->addr);
         a->alt_reliable = 0;
         if (a->position_valid.source != SOURCE_JAERO)
             a->altitude_baro_valid.source = SOURCE_INVALID;

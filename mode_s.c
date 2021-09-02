@@ -1882,7 +1882,7 @@ void displayModesMessage(struct modesMessage *mm) {
     else
         printf("receiverTime: %.2fus\n", mm->timestampMsg / 12.0);
 
-    if (!Modes.debug_bogus) {
+    if (1 || !Modes.debug_bogus) {
         time_t nowTime = nearbyint(mm->sysTimestampMsg / 1000.0);
         struct tm local;
         localtime_r(&nowTime, &local);
@@ -2256,9 +2256,9 @@ void useModesMessage(struct modesMessage *mm) {
         }
         Modes.synthetic_now = Modes.startup_time + mm->timestampMsg / 12000U;
     }
-    if (Modes.debug_bogus) {
+    if (0 && Modes.debug_bogus) {
         if (a && a->messages == 1 && a->registration[0] == 0 && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
-            fprintf(stderr, "%06x\n", mm->addr);
+            fprintf(stdout, "not in DB: %06x\n", mm->addr);
             //displayModesMessage(mm);
         } else if (0 && !a) {
             if (mm->addr != HEX_UNKNOWN && !dbGet(mm->addr, Modes.dbIndex))

@@ -396,6 +396,8 @@ struct _Threads {
 };
 extern struct _Threads Threads;
 
+void setExit(int arg);
+
 struct _Modes
 { // Internal state
     pthread_mutex_t traceDebugMutex;

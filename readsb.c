@@ -65,7 +65,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state);
 //
 static void cleanup_and_exit(int code);
 
-static void setExit(int arg) {
+void setExit(int arg) {
     Modes.exit = arg; // Signal to threads that we are done
     uint64_t one = 1;
     int res = write(Modes.exitEventfd, &one, sizeof(one));

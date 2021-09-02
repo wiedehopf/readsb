@@ -493,7 +493,7 @@ static void serviceReconnectCallback(uint64_t now) {
             if (con->connecting) {
                 // Check to see...
                 checkServiceConnected(con, now);
-            } else if (con->next_reconnect <= now) {
+            } else if (con->next_reconnect <= now || Modes.synthetic_now) {
                 serviceConnect(con, now);
             }
         }
@@ -2566,11 +2566,17 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
         // End of file
         if (nread == 0) {
             if (c->con) {
+                if (Modes.synthetic_now) {
+                    Modes.synthetic_now = 0;
+                }
                 fprintf(stderr, "%s: Remote server disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
                         c->service->descr, c->con->address, c->con->port, c->fd, c->sendq_len, c->buflen);
             } else if (Modes.debug_net && !Modes.netIngest) {
                 fprintf(stderr, "%s: Listen client disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
                         c->service->descr, c->host, c->port, c->fd, c->sendq_len, c->buflen);
+            }
+            if (!c->con && Modes.debug_bogus) {
+                setExit(1);
             }
             modesCloseClient(c);
             return;
