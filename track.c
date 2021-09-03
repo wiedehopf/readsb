@@ -198,15 +198,13 @@ double greatcircle(double lat0, double lon0, double lat1, double lon1, int appro
 
         // Equatorial radius: e = (6378.1370 km) -> circumference: 2 * pi * e = 40 075.016 km
         // Polar radius: p = (6356.7523 km) -> quarter meridian from wiki: 10 001.965 km
-        float ec = 40075016; // equatorial circumerence
-        float mc = 4 * 10001965; // meridial circumference
-        if (CHECK_APPROXIMATIONS) {
-            // let's check the diff against haversine assuming the same spherical earth
-            // normally we use some corrections here for the oblateness of the earth
-            // so this approximation is probably often better than haversine
-            ec = 2 * M_PI * 6371e3;
-            mc = 2 * M_PI * 6371e3;
-        }
+        // float ec = 40075016; // equatorial circumerence
+        // float mc = 4 * 10001965; // meridial circumference
+
+
+        // to have consistency to other calculations, use a circular earth
+        float ec = 2 * M_PI * 6371e3; // equatorial circumference
+        float mc = 2 * M_PI * 6371e3; // meridial circumference
 
         float avglat = lat0 + (lat1 - lat0) / 2;
         float dmer = (float) dlat / (2 * (float) M_PI) * mc;
