@@ -816,7 +816,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
     if (mm->jsonPos)
         jsonPositionOutput(mm, a);
 
-    if (posReliable(a) && (mm->source == SOURCE_ADSB || mm->source == SOURCE_ADSR)) {
+    if (a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2 && (mm->source == SOURCE_ADSB || mm->source == SOURCE_ADSR)) {
         update_range_histogram(a, now);
     }
 
