@@ -626,9 +626,8 @@ struct char_buffer generateStatsJson() {
             "{ \"now\" : %.1f",
             mstime() / 1000.0);
     p = safe_snprintf(p, end, ",\n");
+
     p = appendTypeCounts(p, end);
-    p = safe_snprintf(p, end, ",\n");
-    p = appendStatsJson(p, end, &Modes.stats_current, "latest");
     p = safe_snprintf(p, end, ",\n");
 
     p = appendStatsJson(p, end, &Modes.stats_1min, "last1min");
