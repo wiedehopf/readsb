@@ -1505,6 +1505,7 @@ int main(int argc, char **argv) {
     if (argc >= 2 && !strcmp(argv[1], "--structs")) {
         fprintf(stderr, VERSION_STRING"\n");
         fprintf(stderr, "struct aircraft: %zu\n", sizeof(struct aircraft));
+        fprintf(stderr, "struct validity: %zu\n", sizeof(data_validity));
         fprintf(stderr, "state: %zu\n", sizeof(struct state));
         fprintf(stderr, "state_all: %zu\n", sizeof(struct state_all));
         fprintf(stderr, "binCraft: %zu\n", sizeof(struct binCraft));

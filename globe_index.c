@@ -1290,7 +1290,8 @@ void set_globe_index (struct aircraft *a, int new_index) {
     if (old_index == new_index)
         return;
     if (new_index > GLOBE_MAX_INDEX || old_index > GLOBE_MAX_INDEX) {
-        fprintf(stderr, "hex: %06x, old_index: %d, new_index: %d, GLOBE_MAX_INDEX: %d\n", a->addr, Modes.globeLists[new_index].len, new_index, GLOBE_MAX_INDEX );
+        fprintf(stderr, "hex: %06x, old_index: %d, new_index: %d, GLOBE_MAX_INDEX: %d\n",
+                a->addr, old_index, new_index, GLOBE_MAX_INDEX);
         return;
     }
     if (old_index >= 0) {
