@@ -750,6 +750,9 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
             a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = simpleHash;
         }
     }
+#if defined(TRACKS_UUID)
+    a->receiverId = mm->receiverId;
+#endif
 
     if (mm->duplicate) {
         Modes.stats_current.pos_duplicate++;

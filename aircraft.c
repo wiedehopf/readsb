@@ -267,6 +267,10 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
 
     new->signal = get8bitSignal(a);
 
+#if defined(TRACKS_UUID)
+    new->receiverId = a->receiverId;
+#endif
+
     if (Modes.json_globe_index) {
         if (a->position_valid.source == SOURCE_MLAT) {
             new->receiverCount = a->receiverCountMlat;

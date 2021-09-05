@@ -449,6 +449,10 @@ struct aircraft
   uint16_t pos_rc_reliable;
   uint16_t pad222;
   uint16_t pad333;
+
+#if defined(TRACKS_UUID)
+  uint64_t receiverId;
+#endif
 };
 
 /* Mode A/C tracking is done separately, not via the aircraft list,

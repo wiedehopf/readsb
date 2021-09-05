@@ -172,6 +172,9 @@ struct binCraft {
   uint8_t reserved;
   // 108
   // javascript sucks, this must be a multiple of 4 bytes for Int32Array to work correctly
+#if defined(TRACKS_UUID)
+  uint64_t receiverId;
+#endif
 } __attribute__ ((__packed__));
 
 void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now);
