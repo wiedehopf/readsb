@@ -2523,7 +2523,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
             left = MODES_CLIENT_BUF_SIZE - c->buflen - 1; // leave 1 extra byte for NUL termination in the ASCII case
             // If there is garbage, read more to discard it ASAP
         }
-        nread = recv(c->fd, c->buf + c->buflen, left, 0);
+        nread = read(c->fd, c->buf + c->buflen, left);
         int err = errno;
 
         // If we didn't get all the data we asked for, then return once we've processed what we did get.
