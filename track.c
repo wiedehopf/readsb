@@ -291,11 +291,6 @@ static void update_range_histogram(struct aircraft *a, uint64_t now) {
     if (range > Modes.maxRange && Modes.maxRange != 0)
         return;
 
-    if (range > Modes.stats_current.distance_max)
-        Modes.stats_current.distance_max = range;
-    if (range < Modes.stats_current.distance_min)
-        Modes.stats_current.distance_min = range;
-
     int rangeDirDirection = nearbyint(bearing(Modes.fUserLat, Modes.fUserLon, lat, lon));
     rangeDirDirection %= RANGEDIRS_BUCKETS;
 
@@ -308,6 +303,12 @@ static void update_range_histogram(struct aircraft *a, uint64_t now) {
     }
 
     struct distCoords *record = &(Modes.rangeDirs[rangeDirHour][rangeDirDirection]);
+
+    // if the position isn't proper reliable, only allow it if the range in that direction is increased by less than 8%
+    if ((a->pos_reliable_odd < 2 || a->pos_reliable_even < 2) && range > 1.08 * record->distance) {
+        return;
+    }
+
     if (range > record->distance) {
         record->distance = range;
         record->lat = lat;
@@ -318,6 +319,11 @@ static void update_range_histogram(struct aircraft *a, uint64_t now) {
             record->alt = a->altitude_geom;
         }
     }
+
+    if (range > Modes.stats_current.distance_max)
+        Modes.stats_current.distance_max = range;
+    if (range < Modes.stats_current.distance_min)
+        Modes.stats_current.distance_min = range;
 
     if (Modes.stats_range_histo) {
         int bucket = round(range / Modes.maxRange * RANGE_BUCKET_COUNT);
@@ -819,7 +825,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
     if (mm->jsonPos)
         jsonPositionOutput(mm, a);
 
-    if (a->pos_reliable_odd >= 2 && a->pos_reliable_even >= 2 && (mm->source == SOURCE_ADSB || mm->source == SOURCE_ADSR)) {
+    if (posReliable(a) && (mm->source == SOURCE_ADSB || mm->source == SOURCE_ADSR)) {
         update_range_histogram(a, now);
     }
 
