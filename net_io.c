@@ -2523,6 +2523,7 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
             left = MODES_CLIENT_BUF_SIZE - c->buflen - 1; // leave 1 extra byte for NUL termination in the ASCII case
             // If there is garbage, read more to discard it ASAP
         }
+        // read instead of recv for modesbeast / gns-hulc ....
         nread = read(c->fd, c->buf + c->buflen, left);
         int err = errno;
 

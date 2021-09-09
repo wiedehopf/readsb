@@ -2256,9 +2256,12 @@ void useModesMessage(struct modesMessage *mm) {
         }
         Modes.synthetic_now = Modes.startup_time + mm->timestampMsg / 12000U;
     }
-    if (0 && Modes.debug_bogus) {
+    if (Modes.debug_bogus) {
         if (a && a->messages == 1 && a->registration[0] == 0 && !(a->addr & MODES_NON_ICAO_ADDRESS)) {
-            fprintf(stdout, "not in DB: %06x\n", mm->addr);
+            fprintf(stdout, "%6llx %5.1f not in DB: %06x\n",
+                    (long long) mm->timestampMsg % 0x1000000,
+                    10 * log10(mm->signalLevel),
+                    mm->addr);
             //displayModesMessage(mm);
         } else if (0 && !a) {
             if (mm->addr != HEX_UNKNOWN && !dbGet(mm->addr, Modes.dbIndex))
