@@ -305,7 +305,7 @@ static void update_range_histogram(struct aircraft *a, uint64_t now) {
     struct distCoords *record = &(Modes.rangeDirs[rangeDirHour][rangeDirDirection]);
 
     // if the position isn't proper reliable, only allow it if the range in that direction is increased by less than 8%
-    if ((a->pos_reliable_odd < 2 || a->pos_reliable_even < 2) && range > 1.08 * record->distance) {
+    if ((a->pos_reliable_odd < 2 || a->pos_reliable_even < 2) && range > 1.12 * record->distance) {
         return;
     }
 
@@ -371,7 +371,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
        ) {
         mm->pos_ignore = 1; // don't decrement pos_reliable
         override = 0;
-    } else if (a->pos_reliable_odd < 1 && a->pos_reliable_even < 1) {
+    } else if (a->pos_reliable_odd <= 0 || a->pos_reliable_even <= 0) {
         override = 1;
     } else if (now > a->position_valid.updated + (120 * 1000)) {
         override = 1; // no reference or older than 120 seconds, assume OK
@@ -439,7 +439,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
     // 100m (surface) base distance to allow for minor errors, no airborne base distance due to ground track cross check
     // plus distance covered at the given speed for the elapsed time + 1 seconds.
-    range = (surface ? 0.1e3f : 0.0e3f) + ((elapsed + 1000.0f) / 1000.0f) * (speed * 1852.0f / 3600.0f);
+    range = (surface ? 0.1e3f : 0.0e3f) + (((float) elapsed + 1000.0f) / 1000.0f) * (speed * 1852.0f / 3600.0f);
 
     inrange = (distance <= range);
 
@@ -2161,7 +2161,7 @@ static void removeStaleRange(int start, int end, uint64_t now) {
         posTimeout = now - 26 * HOURS;
         nonicaoTimeout = now - 26 * HOURS;
     }
-    if (Modes.state_dir) {
+    if (Modes.state_dir && !Modes.userLocationValid) {
         posTimeout = now - 14 * 24 * HOURS;
     }
     if (Modes.debug_rough_receiver_location) {
@@ -2828,11 +2828,11 @@ void updateValidities(struct aircraft *a, uint64_t now) {
 
     a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = 0;
 
-    if (now > a->category_updated + 2 * HOURS)
+    if (now > a->category_updated + Modes.trackExpireMax)
         a->category = 0;
 
-    // reset position reliability when no position was received for 2 minutes
-    if (trackDataAge(now, &a->position_valid) > 2 * MINUTES - 10 * SECONDS || now > a->seenPosGlobal + 10 * MINUTES) {
+    // reset position reliability when no position was received for 10 minutes
+    if (now > a->seenPosGlobal + 10 * MINUTES) {
         a->pos_reliable_odd = 0;
         a->pos_reliable_even = 0;
     }
