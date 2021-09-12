@@ -302,21 +302,32 @@ static void update_range_histogram(struct aircraft *a, uint64_t now) {
         Modes.lastRangeDirHour = rangeDirHour;
     }
 
-    struct distCoords *record = &(Modes.rangeDirs[rangeDirHour][rangeDirDirection]);
+    struct distCoords *current = &(Modes.rangeDirs[rangeDirHour][rangeDirDirection]);
 
-    // if the position isn't proper reliable, only allow it if the range in that direction is increased by less than 8%
-    if ((a->pos_reliable_odd < 2 || a->pos_reliable_even < 2) && range > 1.12 * record->distance) {
-        return;
+
+    // if the position isn't proper reliable, only allow it if the range in that direction is increased by less than 25 nmi compared to the maximum of the last 24h
+    if (range > current->distance && (a->pos_reliable_odd < 2 || a->pos_reliable_even < 2)) {
+        float directionMax = 0;
+        for (int i = 0; i < RANGEDIRS_HOURS; i++) {
+            if (Modes.rangeDirs[i][rangeDirDirection].distance > directionMax)
+                directionMax = Modes.rangeDirs[i][rangeDirDirection].distance;
+        }
+        directionMax += 50.0f * 1852.0f; // allow 50 nmi more than recorded for that direction in the last 24h
+        if (range > directionMax) {
+            return;
+        }
+        //fprintf(stderr, "actual %.1f max %.1f\n", range / 1852.0f, (directionMax / 1852.0f));
     }
 
-    if (range > record->distance) {
-        record->distance = range;
-        record->lat = lat;
-        record->lon = lon;
+
+    if (range > current->distance) {
+        current->distance = range;
+        current->lat = lat;
+        current->lon = lon;
         if (trackDataValid(&a->altitude_baro_valid) || !trackDataValid(&a->altitude_geom_valid)) {
-            record->alt = a->altitude_baro;
+            current->alt = a->altitude_baro;
         } else {
-            record->alt = a->altitude_geom;
+            current->alt = a->altitude_geom;
         }
     }
 
