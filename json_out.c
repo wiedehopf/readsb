@@ -1771,7 +1771,7 @@ struct char_buffer generateOutlineJson() {
 }
 
 // Write JSON to file
-static inline int writeJsonTo (const char* dir, const char *file, struct char_buffer cb, int gzip) {
+static inline __attribute__((always_inline)) int writeJsonTo (const char* dir, const char *file, struct char_buffer cb, int gzip, int gzip_level) {
 
     char pathbuf[PATH_MAX];
     char tmppath[PATH_MAX];
@@ -1779,12 +1779,13 @@ static inline int writeJsonTo (const char* dir, const char *file, struct char_bu
     int len = cb.len;
     char *content = cb.buffer;
 
-    if (!dir)
-        snprintf(tmppath, PATH_MAX, "%s.%lx", file, random());
-    else
-        snprintf(tmppath, PATH_MAX, "%s/%s.%lx", dir, file, random());
+    if (dir) {
+        snprintf(pathbuf, PATH_MAX, "%s/%s", dir, file);
+    } else {
+        snprintf(pathbuf, PATH_MAX, "%s", file);
+    }
+    snprintf(tmppath, PATH_MAX, "%s.tmp", pathbuf);
 
-    tmppath[PATH_MAX - 1] = 0;
     fd = open(tmppath, O_WRONLY | O_CREAT | O_EXCL, 0644);
     if (fd < 0) {
         fprintf(stderr, "writeJsonTo open(): ");
@@ -1794,41 +1795,19 @@ static inline int writeJsonTo (const char* dir, const char *file, struct char_bu
         return -1;
     }
 
-    if (!dir)
-        snprintf(pathbuf, PATH_MAX, "%s", file);
-    else
-        snprintf(pathbuf, PATH_MAX, "%s/%s", dir, file);
 
-    pathbuf[PATH_MAX - 1] = 0;
-
-    if (gzip < 0) {
-        /*
-        int brotliLvl = -gzip;
-        size_t outSize = len + 4096;
-        char *outBuf = malloc(outSize);
-        // BROTLI_MODE_TEXT  Compression mode for UTF-8 formatted text input. 
-        // BROTLI_MODE_GENERIC
-        int rc = BrotliEncoderCompress(
-                brotliLvl, 22, BROTLI_DEFAULT_MODE,
-                len, (uint8_t *) content, &outSize, (uint8_t *) outBuf);
-
-        if (rc == BROTLI_FALSE) {
-            goto error_1;
-        }
-
-        if (write(fd, outBuf, outSize) != (ssize_t) outSize)
-            goto error_1;
-
-        if (close(fd) < 0)
-            goto error_2;
-        */
-    } else if (gzip > 0) {
+    if (gzip) {
         gzFile gzfp = gzdopen(fd, "wb");
         if (!gzfp)
             goto error_1;
 
         gzbuffer(gzfp, 1024 * 1024);
-        gzsetparams(gzfp, gzip, Z_DEFAULT_STRATEGY);
+        int name_len = strlen(file);
+        if (name_len > 8 && strcmp("binCraft", file + (name_len - 8)) == 0) {
+            gzsetparams(gzfp, gzip_level, Z_FILTERED);
+        } else {
+            gzsetparams(gzfp, gzip_level, Z_DEFAULT_STRATEGY);
+        }
 
         int res = gzwrite(gzfp, content, len);
         if (res != len) {
@@ -1868,11 +1847,11 @@ error_2:
 }
 
 int writeJsonToFile (const char* dir, const char *file, struct char_buffer cb) {
-    return writeJsonTo(dir, file, cb, 0);
+    return writeJsonTo(dir, file, cb, 0, 0);
 }
 
 int writeJsonToGzip (const char* dir, const char *file, struct char_buffer cb, int gzip) {
-    return writeJsonTo(dir, file, cb, gzip);
+    return writeJsonTo(dir, file, cb, 1, gzip);
 }
 
 struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {

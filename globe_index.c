@@ -1889,7 +1889,7 @@ void save_blob(int blob) {
         }
         if (gzbuffer(gzfp, GZBUFFER_BIG) < 0)
             fprintf(stderr, "gzbuffer fail");
-        res = gzsetparams(gzfp, 1, Z_DEFAULT_STRATEGY);
+        res = gzsetparams(gzfp, 1, Z_FILTERED);
         if (res < 0)
             fprintf(stderr, "gzsetparams fail: %d", res);
     }
