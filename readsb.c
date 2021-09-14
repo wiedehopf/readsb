@@ -220,7 +220,7 @@ static void modesInit(void) {
         if (Modes.net)
             Modes.net_only = 1;
         if (!Modes.net_only) {
-            fprintf(stderr, "No networking or SDR input selected, exiting!\n");
+            fprintf(stderr, "No networking or SDR input selected, exiting! Try '--device-type rtlsdr'! See 'readsb --help'\n");
             cleanup_and_exit(1);
         }
     } else if (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS) {
@@ -453,11 +453,30 @@ static void *readerEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
     srandom(get_seed());
 
-    sdrRun();
-
-    // Wake the main thread (if it's still waiting)
-    if (!Modes.exit)
+    if (!sdrOpen()) {
         setExit(2); // unexpected exit
+        log_with_timestamp("sdrOpen() failed, exiting!");
+        return NULL;
+    }
+
+    if (sdrHasRun()) {
+        sdrRun();
+        // Wake the main thread (if it's still waiting)
+        if (!Modes.exit)
+            setExit(2); // unexpected exit
+    } else {
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+
+        pthread_mutex_lock(&Threads.reader.mutex);
+
+        while (!Modes.exit) {
+            threadTimedWait(&Threads.reader, &ts, 15 * SECONDS);
+        }
+        pthread_mutex_unlock(&Threads.reader.mutex);
+    }
+
+    sdrClose();
 
     return NULL;
 }
@@ -697,7 +716,7 @@ static void *decodeEntryPoint(void *arg) {
             } else {
                 // Nothing to process this time around.
                 if (--watchdogCounter <= 0) {
-                    fprintf(stderr, "<3> SDR wedged, exiting! (check power supply / avoid using an USB extension / SDR might be defective)");
+                    fprintf(stderr, "<3>SDR wedged, exiting! (check power supply / avoid using an USB extension / SDR might be defective)\n");
                     setExit(2);
                     break;
                 }
@@ -1558,14 +1577,7 @@ int main(int argc, char **argv) {
         dbFinishUpdate();
 
     if (Modes.sdr_type != SDR_NONE) {
-        if (!sdrOpen()) {
-            setExit(2); // unexpected exit
-            log_with_timestamp("sdrOpen() failed, exiting!");
-            cleanup_and_exit(1);
-        }
-        if (sdrHasRun()) {
-            threadCreate(&Threads.reader, NULL, readerEntryPoint, NULL);
-        }
+        threadCreate(&Threads.reader, NULL, readerEntryPoint, NULL);
     }
 
     threadCreate(&Threads.decode, NULL, decodeEntryPoint, NULL);
@@ -1697,12 +1709,6 @@ int main(int argc, char **argv) {
     // If --stats were given, print statistics
     if (Modes.stats) {
         display_total_stats();
-    }
-
-    // close the SDR, this can result in SIGKILL being raised if it doesn't work
-    // do all the cleanup we can before we attempt it so we cause less chaos
-    if (Modes.sdr_type != SDR_NONE) {
-        sdrClose();
     }
 
     if (Modes.exit != 1) {

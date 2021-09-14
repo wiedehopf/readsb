@@ -210,13 +210,13 @@ void threadInit(threadT *thread, char *name) {
 }
 void threadCreate(threadT *thread, const pthread_attr_t *attr, void *(*start_routine) (void *), void *arg) {
     if (!thread->joined) {
-        fprintf(stderr, "threadCreate() thread %s failed: not joined\n", thread->name);
-        exit(1);
+        fprintf(stderr, "<3>FATAL: threadCreate() thread %s failed: already running?\n", thread->name);
+        setExit(2);
     }
     int res = pthread_create(&thread->pthread, attr, start_routine, arg);
     if (res != 0) {
-        fprintf(stderr, "threadCreate() pthread_create() failed: %s\n", strerror(res));
-        exit(1);
+        fprintf(stderr, "<3>FATAL: threadCreate() pthread_create() failed: %s\n", strerror(res));
+        setExit(2);
     }
     thread->joined = 0;
     thread->joinFailed = 0;
@@ -224,8 +224,8 @@ void threadCreate(threadT *thread, const pthread_attr_t *attr, void *(*start_rou
 static void threadDestroy(threadT *thread) {
     // if the join didn't work, don't clean up
     if (!thread->joined) {
-        fprintf(stderr, "threadDestroy() thread %s failed: not joined\n", thread->name);
-        return;
+        fprintf(stderr, "<3>FATAL: thread %s could not be joined, calling abort()!\n", thread->name);
+        abort();
     }
 
     pthread_mutex_destroy(&thread->mutex);
@@ -261,7 +261,7 @@ void threadSignalJoin(threadT *thread) {
         thread->joined = 1;
     } else {
         thread->joinFailed = 1;
-        fprintf(stderr, "%s thread: threadSignalJoin timed out after %.1f seconds, undefined behaviour may result!\n", thread->name, (double) timeout / SECONDS);
+        fprintf(stderr, "%s thread: threadSignalJoin timed out after %.1f seconds, undefined behaviour may result!\n", thread->name, (float) Modes.joinTimeout / (float) SECONDS);
         Modes.joinTimeout /= 2;
         Modes.joinTimeout = max(Modes.joinTimeout, 2 * SECONDS);
     }
