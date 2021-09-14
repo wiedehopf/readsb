@@ -674,7 +674,7 @@ static void *decodeEntryPoint(void *arg) {
         }
     } else {
 
-        int watchdogCounter = 50; // about 5 seconds
+        int watchdogCounter = 200; // roughly 20 seconds
 
         while (!Modes.exit) {
             struct timespec start_time;
@@ -712,7 +712,7 @@ static void *decodeEntryPoint(void *arg) {
                 pthread_cond_signal(&Threads.reader.cond);
                 unlockReader();
 
-                watchdogCounter = 50;
+                watchdogCounter = 100; // roughly 10 seconds
             } else {
                 // Nothing to process this time around.
                 if (--watchdogCounter <= 0) {
