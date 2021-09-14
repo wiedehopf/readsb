@@ -2,7 +2,7 @@
 
 [Unit]
 Description=readsb ADS-B receiver
-Documentation=https://github.com/mictronics/readsb
+Documentation=https://github.com/wiedehopf/readsb
 Wants=network.target
 After=network.target
 
