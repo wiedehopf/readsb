@@ -67,10 +67,6 @@ static int geomag_E0_init(int *maxdeg);
 static char geomag_introduction(double epochlowlim);
 
 int geomag_destroy() {
-    free(wmm_lines);
-    wmm_lines = NULL;
-    free(wmm_string);
-    wmm_string = NULL;
     return 0;
 }
 
@@ -196,7 +192,12 @@ int geomag_init()
     /* INITIALIZE GEOMAG ROUTINE */
 
     maxdeg = 12;
-    return geomag_E0_init(&maxdeg);
+    int result = geomag_E0_init(&maxdeg);
+    free(wmm_lines);
+    wmm_lines = NULL;
+    free(wmm_string);
+    wmm_string = NULL;
+    return result;
 }
 
 /*************************************************************************/

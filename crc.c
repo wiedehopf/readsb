@@ -32,12 +32,12 @@ static struct errorinfo NO_ERRORS;
 
 // CRC values for all single-byte messages;
 // used to speed up CRC calculation.
-static uint32_t crc_table[256];
+ALIGNED static uint32_t crc_table[256];
 
 // Syndrome values for all single-bit errors;
 // used to speed up construction of error-
 // correction tables.
-static uint32_t single_bit_syndrome[112];
+ALIGNED static uint32_t single_bit_syndrome[112];
 
 static void initLookupTables() {
     int i;
@@ -201,7 +201,7 @@ static struct errorinfo *prepareErrorTable(int bits, int max_correct, int max_de
     fprintf(stderr, "Preparing syndrome table to correct up to %d-bit errors (detecting %d-bit errors) in a %d-bit message (max %d entries)\n", max_correct, max_detect, bits, maxsize);
 #endif
 
-    table = malloc(maxsize * sizeof (struct errorinfo));
+    table = aligned_malloc(maxsize * sizeof (struct errorinfo));
     base_entry.syndrome = 0;
     base_entry.errors = 0;
     for (i = 0; i < MODES_MAX_BITERRORS; ++i)

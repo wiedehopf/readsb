@@ -196,7 +196,7 @@ static struct char_buffer apiReq(struct apiThread *thread, double *box, uint32_t
     struct apiBuffer *buffer = &Modes.apiBuffer[flip];
 
     struct char_buffer cb = { 0 };
-    struct apiEntry *matches = malloc(buffer->len * sizeof(struct apiEntry));
+    struct apiEntry *matches = aligned_malloc(buffer->len * sizeof(struct apiEntry));
 
     size_t alloc = API_REQ_PADSTART + 1024;
     int count = 0;
@@ -213,7 +213,7 @@ static struct char_buffer apiReq(struct apiThread *thread, double *box, uint32_t
     // add for comma and new line for each entry
     alloc += count * 2;
 
-    cb.buffer = malloc(alloc);
+    cb.buffer = aligned_malloc(alloc);
     if (!cb.buffer)
         return cb;
 
@@ -306,7 +306,7 @@ static inline void apiGenerateJson(struct apiBuffer *buffer, uint64_t now) {
     buffer->json = NULL;
 
     size_t alloc = buffer->len * 1024 + 4096; // The initial buffer is resized as needed
-    buffer->json = (char *) malloc(alloc);
+    buffer->json = (char *) aligned_malloc(alloc);
     char *p = buffer->json;
     char *end = buffer->json + alloc;
 
@@ -361,7 +361,7 @@ int apiUpdate(struct craftArray *ca) {
         }
         buffer->alloc = acCount + 128;
         sfree(buffer->list);
-        buffer->list = malloc(buffer->alloc * sizeof(struct apiEntry));
+        buffer->list = aligned_malloc(buffer->alloc * sizeof(struct apiEntry));
         if (!buffer->list) {
             fprintf(stderr, "apiList alloc: out of memory!\n");
             exit(1);
@@ -701,7 +701,8 @@ static void acceptConn(struct apiCon *con, struct apiThread *thread) {
     errno = 0;
     char aneterr[ANET_ERR_LEN];
     while ((fd = anetGenericAccept(aneterr, listen_fd, saddr, &slen, SOCK_NONBLOCK)) >= 0) {
-        struct apiCon *con = calloc(sizeof(struct apiCon), 1);
+        struct apiCon *con = aligned_malloc(sizeof(struct apiCon));
+        memset(con, 0, sizeof(struct apiCon));
         if (!con) fprintf(stderr, "EMEM, how much is the fish?\n"), exit(1);
 
         con->fd = fd;
@@ -820,7 +821,7 @@ static void *apiUpdateEntryPoint(void *arg) {
 
 void apiBufferInit() {
     for (int i = 0; i < 2; i++) {
-        Modes.apiBuffer[i].hashList = malloc(API_BUCKETS * sizeof(struct apiEntry*));
+        Modes.apiBuffer[i].hashList = aligned_malloc(API_BUCKETS * sizeof(struct apiEntry*));
     }
     for (int i = 0; i < API_THREADS; i++) {
         pthread_mutex_init(&Modes.apiThread[i].mutex, NULL);
@@ -854,9 +855,11 @@ void apiInit() {
         Modes.api = 0;
         return;
     }
-    Modes.apiListeners = calloc(sizeof(struct apiCon*), Modes.apiService.listener_count);
+    Modes.apiListeners = aligned_malloc(sizeof(struct apiCon*) * Modes.apiService.listener_count);
+    memset(Modes.apiListeners, 0, sizeof(struct apiCon*) * Modes.apiService.listener_count);
     for (int i = 0; i < Modes.apiService.listener_count; ++i) {
-        struct apiCon *con = calloc(sizeof(struct apiCon), 1);
+        struct apiCon *con = aligned_malloc(sizeof(struct apiCon));
+        memset(con, 0, sizeof(struct apiCon));
         if (!con) fprintf(stderr, "EMEM, how much is the fish?\n"), exit(1);
 
         Modes.apiListeners[i] = con;
@@ -894,7 +897,7 @@ struct char_buffer apiGenerateAircraftJson() {
     int acCount = buffer->aircraftJsonCount;
 
     size_t alloc = acCount * 1024 + 2048;
-    char *buf = (char *) malloc(alloc), *p = buf, *end = buf + alloc;
+    char *buf = (char *) aligned_malloc(alloc), *p = buf, *end = buf + alloc;
 
     p = safe_snprintf(p, end,
             "{ \"now\" : %.1f,\n"
@@ -958,7 +961,7 @@ struct char_buffer apiGenerateGlobeJson(int globe_index) {
     if (ca)
         alloc += ca->len * 1024;
 
-    char *buf = (char *) malloc(alloc), *p = buf, *end = buf + alloc;
+    char *buf = (char *) aligned_malloc(alloc), *p = buf, *end = buf + alloc;
 
     p = safe_snprintf(p, end,
             "{ \"now\" : %.1f,\n"

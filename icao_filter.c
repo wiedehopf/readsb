@@ -51,8 +51,8 @@ void icaoFilterInit() {
     occupied = 0;
     sfree(icao_filter_a);
     sfree(icao_filter_b);
-    icao_filter_a = malloc(filterSize);
-    icao_filter_b = malloc(filterSize);
+    icao_filter_a = aligned_malloc(filterSize);
+    icao_filter_b = aligned_malloc(filterSize);
     memset(icao_filter_a, 0xFF, filterSize);
     memset(icao_filter_b, 0xFF, filterSize);
     icao_filter_active = icao_filter_a;
@@ -75,8 +75,8 @@ static void icaoFilterResize(uint32_t bits) {
     if (filterBuckets > 256000)
         fprintf(stderr, "icao_filter: changing size to %d!\n", (int) filterBuckets);
 
-    icao_filter_a = malloc(filterSize);
-    icao_filter_b = malloc(filterSize);
+    icao_filter_a = aligned_malloc(filterSize);
+    icao_filter_b = aligned_malloc(filterSize);
     memset(icao_filter_a, 0xFF, filterSize);
     memset(icao_filter_b, 0xFF, filterSize);
 

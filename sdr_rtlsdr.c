@@ -249,7 +249,7 @@ bool rtlsdrOpen(void) {
     }
 
 #ifdef USE_BOUNCE_BUFFER
-    if (!(RTLSDR.bounce_buffer = malloc(MODES_RTL_BUF_SIZE))) {
+    if (!(RTLSDR.bounce_buffer = aligned_malloc(MODES_RTL_BUF_SIZE))) {
         fprintf(stderr, "rtlsdr: can't allocate bounce buffer\n");
         rtlsdrClose();
         return false;

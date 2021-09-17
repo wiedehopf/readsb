@@ -231,10 +231,12 @@ static void modesInit(void) {
 
     if (!Modes.net_only) {
         for (int i = 0; i < MODES_MAG_BUFFERS; ++i) {
-            if ((Modes.mag_buffers[i].data = calloc(MODES_MAG_BUF_SAMPLES + Modes.trailing_samples, sizeof (uint16_t))) == NULL) {
+            size_t alloc = (MODES_MAG_BUF_SAMPLES + Modes.trailing_samples) * sizeof (uint16_t);
+            if ((Modes.mag_buffers[i].data = aligned_malloc(alloc)) == NULL) {
                 fprintf(stderr, "Out of memory allocating magnitude buffer.\n");
                 exit(1);
             }
+            memset(Modes.mag_buffers[i].data, 0, alloc);
 
             Modes.mag_buffers[i].length = 0;
             Modes.mag_buffers[i].dropped = 0;
@@ -918,7 +920,8 @@ static int make_net_connector(char *arg) {
             exit(1);
         }
     }
-    struct net_connector *con = calloc(1, sizeof(struct net_connector));
+    struct net_connector *con = aligned_malloc(sizeof(struct net_connector));
+    memset(con, 0, sizeof(struct net_connector));
     Modes.net_connectors[Modes.net_connectors_count++] = con;
     char *connect_string = strdup(arg);
     con->address = con->address0 = strtok(connect_string, ",");

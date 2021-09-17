@@ -78,16 +78,16 @@ struct net_connector
     char *address;
     char *address0;
     char *address1;
-    int use_addr;
     char *port;
     char *port0;
     char *port1;
     char *protocol;
     struct net_service *service;
-    int8_t connected;
-    int8_t connecting;
-    int fd;
     struct client* c;
+    int use_addr;
+    int connected;
+    int connecting;
+    int fd;
     uint64_t next_reconnect;
     uint64_t connect_timeout;
     uint64_t lastConnect; // timestamp for last connection establish
@@ -96,8 +96,8 @@ struct net_connector
     struct addrinfo *addr_info;
     struct addrinfo *try_addr; // pointer walking addr_info list
     int gai_error;
-    int8_t gai_request_in_progress;
-    int8_t gai_request_done;
+    int gai_request_in_progress;
+    int gai_request_done;
     pthread_t thread;
     pthread_mutex_t mutex;
 };
@@ -110,8 +110,8 @@ struct client
     struct net_service *service; // Service this client is part of
     int fd; // File descriptor
     int buflen; // Amount of data on buffer
-    int8_t acceptSocket; // not really a client but rather an accept Socket ... only fd and epollEvent will be valid
-    int8_t receiverIdLocked; // receiverId has been transmitted by other side.
+    int acceptSocket; // not really a client but rather an accept Socket ... only fd and epollEvent will be valid
+    int receiverIdLocked; // receiverId has been transmitted by other side.
     char *sendq;  // Write buffer - allocated later
     int sendq_len; // Amount of data in SendQ
     int sendq_max; // Max size of SendQ
@@ -141,10 +141,10 @@ struct client
     double recent_rtt; // in milliseconds
     struct epoll_event epollEvent;
     struct net_connector *con;
-    char proxy_string[256]; // store string received from PROXY protocol v1 (v2 not supported currently)
-    char host[NI_MAXHOST]; // For logging
-    char port[NI_MAXSERV];
-    char buf[MODES_CLIENT_BUF_SIZE + 4]; // Read buffer+padding
+    ALIGNED char proxy_string[256]; // store string received from PROXY protocol v1 (v2 not supported currently)
+    ALIGNED char host[NI_MAXHOST]; // For logging
+    ALIGNED char port[NI_MAXSERV];
+    ALIGNED char buf[MODES_CLIENT_BUF_SIZE + 4]; // Read buffer+padding
 };
 
 // Common writer state for all output sockets of one type
@@ -158,7 +158,7 @@ struct net_writer
     heartbeat_fn send_heartbeat; // function that queues a heartbeat if needed
     uint64_t lastWrite; // time of last write to clients
     uint64_t lastReceiverId;
-    int8_t noTimestamps;
+    int noTimestamps;
 };
 
 struct net_service *serviceInit (const char *descr, struct net_writer *writer, heartbeat_fn hb_handler, read_mode_t mode, const char *sep, read_fn read_handler);

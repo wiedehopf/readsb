@@ -28,7 +28,7 @@ struct receiver *receiverCreate(uint64_t id) {
     if (Modes.receiverCount > 4 * RECEIVER_TABLE_SIZE)
         return NULL;
     uint32_t hash = receiverHash(id);
-    r = malloc(sizeof(struct receiver));
+    r = aligned_malloc(sizeof(struct receiver));
     *r = (struct receiver) {0};
     r->id = id;
     r->next = Modes.receiverTable[hash];
@@ -242,7 +242,7 @@ struct char_buffer generateReceiversJson() {
     uint64_t now = mstime();
 
     size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
-    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
+    char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
 
     p = safe_snprintf(p, end, "{ \"now\" : %.1f,\n", now / 1000.0);
 

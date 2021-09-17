@@ -276,7 +276,7 @@ struct char_buffer readWholeFile(int fd, char *errorContext) {
     }
     size_t fsize = fileinfo.st_size;
 
-    cb.buffer = malloc(fsize + 1);
+    cb.buffer = aligned_malloc(fsize + 1);
     if (!cb.buffer) {
         fprintf(stderr, "%s: readWholeFile couldn't allocate buffer!\n", errorContext);
         return cb;
@@ -306,7 +306,7 @@ struct char_buffer readWholeGz(gzFile gzfp, char *errorContext) {
         return cb;
     }
     int alloc = 8 * 1024 * 1024;
-    cb.buffer = malloc(alloc);
+    cb.buffer = aligned_malloc(alloc);
     if (!cb.buffer) {
         fprintf(stderr, "reading %s: readWholeGz alloc fail!\n", errorContext);
         return cb;
@@ -435,7 +435,7 @@ void epollAllocEvents(struct epoll_event **events, int *maxEvents) {
     }
 
     sfree(*events);
-    *events = malloc(*maxEvents * sizeof(struct epoll_event));
+    *events = aligned_malloc(*maxEvents * sizeof(struct epoll_event));
 
     if (!*events) {
         fprintf(stderr, "Fatal: epollAllocEvents malloc\n");

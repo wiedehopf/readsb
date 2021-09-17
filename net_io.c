@@ -124,10 +124,11 @@ struct net_service *serviceInit(const char *descr, struct net_writer *writer, he
         exit(1);
     }
 
-    if (!(service = calloc(sizeof (*service), 1))) {
+    if (!(service = aligned_malloc(sizeof (struct net_service)))) {
         fprintf(stderr, "Out of memory allocating service %s\n", descr);
         exit(1);
     }
+    memset(service, 0, sizeof(struct net_service));
 
     service->next = Modes.services;
     Modes.services = service;
@@ -145,7 +146,7 @@ struct net_service *serviceInit(const char *descr, struct net_writer *writer, he
 
     if (service->writer) {
         if (!service->writer->data) {
-            if (!(service->writer->data = malloc(MODES_OUT_BUF_SIZE))) {
+            if (!(service->writer->data = aligned_malloc(MODES_OUT_BUF_SIZE))) {
                 fprintf(stderr, "Out of memory allocating output buffer for service %s\n", descr);
                 exit(1);
             }
@@ -185,10 +186,11 @@ struct client *createGenericClient(struct net_service *service, int fd) {
         fprintf(stderr, "<3> FATAL: createGenericClient called with invalid parameters!\n");
         exit(1);
     }
-    if (!(c = (struct client *) calloc(1, sizeof (*c)))) {
+    if (!(c = (struct client *) aligned_malloc(sizeof (struct client)))) {
         fprintf(stderr, "<3> FATAL: Out of memory allocating a new %s network client\n", service->descr);
         exit(1);
     }
+    memset(c, 0, sizeof (struct client));
 
     c->service = service;
     c->fd = fd;
@@ -215,7 +217,7 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     //fprintf(stderr, "c->receiverId: %016"PRIx64"\n", c->receiverId);
 
     if (service->writer) {
-        if (!(c->sendq = malloc(MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size))) {
+        if (!(c->sendq = aligned_malloc(MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size))) {
             fprintf(stderr, "Out of memory allocating client SendQ\n");
             exit(1);
         }
@@ -586,7 +588,8 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
     service->listener_fds = fds;
 
     if (epfd >= 0) {
-        service->listenSockets = calloc(service->listener_count, sizeof(struct client));
+        service->listenSockets = aligned_malloc(service->listener_count * sizeof(struct client));
+        memset(service->listenSockets, 0, service->listener_count * sizeof(struct client));
         for (int i = 0; i < service->listener_count; ++i) {
 
             // struct client for epoll purposes for each listen socket.

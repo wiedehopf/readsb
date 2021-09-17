@@ -1018,7 +1018,7 @@ struct char_buffer generateAircraftBin() {
     struct craftArray *ca = &Modes.aircraftActive;
     size_t alloc = 4096 + ca->len * sizeof(struct binCraft); // The initial buffer is resized as needed
 
-    char *buf = malloc(alloc);
+    char *buf = aligned_malloc(alloc);
     char *p = buf;
     char *end = buf + alloc;
 
@@ -1108,7 +1108,7 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
     if (good && ca)
         alloc += ca->len * sizeof(struct binCraft);
 
-    char *buf = malloc(alloc);
+    char *buf = aligned_malloc(alloc);
     char *p = buf;
     char *end = buf + alloc;
 
@@ -1213,7 +1213,7 @@ struct char_buffer generateGlobeJson(int globe_index){
         good = 0;
     }
 
-    char *buf = malloc(alloc);
+    char *buf = aligned_malloc(alloc);
     char *p = buf;
     char *end = buf + alloc;
 
@@ -1306,7 +1306,7 @@ struct char_buffer generateAircraftJson(uint64_t onlyRecent){
     struct craftArray *ca = &Modes.aircraftActive;
     size_t alloc = 4096 + ca->len * sizeof(struct binCraft); // The initial buffer is resized as needed
 
-    char *buf = malloc(alloc);
+    char *buf = aligned_malloc(alloc);
     char *p = buf;
     char *end = buf + alloc;
 
@@ -1438,7 +1438,7 @@ static void checkTraceCache(struct aircraft *a, uint64_t now) {
         if (now > a->seen_pos + TRACE_CACHE_LIFETIME / 2 || !a->trace) {
             return;
         }
-        a->traceCache = malloc(sizeof(struct traceCache));
+        a->traceCache = aligned_malloc(sizeof(struct traceCache));
         if (!a->traceCache) {
             fprintf(stderr, "malloc error code point ohB6yeeg\n");
             return;
@@ -1565,7 +1565,7 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
     int traceCount = max(last - start + 1, 0);
     size_t alloc = traceCount * 300 + 1024;
 
-    char *buf = (char *) malloc(alloc), *p = buf, *end = buf + alloc;
+    char *buf = (char *) aligned_malloc(alloc), *p = buf, *end = buf + alloc;
 
     if (!buf) {
         fprintf(stderr, "malloc error code point Loi1ahwe\n");
@@ -1673,7 +1673,7 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
 struct char_buffer generateReceiverJson() {
     struct char_buffer cb;
     size_t buflen = 8192;
-    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
+    char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
 
     p = safe_snprintf(p, end, "{ "
             "\"refresh\": %.0f, "
@@ -1735,7 +1735,7 @@ struct char_buffer generateReceiverJson() {
 struct char_buffer generateOutlineJson() {
     struct char_buffer cb;
     size_t buflen = 1024 + RANGEDIRS_BUCKETS * 64;
-    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
+    char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
 
     // check for maximum over last 24 full and current hour
     struct distCoords record[RANGEDIRS_BUCKETS];
@@ -1859,7 +1859,7 @@ struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {
     uint64_t now = mstime();
     struct aircraft *a;
     size_t buflen = 256*1024; // The initial buffer is resized as needed
-    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
+    char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
     int first = 1;
     int part_len = AIRCRAFT_BUCKETS / n_parts;
     int part_start = part * part_len;
@@ -2045,7 +2045,7 @@ struct char_buffer generateClientsJson() {
     uint64_t now = mstime();
 
     size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
-    char *buf = (char *) malloc(buflen), *p = buf, *end = buf + buflen;
+    char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
 
     p = safe_snprintf(p, end, "{ \"now\" : %.1f,\n", now / 1000.0);
     p = safe_snprintf(p, end, "  \"format\" : "

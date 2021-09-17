@@ -620,7 +620,7 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
 
 struct char_buffer generateStatsJson() {
     struct char_buffer cb;
-    char *buf = (char *) malloc(64 * 1024), *p = buf, *end = buf + 64 * 1024;
+    char *buf = (char *) aligned_malloc(64 * 1024), *p = buf, *end = buf + 64 * 1024;
 
     p = safe_snprintf(p, end,
             "{ \"now\" : %.1f",
@@ -652,7 +652,7 @@ struct char_buffer generateStatsJson() {
 
 struct char_buffer generatePromFile() {
     struct char_buffer cb;
-    char *buf = (char *) malloc(64 * 1024), *p = buf, *end = buf + 64 * 1024;
+    char *buf = (char *) aligned_malloc(64 * 1024), *p = buf, *end = buf + 64 * 1024;
     uint64_t now = mstime();
 
     struct stats *st = &Modes.stats_1min;

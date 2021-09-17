@@ -147,7 +147,7 @@ bool plutosdrOpen()
         perror("plutosdr: Could not create RX buffer");
     }
 
-    if (!(PLUTOSDR.readbuf = malloc(MODES_RTL_BUF_SIZE * 4))) {
+    if (!(PLUTOSDR.readbuf = aligned_malloc(MODES_RTL_BUF_SIZE * 4))) {
         fprintf(stderr, "plutosdr: Failed to allocate read buffer\n");
         plutosdrClose();
         return false;

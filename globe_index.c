@@ -4,7 +4,8 @@ static void mark_legs(struct aircraft *a, int start);
 static void load_blob(int blob);
 
 void init_globe_index() {
-    struct tile *s_tiles = Modes.json_globe_special_tiles = calloc(GLOBE_SPECIAL_INDEX, sizeof(struct tile));
+    struct tile *s_tiles = Modes.json_globe_special_tiles = aligned_malloc(GLOBE_SPECIAL_INDEX * sizeof(struct tile));
+    memset(s_tiles, 0, GLOBE_SPECIAL_INDEX * sizeof(struct tile));
     int count = 0;
 
     // Arctic
@@ -320,7 +321,8 @@ void init_globe_index() {
     if (count + 1 >= GLOBE_SPECIAL_INDEX)
         fprintf(stderr, "increase GLOBE_SPECIAL_INDEX please!\n");
 
-    Modes.json_globe_indexes = calloc(GLOBE_MAX_INDEX, sizeof(int32_t));
+    Modes.json_globe_indexes = aligned_malloc(GLOBE_MAX_INDEX * sizeof(int32_t));
+    memset(Modes.json_globe_indexes, 0, GLOBE_MAX_INDEX * sizeof(int32_t));
     Modes.json_globe_indexes_len = 0;
     for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
         if (i == Modes.specialTileCount)
@@ -1901,7 +1903,7 @@ void save_blob(int blob) {
     uint64_t magic = 0x7ba09e63757913eeULL;
 
     int alloc = max(16 * 1024 * 1024, (stateBytes(TRACE_SIZE) + stateAllBytes(TRACE_SIZE)));
-    unsigned char *buf = malloc(alloc);
+    unsigned char *buf = aligned_malloc(alloc);
     unsigned char *p = buf;
 
     for (int j = start; j < end; j++) {
@@ -2072,9 +2074,9 @@ int handleHeatmap(uint64_t now) {
     int len = 0;
     int len2 = 0;
     int alloc = 1 * 1024 * 1024;
-    struct heatEntry *buffer = malloc(alloc * sizeof(struct heatEntry));
-    struct heatEntry *buffer2 = malloc(alloc * sizeof(struct heatEntry));
-    int *slices = malloc(alloc * sizeof(int));
+    struct heatEntry *buffer = aligned_malloc(alloc * sizeof(struct heatEntry));
+    struct heatEntry *buffer2 = aligned_malloc(alloc * sizeof(struct heatEntry));
+    int *slices = aligned_malloc(alloc * sizeof(int));
     struct heatEntry index[num_slices];
 
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
