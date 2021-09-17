@@ -131,6 +131,7 @@ struct client
     uint64_t positionCounter; // counter for incoming data
     uint64_t garbage; // amount of garbage we have received from this client
     int32_t rtt; // last reported rtt in milliseconds
+    int32_t modeac_requested; // 1 if this Beast output connection has asked for A/C
     double latest_rtt; // in milliseconds, pseudo average with factor 0.9
     // crude IIR pseudo rolling average, old value factor 0.995
     // cumulative weigth of last 100 packets is 0.39
@@ -140,7 +141,6 @@ struct client
     double recent_rtt; // in milliseconds
     struct epoll_event epollEvent;
     struct net_connector *con;
-    int8_t modeac_requested; // 1 if this Beast output connection has asked for A/C
     char proxy_string[256]; // store string received from PROXY protocol v1 (v2 not supported currently)
     char host[NI_MAXHOST]; // For logging
     char port[NI_MAXSERV];

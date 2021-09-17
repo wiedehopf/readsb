@@ -10,13 +10,13 @@ TRACKS_UUID ?= no
 
 CPPFLAGS += -DMODES_READSB_VERSION=\"$(READSB_VERSION)\"
 CPPFLAGS += -D_GNU_SOURCE
-CPPFLAGS += -D_FORTIFY_SOURCE=2 -fstack-protector-strong -Wformat -Werror=format-security
+CPPFLAGS += -D_FORTIFY_SOURCE=2 -fstack-protector-strong -Wformat -Werror=format-security -faggressive-loop-optimizations -ftree-loop-linear -funsafe-math-optimizations
 
 #OPTIMIZE ?= -march=native
 
 DIALECT = -std=c11
 
-CFLAGS := $(DIALECT) -g -W -D_DEFAULT_SOURCE -Wall -Werror -fno-common -O2 $(CFLAGS) $(OPTIMIZE)
+CFLAGS := $(DIALECT) -g -W -D_DEFAULT_SOURCE -Wall -Werror -fno-common -O3 $(CFLAGS) $(OPTIMIZE)
 LIBS = -pthread -lpthread -lm -lz -lrt
 
 ifeq ($(shell $(CC) -c feature_test.c -o feature_test.o -Wno-format-truncation -Werror >/dev/null 2>&1 && echo 1 || echo 0), 1)
