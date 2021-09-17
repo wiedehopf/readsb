@@ -69,6 +69,10 @@
 
 #define VERSION_STRING MODES_READSB_VARIANT " version: " MODES_READSB_VERSION
 
+#define MemoryAlignment 32
+#define ALIGNED __attribute__((aligned(MemoryAlignment)))
+#define aligned_malloc(size) aligned_alloc(MemoryAlignment, size)
+
 // ============================= Include files ==========================
 
 #include <stdio.h>
@@ -403,7 +407,7 @@ struct _Modes
     pthread_mutex_t traceDebugMutex;
 
     int lockThreadsCount;
-    threadT *lockThreads[LOCK_THREADS_MAX];
+    ALIGNED threadT *lockThreads[LOCK_THREADS_MAX];
 
     struct timespec hungTimer1;
     struct timespec hungTimer2;
@@ -425,7 +429,7 @@ struct _Modes
     sdr_type_t sdr_type; // where are we getting data from?
     int freq;
     int ppm_error;
-    char aneterr[ANET_ERR_LEN];
+    ALIGNED char aneterr[ANET_ERR_LEN];
     int beast_fd; // Local Modes-S Beast handler
     struct net_service *services; // Active services
     int exitEventfd;
@@ -435,10 +439,10 @@ struct _Modes
     int max_fds;
     int modesClientCount;
 
-    struct aircraft * aircraft[AIRCRAFT_BUCKETS];
-    struct craftArray globeLists[GLOBE_MAX_INDEX+1];
+    ALIGNED struct aircraft * aircraft[AIRCRAFT_BUCKETS];
+    ALIGNED struct craftArray globeLists[GLOBE_MAX_INDEX+1];
+    ALIGNED struct receiver *receiverTable[RECEIVER_TABLE_SIZE];
     struct craftArray aircraftActive;
-    struct receiver *receiverTable[RECEIVER_TABLE_SIZE];
     dbEntry *db;
     dbEntry **dbIndex;
     dbEntry *db2;
@@ -471,8 +475,8 @@ struct _Modes
     struct net_service apiService;
     struct apiCon **apiListeners;
 
-    struct apiBuffer apiBuffer[2];
-    struct apiThread apiThread[API_THREADS];
+    ALIGNED struct apiBuffer apiBuffer[2];
+    ALIGNED struct apiThread apiThread[API_THREADS];
     pthread_mutex_t apiFlipMutex; // mutex to read apiFlip
 
     // Configuration
@@ -611,7 +615,7 @@ struct _Modes
     int8_t staleStop;
 
     struct timespec reader_cpu_accumulator; // CPU time used by the reader thread, copied out and reset by the main thread under the mutex
-    struct mag_buf mag_buffers[MODES_MAG_BUFFERS]; // Converted magnitude buffers from RTL or file input
+    ALIGNED struct mag_buf mag_buffers[MODES_MAG_BUFFERS]; // Converted magnitude buffers from RTL or file input
 
     uint64_t startup_time;
     uint64_t next_stats_update;
@@ -619,7 +623,7 @@ struct _Modes
     uint64_t next_api_update;
     uint64_t next_remove_stale;
     int stats_bucket; // index that has just been writte to
-    struct stats stats_10[STAT_BUCKETS];
+    ALIGNED struct stats stats_10[STAT_BUCKETS];
     struct stats stats_current;
     struct stats stats_alltime;
     struct stats stats_periodic;
@@ -630,10 +634,10 @@ struct _Modes
     struct statsCount globalStatsCount;
 
     // array for thread numbers
-    int threadNumber[256];
+    ALIGNED int threadNumber[256];
 
     int lastRangeDirHour;
-    struct distCoords rangeDirs[RANGEDIRS_HOURS][RANGEDIRS_BUCKETS ];
+    ALIGNED struct distCoords rangeDirs[RANGEDIRS_HOURS][RANGEDIRS_BUCKETS];
 };
 
 extern struct _Modes Modes;
@@ -652,11 +656,11 @@ struct modesMessage
     uint64_t sysTimestampMsg; // Timestamp of the message (system time)
     uint64_t receiverId; // zero if not transmitted
     int msgtype; // Downlink format #
-    int16_t msgbits; // Number of bits in message
-    int16_t score; // Scoring from scoreModesMessage, if used
-    uint16_t receiverCountMlat; // number of receivers for MLAT messages
-    int8_t correctedbits; // No. of bits corrected
-    int8_t decodeResult;
+    int msgbits; // Number of bits in message
+    int score; // Scoring from scoreModesMessage, if used
+    int receiverCountMlat; // number of receivers for MLAT messages
+    int correctedbits; // No. of bits corrected
+    int decodeResult;
     uint32_t crc; // Message CRC
     uint32_t addr; // Address Announced
     uint32_t maybe_addr; // probably the address, good chance to be wrong
@@ -696,37 +700,37 @@ struct modesMessage
     unsigned char MV[7];
 
     // Decoded data
-    unsigned altitude_baro_valid : 1;
-    unsigned altitude_geom_valid : 1;
-    unsigned track_valid : 1;
-    unsigned track_rate_valid : 1;
-    unsigned heading_valid : 1;
-    unsigned roll_valid : 1;
-    unsigned gs_valid : 1;
-    unsigned ias_valid : 1;
-    unsigned tas_valid : 1;
-    unsigned mach_valid : 1;
-    unsigned baro_rate_valid : 1;
-    unsigned geom_rate_valid : 1;
-    unsigned squawk_valid : 1;
-    unsigned callsign_valid : 1;
-    unsigned cpr_valid : 1;
-    unsigned cpr_odd : 1;
-    unsigned cpr_decoded : 1;
-    unsigned cpr_relative : 1;
-    unsigned category_valid : 1;
-    unsigned geom_delta_valid : 1;
-    unsigned from_mlat : 1;
-    unsigned from_tisb : 1;
-    unsigned spi_valid : 1;
-    unsigned spi : 1;
-    unsigned alert_valid : 1;
-    unsigned alert : 1;
-    unsigned emergency_valid : 1;
-    unsigned sbs_pos_valid : 1;
-    unsigned alt_q_bit : 1;
-    unsigned acas_ra_valid : 1;
-    unsigned padding : 11;
+    bool altitude_baro_valid;
+    bool altitude_geom_valid;
+    bool track_valid;
+    bool track_rate_valid;
+    bool heading_valid;
+    bool roll_valid;
+    bool gs_valid;
+    bool ias_valid;
+    bool tas_valid;
+    bool mach_valid;
+    bool baro_rate_valid;
+    bool geom_rate_valid;
+    bool squawk_valid;
+    bool callsign_valid;
+    bool cpr_valid;
+    bool cpr_odd;
+    bool cpr_decoded;
+    bool cpr_relative;
+    bool category_valid;
+    bool geom_delta_valid;
+    bool from_mlat;
+    bool from_tisb;
+    bool spi_valid;
+    bool spi;
+    bool alert_valid;
+    bool alert;
+    bool emergency_valid;
+    bool sbs_pos_valid;
+    bool alt_q_bit;
+    bool acas_ra_valid;
+    bool padding1;
 
     // valid if altitude_baro_valid:
     int altitude_baro; // Altitude in either feet or meters
@@ -757,8 +761,8 @@ struct modesMessage
     double mach; // Mach number
     int baro_rate; // Rate of change of barometric altitude, feet/minute
     int geom_rate; // Rate of change of geometric (GNSS / INS) altitude, feet/minute
-    unsigned squawk; // 13 bits identity (Squawk), encoded as 4 hex digits
     char callsign[16]; // 8 chars flight number, NUL-terminated
+    unsigned squawk; // 13 bits identity (Squawk), encoded as 4 hex digits
     unsigned category; // A0 - D7 encoded as a single hex byte
     emergency_t emergency; // emergency/priority status
 
@@ -785,29 +789,28 @@ struct modesMessage
 
     struct
     {
-        unsigned nic_a_valid : 1;
-        unsigned nic_b_valid : 1;
-        unsigned nic_c_valid : 1;
-        unsigned nic_baro_valid : 1;
-        unsigned nac_p_valid : 1;
-        unsigned nac_v_valid : 1;
-        unsigned gva_valid : 1;
-        unsigned sda_valid : 1;
+        bool nic_a_valid;
+        bool nic_b_valid;
+        bool nic_c_valid;
+        bool nic_baro_valid;
+        bool nac_p_valid;
+        bool nac_v_valid;
+        bool gva_valid;
+        bool sda_valid;
 
-        unsigned nic_a : 1; // if nic_a_valid
-        unsigned nic_b : 1; // if nic_b_valid
-        unsigned nic_c : 1; // if nic_c_valid
-        unsigned nic_baro : 1; // if nic_baro_valid
+        bool nic_a; // if nic_a_valid
+        bool nic_b; // if nic_b_valid
+        bool nic_c; // if nic_c_valid
+        bool nic_baro; // if nic_baro_valid
 
-        unsigned nac_p : 4; // if nac_p_valid
-        unsigned nac_v : 3; // if nac_v_valid
+        unsigned nac_p; // if nac_p_valid
+        unsigned nac_v; // if nac_v_valid
 
-        unsigned sil : 2; // if sil_type != SIL_INVALID
+        unsigned sil; // if sil_type != SIL_INVALID
 
-        unsigned gva : 2; // if gva_valid
+        unsigned gva; // if gva_valid
 
-        unsigned sda : 2; // if sda_valid
-        unsigned padding: 7;
+        unsigned sda; // if sda_valid
         sil_type_t sil_type;
     } accuracy;
 
@@ -844,7 +847,6 @@ struct modesMessage
         unsigned cc_poa : 1;
         unsigned cc_b2_low : 1;
         unsigned cc_lw_valid : 1;
-        unsigned padding: 13;
     } opstatus;
 
     // combined:
@@ -857,12 +859,11 @@ struct modesMessage
         unsigned mcp_altitude; // MCP/FCU selected altitude
         float qnh; // altimeter setting (QFE or QNH/QNE), millibars
         float heading; // heading, degrees (0-359) (could be magnetic or true heading; magnetic recommended)
-        unsigned heading_valid : 1;
-        unsigned fms_altitude_valid : 1;
-        unsigned mcp_altitude_valid : 1;
-        unsigned qnh_valid : 1;
-        unsigned modes_valid : 1;
-        unsigned padding : 27;
+        bool heading_valid;
+        bool fms_altitude_valid;
+        bool mcp_altitude_valid;
+        bool qnh_valid;
+        bool modes_valid;
         heading_type_t heading_type;
 
         nav_altitude_source_t altitude_source;
