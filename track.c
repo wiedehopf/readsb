@@ -1577,10 +1577,11 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     }
 
     if (mm->altitude_baro_valid &&
-            (mm->source >= a->altitude_baro_valid.source ||
-             (trackDataAge(now, &a->altitude_baro_valid) > 10 * 1000
-              && a->altitude_baro_valid.source != SOURCE_JAERO
-              && a->altitude_baro_valid.source != SOURCE_SBS)
+            (mm->source >= a->altitude_baro_valid.source
+             || Modes.debug_bogus
+             || (trackDataAge(now, &a->altitude_baro_valid) > 10 * 1000
+                 && a->altitude_baro_valid.source != SOURCE_JAERO
+                 && a->altitude_baro_valid.source != SOURCE_SBS)
             )
        ) {
         updateAltitude(now, a, mm);
