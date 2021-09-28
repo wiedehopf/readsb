@@ -1809,7 +1809,7 @@ void displayModesMessage(struct modesMessage *mm) {
     int j;
 
 
-    if (Modes.filterDF != -1 && Modes.filterDF != mm->msgtype) {
+    if (Modes.filterDF && !(Modes.filterDFbitset & (1 << mm->msgtype))) {
         return;
     }
 
@@ -2279,6 +2279,12 @@ void useModesMessage(struct modesMessage *mm) {
     // If in --net-verbatim mode, do this for all messages.
     // Otherwise, apply a sanity-check filter and only
     // forward messages when we have seen two of them.
+    //
+    //
+    // filter messages with unwanted DF types
+    if (Modes.filterDF && !(Modes.filterDFbitset & (1 << mm->msgtype))) {
+        return;
+    }
 
     if (Modes.net && !mm->sbs_in) {
         if (Modes.net_verbatim || !a || Modes.net_only) {

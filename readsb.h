@@ -532,7 +532,8 @@ struct _Modes
     int8_t viewadsb;
     int8_t sbsReduce; // apply beast reduce logic to SBS messages
 
-    int8_t filterDF; // Only show messages with this DF type
+    uint32_t filterDF; // Only show messages with certain DF types
+    uint32_t filterDFbitset; // Bitset, Only show messages with these DF types
 
     uint32_t trackExpireJaero;
     uint32_t trackExpireMax;

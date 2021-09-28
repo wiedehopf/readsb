@@ -155,7 +155,8 @@ static void modesInitConfig(void) {
     Modes.currentTask = "unset";
     Modes.joinTimeout = 30 * SECONDS;
 
-    Modes.filterDF = -1; // don't filter when set to -1
+    Modes.filterDF = 0;
+    Modes.filterDFbitset = 0;
     Modes.cpr_focus = BADDR;
     Modes.leg_focus = BADDR;
     Modes.trace_focus = BADDR;
@@ -976,6 +977,20 @@ static int make_net_connector(char *arg) {
     return 0;
 }
 
+static int parseLongs(char *p, long long *results, int max) {
+    char *saveptr = NULL;
+    char *endptr = NULL;
+    int count = 0;
+    char *tok = strtok_r(p, ",", &saveptr);
+    while (tok && count < max) {
+        results[count] = strtoll(tok, &endptr, 10);
+        if (tok != endptr)
+            count++;
+        tok = strtok_r(NULL, ",", &saveptr);
+    }
+    return count;
+}
+
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     switch (key) {
         case OptDevice:
@@ -1039,8 +1054,15 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             fprintf(stderr, "show-only: %06x\n", Modes.show_only);
             break;
         case OptFilterDF:
-            Modes.filterDF = (int8_t) strtol(arg, NULL, 10);
-            fprintf(stderr, "filter-DF: %d\n", Modes.filterDF);
+            Modes.filterDF = 1;
+            Modes.filterDFbitset = 0; // reset it
+            long long dfs[32];
+            int count = parseLongs(arg, dfs, 32);
+            for (int i = 0; i < count; i++)
+            {
+                Modes.filterDFbitset |= (1 << dfs[i]);
+            }
+            fprintf(stderr, "filter-DF: %s\n", arg);
             break;
         case OptMlat:
             Modes.mlat = 1;

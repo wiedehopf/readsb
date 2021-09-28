@@ -40,7 +40,7 @@ static struct argp_option optionsViewadsb[] = {
     {"no-fix", OptNoFix, 0, 0, "Disable CRC single-bit error correction", 1},
     {"metric", OptMetric, 0, 0, "Use metric units", 1},
     {"show-only", OptShowOnly, "<addr>", 0, "Show only messages by given ICAO on stdout", 1},
-    {"filter-DF", OptFilterDF, "<type>", 0, "When displaying decoded ModeS messages on stdout only show this DF type", 1},
+    {"filter-DF", OptFilterDF, "<type>", 0, "Only network forward and display decoded ModeS messages on stdout only show this DF type", 1},
     {"receiver-focus", OptReceiverFocus, "<receiverId>", 0, "only process messages from receiverId", 1},
     {"cpr-focus", OptCprFocus, "<hex>", 0, "show CPR details for this hex", 1},
     {"quiet", OptQuiet, 0, 0, "Disable output (default)", 1},
