@@ -807,12 +807,6 @@ static void snipMode(int level) {
     }
 }
 
-static void display_total_stats(void) {
-    struct stats added;
-    add_stats(&Modes.stats_alltime, &Modes.stats_current, &added);
-    display_stats(&added);
-}
-
 //
 //=========================================================================
 //
@@ -1734,6 +1728,9 @@ int main(int argc, char **argv) {
     // If --stats were given, print statistics
     if (Modes.stats) {
         display_total_stats();
+    }
+    if (Modes.debug_bogus) {
+        display_total_short_range_stats();
     }
 
     if (Modes.exit != 1) {

@@ -313,7 +313,7 @@ static void update_range_histogram(struct aircraft *a, uint64_t now) {
                 directionMax = Modes.rangeDirs[i][rangeDirDirection].distance;
         }
         directionMax += 50.0f * 1852.0f; // allow 50 nmi more than recorded for that direction in the last 24h
-        if (range > directionMax) {
+        if (range > directionMax && !Modes.debug_bogus) {
             return;
         }
         //fprintf(stderr, "actual %.1f max %.1f\n", range / 1852.0f, (directionMax / 1852.0f));

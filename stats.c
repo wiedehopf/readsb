@@ -396,6 +396,43 @@ static void unlockCurrent() {
     apiUnlockMutex();
 }
 
+void display_total_stats(void) {
+    struct stats added;
+    lockCurrent();
+    add_stats(&Modes.stats_alltime, &Modes.stats_current, &added);
+    unlockCurrent();
+    display_stats(&added);
+}
+
+
+void display_total_short_range_stats() {
+    struct stats added;
+    lockCurrent();
+    add_stats(&Modes.stats_alltime, &Modes.stats_current, &added);
+    unlockCurrent();
+
+#define buckets 8
+#define stride 100.0e3 // 100 km
+    int counts[buckets];
+    memset(counts, 0, sizeof(counts));
+    int bucket = 0;
+    for (int i = 0; i < RANGE_BUCKET_COUNT; i++) {
+        double range = ((double) i + 0.5) * Modes.maxRange / (double) RANGE_BUCKET_COUNT;
+        if (range > (bucket + 1) * stride && bucket < buckets - 1) {
+            bucket++;
+        }
+        counts[bucket] += added.range_histogram[i];
+    }
+    fprintf(stderr, "range buckets (%.0f km):", stride / 1000.0);
+    for (int i = 0; i < buckets; i++) {
+        fprintf(stderr, " %d", counts[i]);
+    }
+    fprintf(stderr, "\n");
+#undef buckets
+#undef stride
+}
+
+
 void checkDisplayStats(uint64_t now) {
     Modes.stats_current.end = now;
 

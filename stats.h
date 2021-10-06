@@ -134,7 +134,7 @@ struct stats
   // we saw only a single message
   uint32_t single_message_aircraft;
   // range histogram
-#define RANGE_BUCKET_COUNT 76
+#define RANGE_BUCKET_COUNT 128
   uint32_t range_histogram[RANGE_BUCKET_COUNT];
   double distance_max; // Longest range decoded, in *metres*
   double distance_min; // Shortest range decoded, in *metres*
@@ -189,6 +189,9 @@ struct distCoords {
 void add_stats (const struct stats *st1, const struct stats *st2, struct stats *target);
 void display_stats (struct stats *st);
 void reset_stats (struct stats *st);
+
+void display_total_stats(void);
+void display_total_short_range_stats();
 
 void add_timespecs (const struct timespec *x, const struct timespec *y, struct timespec *z);
 
