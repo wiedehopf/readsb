@@ -411,8 +411,8 @@ void display_total_short_range_stats() {
     add_stats(&Modes.stats_alltime, &Modes.stats_current, &added);
     unlockCurrent();
 
-#define buckets 8
-#define stride 100.0e3 // 100 km
+#define buckets 16
+#define stride 50.0e3 // 100 km
     int counts[buckets];
     memset(counts, 0, sizeof(counts));
     int bucket = 0;

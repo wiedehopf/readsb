@@ -1824,12 +1824,12 @@ int main(int argc, char **argv) {
     pthread_mutex_destroy(&Modes.traceDebugMutex);
     pthread_mutex_destroy(&Modes.hungTimerMutex);
 
+    if (Modes.debug_bogus) {
+        display_total_short_range_stats();
+    }
     // If --stats were given, print statistics
     if (Modes.stats) {
         display_total_stats();
-    }
-    if (Modes.debug_bogus) {
-        display_total_short_range_stats();
     }
 
     if (Modes.exit != 1) {

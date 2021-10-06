@@ -313,7 +313,7 @@ static void update_range_histogram(struct aircraft *a, uint64_t now) {
                 directionMax = Modes.rangeDirs[i][rangeDirDirection].distance;
         }
         directionMax += 50.0f * 1852.0f; // allow 50 nmi more than recorded for that direction in the last 24h
-        if (range > directionMax && !Modes.debug_bogus) {
+        if (range > directionMax && !Modes.debug_bogus && Modes.json_reliable > 0) {
             return;
         }
         //fprintf(stderr, "actual %.1f max %.1f\n", range / 1852.0f, (directionMax / 1852.0f));
@@ -336,16 +336,14 @@ static void update_range_histogram(struct aircraft *a, uint64_t now) {
     if (range < Modes.stats_current.distance_min)
         Modes.stats_current.distance_min = range;
 
-    if (Modes.stats_range_histo) {
-        int bucket = round(range / Modes.maxRange * RANGE_BUCKET_COUNT);
+    int bucket = round(range / Modes.maxRange * RANGE_BUCKET_COUNT);
 
-        if (bucket < 0)
-            bucket = 0;
-        else if (bucket >= RANGE_BUCKET_COUNT)
-            bucket = RANGE_BUCKET_COUNT - 1;
+    if (bucket < 0)
+        bucket = 0;
+    else if (bucket >= RANGE_BUCKET_COUNT)
+        bucket = RANGE_BUCKET_COUNT - 1;
 
-        ++Modes.stats_current.range_histogram[bucket];
-    }
+    ++Modes.stats_current.range_histogram[bucket];
 }
 
 // return true if it's OK for the aircraft to have travelled from its last known position
