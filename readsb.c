@@ -1127,6 +1127,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 snprintf(Modes.state_dir, PATH_MAX, "%s/internal_state", Modes.globe_history_dir);
             }
             break;
+        case OptStateOnlyOnExit:
+            Modes.state_only_on_exit = 1;
+            break;
         case OptStateDir:
             if (Modes.state_dir)
                 sfree(Modes.state_dir);
@@ -1521,6 +1524,102 @@ static void configAfterParse() {
     } else if (Modes.heatmap || Modes.trace_focus != BADDR) {
         Modes.keep_traces = 35 * MINUTES; // heatmap is written every 30 minutes
     }
+}
+
+static void miscStuff() {
+    uint64_t now = mstime();
+
+    struct timespec watch;
+    startWatch(&watch);
+
+    struct timespec start_time;
+    start_cpu_timing(&start_time);
+
+    checkNewDay(now);
+
+    // don't do everything at once ... this stuff isn't that time critical it'll get its turn
+    int enough = 0;
+
+    if (handleHeatmap(now)) {
+        enough = 1;
+    }
+    if (Modes.state_dir) {
+        static uint32_t blob; // current blob
+        static uint64_t next_blob;
+
+        char filename[PATH_MAX];
+        snprintf(filename, PATH_MAX, "%s/writeState", Modes.state_dir);
+        int fd = open(filename, O_RDONLY);
+        if (fd > -1) {
+            // write complete state if triggered by file writeState existing
+            writeInternalState();
+            close(fd);
+            unlink(filename);
+            next_blob = now + 45 * SECONDS;
+        }
+
+        // only continuously write state if we keep permanent trace
+        if (!Modes.state_only_on_exit && !enough && now > next_blob) {
+            enough = 1;
+            save_blob(blob++ % STATE_BLOBS);
+            next_blob = now + 60 * MINUTES / STATE_BLOBS;
+        }
+    }
+
+    static uint64_t next_clients_json;
+    if (!enough && Modes.json_dir && now > next_clients_json) {
+        enough = 1;
+        next_clients_json = now + 10 * SECONDS;
+        if (Modes.netIngest)
+            writeJsonToFile(Modes.json_dir, "clients.json", generateClientsJson());
+        if (Modes.netReceiverIdJson)
+            writeJsonToFile(Modes.json_dir, "receivers.json", generateReceiversJson());
+    }
+
+    if (!enough) {
+        // one iteration later, finish db update if db was updated
+        if (dbFinishUpdate())
+            enough = 1;
+    }
+    static uint64_t next_db_check;
+    if (!enough && now > next_db_check) {
+        enough = 1;
+        dbUpdate();
+        // db update check every 5 min
+        next_db_check = now + 5 * MINUTES;
+    }
+
+    end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
+
+    uint64_t elapsed = stopWatch(&watch);
+    static uint64_t antiSpam2;
+    if (elapsed > 3 * SECONDS && now > antiSpam2 + 30 * SECONDS) {
+        fprintf(stderr, "<3>High load: heatmap_and_stuff took %"PRIu64" ms! Suppressing for 30 seconds\n", elapsed);
+        antiSpam2 = now;
+    }
+}
+
+static void *miscEntryPoint(void *arg) {
+    MODES_NOTUSED(arg);
+
+    pthread_mutex_lock(&Threads.misc.mutex);
+
+    srandom(get_seed());
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+
+    while (!Modes.exit) {
+
+        if (mstime() < Modes.next_remove_stale) {
+            miscStuff();
+        }
+
+        threadTimedWait(&Threads.misc, &ts, 250); // check every quarter second if there is something to do
+    }
+
+    pthread_mutex_unlock(&Threads.misc.mutex);
+
+    pthread_exit(NULL);
 }
 
 //

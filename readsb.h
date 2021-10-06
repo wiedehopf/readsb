@@ -585,6 +585,7 @@ struct _Modes
     char *json_dir; // Path to json base directory, or NULL not to write json.
     char *globe_history_dir;
     char *state_dir;
+    int state_only_on_exit;
     char *prom_file;
     int64_t heatmap_current_interval;
     uint32_t heatmap_interval; // don't change data type
@@ -920,6 +921,7 @@ enum {
     OptPromFile,
     OptGlobeHistoryDir,
     OptStateDir,
+    OptStateOnlyOnExit,
     OptHeatmap,
     OptHeatmapDir,
     OptJsonTime,
