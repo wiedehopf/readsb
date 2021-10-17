@@ -279,7 +279,7 @@ static double bearing(double lat0, double lon0, double lat1, double lon1) {
 }
 #undef DEGR
 
-static void update_range_histogram(struct aircraft *a, uint64_t now) {
+static void update_range_histogram(struct aircraft *a, struct modesMessage *mm, uint64_t now) {
     if (!Modes.userLocationValid)
         return;
 
@@ -319,6 +319,9 @@ static void update_range_histogram(struct aircraft *a, uint64_t now) {
         //fprintf(stderr, "actual %.1f max %.1f\n", range / 1852.0f, (directionMax / 1852.0f));
     }
 
+    if (0 && range > 500.0e3) {
+        showPositionDebug(a, mm, now);
+    }
 
     if (range > current->distance) {
         current->distance = range;
@@ -835,7 +838,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         jsonPositionOutput(mm, a);
 
     if (posReliable(a) && (mm->source == SOURCE_ADSB || mm->source == SOURCE_ADSR)) {
-        update_range_histogram(a, now);
+        update_range_histogram(a, mm, now);
     }
 
     a->seen_pos = now;
