@@ -296,7 +296,7 @@ struct aircraft
   int pos_reliable_odd; // Number of good global CPRs, indicates position reliability
   int pos_reliable_even;
   int16_t traceWrittenForYesterday; // the permanent trace has been written for the previous day
-  int16_t padding1234; // unused
+  uint16_t mlatEPU;
   float gs_last_pos; // Save a groundspeed associated with the last position
 
   float wind_speed;

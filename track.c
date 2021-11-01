@@ -319,7 +319,7 @@ static void update_range_histogram(struct aircraft *a, struct modesMessage *mm, 
         //fprintf(stderr, "actual %.1f max %.1f\n", range / 1852.0f, (directionMax / 1852.0f));
     }
 
-    if (0 && range > 500.0e3) {
+    if (1 && range > 500.0e3) {
         showPositionDebug(a, mm, now);
     }
 
@@ -759,6 +759,9 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         return;
     }
 
+    if (mm->mlatEPU) {
+        a->mlatEPU = mm->mlatEPU;
+    }
     if (Modes.json_globe_index) {
         if (mm->source == SOURCE_MLAT && mm->receiverCountMlat) {
             a->receiverCountMlat = mm->receiverCountMlat;
@@ -1909,10 +1912,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         } else if (!speed_check(a, mm->source, mm->decoded_lat, mm->decoded_lon, mm, CPR_NONE)) {
             mm->pos_bad = 1;
             // speed check failed, do nothing
-        } else if (mm->source == SOURCE_MLAT && mm->receiverCountMlat
-                && min(a->receiverCountMlat - mm->receiverCountMlat, 7) * (mm->receiverCountMlat > 12 ? 300 : 800) > (int64_t) trackDataAge(mm->sysTimestampMsg, &a->position_valid)
+        } else if (mm->source == SOURCE_MLAT && mm->mlatEPU > a->mlatEPU
+                && min((int)(6000.0f * logf((float)mm->mlatEPU / (float)a->mlatEPU)), 36000) > (int64_t) trackDataAge(mm->sysTimestampMsg, &a->position_valid)
                 ) {
-            // don't use MLAT positions that had less receivers used to calculate them unless some time has elapsed
+            // don't use less accurate MLAT positions unless some time has elapsed
             // only works with SBS input MLAT data coming from some versions of mlat-server
         } else if (accept_data(&a->position_valid, mm->source, mm, a, 2)) {
 

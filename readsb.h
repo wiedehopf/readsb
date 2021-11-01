@@ -661,6 +661,7 @@ struct modesMessage
     int msgbits; // Number of bits in message
     int score; // Scoring from scoreModesMessage, if used
     int receiverCountMlat; // number of receivers for MLAT messages
+    int mlatEPU; // estimated position uncertainty
     int correctedbits; // No. of bits corrected
     int decodeResult;
     uint32_t crc; // Message CRC

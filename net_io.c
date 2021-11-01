@@ -1585,6 +1585,17 @@ static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now)
             mm.receiverCountMlat = tmp;
         }
     }
+    // field 20 (originally emergency status) used to indicate by some versions of mlat-server the estimated error in km
+    if (mm.source == SOURCE_MLAT && t[20] && strlen(t[20]) > 0) {
+        long tmp = strtol(t[20], NULL, 10);
+        if (tmp > 0) {
+            mm.mlatEPU = tmp;
+            if (tmp > UINT16_MAX)
+                mm.mlatEPU = UINT16_MAX;
+
+            //fprintf(stderr, "mlatEPU: %d\n", mm.mlatEPU);
+        }
+    }
 
     // field 22 ground status
     if (t[22] && strlen(t[22]) > 0 && atoi(t[22]) > 0) {
