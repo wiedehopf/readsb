@@ -319,7 +319,7 @@ static void update_range_histogram(struct aircraft *a, struct modesMessage *mm, 
         //fprintf(stderr, "actual %.1f max %.1f\n", range / 1852.0f, (directionMax / 1852.0f));
     }
 
-    if (1 && range > 500.0e3) {
+    if (0 && range > 500.0e3) {
         showPositionDebug(a, mm, now);
     }
 
@@ -1949,7 +1949,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                     if (accept_data(&a->position_valid, SOURCE_INDIRECT, mm, a, 2)) {
                         a->addrtype_updated = now;
                         a->addrtype = ADDR_MODE_S;
-                        if (a->position_valid.last_source != SOURCE_INDIRECT && a->position_valid.source == SOURCE_INVALID) {
+                        if (0 && a->position_valid.last_source > SOURCE_INDIRECT && a->position_valid.source == SOURCE_INVALID) {
                             mm->decoded_lat = a->lat;
                             mm->decoded_lon = a->lon;
                         } else {
