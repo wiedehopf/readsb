@@ -506,6 +506,7 @@ struct _Modes
     int8_t debug_uuid;
     int8_t debug_bogus;
     int8_t decode_all;
+    int8_t debug_maxRange;
     int8_t filter_persistence; // Maximum number of consecutive implausible positions from global CPR to invalidate a known position
 
     int8_t net_verbatim; // if true, send the original message, not the CRC-corrected one
@@ -784,6 +785,7 @@ struct modesMessage
     unsigned decoded_rc;
 
     double distance_traveled; // set in speed_check, zero is invalid
+    double receiver_distance; // distance to receiver
     float calculated_track; // set in speed_check, -1 is invalid
 
     commb_format_t commb_format; // Inferred format of a comm-b message

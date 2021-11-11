@@ -286,10 +286,10 @@ static void update_range_histogram(struct aircraft *a, struct modesMessage *mm, 
     double lat = a->lat;
     double lon = a->lon;
 
-    double range = greatcircle(Modes.fUserLat, Modes.fUserLon, lat, lon, 0);
-
-    if (range > Modes.maxRange && Modes.maxRange != 0)
-        return;
+    if (mm->receiver_distance == 0) {
+        mm->receiver_distance = greatcircle(Modes.fUserLat, Modes.fUserLon, lat, lon, 0);
+    }
+    double range = mm->receiver_distance;
 
     int rangeDirDirection = nearbyint(bearing(Modes.fUserLat, Modes.fUserLon, lat, lon));
     rangeDirDirection %= RANGEDIRS_BUCKETS;
@@ -317,10 +317,6 @@ static void update_range_histogram(struct aircraft *a, struct modesMessage *mm, 
             return;
         }
         //fprintf(stderr, "actual %.1f max %.1f\n", range / 1852.0f, (directionMax / 1852.0f));
-    }
-
-    if (0 && range > 500.0e3) {
-        showPositionDebug(a, mm, now);
     }
 
     if (range > current->distance) {
@@ -604,18 +600,21 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
 
     // check max range
     if (Modes.maxRange > 0 && Modes.userLocationValid) {
-        double range = greatcircle(Modes.fUserLat, Modes.fUserLon, *lat, *lon, 0);
-        if (range > Modes.maxRange) {
+        mm->receiver_distance = greatcircle(Modes.fUserLat, Modes.fUserLon, *lat, *lon, 0);
+        if (mm->receiver_distance > Modes.maxRange) {
             if (a->addr == Modes.cpr_focus || Modes.debug_bogus) {
                 fprintf(stdout, "%5llu %5.1f Global range check failed: %06x %.3f,%.3f, max range %.1fkm, actual %.1fkm\n",
                         (long long) mm->timestampMsg % 65536,
                         10 * log10(mm->signalLevel),
-                        a->addr, *lat, *lon, Modes.maxRange / 1000.0, range / 1000.0);
+                        a->addr, *lat, *lon, Modes.maxRange / 1000.0, mm->receiver_distance / 1000.0);
             }
 
-
-            if (mm->source != SOURCE_MLAT)
+            if (mm->source != SOURCE_MLAT) {
                 Modes.stats_current.cpr_global_range_checks++;
+                if (Modes.debug_maxRange) {
+                    showPositionDebug(a, mm, mm->sysTimestampMsg);
+                }
+            }
             return (-2); // we consider an out-of-range value to be bad data
         }
     }
@@ -2812,6 +2811,9 @@ static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint6
 
     fprintf(stderr, "%06x: ", a->addr);
     fprintf(stderr, "elapsed: %0.1f ", (now - a->seen_pos) / 1000.0);
+    if (mm->receiver_distance > 0) {
+        fprintf(stderr, "receiver_distance: %0.1f nmi ", mm->receiver_distance / 1852.0);
+    }
 
     if (mm->sbs_in) {
         fprintf(stderr, "SBS, ");
