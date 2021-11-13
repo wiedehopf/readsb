@@ -49,6 +49,7 @@ static bool init_uc8_lookup() {
             fI = (i - 127.5) / 127.5;
             fQ = (q - 127.5) / 127.5;
             magsq = fI * fI + fQ * fQ;
+            //fprintf(stderr, "%d %d %.2f\n", i, q, magsq);
             if (magsq > 1)
                 magsq = 1;
             float mag = sqrtf(magsq);
