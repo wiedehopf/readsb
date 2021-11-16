@@ -665,6 +665,10 @@ struct char_buffer generateStatsJson() {
             mstime() / 1000.0);
     p = safe_snprintf(p, end, ",\n");
 
+    if (!Modes.net_only) {
+        p = safe_snprintf(p, end, "\"gain_db\" : %.1f,\n", Modes.gain / 10.0);
+    }
+
     p = appendTypeCounts(p, end);
     p = safe_snprintf(p, end, ",\n");
 

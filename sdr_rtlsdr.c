@@ -188,7 +188,8 @@ bool rtlsdrOpen(void) {
     }
 
     // Set gain, frequency, sample rate, and reset the device
-    if (Modes.gain == MODES_AUTO_GAIN) {
+    if (Modes.gain == MODES_AUTO_GAIN || Modes.gain >= 520) {
+        Modes.gain = 590;
         fprintf(stderr, "rtlsdr: enabling tuner AGC\n");
         rtlsdr_set_tuner_gain_mode(RTLSDR.dev, 0);
     } else {
