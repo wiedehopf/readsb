@@ -70,6 +70,7 @@ struct net_service
     int *listener_fds; // listening FDs
     struct client *listenSockets; // dummy client structs for all open sockets for epoll commonality
     char* unixSocket; // path of unix socket
+    int sendqOverrideSize; // override size of program internal sendq for each client associated with this service
 };
 
 // Client connection

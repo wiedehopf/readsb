@@ -145,11 +145,17 @@ struct net_service *serviceInit(const char *descr, struct net_writer *writer, he
     service->clients = NULL;
 
     if (service->writer) {
-        if (!service->writer->data) {
-            if (!(service->writer->data = aligned_malloc(MODES_OUT_BUF_SIZE))) {
-                fprintf(stderr, "Out of memory allocating output buffer for service %s\n", descr);
-                exit(1);
-            }
+        if (service->writer->data) {
+            fprintf(stderr, "FATAL: serviceInit() called twice on the same service: %s\n", descr);
+            exit(1);
+        }
+
+        // set writer to zero
+        memset(service->writer, 0, sizeof(struct net_writer));
+
+        if (!(service->writer->data = aligned_malloc(MODES_OUT_BUF_SIZE))) {
+            fprintf(stderr, "Out of memory allocating output buffer for service %s\n", descr);
+            exit(1);
         }
 
         service->writer->service = service;
@@ -171,8 +177,26 @@ static void setProxyString(struct client *c) {
 
 // Create a client attached to the given service using the provided socket FD
 struct client *createSocketClient(struct net_service *service, int fd) {
-    //if (anetSetSendBuffer(Modes.aneterr, fd, (MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size)) == ANET_ERR)
-    //    fprintf(stderr, "anetSetSendBuffer failed: %s\n", Modes.aneterr);
+
+    int sndsize = -1;
+    // for connections without a writer or limited sendq size, reduce SNDBUF
+    if (!service->writer) {
+        sndsize = 1024;
+    } else if (service->sendqOverrideSize) {
+        sndsize = service->sendqOverrideSize;
+    }
+    if (sndsize > 0) {
+        if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, (void*)&sndsize, sizeof(sndsize)) == -1) {
+            fprintf(stderr, "setsockopt SO_SNDBUF: %s", strerror(errno));
+        }
+    }
+    // limit RCVBUF for ingest server, lots of connections
+    if (Modes.netIngest) {
+        int rcvsize = MODES_CLIENT_BUF_SIZE;
+        if (setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (void*)&rcvsize, sizeof(rcvsize)) == -1) {
+            fprintf(stderr, "setsockopt SO_RCVBUF: %s", strerror(errno));
+        }
+    }
     return createGenericClient(service, fd);
 }
 
@@ -217,12 +241,15 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     //fprintf(stderr, "c->receiverId: %016"PRIx64"\n", c->receiverId);
 
     if (service->writer) {
-        if (!(c->sendq = aligned_malloc(MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size))) {
+        c->sendq_max = MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size;
+        if (service->sendqOverrideSize) {
+            c->sendq_max = service->sendqOverrideSize;
+        }
+        if (!(c->sendq = aligned_malloc(c->sendq_max))) {
             fprintf(stderr, "Out of memory allocating client SendQ\n");
             exit(1);
         }
         // Have to keep track of this manually
-        c->sendq_max = MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size;
         service->writer->lastReceiverId = 0; // make sure to resend receiverId
 
         service->writer->connections++;
@@ -756,6 +783,7 @@ void modesInitNet(void) {
 
     /* Beast input via network */
     Modes.beast_in_service = serviceInit("Beast TCP input", &Modes.beast_in, NULL, READ_MODE_BEAST, NULL, decodeBinMessage);
+    Modes.beast_in_service->sendqOverrideSize = 1024; // this is only for sending pings back, it doesn't need to use up memory
     serviceListen(Modes.beast_in_service, Modes.net_bind_address, Modes.net_input_beast_ports, Modes.net_epfd);
 
     // print newline after all the listen announcements in serviceListen
