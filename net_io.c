@@ -105,7 +105,7 @@ static void send_sbs_heartbeat(struct net_service *service);
 static void autoset_modeac();
 static void *pthreadGetaddrinfo(void *param);
 
-static void flushClient(struct client *c, uint64_t now);
+static int flushClient(struct client *c, uint64_t now);
 static char *read_uuid(struct client *c, char *p, char *eod);
 static void modesReadFromClient(struct client *c, uint64_t start);
 
@@ -351,7 +351,9 @@ static void checkServiceConnected(struct net_connector *con, uint64_t now) {
         c->sendq[c->sendq_len++] = 0x1a;
         c->sendq[c->sendq_len++] = 'W';
         c->sendq[c->sendq_len++] = 'O';
-        flushClient(c, now);
+        if (flushClient(c, now) < 0) {
+            return;
+        }
     }
     if (!Modes.interactive) {
         if (uuid[0]) {
@@ -1005,7 +1007,9 @@ static void pingSenders(struct net_service *service, uint64_t now) {
             if (!c->pongReceived && now > c->connectedSince + 20 * SECONDS)
                 continue;
             pingClient(c, newPing);
-            flushClient(c, now);
+            if (flushClient(c, now) < 0) {
+                continue;
+            }
         }
     }
 }
@@ -1096,7 +1100,9 @@ static int pongReceived(struct client *c, uint64_t now) {
                 c->sendq[c->sendq_len++] = 'S';
                 c->pingReceived = now;
             }
-            flushClient(c, now);
+            if (flushClient(c, now) < 0) {
+                return 1;
+            }
         }
     }
     if (Modes.netIngest && c->rtt > PING_DISCONNECT) {
@@ -1106,14 +1112,14 @@ static int pongReceived(struct client *c, uint64_t now) {
 }
 
 
-static inline void flushClient(struct client *c, uint64_t now) {
-    if (!c->service) { fprintf(stderr, "report error: Ahlu8pie\n"); return; }
+static inline int flushClient(struct client *c, uint64_t now) {
+    if (!c->service) { fprintf(stderr, "report error: Ahlu8pie\n"); return -1; }
     int toWrite = c->sendq_len;
     char *psendq = c->sendq;
 
     if (toWrite == 0) {
         c->last_flush = now;
-        return;
+        return 0;
     }
 
     int bytesWritten = send(c->fd, psendq, toWrite, 0);
@@ -1125,7 +1131,7 @@ static inline void flushClient(struct client *c, uint64_t now) {
                 c->service->descr, strerror(err), c->host, c->port,
                 c->fd, c->sendq_len, c->buflen);
         modesCloseClient(c);
-        return;
+        return 0;
     }
     if (bytesWritten > 0) {
         // Advance buffer
@@ -1159,8 +1165,9 @@ static inline void flushClient(struct client *c, uint64_t now) {
     if (c->last_flush + flushTimeout < now) {
         fprintf(stderr, "%s: Couldn't flush data for %.2fs (Insufficient bandwidth?): disconnecting: %s port %s (fd %d, SendQ %d)\n", c->service->descr, flushTimeout / 1000.0, c->host, c->port, c->fd, c->sendq_len);
         modesCloseClient(c);
-        return;
+        return -1;
     }
+    return bytesWritten;
 }
 
 //
@@ -1191,7 +1198,9 @@ static void flushWrites(struct net_writer *writer) {
             memcpy(c->sendq + c->sendq_len, writer->data, writer->dataUsed);
             c->sendq_len += writer->dataUsed;
             // Try flushing...
-            flushClient(c, now);
+            if (flushClient(c, now) < 0) {
+                continue;
+            }
         }
     }
     writer->dataUsed = 0;
@@ -2763,7 +2772,9 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
                         if (Modes.debug_ping)
                             fprintf(stderr, "Initial Ping: %d\n", newPing);
                         pingClient(c, newPing);
-                        flushClient(c, now);
+                        if (flushClient(c, now) < 0) {
+                            return;
+                        }
                     }
                     som += 2;
                     continue;
@@ -3020,7 +3031,9 @@ static void handleEpoll(int count) {
         }
         if (!cl->acceptSocket && (event.events & EPOLLOUT) && cl->service) {
             // check if we need to flush a client because the send buffer was full previously
-            flushClient(cl, now);
+            if (flushClient(cl, now) < 0) {
+                continue;
+            }
         }
     }
 
