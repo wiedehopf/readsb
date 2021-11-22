@@ -1713,13 +1713,22 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         a->geom_rate = mm->geom_rate;
     }
 
-    if (mm->airground != AG_INVALID && mm->source != SOURCE_MODE_S &&
-            !(a->last_cpr_type == CPR_SURFACE && mm->airground == AG_AIRBORNE && now < a->airground_valid.updated + TRACK_EXPIRE_LONG)
+    if (mm->airground != AG_INVALID &&
+            !(mm->source == SOURCE_MODE_S
+                && a->last_cpr_type == CPR_SURFACE
+                && mm->airground == AG_AIRBORNE
+                && now < a->airground_valid.updated + TRACK_EXPIRE_LONG)
        ) {
         // If our current state is UNCERTAIN, accept new data as normal
         // If our current state is certain but new data is not, only accept the uncertain state if the certain data has gone stale
-        if (a->airground == AG_UNCERTAIN || mm->airground != AG_UNCERTAIN ||
-                (mm->airground == AG_UNCERTAIN && now > a->airground_valid.updated + TRACK_EXPIRE_LONG)) {
+        if (a->airground == AG_UNCERTAIN || mm->airground != AG_UNCERTAIN
+                || (mm->airground == AG_UNCERTAIN
+                    && (
+                        (trackDataAge(now, &a->altitude_baro_valid) < 3 * SECONDS && trackDataAge(now, &a->gs_valid) < 3 * SECONDS && a->gs > 60)
+                        || now > a->airground_valid.updated + TRACK_EXPIRE_LONG
+                       )
+                   )
+           ) {
             if (accept_data(&a->airground_valid, mm->source, mm, a, 0)) {
                 focusGroundstateChange(a, mm, 1, now);
                 if (mm->airground != a->airground)
