@@ -1384,6 +1384,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptRtlSdrPpm:
 #endif
         case OptBeastSerial:
+        case OptBeastBaudrate:
         case OptBeastDF1117:
         case OptBeastDF045:
         case OptBeastMlatTimeOff:

@@ -430,7 +430,6 @@ struct _Modes
     int freq;
     int ppm_error;
     ALIGNED char aneterr[ANET_ERR_LEN];
-    int beast_fd; // Local Modes-S Beast handler
     struct net_service *services; // Active services
     int exitEventfd;
     int net_epfd; // epoll fd used for most network stuff
@@ -602,6 +601,9 @@ struct _Modes
     int32_t json_globe_indexes_len;
     int specialTileCount;
     int json_gzip; // Enable extra globe indexed json files.
+
+    int beast_fd; // Local Modes-S Beast handler
+    int beast_baudrate; // Mode-S beast and similar baud rate
     char *beast_serial; // Modes-S Beast device path
 
     int net_sndbuf_size; // TCP output buffer size (64Kb * 2^n)
@@ -969,6 +971,7 @@ enum {
     OptRtlSdrEnableAgc,
     OptRtlSdrPpm,
     OptBeastSerial,
+    OptBeastBaudrate,
     OptBeastDF1117,
     OptBeastDF045,
     OptBeastMlatTimeOff,

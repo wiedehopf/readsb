@@ -59,6 +59,9 @@ bool beastHandleOption(int argc, char *argv)
             free(Modes.beast_serial);
             Modes.beast_serial = strdup(argv);
             break;
+        case OptBeastBaudrate:
+            Modes.beast_baudrate = (int) strtoll(argv, NULL, 10);
+            break;
         case OptBeastDF1117:
             BeastSettings.filter_df1117 = true;
             break;
@@ -109,6 +112,10 @@ bool beastOpen(void) {
 
     if (Modes.sdr_type == SDR_GNS) {
         baud = B921600;
+    }
+
+    if (Modes.beast_baudrate) {
+        baud = Modes.beast_baudrate;
     }
 
     if (cfsetispeed(&tios, baud) < 0) {
