@@ -58,7 +58,7 @@ uint32_t modeAC_lastcount[4096];
 uint32_t modeAC_match[4096];
 uint32_t modeAC_age[4096];
 
-static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint64_t now);
+static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint64_t now, double bad_lat, double bad_lon);
 static void position_bad(struct modesMessage *mm, struct aircraft *a);
 static void calc_wind(struct aircraft *a, uint64_t now);
 static void calc_temp(struct aircraft *a, uint64_t now);
@@ -612,7 +612,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
             if (mm->source != SOURCE_MLAT) {
                 Modes.stats_current.cpr_global_range_checks++;
                 if (Modes.debug_maxRange) {
-                    showPositionDebug(a, mm, mm->sysTimestampMsg);
+                    showPositionDebug(a, mm, mm->sysTimestampMsg, *lat, *lon);
                 }
             }
             return (-2); // we consider an out-of-range value to be bad data
@@ -735,7 +735,7 @@ static uint64_t time_between(uint64_t t1, uint64_t t2) {
 
 static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t now) {
     if (0 && a->addr == Modes.cpr_focus) {
-        showPositionDebug(a, mm, now);
+        showPositionDebug(a, mm, now, 0, 0);
     }
 
     // if we get the same position again but from an inferior source, assume it's delayed and treat as duplicate
@@ -1290,13 +1290,18 @@ static int addressReliable(struct modesMessage *mm) {
 }
 
 static inline void focusGroundstateChange(struct aircraft *a, struct modesMessage *mm, int arg, uint64_t now) {
+    //if (a->airground != mm->airground) {
     if (a->addr == Modes.cpr_focus && a->airground != mm->airground) {
-        fprintf(stderr, "%5.1fs Ground state change %d: Source: %s, %s -> %s\n",
+        fprintf(stderr, "%5.1fs %06x Ground state change %d: Source: %s, %s -> %s\n",
                 (now % (600 * SECONDS)) / 1000.0,
+                a->addr,
                 arg,
                 source_enum_string(mm->source),
                 airground_to_string(a->airground),
                 airground_to_string(mm->airground));
+        if (mm->airground == AG_GROUND) {
+            displayModesMessage(mm);
+        }
     }
 }
 static void updateAltitude(uint64_t now, struct aircraft *a, struct modesMessage *mm) {
@@ -1715,18 +1720,20 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
     if (mm->airground != AG_INVALID &&
             !(mm->source == SOURCE_MODE_S
-                && a->last_cpr_type == CPR_SURFACE
-                && mm->airground == AG_AIRBORNE
-                && now < a->airground_valid.updated + TRACK_EXPIRE_LONG)
+                && trackDataAge(now, &a->cpr_even_valid) < TRACK_EXPIRE_LONG
+                && trackDataAge(now, &a->airground_valid) < TRACK_EXPIRE_LONG
+             )
        ) {
         // If our current state is UNCERTAIN, accept new data as normal
         // If our current state is certain but new data is not, only accept the uncertain state if the certain data has gone stale
         if (a->airground == AG_UNCERTAIN || mm->airground != AG_UNCERTAIN
-                || (mm->airground == AG_UNCERTAIN
-                    && (
-                        (trackDataAge(now, &a->altitude_baro_valid) < 3 * SECONDS && trackDataAge(now, &a->gs_valid) < 3 * SECONDS && a->gs > 60)
-                        || now > a->airground_valid.updated + TRACK_EXPIRE_LONG
-                       )
+                || trackDataAge(now, &a->airground_valid) > TRACK_EXPIRE_LONG
+                || (a->addrtype >= ADDR_MLAT
+                    && mm->airground == AG_UNCERTAIN
+                    && a->airground != AG_AIRBORNE
+                    && altReliable(a)
+                    && trackDataAge(now, &a->gs_valid) < 3 * SECONDS
+                    && a->gs > 80
                    )
            ) {
             if (accept_data(&a->airground_valid, mm->source, mm, a, 0)) {
@@ -2816,12 +2823,12 @@ void updateValidities(struct aircraft *a, uint64_t now) {
     updateValidity(&a->acas_ra_valid, now, TRACK_EXPIRE);
 }
 
-static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint64_t now) {
+static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint64_t now, double bad_lat, double bad_lon) {
 
     fprintf(stderr, "%06x: ", a->addr);
-    fprintf(stderr, "elapsed: %0.1f ", (now - a->seen_pos) / 1000.0);
+    fprintf(stderr, "elapsed: %4.1f ", (now - a->seen_pos) / 1000.0);
     if (mm->receiver_distance > 0) {
-        fprintf(stderr, "receiver_distance: %0.1f nmi ", mm->receiver_distance / 1852.0);
+        fprintf(stderr, "receiver_distance: %7.1f nmi ", mm->receiver_distance / 1852.0);
     }
 
     if (mm->sbs_in) {
@@ -2843,8 +2850,8 @@ static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint6
                 mm->decoded_lat,
                 mm->decoded_lon);
     } else if (mm->cpr_decoded) {
-        fprintf(stderr,"lat: %.6f (%u),"
-                " lon: %.6f (%u),"
+        fprintf(stderr,"lat: %11.6f (%u),"
+                " lon: %11.6f (%u),"
                 " relative: %d,"
                 " NIC: %u,"
                 " Rc: %.3f km",
@@ -2856,10 +2863,12 @@ static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint6
                 mm->decoded_nic,
                 mm->decoded_rc / 1000.0);
     } else {
-        fprintf(stderr,"lat: (%u),"
-                " lon: (%u),"
-                " CPR decoding: none",
+        fprintf(stderr,"lat: %11.6f (%u),"
+                " lon: %11.6f (%u),"
+                " CPR decoding: failed",
+                bad_lat,
                 mm->cpr_lat,
+                bad_lon,
                 mm->cpr_lon);
     }
     fprintf(stderr, "\n");
