@@ -1871,7 +1871,7 @@ void save_blob(int blob) {
         unlink(filename);
         snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
     }
-    snprintf(tmppath, PATH_MAX, "%s.tmp", filename);
+    snprintf(tmppath, PATH_MAX, "%s.readsb_tmp", filename);
 
     int fd = open(tmppath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
@@ -2187,7 +2187,7 @@ int handleHeatmap(uint64_t now) {
         perror(pathbuf);
 
     snprintf(pathbuf, PATH_MAX, "%s/heatmap/%02d.bin.ttf", dateDir, half_hour);
-    snprintf(tmppath, PATH_MAX, "%s/heatmap/temp_%lx_%lx", dateDir, random(), random());
+    snprintf(tmppath, PATH_MAX, "%s.readsb_tmp", pathbuf);
 
     //fprintf(stderr, "%s using %d positions\n", pathbuf, len);
 

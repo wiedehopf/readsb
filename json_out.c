@@ -1784,7 +1784,7 @@ static inline __attribute__((always_inline)) int writeJsonTo (const char* dir, c
     } else {
         snprintf(pathbuf, PATH_MAX, "%s", file);
     }
-    snprintf(tmppath, PATH_MAX, "%s.tmp", pathbuf);
+    snprintf(tmppath, PATH_MAX, "%s.readsb_tmp", pathbuf);
 
     fd = open(tmppath, O_WRONLY | O_CREAT | O_EXCL, 0644);
     if (fd < 0) {
