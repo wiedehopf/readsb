@@ -145,6 +145,7 @@
 
 #define HEX_UNKNOWN (0xDEADBEEF)
 
+#define DFTYPE_MODEAC 77
 
 #define INVALID_ALTITUDE (-9999)
 

@@ -971,12 +971,12 @@ static int make_net_connector(char *arg) {
     return 0;
 }
 
-static int parseLongs(char *p, long long *results, int max) {
+static int parseLongs(char *p, long long *results, int result_size) {
     char *saveptr = NULL;
     char *endptr = NULL;
     int count = 0;
     char *tok = strtok_r(p, ",", &saveptr);
-    while (tok && count < max) {
+    while (tok && count < result_size) {
         results[count] = strtoll(tok, &endptr, 10);
         if (tok != endptr)
             count++;
@@ -1050,13 +1050,15 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptFilterDF:
             Modes.filterDF = 1;
             Modes.filterDFbitset = 0; // reset it
-            long long dfs[32];
-            int count = parseLongs(arg, dfs, 32);
+#define dfs_size 128
+            long long dfs[dfs_size];
+            int count = parseLongs(arg, dfs, dfs_size);
             for (int i = 0; i < count; i++)
             {
                 Modes.filterDFbitset |= (1 << dfs[i]);
             }
             fprintf(stderr, "filter-DF: %s\n", arg);
+#undef dfs_size
             break;
         case OptMlat:
             Modes.mlat = 1;

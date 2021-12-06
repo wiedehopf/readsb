@@ -1594,6 +1594,8 @@ static const char *df_names[33] = {
 };
 
 static const char *df_to_string(unsigned df) {
+    if (df == DFTYPE_MODEAC)
+        return "modeac";
     if (df > 32)
         return "out of range";
     if (!df_names[df])

@@ -1414,7 +1414,7 @@ discard_alt:
 //
 
 struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
-    if (mm->msgtype == 32) {
+    if (mm->msgtype == DFTYPE_MODEAC) {
         // Mode A/C, just count it (we ignore SPI)
         modeAC_count[modeAToIndex(mm->squawk)]++;
         return NULL;
