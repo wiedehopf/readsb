@@ -2095,45 +2095,47 @@ void trackMatchAC(uint64_t now) {
     }
 
     // scan aircraft list, look for matches
-    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
-        for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
-            if ((now - a->seen) > 5000) {
-                continue;
+    struct craftArray *ca = &Modes.aircraftActive;
+    struct aircraft *a;
+    for (int i = 0; i < ca->len; i++) {
+        a = ca->list[i];
+        if (a == NULL) continue;
+        if ((now - a->seen) > 5000) {
+            continue;
+        }
+
+        // match on Mode A
+        if (trackDataValid(&a->squawk_valid)) {
+            unsigned i = modeAToIndex(a->squawk);
+            if ((modeAC_count[i] - modeAC_lastcount[i]) >= TRACK_MODEAC_MIN_MESSAGES) {
+                a->modeA_hit = 1;
+                modeAC_match[i] = (modeAC_match[i] ? 0xFFFFFFFF : a->addr);
+            }
+        }
+
+        // match on Mode C (+/- 100ft)
+        if (trackDataValid(&a->altitude_baro_valid)) {
+            int modeC = (a->altitude_baro + 49) / 100;
+
+            unsigned modeA = modeCToModeA(modeC);
+            unsigned i = modeAToIndex(modeA);
+            if (modeA && (modeAC_count[i] - modeAC_lastcount[i]) >= TRACK_MODEAC_MIN_MESSAGES) {
+                a->modeC_hit = 1;
+                modeAC_match[i] = (modeAC_match[i] ? 0xFFFFFFFF : a->addr);
             }
 
-            // match on Mode A
-            if (trackDataValid(&a->squawk_valid)) {
-                unsigned i = modeAToIndex(a->squawk);
-                if ((modeAC_count[i] - modeAC_lastcount[i]) >= TRACK_MODEAC_MIN_MESSAGES) {
-                    a->modeA_hit = 1;
-                    modeAC_match[i] = (modeAC_match[i] ? 0xFFFFFFFF : a->addr);
-                }
+            modeA = modeCToModeA(modeC + 1);
+            i = modeAToIndex(modeA);
+            if (modeA && (modeAC_count[i] - modeAC_lastcount[i]) >= TRACK_MODEAC_MIN_MESSAGES) {
+                a->modeC_hit = 1;
+                modeAC_match[i] = (modeAC_match[i] ? 0xFFFFFFFF : a->addr);
             }
 
-            // match on Mode C (+/- 100ft)
-            if (trackDataValid(&a->altitude_baro_valid)) {
-                int modeC = (a->altitude_baro + 49) / 100;
-
-                unsigned modeA = modeCToModeA(modeC);
-                unsigned i = modeAToIndex(modeA);
-                if (modeA && (modeAC_count[i] - modeAC_lastcount[i]) >= TRACK_MODEAC_MIN_MESSAGES) {
-                    a->modeC_hit = 1;
-                    modeAC_match[i] = (modeAC_match[i] ? 0xFFFFFFFF : a->addr);
-                }
-
-                modeA = modeCToModeA(modeC + 1);
-                i = modeAToIndex(modeA);
-                if (modeA && (modeAC_count[i] - modeAC_lastcount[i]) >= TRACK_MODEAC_MIN_MESSAGES) {
-                    a->modeC_hit = 1;
-                    modeAC_match[i] = (modeAC_match[i] ? 0xFFFFFFFF : a->addr);
-                }
-
-                modeA = modeCToModeA(modeC - 1);
-                i = modeAToIndex(modeA);
-                if (modeA && (modeAC_count[i] - modeAC_lastcount[i]) >= TRACK_MODEAC_MIN_MESSAGES) {
-                    a->modeC_hit = 1;
-                    modeAC_match[i] = (modeAC_match[i] ? 0xFFFFFFFF : a->addr);
-                }
+            modeA = modeCToModeA(modeC - 1);
+            i = modeAToIndex(modeA);
+            if (modeA && (modeAC_count[i] - modeAC_lastcount[i]) >= TRACK_MODEAC_MIN_MESSAGES) {
+                a->modeC_hit = 1;
+                modeAC_match[i] = (modeAC_match[i] ? 0xFFFFFFFF : a->addr);
             }
         }
     }
