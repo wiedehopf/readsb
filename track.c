@@ -385,7 +385,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         override = 1; // no reference or older than 120 seconds, assume OK
     } else if (source > a->position_valid.last_source) {
         override = 1; // data is better quality, OVERRIDE
-    } else if (source <= SOURCE_MLAT && elapsed > 25 * SECONDS) {
+    } else if (source <= SOURCE_MLAT && elapsed > 45 * SECONDS) {
         override = 1;
     } else if (a->addr == 0xa19b53) {
         // Virgin SS2
@@ -461,6 +461,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                 (source > SOURCE_MLAT && track_diff < 190 && !inrange
                  && (Modes.debug_cpr || Modes.debug_speed_check)
                 ) || (a->addr == Modes.cpr_focus)
+                || (Modes.debug_maxRange && track_diff > 90)
            ) {
 
             //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
