@@ -1727,7 +1727,7 @@ save_state:
     // always try using the buffered position instead of the current one
     // this should provide a better picture of changing track / speed / altitude
 
-    if (elapsed_buffered > min_elapsed * 3 / 2 && traceUsePosBuffered(a)) {
+    if ((elapsed > max_elapsed || elapsed_buffered > min_elapsed * 3 / 2) && traceUsePosBuffered(a)) {
         posUsed = 0;
         bufferedPosUsed = 1;
     } else {
