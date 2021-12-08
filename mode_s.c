@@ -68,6 +68,7 @@
  * multilateration result
  */
 #define MAGIC_MLAT_TIMESTAMP 0xFF004D4C4154ULL
+#define MAGIC_UAT_TIMESTAMP  0xFF004D4C4155ULL
 
 //
 //=========================================================================
@@ -1881,6 +1882,8 @@ void displayModesMessage(struct modesMessage *mm) {
 
     if (mm->timestampMsg == MAGIC_MLAT_TIMESTAMP)
         printf("This is a synthetic MLAT message.\n");
+    else if (mm->timestampMsg == MAGIC_UAT_TIMESTAMP)
+        printf("This is a synthetic UAT message.\n");
     else
         printf("receiverTime: %.2fus\n", mm->timestampMsg / 12.0);
 

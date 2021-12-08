@@ -2399,19 +2399,42 @@ static int decodeHexMessage(struct client *c, char *hex, int remote, uint64_t no
     }
 
     // Turn the message into binary.
-    // Accept *-AVR raw @-AVR/BEAST timeS+raw %-AVR timeS+raw (CRC good) <-BEAST timeS+sigL+raw
+    // Accept
+    // *-AVR: raw
+    // @-AVR: beast_ts+raw
+    // %-AVR: timeS+raw (CRC good)
+    // <-AVR: beast_ts+sigL+raw
     // and some AVR records that we can understand
     if (hex[l - 1] != ';') {
         return (0);
     } // not complete - abort
 
+    if (l <= 2 * MODEAC_MSG_BYTES)
+        return (0); // too short
+
     switch (hex[0]) {
+        // <TTTTTTTTTTTTSS
         case '<':
         {
-            mm.signalLevel = ((hexDigitVal(hex[13]) << 4) | hexDigitVal(hex[14])) / 255.0;
+            // skip <
+            hex++;
+            l--;
+            // skip ;
+            l--;
+
+            if (l < 12)
+                return (0);
+            for (j = 0; j < 12; j++) {
+                mm.timestampMsg = (mm.timestampMsg << 4) | hexDigitVal(*hex);
+                hex++;
+                l--;
+            }
+            if (l < 2)
+                return (0);
+            mm.signalLevel = ((hexDigitVal(hex[0]) << 4) | hexDigitVal(hex[1])) / 255.0;
+            hex += 2;
+            l -= 2;
             mm.signalLevel = mm.signalLevel * mm.signalLevel;
-            hex += 15;
-            l -= 16; // Skip <, timestamp and siglevel, and ;
             break;
         }
 
