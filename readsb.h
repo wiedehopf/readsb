@@ -313,10 +313,14 @@ typedef enum {
 #define DB_BUCKETS (1 << DB_HASH_BITS) // this is critical for hashing purposes
 
 #define TRACE_SIZE (128*1024)
+#ifndef TRACE_MARGIN
 #define TRACE_MARGIN 32
+#endif
 #define STATE_BLOBS 256 // change naming scheme if increasing this
 #define IO_THREADS 8
+#ifndef TRACE_THREADS
 #define TRACE_THREADS 6
+#endif
 #define LOCK_THREADS_MAX 32
 #define PERIODIC_UPDATE 200 // don't use values larger than 200 ... some hard-coded stuff
 #define API_THREADS 4
