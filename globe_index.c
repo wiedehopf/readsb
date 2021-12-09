@@ -1497,11 +1497,15 @@ int traceAdd(struct aircraft *a, uint64_t now) {
     int traceDebug = (a->addr == Modes.trace_focus);
 
 
+    int32_t new_lat = (int32_t) nearbyint(a->lat * 1E6);
+    int32_t new_lon = (int32_t) nearbyint(a->lon * 1E6);
+
     int posUsed = 0;
     int bufferedPosUsed = 0;
     double distance = 0;
     int64_t elapsed = 0;
     int64_t elapsed_buffered = 0;
+    int duplicate = 0;
 
     int64_t max_elapsed = Modes.json_trace_interval;
     int64_t min_elapsed = min(TRACE_MIN_ELAPSED, max_elapsed);
@@ -1560,9 +1564,14 @@ int traceAdd(struct aircraft *a, uint64_t now) {
 
     struct state *last = &(a->trace[a->trace_len-1]);
 
+    if (now >= last->timestamp)
+        elapsed = now - last->timestamp;
+
     if (a->tracePosBuffered) {
         elapsed_buffered = (int64_t) a->trace[a->trace_len].timestamp - (int64_t) last->timestamp;
     }
+
+    duplicate = (elapsed < 1 * SECONDS && new_lat == last->lat && new_lon == last->lon);
 
     int alt = a->altitude_baro;
     int32_t last_alt = last->altitude * 25;
@@ -1571,9 +1580,6 @@ int traceAdd(struct aircraft *a, uint64_t now) {
     if (trackVState(now, &a->altitude_baro_valid, &a->position_valid) && a->alt_reliable >= ALTITUDE_BARO_RELIABLE_MAX / 5) {
         alt_diff = abs(a->altitude_baro - last_alt);
     }
-
-    if (now >= last->timestamp)
-        elapsed = now - last->timestamp;
 
     float speed_diff = 0;
     if (trackDataValid(&a->gs_valid) && last->flags.gs_valid)
@@ -1764,16 +1770,21 @@ no_save_state:
         return 0;
     }
 
+
     struct state *new = &(a->trace[a->trace_len]);
     memset(new, 0, sizeof(struct state));
 
-    new->lat = (int32_t) nearbyint(a->lat * 1E6);
-    new->lon = (int32_t) nearbyint(a->lon * 1E6);
+    new->lat = new_lat;
+    new->lon = new_lon;
     new->timestamp = now;
 #if defined(TRACKS_UUID)
     new->receiverId = a->lastPosReceiverId;
 #endif
 
+    if (duplicate) {
+        // don't put a duplicate position in the buffer or used it for the trace
+        return bufferedPosUsed;
+    }
 
     /*
        unsigned on_ground:1;
