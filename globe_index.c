@@ -450,6 +450,10 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
         trace_write |= WRECENT;
     }
 
+    if (Modes.trace_hist_only) {
+        trace_write &= WPERM;
+    }
+
     if ((trace_write & WRECENT)) {
         int start_recent = a->trace_len - recent_points;
         if (start_recent < startFull)
@@ -466,7 +470,7 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
         //    fprintf(stderr, "recent trace write: %u\n", count2);
     }
 
-    if (a->addr == TRACE_FOCUS)
+    if (trace_write && a->addr == TRACE_FOCUS)
         fprintf(stderr, "mw: %.0f, perm: %.0f, count: %d %x\n",
                 ((int64_t) a->trace_next_mw - (int64_t) now) / 1000.0,
                 ((int64_t) a->trace_next_perm - (int64_t) now) / 1000.0,

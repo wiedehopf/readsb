@@ -1174,6 +1174,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptJsonOnlyBin:
             Modes.onlyBin = atoi(arg);
             break;
+        case OptJsonTraceHistOnly:
+            Modes.trace_hist_only = 1;
+            break;
         case OptJsonTraceInt:
             if (atof(arg) > 0)
                 Modes.json_trace_interval = 1000 * atof(arg);
