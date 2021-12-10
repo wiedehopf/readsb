@@ -456,7 +456,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         inrange = override;
     }
 
-    if (elapsed > 1 * SECONDS || distance > 0) {
+    if (elapsed > 2 * SECONDS || distance > 0) {
         if (
                 (source > SOURCE_MLAT && track_diff < 190 && !inrange
                  && (Modes.debug_cpr || Modes.debug_speed_check)
