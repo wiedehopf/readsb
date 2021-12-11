@@ -7,7 +7,9 @@
 #define WMEM (1<<11)
 #define WPERM (1<<12)
 
+#ifndef GLOBE_PERM_IVAL
 #define GLOBE_PERM_IVAL (4 * HOURS)
+#endif
 #define GLOBE_MEM_IVAL (20 * MINUTES)
 
 #define GLOBE_INDEX_GRID 3
