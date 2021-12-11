@@ -167,7 +167,6 @@ static void modesInitConfig(void) {
     //
     Modes.trackExpireJaero = TRACK_EXPIRE_JAERO;
 
-    Modes.preambleThreshold = PREAMBLE_THRESHOLD_DEFAULT;
     Modes.fixDF = 1;
 
     sdrInitConfig();
@@ -1501,14 +1500,20 @@ int parseCommandLine(int argc, char **argv) {
 static void configAfterParse() {
     Modes.trackExpireMax = Modes.trackExpireJaero + TRACK_EXPIRE_LONG + 1 * MINUTES;
 
+    Modes.num_procs = 1; // default this value to 1
     cpu_set_t mask;
-    if (sched_getaffinity(getpid(), sizeof(mask), &mask) == 0 && CPU_COUNT(&mask) < 2) {
-        if (Modes.preambleThreshold == PREAMBLE_THRESHOLD_DEFAULT && Modes.sdr_type != SDR_NONE) {
+    if (sched_getaffinity(getpid(), sizeof(mask), &mask) == 0) {
+        Modes.num_procs = CPU_COUNT(&mask);
+        if (Modes.num_procs < 2 && !Modes.preambleThreshold && Modes.sdr_type != SDR_NONE) {
             fprintf(stderr, "WARNING: Reducing preamble threshold / decoding performance as this system has only 1 core (explicitely set --preamble-threshold to disable this behaviour)!\n");
             Modes.preambleThreshold = PREAMBLE_THRESHOLD_PIZERO;
             Modes.fixDF = 0;
         }
     }
+    if (!Modes.preambleThreshold) {
+        Modes.preambleThreshold = PREAMBLE_THRESHOLD_DEFAULT;
+    }
+    Modes.io_threads = Modes.num_procs; // use the number of processors as the number of IO threads
 
     if (Modes.mode_ac)
         Modes.mode_ac_auto = 0;

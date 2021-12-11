@@ -312,12 +312,13 @@ typedef enum {
 #define DB_HASH_BITS 20
 #define DB_BUCKETS (1 << DB_HASH_BITS) // this is critical for hashing purposes
 
-#define TRACE_SIZE (128*1024)
+#ifndef TRACE_MAX
+#define TRACE_MAX (32*1024)
+#endif
 #ifndef TRACE_MARGIN
 #define TRACE_MARGIN 32
 #endif
 #define STATE_BLOBS 256 // change naming scheme if increasing this
-#define IO_THREADS 8
 #ifndef TRACE_THREADS
 #define TRACE_THREADS 6
 #endif
@@ -411,6 +412,7 @@ struct _Modes
 { // Internal state
     pthread_mutex_t traceDebugMutex;
 
+    int num_procs;
     int lockThreadsCount;
     ALIGNED threadT *lockThreads[LOCK_THREADS_MAX];
 
@@ -472,6 +474,7 @@ struct _Modes
     struct hexInterval* deleteTrace;
 
     uint32_t currentPing;
+    int io_threads;
 
     int8_t apiUpdate; // creates json snippets also by non api stuff
     int8_t api; // enable api output

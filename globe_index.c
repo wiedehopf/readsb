@@ -652,7 +652,7 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
 void *save_blobs(void *arg) {
     int thread_number = *((int *) arg);
     for (int j = 0; j < STATE_BLOBS; j++) {
-        if (j % IO_THREADS != thread_number)
+        if (j % Modes.io_threads != thread_number)
             continue;
 
         //fprintf(stderr, "save_blob(%d)\n", j);
@@ -717,8 +717,8 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
     if (a->trace_len > 0
             && a->trace_alloc >= a->trace_len
             // let's allow for loading traces larger than we normally allow by a factor of 32
-            && a->trace_len <= 32 * TRACE_SIZE
-            && a->trace_alloc <= 32 * TRACE_SIZE
+            && a->trace_len <= 32 * TRACE_MAX
+            && a->trace_alloc <= 32 * TRACE_MAX
        ) {
 
 
@@ -1336,13 +1336,14 @@ void traceRealloc(struct aircraft *a, int len) {
         return;
     }
     a->trace_alloc = len;
-    if (a->trace_alloc > TRACE_SIZE)
-        a->trace_alloc = TRACE_SIZE;
+    if (a->trace_alloc > TRACE_MAX)
+        a->trace_alloc = TRACE_MAX;
     a->trace = realloc(a->trace, stateBytes(a->trace_alloc));
     a->trace_all = realloc(a->trace_all, stateAllBytes(a->trace_alloc));
 
-    if (a->trace_len >= TRACE_SIZE / 2)
+    if (a->trace_len >= TRACE_MAX * 7 / 8) {
         fprintf(stderr, "Quite a long trace: %06x (%d).\n", a->addr, a->trace_len);
+    }
 }
 
 static void tracePrune(struct aircraft *a, uint64_t now) {
@@ -1358,8 +1359,8 @@ static void tracePrune(struct aircraft *a, uint64_t now) {
 
     int new_start = -1;
     // throw out oldest values if approaching max trace size
-    if (a->trace_len + TRACE_MARGIN >= TRACE_SIZE) {
-        new_start = TRACE_SIZE / 64 + 2 * TRACE_MARGIN;
+    if (a->trace_len + TRACE_MARGIN >= TRACE_MAX) {
+        new_start = TRACE_MAX / 64 + 2 * TRACE_MARGIN;
     } else if (a->trace->timestamp < keep_after - 30 * MINUTES)  {
         new_start = a->trace_len;
         for (int i = 0; i < a->trace_len; i++) {
@@ -1763,7 +1764,7 @@ no_save_state:
     if (a->trace_len + 1 >= a->trace_alloc) {
         static uint64_t antiSpam;
         if (Modes.debug_traceAlloc || now > antiSpam + 5 * SECONDS) {
-            fprintf(stderr, "%06x: trace_alloc insufficient: trace_len %d trace_alloc %d\n",
+            fprintf(stderr, "<3>%06x: trace_alloc insufficient: trace_len %d trace_alloc %d\n",
                     a->addr, a->trace_len, a->trace_alloc);
             antiSpam = now;
         }
@@ -1917,7 +1918,7 @@ void save_blob(int blob) {
 
     uint64_t magic = 0x7ba09e63757913eeULL;
 
-    int alloc = max(16 * 1024 * 1024, (stateBytes(TRACE_SIZE) + stateAllBytes(TRACE_SIZE)));
+    int alloc = max(16 * 1024 * 1024, (stateBytes(TRACE_MAX) + stateAllBytes(TRACE_MAX)));
     unsigned char *buf = aligned_malloc(alloc);
     unsigned char *p = buf;
 
@@ -1991,7 +1992,7 @@ void *load_blobs(void *arg) {
     int thread_number = *((int *) arg);
     srandom(get_seed());
     for (int j = 0; j < STATE_BLOBS; j++) {
-        if (j % IO_THREADS != thread_number)
+        if (j % Modes.io_threads != thread_number)
            continue;
         load_blob(j);
     }
@@ -2384,18 +2385,18 @@ void checkNewDayLocked(uint64_t now) {
 }
 
 void writeInternalState() {
-    pthread_t threads[IO_THREADS];
-    int numbers[IO_THREADS];
+    pthread_t threads[Modes.io_threads];
+    int numbers[Modes.io_threads];
 
     fprintf(stderr, "saving state .....\n");
     struct timespec watch;
     startWatch(&watch);
 
-    for (int i = 0; i < IO_THREADS; i++) {
+    for (int i = 0; i < Modes.io_threads; i++) {
         numbers[i] = i;
         pthread_create(&threads[i], NULL, save_blobs, &numbers[i]);
     }
-    for (int i = 0; i < IO_THREADS; i++) {
+    for (int i = 0; i < Modes.io_threads; i++) {
         pthread_join(threads[i], NULL);
     }
 
@@ -2418,13 +2419,13 @@ void readInternalState() {
     fprintf(stderr, "loading state .....\n");
     struct timespec watch;
     startWatch(&watch);
-    pthread_t threads[IO_THREADS];
-    int numbers[IO_THREADS];
-    for (int i = 0; i < IO_THREADS; i++) {
+    pthread_t threads[Modes.io_threads];
+    int numbers[Modes.io_threads];
+    for (int i = 0; i < Modes.io_threads; i++) {
         numbers[i] = i;
         pthread_create(&threads[i], NULL, load_blobs, &numbers[i]);
     }
-    for (int i = 0; i < IO_THREADS; i++) {
+    for (int i = 0; i < Modes.io_threads; i++) {
         pthread_join(threads[i], NULL);
     }
 
@@ -2523,7 +2524,7 @@ void *load_state(void *arg) {
     int thread_number = *((int *) arg);
     srandom(get_seed());
     for (int i = 0; i < 256; i++) {
-        if (i % IO_THREADS != thread_number)
+        if (i % Modes.io_threads != thread_number)
             continue;
         snprintf(pathbuf, PATH_MAX, "%s/%02x", Modes.state_dir, i);
 
