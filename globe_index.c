@@ -2309,6 +2309,9 @@ void checkNewDay(uint64_t now) {
         int err = mkdir(filename, 0700);
         if (err && errno != EEXIST)
             perror(filename);
+        if (Modes.trace_hist_only) {
+            chmod(filename, 0755);
+        }
 
         // if the directory exists we assume we already have created the subdirectories
         // if the directory couldn't be created no need to try and create subdirectories it won't work.
