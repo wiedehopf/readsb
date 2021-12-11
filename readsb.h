@@ -444,6 +444,7 @@ struct _Modes
     struct epoll_event *net_events;
     int max_fds;
     int modesClientCount;
+    int total_aircraft_count;
 
     ALIGNED struct aircraft * aircraft[AIRCRAFT_BUCKETS];
     ALIGNED struct craftArray globeLists[GLOBE_MAX_INDEX+1];
@@ -454,7 +455,6 @@ struct _Modes
     dbEntry *db2;
     dbEntry **db2Index;
     uint64_t dbModificationTime;
-    uint64_t aircraftCount;
     uint64_t receiverCount;
     struct net_writer raw_out; // Raw output
     struct net_writer beast_out; // Beast-format output

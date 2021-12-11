@@ -412,26 +412,16 @@ static void trackPeriodicUpdate() {
     if (Modes.updateStats) {
         Modes.currentTask = "statsReset";
         statsResetCount();
-        uint32_t aircraftCount = 0;
-        for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
-            for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
-                aircraftCount++;
-                if (Modes.updateStats && a->messages >= 2 && (now < a->seen + TRACK_EXPIRE || trackDataValid(&a->position_valid)))
-                    statsCountAircraft(a);
-            }
-        }
+
+        Modes.currentTask = "statsCount";
+        statsCountAircraft();
 
         Modes.currentTask = "statsWrite";
         statsWrite();
+
         Modes.updateStats = 0;
 
-        Modes.aircraftCount = aircraftCount;
-
-        static uint64_t antiSpam2;
-        if (Modes.aircraftCount > 2 * AIRCRAFT_BUCKETS && now > antiSpam2 + 12 * HOURS) {
-            fprintf(stderr, "<3>increase AIRCRAFT_HASH_BITS, aircraft hash table fill: %0.1f\n", Modes.aircraftCount / (double) AIRCRAFT_BUCKETS);
-            antiSpam2 = now;
-        }
+        writeJsonToFile(Modes.json_dir, "status.json", generateStatusJson());
     }
     if (Modes.outline_json) {
         Modes.currentTask = "outlineJson";

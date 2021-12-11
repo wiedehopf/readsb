@@ -1666,7 +1666,6 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
     return cb;
 }
 
-
 //
 // Return a description of the receiver in json.
 //
@@ -1709,12 +1708,12 @@ struct char_buffer generateReceiverJson() {
 
         for (int i = 0; tiles[i].south != 0 || tiles[i].north != 0; i++) {
             struct tile tile = tiles[i];
-            p = safe_snprintf(p, end, "{ \"south\": %d, ", tile.south);
-            p = safe_snprintf(p, end, "\"east\": %d, ", tile.east);
-            p = safe_snprintf(p, end, "\"north\": %d, ", tile.north);
-            p = safe_snprintf(p, end, "\"west\": %d }, ", tile.west);
+            p = safe_snprintf(p, end, "{\"south\":%d,", tile.south);
+            p = safe_snprintf(p, end, "\"east\":%d,", tile.east);
+            p = safe_snprintf(p, end, "\"north\":%d,", tile.north);
+            p = safe_snprintf(p, end, "\"west\":%d},", tile.west);
         }
-        p -= 2; // get rid of comma and space at the end
+        p -= 1; // get rid of comma at the end
         p = safe_snprintf(p, end, " ]");
     }
 
@@ -1722,6 +1721,9 @@ struct char_buffer generateReceiverJson() {
     p = safe_snprintf(p, end, ", \"aircraft_binCraft\": true");
     if (Modes.outline_json) {
         p = safe_snprintf(p, end, ", \"outlineJson\": true");
+    }
+    if (Modes.trace_hist_only) {
+        p = safe_snprintf(p, end, ", \"trace_hist_only\": true");
     }
     p = safe_snprintf(p, end, ", \"version\": \"%s\" }\n", MODES_READSB_VERSION);
 

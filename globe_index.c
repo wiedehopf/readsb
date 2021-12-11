@@ -2404,7 +2404,7 @@ void writeInternalState() {
     }
 
     double elapsed = stopWatch(&watch) / 1000.0;
-    fprintf(stderr, " .......... done, saved %llu aircraft in %.3f seconds!\n", (unsigned long long) Modes.aircraftCount, elapsed);
+    fprintf(stderr, " .......... done, saved %llu aircraft in %.3f seconds!\n", (unsigned long long) Modes.total_aircraft_count, elapsed);
 
     if (Modes.outline_json) {
         char pathbuf[PATH_MAX];
@@ -2438,7 +2438,7 @@ void readInternalState() {
             aircraftCount++;
         }
     }
-    Modes.aircraftCount = aircraftCount;
+    Modes.total_aircraft_count = aircraftCount;
 
     double elapsed = stopWatch(&watch) / 1000.0;
     fprintf(stderr, " .......... done, loaded %llu aircraft in %.3f seconds!\n", (unsigned long long) aircraftCount, elapsed);

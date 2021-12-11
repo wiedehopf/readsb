@@ -195,6 +195,7 @@ void display_total_short_range_stats();
 
 void add_timespecs (const struct timespec *x, const struct timespec *y, struct timespec *z);
 
+struct char_buffer generateStatusJson();
 struct char_buffer generateStatsJson();
 struct char_buffer generatePromFile();
 

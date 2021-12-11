@@ -491,11 +491,11 @@ void statsUpdate(uint64_t now) {
 
 static char * appendTypeCounts(char *p, char *end) {
     struct statsCount *sC = &(Modes.globalStatsCount);
-    p = safe_snprintf(p, end, "\"aircaft_with_pos\": %d,", sC->json_ac_count_pos);
-    p = safe_snprintf(p, end, "\"aircraft_without_pos\": %d,", sC->json_ac_count_no_pos);
-    p = safe_snprintf(p, end, "\"aircraft_count_by_type\": {");
+    p = safe_snprintf(p, end, ",\n\"aircaft_with_pos\": %d", sC->json_ac_count_pos);
+    p = safe_snprintf(p, end, ", \"aircraft_without_pos\": %d", sC->json_ac_count_no_pos);
+    p = safe_snprintf(p, end, ", \"aircraft_count_by_type\": {");
     for (int i = 0; i < NUM_TYPES; i++) {
-        p = safe_snprintf(p, end, "\"%s\": %d,", addrtype_enum_string(i), sC->type_counts[i]);
+        p = safe_snprintf(p, end, " \"%s\": %d,", addrtype_enum_string(i), sC->type_counts[i]);
     }
     p--;
     p = safe_snprintf(p, end, "}");
@@ -506,7 +506,7 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
     int i;
 
     p = safe_snprintf(p, end,
-            "\"%s\":{\"start\":%.1f,\"end\":%.1f",
+            ",\n\"%s\":{\"start\":%.1f,\"end\":%.1f",
             key,
             st->start / 1000.0,
             st->end / 1000.0);
@@ -655,6 +655,27 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
     return p;
 }
 
+struct char_buffer generateStatusJson() {
+    struct char_buffer cb;
+    size_t buflen = 8192;
+    char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
+
+    uint64_t now = mstime();
+    p = safe_snprintf(p, end, "{ \"now\": %.1f", now / 1000.0);
+
+    p = appendTypeCounts(p, end);
+
+    p = safe_snprintf(p, end, " }\n");
+
+    if (p >= end)
+        fprintf(stderr, "buffer overrun status json\n");
+
+    cb.len = p - buf;
+    cb.buffer = buf;
+    return cb;
+}
+
+
 struct char_buffer generateStatsJson() {
     struct char_buffer cb;
     int bufsize = 64 * 1024;
@@ -663,23 +684,18 @@ struct char_buffer generateStatsJson() {
     p = safe_snprintf(p, end,
             "{ \"now\" : %.1f",
             mstime() / 1000.0);
-    p = safe_snprintf(p, end, ",\n");
 
     if (!Modes.net_only) {
-        p = safe_snprintf(p, end, "\"gain_db\" : %.1f,\n", Modes.gain / 10.0);
+        p = safe_snprintf(p, end, ", \"gain_db\" : %.1f", Modes.gain / 10.0);
     }
 
     p = appendTypeCounts(p, end);
-    p = safe_snprintf(p, end, ",\n");
 
     p = appendStatsJson(p, end, &Modes.stats_1min, "last1min");
-    p = safe_snprintf(p, end, ",\n");
 
     p = appendStatsJson(p, end, &Modes.stats_5min, "last5min");
-    p = safe_snprintf(p, end, ",\n");
 
     p = appendStatsJson(p, end, &Modes.stats_15min, "last15min");
-    p = safe_snprintf(p, end, ",\n");
 
     p = appendStatsJson(p, end, &Modes.stats_alltime, "total");
     p = safe_snprintf(p, end, "\n}\n");
@@ -882,51 +898,68 @@ void statsResetCount() {
     s->readsb_aircraft_with_position = 0;
 }
 
-void statsCountAircraft(struct aircraft *a) {
+void statsCountAircraft() {
     struct statsCount *s = &(Modes.globalStatsCount);
+    uint32_t total_aircraft_count = 0;
+    uint64_t now = mstime();
+    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+        for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
+            total_aircraft_count++;
+            if (!(a->messages >= 2 && (now < a->seen + TRACK_EXPIRE || trackDataValid(&a->position_valid))))
+                continue;
 
-    if (trackDataValid(&a->position_valid))
-        s->json_ac_count_pos++;
-    else
-        s->json_ac_count_no_pos++;
+            if (trackDataValid(&a->position_valid))
+                s->json_ac_count_pos++;
+            else
+                s->json_ac_count_no_pos++;
 
-    s->type_counts[a->addrtype]++;
+            s->type_counts[a->addrtype]++;
 
-    if (a->adsb_version == 0)
-        s->readsb_aircraft_adsb_version_0++;
-    else if (a->adsb_version == 1)
-        s->readsb_aircraft_adsb_version_1++;
-    else if (a->adsb_version == 2)
-        s->readsb_aircraft_adsb_version_2++;
+            if (a->adsb_version == 0)
+                s->readsb_aircraft_adsb_version_0++;
+            else if (a->adsb_version == 1)
+                s->readsb_aircraft_adsb_version_1++;
+            else if (a->adsb_version == 2)
+                s->readsb_aircraft_adsb_version_2++;
 
-    if (trackDataValid(&a->emergency_valid) && a->emergency)
-        s->readsb_aircraft_emergency++;
+            if (trackDataValid(&a->emergency_valid) && a->emergency)
+                s->readsb_aircraft_emergency++;
 
-    double signal = 10 * log10((a->signalLevel[0] + a->signalLevel[1] + a->signalLevel[2] + a->signalLevel[3] +
-                a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7] + 1e-5) / 8);
+            double signal = 10 * log10((a->signalLevel[0] + a->signalLevel[1] + a->signalLevel[2] + a->signalLevel[3] +
+                        a->signalLevel[4] + a->signalLevel[5] + a->signalLevel[6] + a->signalLevel[7] + 1e-5) / 8);
 
-    if ((
-                a->addrtype == ADDR_MODE_S
-                || a->addrtype == ADDR_ADSB_ICAO
-                || a->addrtype == ADDR_ADSB_ICAO_NT
-                || a->addrtype == ADDR_ADSR_ICAO
-                || a->addrtype == ADDR_MLAT
-                || a->addrtype == ADDR_MODE_S
-        ) && signal > -49.4 && signal < 1) {
-        if (s->rssi_table_alloc < s->rssi_table_len + 1) {
-            s->rssi_table_alloc = 2 * s->rssi_table_len + 1024;
-            s->rssi_table = realloc(s->rssi_table, sizeof(float) * s->rssi_table_alloc);
+            if ((
+                        a->addrtype == ADDR_MODE_S
+                        || a->addrtype == ADDR_ADSB_ICAO
+                        || a->addrtype == ADDR_ADSB_ICAO_NT
+                        || a->addrtype == ADDR_ADSR_ICAO
+                        || a->addrtype == ADDR_MLAT
+                        || a->addrtype == ADDR_MODE_S
+                ) && signal > -49.4 && signal < 1) {
+                if (s->rssi_table_alloc < s->rssi_table_len + 1) {
+                    s->rssi_table_alloc = 2 * s->rssi_table_len + 1024;
+                    s->rssi_table = realloc(s->rssi_table, sizeof(float) * s->rssi_table_alloc);
+                }
+                s->rssi_table[s->rssi_table_len] = signal;
+                s->rssi_table_len++;
+            }
+
+            if (a->position_valid.source == SOURCE_TISB)
+                s->readsb_aircraft_tisb++;
+            if (trackDataValid(&a->callsign_valid))
+                s->readsb_aircraft_with_flight_number++;
+            else
+                s->readsb_aircraft_without_flight_number++;
         }
-        s->rssi_table[s->rssi_table_len] = signal;
-        s->rssi_table_len++;
     }
 
-    if (a->position_valid.source == SOURCE_TISB)
-        s->readsb_aircraft_tisb++;
-    if (trackDataValid(&a->callsign_valid))
-        s->readsb_aircraft_with_flight_number++;
-    else
-        s->readsb_aircraft_without_flight_number++;
+    Modes.total_aircraft_count = total_aircraft_count;
+
+    static uint64_t antiSpam2;
+    if (total_aircraft_count > 2 * AIRCRAFT_BUCKETS && now > antiSpam2 + 12 * HOURS) {
+        fprintf(stderr, "<3>increase AIRCRAFT_HASH_BITS, aircraft hash table fill: %0.1f\n", total_aircraft_count / (double) AIRCRAFT_BUCKETS);
+        antiSpam2 = now;
+    }
 }
 
 
