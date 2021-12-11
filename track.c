@@ -345,11 +345,49 @@ static void update_range_histogram(struct aircraft *a, struct modesMessage *mm, 
     ++Modes.stats_current.range_histogram[bucket];
 }
 
+static inline int duplicate_check(uint64_t now, struct aircraft *a, double new_lat, double new_lon) {
+    // if the last position is older than 3 seconds we don't consider it a duplicate
+    if (now > a->seen_pos + 3 * SECONDS)
+        return 0;
+    // duplicate
+    if (a->lat == new_lat && a->lon == new_lon)
+        return 1;
+
+    // if the previous position is older than 3 seconds we don't consider it a duplicate
+    if (now > a->prev_pos_time + 3 * SECONDS)
+        return 0;
+    // duplicate (this happens either with some transponder or delayed data arrival due to odd / even CPR, not certain)
+    if (a->prev_lat == new_lat && a->prev_lon == new_lon)
+        return 1;
+
+    return 0;
+}
+
 // return true if it's OK for the aircraft to have travelled from its last known position
 // to a new position at (lat,lon,surface) at a time of now.
 
 static int speed_check(struct aircraft *a, datasource_t source, double lat, double lon, struct modesMessage *mm, cpr_local_t cpr_local) {
-    uint64_t elapsed;
+    uint64_t now = mm->sysTimestampMsg;
+
+    if (duplicate_check(now, a, lat, lon)) {
+        // don't use duplicate positions
+        mm->duplicate = 1;
+        mm->pos_ignore = 1;
+        if  (a->receiverId == mm->receiverId && (Modes.debug_cpr || Modes.debug_speed_check || a->addr == Modes.cpr_focus)) {
+            // let speed_check continue for displaying this duplicate (at least for non-aggregated receivers)
+        } else {
+            // omit rest of speed check to save on cycles
+            return 1;
+        }
+    }
+    if (0 && (a->prev_lat == lat && a->prev_lon == lon) && (Modes.debug_cpr || Modes.debug_speed_check || a->addr == Modes.cpr_focus)) {
+        fprintf(stderr, "%06x now - seen_pos %6.3f now - prev_pos_time %6.3f\n",
+                a->addr,
+                (now - a->seen_pos) / 1000.0,
+                (now - a->prev_pos_time) / 1000.0
+               );
+    }
+
     float distance;
     float range;
     float speed;
@@ -358,16 +396,16 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     float track_bonus = 0;
     int inrange;
     int override = -1;
-    uint64_t now = a->seen;
     double oldLat = a->lat;
     double oldLon = a->lon;
+
+    uint64_t elapsed = trackDataAge(now, &a->position_valid);
 
     int surface = trackDataValid(&a->airground_valid)
         && a->airground == AG_GROUND
         && a->pos_surface
         && (!mm->cpr_valid || mm->cpr_type == CPR_SURFACE);
 
-    elapsed = trackDataAge(now, &a->position_valid);
 
     // json_reliable == -1 disables the speed check
     if (Modes.json_reliable == -1 || mm->source == SOURCE_PRIO) {
@@ -432,10 +470,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     if (!surface && distance > 1 && source > SOURCE_MLAT
             && trackDataAge(now, &a->track_valid) < 7 * 1000
             && trackDataAge(now, &a->position_valid) < 7 * 1000
-            && (oldLat != lat || oldLon != lon)
+            && (a->prev_lat != lat || a->prev_lon != lon)
             && (a->pos_reliable_odd >= Modes.json_reliable && a->pos_reliable_even >= Modes.json_reliable)
        ) {
-        calc_track = bearing(a->lat, a->lon, lat, lon);
+        calc_track = bearing(oldLat, oldLon, lat, lon);
         mm->calculated_track = calc_track;
         track_diff = fabs(norm_diff(a->track - calc_track, 180));
         track_bonus = speed * (90.0f - track_diff) / 90.0f;
@@ -465,13 +503,14 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
            ) {
 
             //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
-            fprintf(stderr, "%5.1fs %06x %s %s %s %s R:%2d tD:%3.0f  %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
+            fprintf(stderr, "%5.1fs %06x %s %s %s %s %s R:%2d tD:%3.0f  %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
                     (now % (600 * SECONDS)) / 1000.0,
                     a->addr,
                     mm->cpr_odd ? "O" : "E",
                     cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "S"),
                     (surface ? "S" : "A"),
                     (override != -1 ? (override ? "over" : " bog") : (inrange ? "pass" : "FAIL")),
+                    (a->lat == lat && a->lon == lon) ? "L" : ((a->prev_lat == lat && a->prev_lon == lon) ? "P" : " "),
                     min(a->pos_reliable_odd, a->pos_reliable_even),
                     track_diff,
                     distance / 1000.0,
@@ -479,7 +518,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                     elapsed / 1000.0,
                     (distance / elapsed * 1000.0 / 1852.0 * 3600.0),
                     speed,
-                    a->lat, a->lon, lat, lon);
+                    oldLat, oldLon, lat, lon);
         }
     }
     if (!Modes.userLocationValid) {
@@ -744,8 +783,8 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         mm->duplicate = 1;
         mm->pos_ignore = 1;
     }
-    if (now < a->seen_pos + 2 * SECONDS && a->lat == mm->decoded_lat && a->lon == mm->decoded_lon) {
-        // don't use duplicate positions for beastReduce
+    if (duplicate_check(now, a, mm->decoded_lat, mm->decoded_lon)) {
+        // don't use duplicate positions
         mm->duplicate = 1;
         mm->pos_ignore = 1;
     }
@@ -771,9 +810,8 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
             a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = simpleHash;
         }
     }
-#if defined(TRACKS_UUID)
+
     a->receiverId = mm->receiverId;
-#endif
 
     if (mm->duplicate) {
         Modes.stats_current.pos_duplicate++;
@@ -804,12 +842,23 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
     }
 
     // Update aircraft state
+    a->prev_lat = a->lat;
+    a->prev_lon = a->lon;
+    a->prev_pos_time = a->seen_pos;
+
     a->lat = mm->decoded_lat;
     a->lon = mm->decoded_lon;
     a->pos_nic = mm->decoded_nic;
     a->pos_rc = mm->decoded_rc;
+    a->seen_pos = now;
 
     a->lastPosReceiverId = mm->receiverId;
+
+    // update addrtype, we use the type from the accepted position.
+    a->addrtype = mm->addrtype;
+    a->addrtype_updated = now;
+
+    a->pos_surface = trackDataValid(&a->airground_valid) && a->airground == AG_GROUND;
 
     if (posReliable(a)) {
         set_globe_index(a, globe_index(a->lat, a->lon));
@@ -818,7 +867,6 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
             mm->jsonPos = 1;
             //fprintf(stderr, "Added to trace for %06x (%d).\n", a->addr, a->trace_len);
         }
-
 
         a->seenPosReliable = now; // must be after traceAdd for trace stale detection
         a->latReliable = mm->decoded_lat;
@@ -835,20 +883,12 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
         }
     }
 
-    a->pos_surface = trackDataValid(&a->airground_valid) && a->airground == AG_GROUND;
-
     if (mm->jsonPos)
         jsonPositionOutput(mm, a);
 
     if (posReliable(a) && (mm->source == SOURCE_ADSB || mm->source == SOURCE_ADSR)) {
         update_range_histogram(a, mm, now);
     }
-
-    a->seen_pos = now;
-
-    // update addrtype, we use the type from the accepted position.
-    a->addrtype = mm->addrtype;
-    a->addrtype_updated = now;
 }
 
 static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t now) {

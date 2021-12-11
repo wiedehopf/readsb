@@ -450,9 +450,11 @@ struct aircraft
   uint16_t pad222;
   uint16_t pad333;
 
-#if defined(TRACKS_UUID)
   uint64_t receiverId;
-#endif
+
+  double prev_lat; // previous latitude
+  double prev_lon; // previous longitude
+  uint64_t prev_pos_time; // time the previous position was received
 };
 
 /* Mode A/C tracking is done separately, not via the aircraft list,
