@@ -825,6 +825,9 @@ void *traceEntryPoint(void *arg) {
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
 
+    // offset the trace threads slightly .... this might be thrown over anyhow but just for the initial timing
+    threadTimedWait(&Threads.trace[thread], &ts, sleep_ms / TRACE_THREADS * thread);
+
     while (!Modes.exit) {
         //fprintf(stderr, "%d %d %d\n", part, start, end);
         uint64_t now = mstime();
