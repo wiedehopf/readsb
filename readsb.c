@@ -413,15 +413,20 @@ static void trackPeriodicUpdate() {
         Modes.currentTask = "statsReset";
         statsResetCount();
 
+        uint64_t now = mstime();
+
         Modes.currentTask = "statsCount";
-        statsCountAircraft();
+        statsCountAircraft(now);
 
         Modes.currentTask = "statsWrite";
-        statsWrite();
+        statsWrite(now);
 
         Modes.updateStats = 0;
 
-        writeJsonToFile(Modes.json_dir, "status.json", generateStatusJson());
+        if (Modes.json_dir) {
+            writeJsonToFile(Modes.json_dir, "status.json", generateStatusJson(now));
+            writeJsonToFile(Modes.json_dir, "status.prom", generateStatusProm(now));
+        }
     }
     if (Modes.outline_json) {
         Modes.currentTask = "outlineJson";

@@ -180,13 +180,14 @@ void display_total_short_range_stats();
 void add_timespecs (const struct timespec *x, const struct timespec *y, struct timespec *z);
 
 struct char_buffer generateStatusJson();
+struct char_buffer generateStatusProm();
 struct char_buffer generateStatsJson();
 struct char_buffer generatePromFile();
 
 void statsUpdate(uint64_t now);
 void checkDisplayStats(uint64_t now);
 void statsResetCount();
-void statsCountAircraft();
-void statsWrite();
+void statsCountAircraft(uint64_t now);
+void statsWrite(uint64_t now);
 
 #endif

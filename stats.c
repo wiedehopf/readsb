@@ -655,13 +655,44 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
     return p;
 }
 
-struct char_buffer generateStatusJson() {
+struct char_buffer generateStatusProm(uint64_t now) {
     struct char_buffer cb;
     size_t buflen = 8192;
     char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
 
-    uint64_t now = mstime();
-    p = safe_snprintf(p, end, "{ \"now\": %.1f", now / 1000.0);
+    struct statsCount *sC = &(Modes.globalStatsCount);
+
+    uint64_t uptime = now - Modes.startup_time;
+    if (now < Modes.startup_time)
+        uptime = 0;
+
+    p = safe_snprintf(p, end, "readsb_now %"PRIu64"\n", now);
+    p = safe_snprintf(p, end, "readsb_uptime %"PRIu64"\n", uptime);
+
+    p = safe_snprintf(p, end, "readsb_aircraft_with_position %u\n", sC->readsb_aircraft_with_position);
+    p = safe_snprintf(p, end, "readsb_aircraft_without_position %u\n", sC->readsb_aircraft_total - sC->readsb_aircraft_with_position);
+    for (int i = 0; i < NUM_TYPES; i++) {
+        p = safe_snprintf(p, end, "readsb_aircraft_%s %u\n", addrtype_enum_string(i), sC->type_counts[i]);
+    }
+
+    if (p >= end)
+        fprintf(stderr, "buffer overrun status json\n");
+
+    cb.len = p - buf;
+    cb.buffer = buf;
+    return cb;
+}
+
+struct char_buffer generateStatusJson(uint64_t now) {
+    struct char_buffer cb;
+    size_t buflen = 8192;
+    char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
+
+    uint64_t uptime = now - Modes.startup_time;
+    if (now < Modes.startup_time)
+        uptime = 0;
+
+    p = safe_snprintf(p, end, "{ \"now\": %.1f, \"uptime\": %.1f", now / 1000.0, uptime / 1000.0);
 
     p = appendTypeCounts(p, end);
 
@@ -896,10 +927,9 @@ void statsResetCount() {
     s->readsb_aircraft_without_flight_number = 0;
 }
 
-void statsCountAircraft() {
+void statsCountAircraft(uint64_t now) {
     struct statsCount *s = &(Modes.globalStatsCount);
     uint32_t total_aircraft_count = 0;
-    uint64_t now = mstime();
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
             total_aircraft_count++;
@@ -1015,12 +1045,12 @@ static void statsCalc() {
         s->readsb_aircraft_rssi_min = -50;
 }
 
-void statsWrite() {
+void statsWrite(uint64_t now) {
         statsCalc(); // calculate statistics stuff
 
         if (Modes.json_dir)
-            writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson());
+            writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson(now));
 
         if (Modes.prom_file)
-            writeJsonToFile(NULL, Modes.prom_file, generatePromFile());
+            writeJsonToFile(NULL, Modes.prom_file, generatePromFile(now));
 }
