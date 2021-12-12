@@ -17,7 +17,13 @@ CPPFLAGS += -D_FORTIFY_SOURCE=2 -fstack-protector-strong -Wformat -Werror=format
 DIALECT = -std=c11
 
 CFLAGS := $(DIALECT) -g -W -D_DEFAULT_SOURCE -Wall -Werror -fno-common -O3 $(CFLAGS) $(OPTIMIZE)
-LIBS = -pthread -lpthread -lm -lz -lrt
+LIBS = -pthread -lpthread -lm -lrt
+
+ifeq ($(ZLIB_STATIC), yes)
+	LIBS += ../zlib/libz.a
+else
+	LIBS += -lz
+endif
 
 ifeq ($(shell $(CC) -c feature_test.c -o feature_test.o -Wno-format-truncation -Werror >/dev/null 2>&1 && echo 1 || echo 0), 1)
 	CFLAGS += -Wno-format-truncation
