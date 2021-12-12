@@ -971,7 +971,7 @@ struct char_buffer apiGenerateGlobeJson(int globe_index) {
 
     p = safe_snprintf(p, end,
             "  \"global_ac_count_withpos\" : %d,\n",
-            Modes.globalStatsCount.json_ac_count_pos
+            Modes.globalStatsCount.readsb_aircraft_with_position
             );
 
     p = safe_snprintf(p, end, "  \"globeIndex\" : %d, ", globe_index);

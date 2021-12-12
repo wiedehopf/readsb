@@ -142,27 +142,16 @@ struct stats
 
 
 struct statsCount {
-    uint32_t json_ac_count_pos;
-    uint32_t json_ac_count_no_pos;
+    uint32_t readsb_aircraft_with_position;
+    uint32_t readsb_aircraft_no_position;
+    uint32_t readsb_aircraft_total;
+    uint32_t readsb_aircraft_with_flight_number;
+    uint32_t readsb_aircraft_without_flight_number;
     uint32_t type_counts[NUM_TYPES];
     uint32_t readsb_aircraft_adsb_version_0;
     uint32_t readsb_aircraft_adsb_version_1;
     uint32_t readsb_aircraft_adsb_version_2;
     uint32_t readsb_aircraft_emergency;
-    uint32_t readsb_aircraft_message_type_adsb_icao;
-    uint32_t readsb_aircraft_message_type_adsb_nt;
-    uint32_t readsb_aircraft_message_type_adsb_other;
-    uint32_t readsb_aircraft_message_type_adsr_icao;
-    uint32_t readsb_aircraft_message_type_adsr_other;
-    uint32_t readsb_aircraft_message_type_tisb_icao;
-    uint32_t readsb_aircraft_message_type_tisb_other;
-    uint32_t readsb_aircraft_message_type_tisb_trackfile;
-    uint32_t readsb_aircraft_message_type_mode_s;
-    uint32_t readsb_aircraft_message_type_mode_ac;
-    uint32_t readsb_aircraft_message_type_mlat;
-    uint32_t readsb_aircraft_message_type_adsc;
-    uint32_t readsb_aircraft_message_type_unknown;
-    uint32_t readsb_aircraft_message_type_other;
     double readsb_aircraft_rssi_average;
     float readsb_aircraft_rssi_max;
     float readsb_aircraft_rssi_min;
@@ -172,11 +161,6 @@ struct statsCount {
     float *rssi_table;
     int rssi_table_len;
     int rssi_table_alloc;
-    uint32_t readsb_aircraft_tisb;
-    uint32_t readsb_aircraft_total;
-    uint32_t readsb_aircraft_with_flight_number;
-    uint32_t readsb_aircraft_without_flight_number;
-    uint32_t readsb_aircraft_with_position;
 };
 
 struct distCoords {

@@ -491,8 +491,8 @@ void statsUpdate(uint64_t now) {
 
 static char * appendTypeCounts(char *p, char *end) {
     struct statsCount *sC = &(Modes.globalStatsCount);
-    p = safe_snprintf(p, end, ",\n\"aircaft_with_pos\": %d", sC->json_ac_count_pos);
-    p = safe_snprintf(p, end, ", \"aircraft_without_pos\": %d", sC->json_ac_count_no_pos);
+    p = safe_snprintf(p, end, ",\n\"aircaft_with_pos\": %d", sC->readsb_aircraft_with_position);
+    p = safe_snprintf(p, end, ", \"aircraft_without_pos\": %d", sC->readsb_aircraft_no_position);
     p = safe_snprintf(p, end, ", \"aircraft_count_by_type\": {");
     for (int i = 0; i < NUM_TYPES; i++) {
         p = safe_snprintf(p, end, " \"%s\": %d,", addrtype_enum_string(i), sC->type_counts[i]);
@@ -879,10 +879,10 @@ void statsResetCount() {
     struct statsCount *s = &(Modes.globalStatsCount);
     memset(&s->type_counts, 0, sizeof(s->type_counts));
 
-    s->json_ac_count_pos = 0;
-    s->json_ac_count_no_pos = 0;
-
     s->rssi_table_len = 0;
+
+    s->readsb_aircraft_with_position = 0;
+    s->readsb_aircraft_no_position = 0;
 
     s->readsb_aircraft_adsb_version_0 = 0;
     s->readsb_aircraft_adsb_version_1 = 0;
@@ -891,11 +891,9 @@ void statsResetCount() {
     s->readsb_aircraft_rssi_average = 0;
     s->readsb_aircraft_rssi_max = -50;
     s->readsb_aircraft_rssi_min = 42;
-    s->readsb_aircraft_tisb = 0;
     s->readsb_aircraft_total = 0;
     s->readsb_aircraft_with_flight_number = 0;
     s->readsb_aircraft_without_flight_number = 0;
-    s->readsb_aircraft_with_position = 0;
 }
 
 void statsCountAircraft() {
@@ -909,9 +907,9 @@ void statsCountAircraft() {
                 continue;
 
             if (trackDataValid(&a->position_valid))
-                s->json_ac_count_pos++;
+                s->readsb_aircraft_with_position++;
             else
-                s->json_ac_count_no_pos++;
+                s->readsb_aircraft_no_position++;
 
             s->type_counts[a->addrtype]++;
 
@@ -944,8 +942,6 @@ void statsCountAircraft() {
                 s->rssi_table_len++;
             }
 
-            if (a->position_valid.source == SOURCE_TISB)
-                s->readsb_aircraft_tisb++;
             if (trackDataValid(&a->callsign_valid))
                 s->readsb_aircraft_with_flight_number++;
             else
@@ -987,8 +983,7 @@ static int compareFloat(const void *p1, const void *p2) {
 
 static void statsCalc() {
     struct statsCount *s = &(Modes.globalStatsCount);
-    s->readsb_aircraft_total = s->json_ac_count_pos + s->json_ac_count_no_pos;
-    s->readsb_aircraft_with_position = s->json_ac_count_pos;
+    s->readsb_aircraft_total = s->readsb_aircraft_with_position + s->readsb_aircraft_no_position;
 
     if (s->rssi_table_len > 0) {
 

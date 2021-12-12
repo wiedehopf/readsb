@@ -1031,7 +1031,7 @@ struct char_buffer generateAircraftBin() {
 
     memWrite(p, elementSize);
 
-    uint32_t ac_count_pos = Modes.globalStatsCount.json_ac_count_pos;
+    uint32_t ac_count_pos = Modes.globalStatsCount.readsb_aircraft_with_position;
     memWrite(p, ac_count_pos);
 
     uint32_t index = 314159; // unnecessary
@@ -1121,7 +1121,7 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
 
     memWrite(p, elementSize);
 
-    uint32_t ac_count_pos = Modes.globalStatsCount.json_ac_count_pos;
+    uint32_t ac_count_pos = Modes.globalStatsCount.readsb_aircraft_with_position;
     memWrite(p, ac_count_pos);
 
     uint32_t index = globe_index < 0 ? 42777 : globe_index;
@@ -1225,7 +1225,7 @@ struct char_buffer generateGlobeJson(int globe_index){
 
     p = safe_snprintf(p, end,
             "  \"global_ac_count_withpos\" : %d,\n",
-            Modes.globalStatsCount.json_ac_count_pos
+            Modes.globalStatsCount.readsb_aircraft_with_position
             );
 
     p = safe_snprintf(p, end, "  \"globeIndex\" : %d, ", globe_index);
