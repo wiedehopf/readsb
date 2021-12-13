@@ -863,9 +863,11 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, uint64_t no
     if (posReliable(a)) {
         set_globe_index(a, globe_index(a->lat, a->lon));
 
+        if (0 && a->addr == Modes.trace_focus) {
+            fprintf(stderr, "%5.1fs traceAdd: %06x\n", (now % (600 * SECONDS)) / 1000.0, a->addr);
+        }
         if (traceAdd(a, now)) {
             mm->jsonPos = 1;
-            //fprintf(stderr, "Added to trace for %06x (%d).\n", a->addr, a->trace_len);
         }
 
         a->seenPosReliable = now; // must be after traceAdd for trace stale detection

@@ -1506,7 +1506,6 @@ int traceAdd(struct aircraft *a, uint64_t now) {
 
     int traceDebug = (a->addr == Modes.trace_focus);
 
-
     int32_t new_lat = (int32_t) nearbyint(a->lat * 1E6);
     int32_t new_lon = (int32_t) nearbyint(a->lon * 1E6);
 
@@ -1748,18 +1747,28 @@ save_state:
     // this should provide a better picture of changing track / speed / altitude
 
     if ((elapsed > max_elapsed || elapsed_buffered > min_elapsed * 3 / 2) && traceUsePosBuffered(a)) {
-        posUsed = 0;
-        bufferedPosUsed = 1;
+        if (traceDebug) fprintf(stderr, " buffer\n");
+        // in some cases we want to add the current point as well
+        // if not, the current point will be put in the buffer
+        traceAdd(a, now);
+        // return so the point isn't used a second time or put in the buffer
+        return 1;
     } else {
         posUsed = 1;
     }
     //fprintf(stderr, "traceAdd: %06x elapsed: %8.1f s distance: %8.3f km\n", a->addr, elapsed / 1000.0, distance / 1000.0);
+
     goto no_save_state;
 
 save_state_no_buf:
     posUsed = 1;
 
 no_save_state:
+
+    if (duplicate) {
+        // don't put a duplicate position in the buffer and don't use it for the trace
+        return 0;
+    }
 
     if (!a->trace || !a->trace_len) {
         // allocate trace memory
@@ -1780,7 +1789,6 @@ no_save_state:
         return 0;
     }
 
-
     struct state *new = &(a->trace[a->trace_len]);
     memset(new, 0, sizeof(struct state));
 
@@ -1790,11 +1798,6 @@ no_save_state:
 #if defined(TRACKS_UUID)
     new->receiverId = a->lastPosReceiverId;
 #endif
-
-    if (duplicate) {
-        // don't put a duplicate position in the buffer or used it for the trace
-        return bufferedPosUsed;
-    }
 
     /*
        unsigned on_ground:1;
@@ -1864,11 +1867,7 @@ no_save_state:
     } else {
         a->tracePosBuffered = 1;
     }
-    if (bufferedPosUsed) {
-        if (traceDebug) fprintf(stderr, " buffer\n");
-        // in some cases we want to add a 2nd point right now.
-        traceAdd(a, now);
-    }
+
     if (traceDebug && !posUsed && !bufferedPosUsed) fprintf(stderr, "none\n");
 
     return posUsed || bufferedPosUsed;
@@ -2521,6 +2520,7 @@ void traceDelete() {
         traceMaintenance(a, now);
         scheduleMemBothWrite(a, now);
         entry = entry->next;
+        fprintf(stderr, "Deleted %06x from %lld to %lld\n", curr->hex, (long long) curr->from, (long long) curr->to);
         sfree(curr);
     }
     Modes.deleteTrace = NULL;;
