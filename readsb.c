@@ -1749,6 +1749,11 @@ int main(int argc, char **argv) {
     int maxEvents = 1;
     epollAllocEvents(&events, &maxEvents);
 
+    // init hungtimers
+    pthread_mutex_lock(&Modes.hungTimerMutex);
+    startWatch(&Modes.hungTimer1);
+    startWatch(&Modes.hungTimer2);
+    pthread_mutex_unlock(&Modes.hungTimerMutex);
     while (!Modes.exit) {
         if (epoll_wait(mainEpfd, events, maxEvents, 5 * SECONDS) > 0) {
             continue;
@@ -1760,7 +1765,7 @@ int main(int argc, char **argv) {
         pthread_mutex_unlock(&Modes.hungTimerMutex);
 
         //fprintf(stderr, "lockThreads() took %.1f seconds!\n", (double) elapsed / SECONDS);
-        if (elapsed1 > 10 * SECONDS && !Modes.synthetic_now) {
+        if (elapsed1 > 90 * SECONDS && !Modes.synthetic_now) {
             fprintf(stderr, "<3>FATAL: trackPeriodicUpdate() interval %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed1 / SECONDS);
             fprintf(stderr, "<3>lockThreads() probably hung on %s\n", Modes.currentTask);
 
@@ -1768,7 +1773,7 @@ int main(int argc, char **argv) {
             setExit(2);
             break;
         }
-        if (elapsed2 > 30 * SECONDS && !Modes.synthetic_now) {
+        if (elapsed2 > 90 * SECONDS && !Modes.synthetic_now) {
             fprintf(stderr, "<3>FATAL: removeStale() interval %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed2 / SECONDS);
             Modes.joinTimeout = 5 * SECONDS;
             setExit(2);
