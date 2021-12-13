@@ -451,7 +451,13 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
     }
 
     if (Modes.trace_hist_only) {
-        trace_write &= WPERM;
+        int hist_only_mask = WPERM;
+        if (Modes.trace_hist_only & 1)
+            hist_only_mask |= WMEM;
+        if (Modes.trace_hist_only & 2)
+            hist_only_mask |= WRECENT;
+
+        trace_write &= hist_only_mask;
     }
 
     if ((trace_write & WRECENT)) {

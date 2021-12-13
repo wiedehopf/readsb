@@ -1169,7 +1169,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.onlyBin = atoi(arg);
             break;
         case OptJsonTraceHistOnly:
-            Modes.trace_hist_only = 1;
+            Modes.trace_hist_only = atoi(arg);
             break;
         case OptJsonTraceInt:
             if (atof(arg) > 0)
