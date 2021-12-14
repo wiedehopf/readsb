@@ -501,14 +501,15 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
            ) {
 
             //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
-            fprintf(stderr, "%5.1fs %06x %s %s %s %s %s R:%2d tD:%3.0f  %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
+            fprintf(stderr, "%02d:%04.1f %06x %s %s %s %s %sR:%2d tD:%3.0f  %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
+                    (int) (now / (60 * SECONDS) % 60),
                     (now % (60 * SECONDS)) / 1000.0,
                     a->addr,
                     mm->cpr_odd ? "O" : "E",
                     cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "S"),
                     (surface ? "S" : "A"),
-                    (override != -1 ? (override ? "over" : " bog") : (inrange ? "pass" : "FAIL")),
-                    (a->lat == lat && a->lon == lon) ? "L" : ((a->prev_lat == lat && a->prev_lon == lon) ? "P" : " "),
+                    (override != -1 ? (override ? "ovrd" : "bogu") : (inrange ? "pass" : "FAIL")),
+                    (a->lat == lat && a->lon == lon) ? "L " : ((a->prev_lat == lat && a->prev_lon == lon) ? "P " : ""),
                     min(a->pos_reliable_odd, a->pos_reliable_even),
                     track_diff,
                     distance / 1000.0,
