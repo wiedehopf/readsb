@@ -467,9 +467,11 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     distance = greatcircle(oldLat, oldLon, lat, lon, 0);
     mm->distance_traveled = distance;
 
+    uint64_t track_persistence = 5 * SECONDS;
     if (!surface && distance > 1 && source > SOURCE_MLAT
-            && trackDataAge(now, &a->track_valid) < 7 * 1000
-            && trackDataAge(now, &a->position_valid) < 7 * 1000
+            && trackDataAge(now, &a->track_valid) < track_persistence
+            && trackDataAge(now, &a->position_valid) < 7 * SECONDS
+            && trackDataAge(now, &a->gs_valid) < 7 * SECONDS
             && (a->prev_lat != lat || a->prev_lon != lon)
             && (a->pos_reliable_odd >= Modes.json_reliable && a->pos_reliable_even >= Modes.json_reliable)
        ) {
@@ -477,7 +479,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         mm->calculated_track = calc_track;
         track_diff = fabs(norm_diff(a->track - calc_track, 180));
         track_bonus = speed * (90.0f - track_diff) / 90.0f;
-        speed += track_bonus * (1.1f - trackDataAge(now, &a->track_valid) / 5000);
+        track_bonus *= 1.1f * (1.0f - trackDataAge(now, &a->track_valid) / track_persistence);
+        speed += track_bonus;
         if (track_diff > 160) {
             mm->pos_ignore = 1; // don't decrement pos_reliable
         }
