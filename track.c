@@ -2875,8 +2875,8 @@ void updateValidities(struct aircraft *a, uint64_t now) {
 
 static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, uint64_t now, double bad_lat, double bad_lon) {
 
-    fprintf(stderr, "%06x: ", a->addr);
-    fprintf(stderr, "elapsed: %4.1f ", (now - a->seen_pos) / 1000.0);
+    fprintf(stderr, "%06x ", a->addr);
+    fprintf(stderr, "elapsed %4.1f ", (now - a->seen_pos) / 1000.0);
     if (mm->receiver_distance > 0) {
         fprintf(stderr, "receiver_distance: %7.1f nmi ", mm->receiver_distance / 1852.0);
     }
