@@ -316,7 +316,7 @@ typedef enum {
 #define TRACE_MAX (32*1024)
 #endif
 #ifndef TRACE_MARGIN
-#define TRACE_MARGIN 32
+#define TRACE_MARGIN 64
 #endif
 #define STATE_BLOBS 256 // change naming scheme if increasing this
 #ifndef TRACE_THREADS

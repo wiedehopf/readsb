@@ -1476,22 +1476,32 @@ void traceMaintenance(struct aircraft *a, uint64_t now) {
 
     int oldAlloc = a->trace_alloc;
 
+    int newAlloc = -1;
+
     // shrink allocation if necessary
-    int shrink = 0;
     int shrinkTo = (a->trace_alloc - TRACE_MARGIN) * 7 / 8;
+    int shrink = 0;
+    if (shrinkTo < a->trace_alloc - 4 * TRACE_MARGIN) {
+        shrinkTo = a->trace_alloc - 4 * TRACE_MARGIN;
+    }
     if (a->trace_len && a->trace_len + 2 * TRACE_MARGIN <= shrinkTo) {
-        traceRealloc(a, shrinkTo);
+        newAlloc = shrinkTo;
         shrink = 1;
     }
 
-    int midAlloc = a->trace_alloc;
     // grow allocation if necessary
+    int grow = 0;
     if (a->trace_alloc && a->trace_len + TRACE_MARGIN >= a->trace_alloc) {
-        traceRealloc(a, a->trace_alloc * 8 / 7 + TRACE_MARGIN);
+        int growTo = a->trace_alloc * 8 / 7 + TRACE_MARGIN;
+        if (growTo > a->trace_alloc + 4 * TRACE_MARGIN) {
+            growTo = a->trace_alloc + 4 * TRACE_MARGIN;
+        }
+        newAlloc = a->trace_alloc * 8 / 7 + TRACE_MARGIN;
+        grow = 1;
     }
 
-    if (shrink && a->trace_alloc != midAlloc) {
-        fprintf(stderr, "%06x: shrink - grow: trace_len: %d traceRealloc: %d -> %d -> %d\n", a->addr, a->trace_len, oldAlloc, midAlloc, a->trace_alloc);
+    if (newAlloc != -1 && !(shrink && grow)) {
+        traceRealloc(a, newAlloc);
     }
 
     if (Modes.debug_traceAlloc && a->trace_alloc != oldAlloc) {

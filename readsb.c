@@ -1601,7 +1601,7 @@ static void miscStuff() {
 
     uint64_t elapsed = stopWatch(&watch);
     static uint64_t antiSpam2;
-    if (elapsed > 3 * SECONDS && now > antiSpam2 + 30 * SECONDS) {
+    if (elapsed > 12 * SECONDS && now > antiSpam2 + 30 * SECONDS) {
         fprintf(stderr, "<3>High load: heatmap_and_stuff took %"PRIu64" ms! Suppressing for 30 seconds\n", elapsed);
         antiSpam2 = now;
     }
