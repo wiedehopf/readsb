@@ -1340,16 +1340,15 @@ static int addressReliable(struct modesMessage *mm) {
 static inline void focusGroundstateChange(struct aircraft *a, struct modesMessage *mm, int arg, uint64_t now) {
     //if (a->airground != mm->airground) {
     if (a->addr == Modes.cpr_focus && a->airground != mm->airground) {
-        fprintf(stderr, "%5.1fs %06x Ground state change %d: Source: %s, %s -> %s\n",
-                (now % (600 * SECONDS)) / 1000.0,
+        fprintf(stderr, "%02d:%04.1f %06x Ground state change %d: Source: %s, %s -> %s\n",
+            (int) (now / (60 * SECONDS) % 60),
+            (now % (60 * SECONDS)) / 1000.0,
                 a->addr,
                 arg,
                 source_enum_string(mm->source),
                 airground_to_string(a->airground),
                 airground_to_string(mm->airground));
-        if (mm->airground == AG_GROUND) {
-            displayModesMessage(mm);
-        }
+        displayModesMessage(mm);
     }
 }
 static void updateAltitude(uint64_t now, struct aircraft *a, struct modesMessage *mm) {
@@ -1769,12 +1768,14 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (mm->airground != AG_INVALID &&
             !(mm->source == SOURCE_MODE_S
                 && trackDataAge(now, &a->cpr_even_valid) < TRACK_EXPIRE_LONG
-                && trackDataAge(now, &a->airground_valid) < TRACK_EXPIRE_LONG
+                && trackDataAge(now, &a->airground_valid) < TRACK_EXPIRE_LONG * 3 / 4
              )
        ) {
         // If our current state is UNCERTAIN, accept new data as normal
         // If our current state is certain but new data is not, only accept the uncertain state if the certain data has gone stale
-        if (a->airground == AG_UNCERTAIN || mm->airground != AG_UNCERTAIN
+        if (a->airground == AG_INVALID
+                || a->airground == AG_UNCERTAIN
+                || mm->airground != AG_UNCERTAIN
                 || trackDataAge(now, &a->airground_valid) > TRACK_EXPIRE_LONG
                 || (a->addrtype >= ADDR_MLAT
                     && mm->airground == AG_UNCERTAIN
@@ -1938,18 +1939,19 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (cpr_new) {
         // this is in addition to the normal air / ground handling
         // making especially sure we catch surface -> airborne transitions
-        if (a->last_cpr_type == CPR_SURFACE && mm->cpr_type == CPR_AIRBORNE
-                && accept_data(&a->airground_valid, mm->source, mm, a, 0)) {
-            focusGroundstateChange(a, mm, 2, now);
-            a->airground = AG_AIRBORNE;
-            mm->reduce_forward = 1;
-
-        }
-        if (a->last_cpr_type == CPR_AIRBORNE && mm->cpr_type == CPR_SURFACE
-                && accept_data(&a->airground_valid, mm->source, mm, a, 0)) {
-            focusGroundstateChange(a, mm, 2, now);
-            a->airground = AG_GROUND;
-            mm->reduce_forward = 1;
+        if (a->addrtype == mm->addrtype) {
+            if (a->last_cpr_type == CPR_SURFACE && mm->cpr_type == CPR_AIRBORNE
+                    && accept_data(&a->airground_valid, mm->source, mm, a, 0)) {
+                focusGroundstateChange(a, mm, 2, now);
+                a->airground = AG_AIRBORNE;
+                mm->reduce_forward = 1;
+            }
+            if (a->last_cpr_type == CPR_AIRBORNE && mm->cpr_type == CPR_SURFACE
+                    && accept_data(&a->airground_valid, mm->source, mm, a, 0)) {
+                focusGroundstateChange(a, mm, 2, now);
+                a->airground = AG_GROUND;
+                mm->reduce_forward = 1;
+            }
         }
 
         updatePosition(a, mm, now);
