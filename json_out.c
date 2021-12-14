@@ -1696,9 +1696,12 @@ struct char_buffer generateReceiverJson() {
 
     p = safe_snprintf(p, end, ", \"jaeroTimeout\": %.1f", ((double) Modes.trackExpireJaero) / (60 * SECONDS));
 
+
     if (Modes.json_globe_index) {
         if (Modes.db || Modes.db2)
             p = safe_snprintf(p, end, ", \"dbServer\": true");
+
+        p = safe_snprintf(p, end, ", \"json_trace_interval\": %.1f", ((double) Modes.json_trace_interval) / (1 * SECONDS));
 
         p = safe_snprintf(p, end, ", \"binCraft\": true");
         p = safe_snprintf(p, end, ", \"globeIndexGrid\": %d", GLOBE_INDEX_GRID);
