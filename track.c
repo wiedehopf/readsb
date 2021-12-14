@@ -492,11 +492,6 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
     inrange = (distance <= range);
 
-    // override, this allows for printing stuff instead of returning
-    if (override != -1) {
-        inrange = override;
-    }
-
     if (elapsed > 2 * SECONDS || distance > 0) {
         if (
                 (source > SOURCE_MLAT && track_diff < 190 && !inrange
@@ -507,7 +502,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
             //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
             fprintf(stderr, "%5.1fs %06x %s %s %s %s %s R:%2d tD:%3.0f  %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
-                    (now % (600 * SECONDS)) / 1000.0,
+                    (now % (60 * SECONDS)) / 1000.0,
                     a->addr,
                     mm->cpr_odd ? "O" : "E",
                     cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "S"),
@@ -524,6 +519,12 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                     oldLat, oldLon, lat, lon);
         }
     }
+
+    // override, this allows for printing stuff instead of returning
+    if (override != -1) {
+        inrange = override;
+    }
+
     if (!Modes.userLocationValid) {
         if (!inrange && mm->source == SOURCE_ADSB
                 && distance - range > 800 && track_diff > 45
