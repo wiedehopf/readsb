@@ -907,8 +907,8 @@ static void modesCloseClient(struct client *c) {
 
         char uuid[64]; // needs 36 chars and null byte
         sprint_uuid(c->receiverId, c->receiverId2, uuid);
-        fprintf(stderr, "disc: %6.1f s %6.2f kbit/s rId %s %s \n",
-                elapsed, kbitpersecond, uuid, c->proxy_string);
+        fprintf(stderr, "disc: %6.1f s %6.2f kbit/s %s \n",
+                elapsed, kbitpersecond, c->proxy_string);
     }
     epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, c->fd, &c->epollEvent);
     anetCloseSocket(c->fd);
@@ -1105,11 +1105,17 @@ static int pongReceived(struct client *c, uint64_t now) {
     // only log if the average is greater the rejection threshold, don't log for single packet events
     // actual discard / rejection happens elsewhere int the code
     if ((c->latest_rtt > PING_REJECT && now > antiSpam) || c->rtt > PING_DISCONNECT) {
-            antiSpam = now + 250; // limit to 4 messages a second
             char uuid[64]; // needs 36 chars and null byte
             sprint_uuid(c->receiverId, c->receiverId2, uuid);
-            fprintf(stderr, "reject: %6.0f ms %6.0f ms  rId %s %s\n",
-                    c->latest_rtt, c->recent_rtt, uuid, c->proxy_string);
+            if (Modes.netIngest) {
+                antiSpam = now + 250; // limit to 4 messages a second
+                fprintf(stderr, "reject: %6.0f ms %6.0f ms  rId %s %s\n",
+                        c->latest_rtt, c->recent_rtt, uuid, c->proxy_string);
+            } else {
+                antiSpam = now + 15 * SECONDS;
+                fprintf(stderr, "<3>high network delay: %6.0f ms %6.0f ms  rId %s %s\n",
+                        c->latest_rtt, c->recent_rtt, uuid, c->proxy_string);
+            }
     }
     if (c->latest_rtt > PING_REDUCE) {
         // tell the client to slow down via beast command

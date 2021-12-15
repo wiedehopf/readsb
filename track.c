@@ -1356,9 +1356,9 @@ static int addressReliable(struct modesMessage *mm) {
     return 0;
 }
 
-static inline void focusGroundstateChange(struct aircraft *a, struct modesMessage *mm, int arg, uint64_t now) {
+static inline void focusGroundstateChange(struct aircraft *a, struct modesMessage *mm, int arg, uint64_t now, airground_t airground) {
     //if (a->airground != mm->airground) {
-    if (a->addr == Modes.cpr_focus && a->airground != mm->airground) {
+    if (a->addr == Modes.cpr_focus && a->airground != airground) {
         fprintf(stderr, "%02d:%04.1f %06x Ground state change %d: Source: %s, %s -> %s\n",
             (int) (now / (60 * SECONDS) % 60),
             (now % (60 * SECONDS)) / 1000.0,
@@ -1366,7 +1366,7 @@ static inline void focusGroundstateChange(struct aircraft *a, struct modesMessag
                 arg,
                 source_enum_string(mm->source),
                 airground_to_string(a->airground),
-                airground_to_string(mm->airground));
+                airground_to_string(airground));
         displayModesMessage(mm);
     }
 }
@@ -1804,8 +1804,18 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                     && a->gs > 80
                    )
            ) {
-            if (accept_data(&a->airground_valid, mm->source, mm, a, 0)) {
-                focusGroundstateChange(a, mm, 1, now);
+            if (
+                    (a->last_cpr_type == CPR_SURFACE || a->last_cpr_type == CPR_AIRBORNE)
+                    && trackDataAge(now, &a->cpr_odd_valid) < 20 * SECONDS
+                    && trackDataAge(now, &a->cpr_even_valid) < 20 * SECONDS
+                    && now < a->seenPosReliable + 20 * SECONDS
+                    && trackDataAge(now, &a->airground_valid) < 20 * SECONDS
+               ) {
+                // if we have recent CPR / position data ...
+                // those are more reliable in an aggregation situation,
+                // ignore other airground status indication
+            } else if (accept_data(&a->airground_valid, mm->source, mm, a, 0)) {
+                focusGroundstateChange(a, mm, 1, now, mm->airground);
                 if (mm->airground != a->airground)
                     mm->reduce_forward = 1;
                 a->airground = mm->airground;
@@ -1959,15 +1969,16 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         // this is in addition to the normal air / ground handling
         // making especially sure we catch surface -> airborne transitions
         if (a->addrtype == mm->addrtype) {
-            if (a->last_cpr_type == CPR_SURFACE && mm->cpr_type == CPR_AIRBORNE
+            //if (a->last_cpr_type == CPR_SURFACE && mm->cpr_type == CPR_AIRBORNE
+            if (mm->cpr_type == CPR_AIRBORNE
                     && accept_data(&a->airground_valid, mm->source, mm, a, 0)) {
-                focusGroundstateChange(a, mm, 2, now);
+                focusGroundstateChange(a, mm, 2, now, AG_AIRBORNE);
                 a->airground = AG_AIRBORNE;
                 mm->reduce_forward = 1;
             }
-            if (a->last_cpr_type == CPR_AIRBORNE && mm->cpr_type == CPR_SURFACE
+            if (mm->cpr_type == CPR_SURFACE
                     && accept_data(&a->airground_valid, mm->source, mm, a, 0)) {
-                focusGroundstateChange(a, mm, 2, now);
+                focusGroundstateChange(a, mm, 2, now, AG_GROUND);
                 a->airground = AG_GROUND;
                 mm->reduce_forward = 1;
             }
