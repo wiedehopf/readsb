@@ -478,11 +478,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         track_age = trackDataAge(now, &a->true_heading_valid);
     }
     if (distance > 1 && source > SOURCE_MLAT
-            && track > 0
+            && track > -1
             && trackDataAge(now, &a->position_valid) < 7 * SECONDS
             && trackDataAge(now, &a->gs_valid) < 7 * SECONDS
             && a->gs > 10
-            && (a->prev_lat != lat || a->prev_lon != lon)
             && (a->pos_reliable_odd >= Modes.json_reliable && a->pos_reliable_even >= Modes.json_reliable)
        ) {
         calc_track = bearing(oldLat, oldLon, lat, lon);
@@ -512,7 +511,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
            ) {
 
             //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
-            fprintf(stderr, "%02d:%04.1f %06x %s %s %s %s R:%2d tD:%3.0f  %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
+            fprintf(stderr, "%02d:%04.1f %06x %s %s %s %s R:%2d %3.0ftD:%3.0f  %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
                     (int) (now / (60 * SECONDS) % 60),
                     (now % (60 * SECONDS)) / 1000.0,
                     a->addr,
@@ -522,12 +521,13 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                     (override != -1 ? (override ? "ovrd" : "bogu") : (inrange ? "pass" : "FAIL")),
                     //(a->lat == lat && a->lon == lon) ? "L " : ((a->prev_lat == lat && a->prev_lon == lon) ? "P " : ""),
                     min(a->pos_reliable_odd, a->pos_reliable_even),
+                    track,
                     track_diff,
                     distance / 1000.0,
                     range / 1000.0,
                     elapsed / 1000.0,
                     (distance / elapsed * 1000.0 / 1852.0 * 3600.0),
-                    speed,
+                    (range / elapsed * 1000.0 / 1852.0 * 3600.0),
                     oldLat, oldLon, lat, lon);
         }
     }
