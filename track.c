@@ -435,8 +435,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     if (trackDataValid(&a->gs_valid)) {
         // use the larger of the current and earlier speed
         speed = (a->gs_last_pos > a->gs) ? a->gs_last_pos : a->gs;
-        // add 2 knots for every second we haven't known the speed
-        speed = speed + (3 * trackDataAge(now, &a->gs_valid)/1000.0f);
+        // add 3 knots for every second we haven't known the speed and the position
+        speed = speed + (3 * trackDataAge(now, &a->gs_valid)/1000.0f) + (3 * trackDataAge(now, &a->position_valid)/1000.0f);
     } else if (trackDataValid(&a->tas_valid)) {
         speed = a->tas * 4 / 3;
     } else if (trackDataValid(&a->ias_valid)) {
@@ -494,7 +494,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
             mm->pos_ignore = 1; // don't decrement pos_reliable
         }
     } else {
-        range += 20; // 20m bonus for craft slower than 20 knots or without track comparison
+        range += 30; // 30m bonus for craft slower than 10 knots or without track comparison
     }
 
     // plus distance covered at the given speed for the elapsed time + 1 seconds.
