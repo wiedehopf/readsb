@@ -389,7 +389,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     }
 
     float distance;
-    float range;
+    float range = 0;
     float speed;
     float calc_track = 0;
     float track_diff = -1;
@@ -467,28 +467,39 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     distance = greatcircle(oldLat, oldLon, lat, lon, 0);
     mm->distance_traveled = distance;
 
-    uint64_t track_persistence = 5 * SECONDS;
-    if (!surface && distance > 1 && source > SOURCE_MLAT
-            && trackDataAge(now, &a->track_valid) < track_persistence
+    uint64_t track_max_age = 5 * SECONDS;
+    uint64_t track_age;
+    float track = -1;
+    if (trackDataAge(now, &a->track_valid) < track_max_age) {
+        track = a->track;
+        track_age = trackDataAge(now, &a->track_valid);
+    } else if (trackDataAge(now, &a->true_heading_valid) < track_max_age) {
+        track = a->true_heading;
+        track_age = trackDataAge(now, &a->true_heading_valid);
+    }
+    if (distance > 1 && source > SOURCE_MLAT
+            && track > 0
             && trackDataAge(now, &a->position_valid) < 7 * SECONDS
             && trackDataAge(now, &a->gs_valid) < 7 * SECONDS
+            && a->gs > 10
             && (a->prev_lat != lat || a->prev_lon != lon)
             && (a->pos_reliable_odd >= Modes.json_reliable && a->pos_reliable_even >= Modes.json_reliable)
        ) {
         calc_track = bearing(oldLat, oldLon, lat, lon);
         mm->calculated_track = calc_track;
-        track_diff = fabs(norm_diff(a->track - calc_track, 180));
+        track_diff = fabs(norm_diff(track - calc_track, 180));
         track_bonus = speed * (90.0f - track_diff) / 90.0f;
-        track_bonus *= 1.1f * (1.0f - trackDataAge(now, &a->track_valid) / track_persistence);
+        track_bonus *= (surface ? 0.9f : 1.1f) * (1.0f - track_age / track_max_age);
         speed += track_bonus;
         if (track_diff > 160) {
             mm->pos_ignore = 1; // don't decrement pos_reliable
         }
+    } else {
+        range += 20; // 20m bonus for craft slower than 20 knots or without track comparison
     }
 
-    // 100m (surface) base distance to allow for minor errors, no airborne base distance due to ground track cross check
     // plus distance covered at the given speed for the elapsed time + 1 seconds.
-    range = (surface ? 0.1e3f : 0.0e3f) + (((float) elapsed + 1000.0f) / 1000.0f) * (speed * 1852.0f / 3600.0f);
+    range += (((float) elapsed + 1000.0f) / 1000.0f) * (speed * 1852.0f / 3600.0f);
 
     inrange = (distance <= range);
 
@@ -546,8 +557,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
             }
         }
         if (inrange && mm->source == SOURCE_ADSB && mm->cpr_type != CPR_SURFACE
-                && a->pos_reliable_odd >= Modes.filter_persistence * 3 / 4
-                && a->pos_reliable_even >= Modes.filter_persistence * 3 / 4
+                && a->pos_reliable_odd >= min(4, Modes.filter_persistence)
+                && a->pos_reliable_even >= min(4, Modes.filter_persistence)
            ) {
             receiverPositionReceived(a, mm->receiverId, lat, lon, now);
         }
