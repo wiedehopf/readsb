@@ -452,9 +452,15 @@ struct aircraft
 
   uint64_t receiverId;
 
+  // previous position and timestamp
   double prev_lat; // previous latitude
   double prev_lon; // previous longitude
   uint64_t prev_pos_time; // time the previous position was received
+
+  // most recent discarded position which led to decrementing reliability and timestamp (speed_check)
+  double discarded_lat;
+  double discarded_lon;
+  uint64_t discarded_time;
 };
 
 /* Mode A/C tracking is done separately, not via the aircraft list,

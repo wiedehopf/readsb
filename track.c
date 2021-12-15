@@ -945,6 +945,10 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
                 Modes.stats_current.cpr_global_bad++;
 
             mm->pos_bad = 1;
+
+            // still note which position we decoded
+            mm->decoded_lat = new_lat;
+            mm->decoded_lon = new_lon;
         } else if (location_result == -1) {
             if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
                 if (mm->source == SOURCE_MLAT) {
@@ -981,6 +985,10 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, uint64_t
             // This is bad data.
 
             mm->pos_bad = 1;
+
+            // still note which position we decoded
+            mm->decoded_lat = new_lat;
+            mm->decoded_lon = new_lon;
         } else if (location_result >= 0 && accept_data(&a->position_valid, mm->source, mm, a, 2)) {
             if (mm->source != SOURCE_MLAT)
                 Modes.stats_current.cpr_local_ok++;
@@ -2421,6 +2429,20 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
     if (mm->source < a->position_valid.source)
         return;
 
+    uint64_t now = mm->sysTimestampMsg;
+
+    if (
+            now < a->discarded_time + 1 * SECONDS
+            && a->discarded_lat == mm->decoded_lat
+            && a->discarded_lon == mm->decoded_lon
+       ) {
+        return; // don't decrement pos_reliable as we already got the same bad position within the last second
+    }
+
+    // most recent discarded position which led to decrementing reliability and timestamp (speed_check)
+    a->discarded_time = now;
+    a->discarded_lat = mm->decoded_lat;
+    a->discarded_lon = mm->decoded_lon;
 
     if (a->addr == Modes.cpr_focus)
         fprintf(stderr, "%06x: position_bad\n", a->addr);
@@ -2428,7 +2450,7 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
     a->pos_reliable_odd--;
     a->pos_reliable_even--;
 
-    if (a->pos_reliable_odd <= 0 || a->pos_reliable_even <=0) {
+    if (a->pos_reliable_odd <= 0 || a->pos_reliable_even <= 0) {
         a->position_valid.source = SOURCE_INVALID;
         a->pos_reliable_odd = 0;
         a->pos_reliable_even = 0;
