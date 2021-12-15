@@ -1495,6 +1495,14 @@ int parseCommandLine(int argc, char **argv) {
 static void configAfterParse() {
     Modes.trackExpireMax = Modes.trackExpireJaero + TRACK_EXPIRE_LONG + 1 * MINUTES;
 
+    Modes.traceReserve = 32;
+    Modes.traceMax = 64 * 1024;
+    if (Modes.json_trace_interval < 3 * SECONDS) {
+        double oversize = 3.0 / fmax(0.4, Modes.json_trace_interval / 1000.0);
+        Modes.traceReserve *= oversize;
+        Modes.traceMax *= oversize;
+    }
+
     Modes.num_procs = 1; // default this value to 1
     cpu_set_t mask;
     if (sched_getaffinity(getpid(), sizeof(mask), &mask) == 0) {

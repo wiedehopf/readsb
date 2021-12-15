@@ -584,31 +584,28 @@ indexToModeA (unsigned index)
   return (index & 0007) | ((index & 0070) << 1) | ((index & 0700) << 2) | ((index & 07000) << 3);
 }
 
-static inline int
-min32(int32_t a, int32_t b) {
+static inline int min32(int32_t a, int32_t b) {
   if (a < b)
     return a;
   else
     return b;
 }
 
-static inline int
-max32(int32_t a, int32_t b) {
+static inline int max32(int32_t a, int32_t b) {
   if (a > b)
     return a;
   else
     return b;
 }
-static inline int
-min(int64_t a, int64_t b) {
+
+static inline int min(int64_t a, int64_t b) {
   if (a < b)
     return a;
   else
     return b;
 }
 
-static inline int
-max(int64_t a, int64_t b) {
+static inline int max(int64_t a, int64_t b) {
   if (a > b)
     return a;
   else

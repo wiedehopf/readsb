@@ -312,12 +312,6 @@ typedef enum {
 #define DB_HASH_BITS 20
 #define DB_BUCKETS (1 << DB_HASH_BITS) // this is critical for hashing purposes
 
-#ifndef TRACE_MAX
-#define TRACE_MAX (32*1024)
-#endif
-#ifndef TRACE_MARGIN
-#define TRACE_MARGIN 64
-#endif
 #define STATE_BLOBS 256 // change naming scheme if increasing this
 #ifndef TRACE_THREADS
 #define TRACE_THREADS 6
@@ -600,6 +594,8 @@ struct _Modes
     int heatmap;
     char *heatmap_dir;
     uint32_t keep_traces; // how long traces are saved in internal memory
+    int32_t traceMax; // max trace length
+    int32_t traceReserve; // grow trace allocation if we have less than traceReserve free spots
     int json_globe_index; // Enable extra globe indexed json files.
     uint32_t json_trace_interval; // max time ignoring new positions for trace
     int acasFD1; // file descriptor to write acasFDs to

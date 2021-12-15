@@ -723,8 +723,8 @@ static int load_aircraft(char **p, char *end, uint64_t now) {
     if (a->trace_len > 0
             && a->trace_alloc >= a->trace_len
             // let's allow for loading traces larger than we normally allow by a factor of 32
-            && a->trace_len <= 32 * TRACE_MAX
-            && a->trace_alloc <= 32 * TRACE_MAX
+            && a->trace_len <= 32 * Modes.traceMax
+            && a->trace_alloc <= 32 * Modes.traceMax
        ) {
 
 
@@ -1345,12 +1345,12 @@ void traceRealloc(struct aircraft *a, int len) {
         return;
     }
     a->trace_alloc = len;
-    if (a->trace_alloc > TRACE_MAX)
-        a->trace_alloc = TRACE_MAX;
+    if (a->trace_alloc > Modes.traceMax)
+        a->trace_alloc = Modes.traceMax;
     a->trace = realloc(a->trace, stateBytes(a->trace_alloc));
     a->trace_all = realloc(a->trace_all, stateAllBytes(a->trace_alloc));
 
-    if (a->trace_len >= TRACE_MAX * 7 / 8) {
+    if (a->trace_len >= Modes.traceMax * 7 / 8) {
         fprintf(stderr, "Quite a long trace: %06x (%d).\n", a->addr, a->trace_len);
     }
 }
@@ -1368,8 +1368,8 @@ static void tracePrune(struct aircraft *a, uint64_t now) {
 
     int new_start = -1;
     // throw out oldest values if approaching max trace size
-    if (a->trace_len + TRACE_MARGIN >= TRACE_MAX) {
-        new_start = TRACE_MAX / 64 + 2 * TRACE_MARGIN;
+    if (a->trace_len + Modes.traceReserve >= Modes.traceMax) {
+        new_start = Modes.traceMax / 64 + 2 * Modes.traceReserve;
     } else if (a->trace->timestamp < keep_after - 30 * MINUTES)  {
         new_start = a->trace_len;
         for (int i = 0; i < a->trace_len; i++) {
@@ -1479,24 +1479,26 @@ void traceMaintenance(struct aircraft *a, uint64_t now) {
     int newAlloc = -1;
 
     // shrink allocation if necessary
-    int shrinkTo = (a->trace_alloc - TRACE_MARGIN) * 7 / 8;
+    int shrinkTo = (a->trace_alloc - Modes.traceReserve) * 7 / 8;
     int shrink = 0;
-    if (shrinkTo < a->trace_alloc - 4 * TRACE_MARGIN) {
-        shrinkTo = a->trace_alloc - 4 * TRACE_MARGIN;
+    int shrinkLimit = a->trace_alloc - 32 * Modes.traceReserve;
+    if (shrinkTo < shrinkLimit) {
+        shrinkTo = shrinkLimit;
     }
-    if (a->trace_len && a->trace_len + 2 * TRACE_MARGIN <= shrinkTo) {
+    if (a->trace_len && a->trace_len + 2 * Modes.traceReserve <= shrinkTo) {
         newAlloc = shrinkTo;
         shrink = 1;
     }
 
     // grow allocation if necessary
     int grow = 0;
-    if (a->trace_alloc && a->trace_len + TRACE_MARGIN >= a->trace_alloc) {
-        int growTo = a->trace_alloc * 8 / 7 + TRACE_MARGIN;
-        if (growTo > a->trace_alloc + 4 * TRACE_MARGIN) {
-            growTo = a->trace_alloc + 4 * TRACE_MARGIN;
+    if (a->trace_alloc && a->trace_len + Modes.traceReserve >= a->trace_alloc) {
+        int growTo = a->trace_alloc * 8 / 7 + Modes.traceReserve;
+        int limit = a->trace_alloc + 32 * Modes.traceReserve;
+        if (growTo > limit) {
+            growTo = limit;
         }
-        newAlloc = a->trace_alloc * 8 / 7 + TRACE_MARGIN;
+        newAlloc = growTo;
         grow = 1;
     }
 
@@ -1782,7 +1784,7 @@ no_save_state:
 
     if (!a->trace || !a->trace_len) {
         // allocate trace memory
-        traceRealloc(a, 2 * TRACE_MARGIN);
+        traceRealloc(a, 2 * Modes.traceReserve);
         a->trace->timestamp = now;
         scheduleMemBothWrite(a, now); // rewrite full history file
         a->trace_next_perm = now + GLOBE_PERM_IVAL / 2; // schedule perm write
@@ -1936,7 +1938,7 @@ void save_blob(int blob) {
 
     uint64_t magic = 0x7ba09e63757913eeULL;
 
-    int alloc = max(16 * 1024 * 1024, (stateBytes(TRACE_MAX) + stateAllBytes(TRACE_MAX)));
+    int alloc = max(16 * 1024 * 1024, (stateBytes(Modes.traceMax) + stateAllBytes(Modes.traceMax)));
     unsigned char *buf = aligned_malloc(alloc);
     unsigned char *p = buf;
 
