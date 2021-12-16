@@ -473,7 +473,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         mm->calculated_track = calc_track;
         track_diff = fabs(norm_diff(track - calc_track, 180));
         track_bonus = speed * (90.0f - track_diff) / 90.0f;
-        track_bonus *= (surface ? 0.9f : 1.1f) * (1.0f - track_age / track_max_age);
+        track_bonus *= (surface ? 0.9f : 1.0f) * (1.0f - track_age / track_max_age);
         speed += track_bonus;
         if (track_diff > 160) {
             mm->pos_ignore = 1; // don't decrement pos_reliable
@@ -1782,8 +1782,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
        ) {
         // If our current state is UNCERTAIN, accept new data as normal
         // If our current state is certain but new data is not, only accept the uncertain state if the certain data has gone stale
-        if (a->airground == AG_INVALID
-                || a->airground == AG_UNCERTAIN
+        if (a->airground == AG_INVALID || a->airground == AG_UNCERTAIN
                 || mm->airground != AG_UNCERTAIN
                 || trackDataAge(now, &a->airground_valid) > TRACK_EXPIRE_LONG
                 || (a->addrtype >= ADDR_MLAT
@@ -1795,7 +1794,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                    )
            ) {
             if (
-                    (a->last_cpr_type == CPR_SURFACE || a->last_cpr_type == CPR_AIRBORNE)
+                    !(a->airground == AG_INVALID || a->airground == AG_UNCERTAIN)
+                    && (a->last_cpr_type == CPR_SURFACE || a->last_cpr_type == CPR_AIRBORNE)
                     && trackDataAge(now, &a->cpr_odd_valid) < 20 * SECONDS
                     && trackDataAge(now, &a->cpr_even_valid) < 20 * SECONDS
                     && now < a->seenPosReliable + 20 * SECONDS
