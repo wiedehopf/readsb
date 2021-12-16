@@ -502,6 +502,11 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
     inrange = (distance <= range);
 
+    float backInTimeSeconds = 0;
+    if (track_diff > 160 && trackDataAge(now, &a->gs_valid) < 10 * SECONDS) {
+        backInTimeSeconds = distance / (a->gs * (1852.0f / 3600.0f));
+    }
+
     if (elapsed > 2 * SECONDS || distance > 0) {
         if (
                 (source > SOURCE_MLAT && track_diff < 190 && !inrange
@@ -539,7 +544,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
     if (!Modes.userLocationValid) {
         if (!inrange && mm->source == SOURCE_ADSB
-                && distance - range > 800 && track_diff > 45
+                && (distance - range > 800 || backInTimeSeconds > 4) && track_diff > 45
                 && a->pos_reliable_odd >= Modes.filter_persistence * 3 / 4
                 && a->pos_reliable_even >= Modes.filter_persistence * 3 / 4
            ) {
