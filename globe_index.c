@@ -510,7 +510,7 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
     // prepare writing the permanent history
     // until 20 min after midnight we only write permanent traces for the previous day
     if ((trace_write & WPERM)) {
-        if (!Modes.globe_history_dir || (a->addr & MODES_NON_ICAO_ADDRESS)) {
+        if (!Modes.globe_history_dir || ((a->addr & MODES_NON_ICAO_ADDRESS) && a->airground == AG_GROUND)) {
             // be sure to push the timer back if we don't write permanent history
             a->trace_next_perm = now + GLOBE_PERM_IVAL;
         } else {
@@ -2117,7 +2117,7 @@ int handleHeatmap(uint64_t now) {
 
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
-            if (a->addr & MODES_NON_ICAO_ADDRESS) continue;
+            if ((a->addr & MODES_NON_ICAO_ADDRESS) && a->airground == AG_GROUND) continue;
             if (a->trace_len == 0) continue;
 
             struct state *trace = a->trace;
