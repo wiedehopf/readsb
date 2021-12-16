@@ -38,7 +38,7 @@ struct traceCacheEntry {
 
 struct traceCache {
     int32_t entriesLen;
-    uint64_t startStamp;
+    int64_t startStamp;
     struct traceCacheEntry entries[TRACE_CACHE_POINTS];
     char json[TRACE_CACHE_POINTS * 256];
 };
@@ -50,8 +50,8 @@ struct tile {
     int east;
 };
 
-void checkNewDay(uint64_t now);
-void checkNewDayLocked(uint64_t now);
+void checkNewDay(int64_t now);
+void checkNewDayLocked(int64_t now);
 int globe_index(double lat_in, double lon_in);
 int globe_index_index(int index);
 void init_globe_index();
@@ -67,11 +67,11 @@ ssize_t stateBytes(int len);
 ssize_t stateAllBytes(int len);
 void traceRealloc(struct aircraft *a, int len);
 void traceCleanup(struct aircraft *a);
-int traceAdd(struct aircraft *a, uint64_t now);
+int traceAdd(struct aircraft *a, int64_t now);
 int traceUsePosBuffered();
-void traceMaintenance(struct aircraft *a, uint64_t now);
+void traceMaintenance(struct aircraft *a, int64_t now);
 
-int handleHeatmap(uint64_t now);
+int handleHeatmap(int64_t now);
 
 struct craftArray {
     struct aircraft **list;
@@ -103,8 +103,8 @@ void traceDelete();
 struct hexInterval {
     struct hexInterval* next;
     uint32_t hex;
-    uint64_t from;
-    uint64_t to;
+    int64_t from;
+    int64_t to;
 };
 
 #endif

@@ -279,8 +279,8 @@ int anetTcpNonBlockConnectAddr(char *err, struct addrinfo *p)
 int anetRead(int fd, char *buf, int count)
 {
     int nread, totlen = 0;
-    while(totlen != count) {
-        nread = read(fd,buf,count-totlen);
+    while(totlen < count) {
+        nread = read(fd, buf, (size_t) (count - totlen));
         if (nread == 0) return totlen;
         if (nread == -1) return -1;
         totlen += nread;
@@ -295,7 +295,7 @@ int anetWrite(int fd, char *buf, int count)
 {
     int nwritten, totlen = 0;
     while(totlen != count) {
-        nwritten = write(fd,buf,count-totlen);
+        nwritten = write(fd, buf, (size_t) (count - totlen));
         if (nwritten == 0) return totlen;
         if (nwritten == -1) return -1;
         totlen += nwritten;

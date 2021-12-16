@@ -413,12 +413,12 @@ static void createDateDir(char *base_dir, struct tm *utc, char *dateDir) {
         perror(dateDir);
 }
 
-static void scheduleMemBothWrite(struct aircraft *a, uint64_t schedTime) {
+static void scheduleMemBothWrite(struct aircraft *a, int64_t schedTime) {
     a->trace_next_mw = schedTime;
     a->trace_writeCounter = 0xc0ffee;
 }
 
-static void traceWrite(struct aircraft *a, uint64_t now, int init) {
+static void traceWrite(struct aircraft *a, int64_t now, int init) {
     struct char_buffer recent;
     struct char_buffer full;
     struct char_buffer hist;
@@ -466,7 +466,7 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
             start_recent = startFull;
 
         if (!init && a->trace_len % 4 == 0) {
-            mark_legs(a, max(0, start_recent - 256 - recent_points));
+            mark_legs(a, imax(0, start_recent - 256 - recent_points));
         }
 
         // prepare the data for the trace_recent file in /run
@@ -536,8 +536,8 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
             utc.tm_sec = 0;
             utc.tm_min = 0;
             utc.tm_hour = 0;
-            uint64_t start_of_day = 1000 * (uint64_t) (timegm(&utc));
-            uint64_t end_of_day = 1000 * (uint64_t) (timegm(&utc) + 86400);
+            int64_t start_of_day = 1000 * (int64_t) (timegm(&utc));
+            int64_t end_of_day = 1000 * (int64_t) (timegm(&utc) + 86400);
 
             int start = -1;
             int end = -1;
@@ -553,7 +553,7 @@ static void traceWrite(struct aircraft *a, uint64_t now, int init) {
                     break;
                 }
             }
-            uint64_t endStamp = a->trace[end].timestamp;
+            int64_t endStamp = a->trace[end].timestamp;
             if (start >= 0 && end >= 0 && end >= start
                     // only write permanent trace if we haven't already written it
                     && a->trace_perm_last_timestamp != endStamp
@@ -667,7 +667,7 @@ void *save_blobs(void *arg) {
     return NULL;
 }
 
-static int load_aircraft(char **p, char *end, uint64_t now) {
+static int load_aircraft(char **p, char *end, int64_t now) {
     static int size_changed;
 
     if (end - *p < 1000)
@@ -824,7 +824,7 @@ void *traceEntryPoint(void *arg) {
     //fprintf(stderr, "%d %d\n", thread_start, thread_end);
 
     // write each part every 5 seconds
-    uint64_t sleep_ms = 5 * SECONDS / n_parts;
+    int64_t sleep_ms = 5 * SECONDS / n_parts;
 
     pthread_mutex_lock(&Threads.trace[thread].mutex);
 
@@ -836,7 +836,7 @@ void *traceEntryPoint(void *arg) {
 
     while (!Modes.exit) {
         //fprintf(stderr, "%d %d %d\n", part, start, end);
-        uint64_t now = mstime();
+        int64_t now = mstime();
 
         // adding 1 means we handle divisions with remainder gracefully
         // just need to check that we don't go out of bounds
@@ -940,18 +940,18 @@ static void mark_legs(struct aircraft *a, int start) {
     high = 0;
     low = 100000;
 
-    uint64_t major_climb = 0;
-    uint64_t major_descent = 0;
+    int64_t major_climb = 0;
+    int64_t major_descent = 0;
     int major_climb_index = 0;
     int major_descent_index = 0;
-    uint64_t last_high = 0;
-    uint64_t last_low = 0;
+    int64_t last_high = 0;
+    int64_t last_low = 0;
 
     int last_low_index = 0;
 
-    uint64_t last_airborne = 0;
-    uint64_t last_ground = 0;
-    uint64_t first_ground = 0;
+    int64_t last_airborne = 0;
+    int64_t last_ground = 0;
+    int64_t first_ground = 0;
 
     int was_ground = 0;
 
@@ -965,7 +965,7 @@ static void mark_legs(struct aircraft *a, int start) {
         int prev_index = prev_tmp;
         struct state *prev = &a->trace[prev_index];
 
-        uint64_t elapsed = state->timestamp - prev->timestamp;
+        int64_t elapsed = state->timestamp - prev->timestamp;
 
         int32_t altitude = state->altitude * 25;
         //int32_t geom_rate = state->geom_rate * 32;
@@ -1054,7 +1054,7 @@ static void mark_legs(struct aircraft *a, int start) {
                 // then keep that time associated with the climb
                 // still report continuation of thta climb
                 if (major_climb <= major_descent) {
-                    int bla = min(a->trace_len - 1, last_low_index + 3);
+                    int bla = imin(a->trace_len - 1, last_low_index + 3);
                     major_climb = a->trace[bla].timestamp;
                     major_climb_index = bla;
                 }
@@ -1068,7 +1068,7 @@ static void mark_legs(struct aircraft *a, int start) {
                 }
                 low = high - threshold * 9/10;
             } else if (last_high < last_low) {
-                int bla = max(0, last_low_index - 3);
+                int bla = imax(0, last_low_index - 3);
                 while(bla > 0) {
                     if (0 && a->addr == Modes.leg_focus) {
                         fprintf(stderr, "bla: %d %d %d %d\n", bla, a->trace[bla].altitude * 25,
@@ -1142,7 +1142,7 @@ static void mark_legs(struct aircraft *a, int start) {
 
         if (leg_float || leg_now)
         {
-            uint64_t leg_ts = 0;
+            int64_t leg_ts = 0;
 
             if (leg_now) {
                 new_leg = &a->trace[prev_index + 1];
@@ -1167,7 +1167,7 @@ static void mark_legs(struct aircraft *a, int start) {
                         break;
                     }
                 }
-                uint64_t half = major_descent + (major_climb - major_descent) / 2;
+                int64_t half = major_descent + (major_climb - major_descent) / 2;
                 for (int i = major_descent_index + 1; i < major_climb_index; i++) {
                     struct state *state = &a->trace[i];
 
@@ -1355,7 +1355,7 @@ void traceRealloc(struct aircraft *a, int len) {
     }
 }
 
-static void tracePrune(struct aircraft *a, uint64_t now) {
+static void tracePrune(struct aircraft *a, int64_t now) {
     if (a->trace_alloc == 0) {
         return;
     }
@@ -1364,7 +1364,7 @@ static void tracePrune(struct aircraft *a, uint64_t now) {
         return;
     }
 
-    uint64_t keep_after = now - Modes.keep_traces;
+    int64_t keep_after = now - Modes.keep_traces;
 
     int new_start = -1;
     // throw out oldest values if approaching max trace size
@@ -1441,7 +1441,7 @@ void traceCleanup(struct aircraft *a) {
 }
 
 
-void traceMaintenance(struct aircraft *a, uint64_t now) {
+void traceMaintenance(struct aircraft *a, int64_t now) {
     if (!a->trace_alloc)
         return;
 
@@ -1512,7 +1512,7 @@ void traceMaintenance(struct aircraft *a, uint64_t now) {
 }
 
 
-int traceAdd(struct aircraft *a, uint64_t now) {
+int traceAdd(struct aircraft *a, int64_t now) {
     if (!Modes.keep_traces)
         return 0;
 
@@ -1529,7 +1529,7 @@ int traceAdd(struct aircraft *a, uint64_t now) {
     int duplicate = 0;
 
     int64_t max_elapsed = Modes.json_trace_interval;
-    int64_t min_elapsed = min(TRACE_MIN_ELAPSED, max_elapsed);
+    int64_t min_elapsed = imin(TRACE_MIN_ELAPSED, max_elapsed);
     float turn_density = 4.5;
 
     float max_speed_diff = 5.0;
@@ -1550,7 +1550,7 @@ int traceAdd(struct aircraft *a, uint64_t now) {
         min_elapsed += 60 * SECONDS;
     }
 
-    for (int i = max(0, a->trace_len - 6); i < a->trace_len; i++) {
+    for (int i = imax(0, a->trace_len - 6); i < a->trace_len; i++) {
         if ( (int32_t) (a->lat * 1E6) == a->trace[i].lat
                 && (int32_t) (a->lon * 1E6) == a->trace[i].lon ) {
             return 0;
@@ -1792,7 +1792,7 @@ no_save_state:
         //fprintf(stderr, "%06x: new trace\n", a->addr);
     }
     if (a->trace_len + 1 >= a->trace_alloc) {
-        static uint64_t antiSpam;
+        static int64_t antiSpam;
         if (Modes.debug_traceAlloc || now > antiSpam + 5 * SECONDS) {
             fprintf(stderr, "<3>%06x: trace_alloc insufficient: trace_len %d trace_alloc %d\n",
                     a->addr, a->trace_len, a->trace_alloc);
@@ -1938,7 +1938,7 @@ void save_blob(int blob) {
 
     uint64_t magic = 0x7ba09e63757913eeULL;
 
-    int alloc = max(16 * 1024 * 1024, (stateBytes(Modes.traceMax) + stateAllBytes(Modes.traceMax)));
+    int alloc = imax(16 * 1024 * 1024, (stateBytes(Modes.traceMax) + stateAllBytes(Modes.traceMax)));
     unsigned char *buf = aligned_malloc(alloc);
     unsigned char *p = buf;
 
@@ -2025,7 +2025,7 @@ static void load_blob(int blob) {
         fprintf(stderr, "load_blob: invalid argument: %d", blob);
     uint64_t magic = 0x7ba09e63757913eeULL;
     char filename[1024];
-    uint64_t now = mstime();
+    int64_t now = mstime();
     int fd = -1;
     struct char_buffer cb;
     char *p;
@@ -2071,7 +2071,7 @@ static void load_blob(int blob) {
 }
 
 
-int handleHeatmap(uint64_t now) {
+int handleHeatmap(int64_t now) {
     if (!Modes.heatmap)
         return 0;
 
@@ -2100,9 +2100,9 @@ int handleHeatmap(uint64_t now) {
     utc.tm_hour = half_hour / 2;
     utc.tm_min = 30 * (half_hour % 2);
     utc.tm_sec = 0;
-    uint64_t start = 1000 * (uint64_t) (timegm(&utc));
-    uint64_t end = start + 30 * MINUTES;
-    int num_slices = (30 * MINUTES) / Modes.heatmap_interval;
+    int64_t start = 1000 * (int64_t) (timegm(&utc));
+    int64_t end = start + 30 * MINUTES;
+    int num_slices = (int)((30 * MINUTES) / Modes.heatmap_interval);
 
 
     char pathbuf[PATH_MAX];
@@ -2121,7 +2121,7 @@ int handleHeatmap(uint64_t now) {
             if (a->trace_len == 0) continue;
 
             struct state *trace = a->trace;
-            uint64_t next = start;
+            int64_t next = start;
             int slice = 0;
             uint32_t squawk = 0x8888; // impossible squawk
             uint64_t callsign = 0; // quackery
@@ -2132,7 +2132,7 @@ int handleHeatmap(uint64_t now) {
                 if (trace[i].timestamp > end)
                     break;
                 // get callsign and squawk from up to 2 mins before the half hour we write for
-                if (trace[i].timestamp + (uint64_t) (2 * MINUTES) > start && i % 4 == 0) {
+                if (trace[i].timestamp + (int64_t) (2 * MINUTES) > start && i % 4 == 0) {
                     struct state_all *all = &(a->trace_all[i/4]);
                     uint64_t *cs = (uint64_t *) &(all->callsign);
                     if (*cs != callsign || squawk != all->squawk) {
@@ -2191,7 +2191,7 @@ int handleHeatmap(uint64_t now) {
 
     for (int i = 0; i < num_slices; i++) {
         struct heatEntry specialSauce = (struct heatEntry) {0};
-        uint64_t slice_stamp = start + i * Modes.heatmap_interval;
+        int64_t slice_stamp = start + i * Modes.heatmap_interval;
         specialSauce.hex = 0xe7f7c9d;
         specialSauce.lat = slice_stamp >> 32;
         specialSauce.lon = slice_stamp & ((1ULL << 32) - 1);
@@ -2303,7 +2303,7 @@ static void compressACAS(char *dateDir) {
 }
 
 // this doesn't need to run under lock as the there should be no need for synchronisation
-void checkNewDay(uint64_t now) {
+void checkNewDay(int64_t now) {
     if (!Modes.globe_history_dir || !Modes.json_globe_index)
         return;
 
@@ -2364,7 +2364,7 @@ void checkNewDay(uint64_t now) {
 }
 
 // do stuff which needs to happen when the other threads locked
-void checkNewDayLocked(uint64_t now) {
+void checkNewDayLocked(int64_t now) {
     if (!Modes.globe_history_dir || !Modes.json_globe_index)
         return;
 
@@ -2452,7 +2452,7 @@ void readInternalState() {
         pthread_join(threads[i], NULL);
     }
 
-    uint64_t aircraftCount = 0; // includes quite old aircraft, just for checking hash table fill
+    int64_t aircraftCount = 0; // includes quite old aircraft, just for checking hash table fill
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
             aircraftCount++;
@@ -2522,13 +2522,13 @@ void traceDelete() {
         }
         // align to a multiple of 4
         start = start / 4 * 4;
-        end = min(a->trace_len, ((end / 4) + 1) * 4);
+        end = imin(a->trace_len, ((end / 4) + 1) * 4);
         if (end >= a->trace_len) {
             a->trace_len = start;
         } else {
             memmove(a->trace + start, a->trace + end, stateBytes(end - start));
         }
-        uint64_t now = mstime();
+        int64_t now = mstime();
         traceMaintenance(a, now);
         scheduleMemBothWrite(a, now);
         entry = entry->next;
@@ -2540,7 +2540,7 @@ void traceDelete() {
 
 /*
 void *load_state(void *arg) {
-    uint64_t now = mstime();
+    int64_t now = mstime();
     char pathbuf[PATH_MAX];
     //struct stat fileinfo = {0};
     //fstat(fd, &fileinfo);

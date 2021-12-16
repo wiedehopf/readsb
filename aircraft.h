@@ -12,7 +12,7 @@ static inline uint32_t addrHash(uint32_t addr, uint32_t bits) {
 
     // collapse to required bit width while retaining as much info as possible
 
-    uint32_t res = h ^ (h >> 32);
+    uint64_t res = h ^ (h >> 32);
 
     if (bits < 16)
         res ^= (res >> 16);
@@ -22,7 +22,7 @@ static inline uint32_t addrHash(uint32_t addr, uint32_t bits) {
     // mask to fit the requested bit width
     res &= (((uint64_t) 1) << bits) - 1;
 
-    return res;
+    return (uint32_t) res;
 }
 
 void quickInit();
@@ -177,7 +177,7 @@ struct binCraft {
 #endif
 } __attribute__ ((__packed__));
 
-void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now);
+void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now);
 int dbUpdate();
 int dbFinishUpdate();
 

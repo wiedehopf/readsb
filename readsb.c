@@ -57,7 +57,7 @@
 struct _Modes Modes;
 struct _Threads Threads;
 
-static void backgroundTasks(uint64_t now);
+static void backgroundTasks(int64_t now);
 static error_t parse_opt(int key, char *arg, struct argp_state *state);
 
 //
@@ -68,7 +68,7 @@ static void cleanup_and_exit(int code);
 void setExit(int arg) {
     Modes.exit = arg; // Signal to threads that we are done
     uint64_t one = 1;
-    int res = write(Modes.exitEventfd, &one, sizeof(one));
+    ssize_t res = write(Modes.exitEventfd, &one, sizeof(one));
     MODES_NOTUSED(res);
 }
 static void sigintHandler(int dummy) {
@@ -183,7 +183,7 @@ static void configSetDefaults(void) {
 //
 static void modesInit(void) {
 
-    uint64_t now = mstime();
+    int64_t now = mstime();
     Modes.next_stats_update = roundSeconds(10, 5, now + 10 * SECONDS);
     Modes.next_stats_display = now + Modes.stats;
 
@@ -214,7 +214,7 @@ static void modesInit(void) {
     Modes.sample_rate = (double)2400000.0;
 
     // Allocate the various buffers used by Modes
-    Modes.trailing_samples = (MODES_PREAMBLE_US + MODES_LONG_MSG_BITS + 16) * 1e-6 * Modes.sample_rate;
+    Modes.trailing_samples = (unsigned)((MODES_PREAMBLE_US + MODES_LONG_MSG_BITS + 16) * 1e-6 * Modes.sample_rate);
 
     if (!Modes.net_only) {
         for (int i = 0; i < MODES_MAG_BUFFERS; ++i) {
@@ -265,8 +265,11 @@ static void trackPeriodicUpdate() {
     startWatch(&Modes.hungTimer1);
     pthread_mutex_unlock(&Modes.hungTimerMutex);
     Modes.currentTask = "trackPeriodic_start";
-    static uint32_t upcount;
+    static int32_t upcount;
     upcount++; // free running counter, first iteration is with 1
+    if (upcount < 0) {
+        upcount = 0;
+    }
 
     // stop all threads so we can remove aircraft from the list.
     // also serves as memory barrier so json threads get new aircraft in the list
@@ -277,7 +280,7 @@ static void trackPeriodicUpdate() {
     lockThreads();
     Modes.currentTask = "locked";
 
-    uint64_t now = mstime();
+    int64_t now = mstime();
 
     if (now > Modes.next_stats_update)
         Modes.updateStats = 1;
@@ -338,7 +341,7 @@ static void trackPeriodicUpdate() {
     unlockThreads();
     Modes.currentTask = "unlocked";
 
-    static uint64_t antiSpam;
+    static int64_t antiSpam;
     if ((elapsed1 > 150 || elapsed2 > 150) && now > antiSpam + 30 * SECONDS) {
         fprintf(stderr, "<3>High load: removeStale took %"PRIi64"/%"PRIi64" ms! upcount: %d stats: %d (suppressing for 30 seconds)\n", elapsed1, elapsed2, (int) (upcount % (1 * SECONDS / PERIODIC_UPDATE)), Modes.updateStats);
         antiSpam = now;
@@ -351,7 +354,7 @@ static void trackPeriodicUpdate() {
         Modes.currentTask = "statsReset";
         statsResetCount();
 
-        uint64_t now = mstime();
+        int64_t now = mstime();
 
         Modes.currentTask = "statsCount";
         statsCountAircraft(now);
@@ -368,7 +371,7 @@ static void trackPeriodicUpdate() {
     }
     if (Modes.outline_json) {
         Modes.currentTask = "outlineJson";
-        static uint64_t nextOutlineWrite;
+        static int64_t nextOutlineWrite;
         if (now > nextOutlineWrite) {
             writeJsonToFile(Modes.json_dir, "outline.json", generateOutlineJson());
             nextOutlineWrite = now + 30 * SECONDS;
@@ -420,7 +423,7 @@ static void *jsonEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
     srandom(get_seed());
 
-    uint64_t next_history = mstime();
+    int64_t next_history = mstime();
 
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
@@ -432,7 +435,7 @@ static void *jsonEntryPoint(void *arg) {
         struct timespec start_time;
         start_cpu_timing(&start_time);
 
-        uint64_t now = mstime();
+        int64_t now = mstime();
 
         // old direct creation, slower when creating json for an aircraft more than once
         //struct char_buffer cb = generateAircraftJson(0);
@@ -529,7 +532,7 @@ static void *globeBinEntryPoint(void *arg) {
     int part = 0;
     int n_parts = 8; // power of 2
 
-    uint64_t sleep_ms = Modes.json_interval / n_parts / 2;
+    int64_t sleep_ms = Modes.json_interval / n_parts / 2;
     // write globe binCraft at double speed
 
     pthread_mutex_lock(&Threads.globeBin.mutex);
@@ -590,7 +593,7 @@ static void *decodeEntryPoint(void *arg) {
 
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
-    uint64_t now = mstime();
+    int64_t now = mstime();
     if (Modes.net_only) {
         while (!Modes.exit) {
             struct timespec start_time;
@@ -707,7 +710,7 @@ static void *upkeepEntryPoint(void *arg) {
 
     while (!Modes.exit) {
         trackPeriodicUpdate();
-        uint64_t wait = PERIODIC_UPDATE;
+        int64_t wait = PERIODIC_UPDATE;
         if (Modes.synthetic_now)
             wait = 20;
         threadTimedWait(&Threads.upkeep, &ts, wait);
@@ -746,15 +749,15 @@ static void snipMode(int level) {
 // perform tasks we need to do continuously, like accepting new clients
 // from the net, refreshing the screen in interactive mode, and so forth
 //
-static void backgroundTasks(uint64_t now) {
+static void backgroundTasks(int64_t now) {
     // Refresh screen when in interactive mode
-    static uint64_t next_interactive;
+    static int64_t next_interactive;
     if (Modes.interactive && now > next_interactive) {
         interactiveShowData();
         next_interactive = now + 42;
     }
 
-    static uint64_t next_flip = 0;
+    static int64_t next_flip = 0;
     if (now >= next_flip) {
         icaoFilterExpire(now);
         next_flip = now + MODES_ICAO_FILTER_TTL;
@@ -841,7 +844,7 @@ static int make_net_connector(char *arg) {
     if (!Modes.net_connectors || Modes.net_connectors_count + 1 > Modes.net_connectors_size) {
         Modes.net_connectors_size = Modes.net_connectors_count * 2 + 8;
         Modes.net_connectors = realloc(Modes.net_connectors,
-                sizeof(struct net_connector *) * Modes.net_connectors_size);
+                sizeof(struct net_connector *) * (size_t) Modes.net_connectors_size);
         if (!Modes.net_connectors) {
             fprintf(stderr, "realloc error net_connectors\n");
             exit(1);
@@ -947,7 +950,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.raw = 1;
             break;
         case OptPreambleThreshold:
-            Modes.preambleThreshold = (uint32_t) (max(min(strtoll(arg, NULL, 10), PREAMBLE_THRESHOLD_MAX), PREAMBLE_THRESHOLD_MIN));
+            Modes.preambleThreshold = (uint32_t) (imax(imin(strtoll(arg, NULL, 10), PREAMBLE_THRESHOLD_MAX), PREAMBLE_THRESHOLD_MIN));
             break;
         case OptNet:
             Modes.net = 1;
@@ -1015,7 +1018,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.quiet = 1;
             break;
         case OptInteractiveTTL:
-            Modes.interactive_display_ttl = (uint64_t) (1000 * atof(arg));
+            Modes.interactive_display_ttl = (int64_t) (1000 * atof(arg));
             break;
         case OptLat:
             Modes.fUserLat = atof(arg);
@@ -1028,13 +1031,13 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptStats:
             if (!Modes.stats)
-                Modes.stats = (uint64_t) 1 << 60; // "never"
+                Modes.stats = (int64_t) 1 << 60; // "never"
             break;
         case OptStatsRange:
             Modes.stats_range_histo = 1;
             break;
         case OptStatsEvery:
-            Modes.stats = (uint64_t) (1000 * atof(arg));
+            Modes.stats = (int64_t) (1000.0 * atof(arg));
             break;
         case OptSnip:
             snipMode(atoi(arg));
@@ -1049,7 +1052,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptHeatmap:
             Modes.heatmap = 1;
             if (atof(arg) > 0)
-                Modes.heatmap_interval = 1000 * atof(arg);
+                Modes.heatmap_interval = (int64_t)(1000.0 * atof(arg));
             break;
         case OptHeatmapDir:
             Modes.heatmap_dir = strdup(arg);
@@ -1071,12 +1074,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             snprintf(Modes.state_dir, PATH_MAX, "%s/internal_state", arg);
             break;
         case OptJsonTime:
-            Modes.json_interval = (uint64_t) (1000 * atof(arg));
+            Modes.json_interval = (int64_t) (1000.0 * atof(arg));
             if (Modes.json_interval < 100) // 0.1s
                 Modes.json_interval = 100;
             break;
         case OptJsonLocAcc:
-            Modes.json_location_accuracy = atoi(arg);
+            Modes.json_location_accuracy = (int8_t) atoi(arg);
             break;
 
         case OptJaeroTimeout:
@@ -1107,20 +1110,20 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.json_gzip = 1;
             break;
         case OptJsonOnlyBin:
-            Modes.onlyBin = atoi(arg);
+            Modes.onlyBin = (int8_t) atoi(arg);
             break;
         case OptJsonTraceHistOnly:
-            Modes.trace_hist_only = atoi(arg);
+            Modes.trace_hist_only = (int8_t) atoi(arg);
             break;
         case OptJsonTraceInt:
             if (atof(arg) > 0)
-                Modes.json_trace_interval = 1000 * atof(arg);
+                Modes.json_trace_interval = (int64_t)(1000 * atof(arg));
             break;
         case OptJsonGlobeIndex:
             Modes.json_globe_index = 1;
             break;
         case OptNetHeartbeat:
-            Modes.net_heartbeat_interval = (uint64_t) (1000 * atof(arg));
+            Modes.net_heartbeat_interval = (int64_t) (1000 * atof(arg));
             break;
         case OptNetRoSize:
             Modes.net_output_flush_size = atoi(arg);
@@ -1129,7 +1132,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.net_output_flush_interval = 1000 * atoi(arg) / 15; // backwards compatibility
             break;
         case OptNetRoIntervall:
-            Modes.net_output_flush_interval = (uint64_t) (1000 * atof(arg));
+            Modes.net_output_flush_interval = (int64_t) (1000 * atof(arg));
             break;
         case OptNetRoPorts:
             sfree(Modes.net_output_raw_ports);
@@ -1153,15 +1156,15 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptNetBeastReduceFilterAlt:
             if (atof(arg) > 0)
-                Modes.beast_reduce_filter_altitude = atof(arg);
+                Modes.beast_reduce_filter_altitude = (float) atof(arg);
             break;
         case OptNetBeastReduceFilterDist:
             if (atof(arg) > 0)
-                Modes.beast_reduce_filter_distance = atof(arg) * 1852.0; // convert to meters
+                Modes.beast_reduce_filter_distance = (float) atof(arg) * 1852.0f; // convert to meters
             break;
         case OptNetBeastReduceInterval:
             if (atof(arg) >= 0)
-                Modes.net_output_beast_reduce_interval = (uint64_t) (1000 * atof(arg));
+                Modes.net_output_beast_reduce_interval = (int64_t) (1000 * atof(arg));
             if (Modes.net_output_beast_reduce_interval > 15000)
                 Modes.net_output_beast_reduce_interval = 15000;
             break;
@@ -1204,7 +1207,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptNetVRSInterval:
             if (atof(arg) > 0)
-                Modes.net_output_vrs_interval = atof(arg) * SECONDS;
+                Modes.net_output_vrs_interval = (int64_t)(atof(arg) * SECONDS);
             break;
         case OptNetBuffer:
             Modes.net_sndbuf_size = atoi(arg);
@@ -1234,21 +1237,21 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 return 1;
             break;
         case OptNetConnectorDelay:
-            Modes.net_connector_delay = (uint64_t) 1000 * atof(arg);
+            Modes.net_connector_delay = (int64_t) (1000 * atof(arg));
             break;
 
         case OptTraceFocus:
-            Modes.trace_focus = strtol(arg, NULL, 16);
+            Modes.trace_focus = (uint32_t) strtol(arg, NULL, 16);
             Modes.interactive = 0;
             fprintf(stderr, "trace_focus = %06x\n", Modes.trace_focus);
             break;
         case OptCprFocus:
-            Modes.cpr_focus = strtol(arg, NULL, 16);
+            Modes.cpr_focus = (uint32_t) strtol(arg, NULL, 16);
             Modes.interactive = 0;
             fprintf(stderr, "cpr_focus = %06x\n", Modes.cpr_focus);
             break;
         case OptLegFocus:
-            Modes.leg_focus = strtol(arg, NULL, 16);
+            Modes.leg_focus = (uint32_t) strtol(arg, NULL, 16);
             fprintf(stderr, "leg_focus = %06x\n", Modes.leg_focus);
             break;
         case OptReceiverFocus:
@@ -1361,8 +1364,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 
 int parseCommandLine(int argc, char **argv) {
     // check if we are running as viewadsb and set according behaviour
-    int argv0Len = strlen(argv[0]);
-    if (argv0Len >= 8 && !strcmp(argv[0] + (argv0Len - 8), "viewadsb")) {
+    if (!strcmp(argv[0], "viewadsb")) {
         Modes.viewadsb = 1;
         Modes.net = 1;
         Modes.sdr_type = SDR_NONE;
@@ -1439,9 +1441,9 @@ static void configAfterParse() {
     Modes.traceReserve = 64;
     Modes.traceMax = 64 * 1024;
     if (Modes.json_trace_interval < 3 * SECONDS) {
-        double oversize = 3.0 / fmax(0.4, Modes.json_trace_interval / 1000.0);
-        Modes.traceReserve *= oversize;
-        Modes.traceMax *= oversize;
+        double oversize = 3.0 / fmax(0.4, (double) Modes.json_trace_interval / 1000.0);
+        Modes.traceReserve = (int) (Modes.traceReserve * oversize);
+        Modes.traceMax = (int) (Modes.traceMax * oversize);
     }
 
     Modes.num_procs = 1; // default this value to 1
@@ -1546,7 +1548,7 @@ static void configAfterParse() {
 }
 
 static void miscStuff() {
-    uint64_t now = mstime();
+    int64_t now = mstime();
 
     struct timespec watch;
     startWatch(&watch);
@@ -1564,7 +1566,7 @@ static void miscStuff() {
     }
     if (Modes.state_dir) {
         static uint32_t blob; // current blob
-        static uint64_t next_blob;
+        static int64_t next_blob;
 
         char filename[PATH_MAX];
         snprintf(filename, PATH_MAX, "%s/writeState", Modes.state_dir);
@@ -1585,7 +1587,7 @@ static void miscStuff() {
         }
     }
 
-    static uint64_t next_clients_json;
+    static int64_t next_clients_json;
     if (!enough && Modes.json_dir && now > next_clients_json) {
         enough = 1;
         next_clients_json = now + 10 * SECONDS;
@@ -1600,7 +1602,7 @@ static void miscStuff() {
         if (dbFinishUpdate())
             enough = 1;
     }
-    static uint64_t next_db_check;
+    static int64_t next_db_check;
     if (!enough && now > next_db_check) {
         enough = 1;
         dbUpdate();
@@ -1610,8 +1612,8 @@ static void miscStuff() {
 
     end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
 
-    uint64_t elapsed = stopWatch(&watch);
-    static uint64_t antiSpam2;
+    int64_t elapsed = stopWatch(&watch);
+    static int64_t antiSpam2;
     if (elapsed > 12 * SECONDS && now > antiSpam2 + 30 * SECONDS) {
         fprintf(stderr, "<3>High load: heatmap_and_stuff took %"PRIu64" ms! Suppressing for 30 seconds\n", elapsed);
         antiSpam2 = now;

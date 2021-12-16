@@ -172,7 +172,7 @@ const char *nav_modes_flags_string(nav_modes_t flags) {
 
 }
 
-void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, uint64_t now) {
+void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, int64_t now) {
     char buf[512];
     char *p = buf;
     char *end = buf + sizeof(buf);
@@ -190,7 +190,7 @@ void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, st
     fflush(stdout); // FLUSH
 }
 
-void logACASInfoShort(uint32_t addr, unsigned char *bytes, struct aircraft *a, struct modesMessage *mm, uint64_t now) {
+void logACASInfoShort(uint32_t addr, unsigned char *bytes, struct aircraft *a, struct modesMessage *mm, int64_t now) {
 
     static int64_t lastLogTimestamp1, lastLogTimestamp2;
     static uint32_t lastLogAddr1, lastLogAddr2;
@@ -246,7 +246,7 @@ void logACASInfoShort(uint32_t addr, unsigned char *bytes, struct aircraft *a, s
     }
 }
 
-static char *sprintACASJson(char *p, char *end, unsigned char *bytes, struct modesMessage *mm, uint64_t now) {
+static char *sprintACASJson(char *p, char *end, unsigned char *bytes, struct modesMessage *mm, int64_t now) {
     bool ara = getbit(bytes, 9);
     bool rat = getbit(bytes, 27);
     bool mte = getbit(bytes, 28);
@@ -412,7 +412,7 @@ static char *sprintACASJson(char *p, char *end, unsigned char *bytes, struct mod
     return p;
 }
 
-char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *bytes, struct aircraft *a, struct modesMessage *mm, uint64_t now) {
+char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *bytes, struct aircraft *a, struct modesMessage *mm, int64_t now) {
     bool ara = getbit(bytes, 9);
     bool rat = getbit(bytes, 27);
     bool mte = getbit(bytes, 28);
@@ -600,7 +600,7 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *byte
     return p;
 }
 
-char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now, int printMode, struct modesMessage *mm) {
+char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, int printMode, struct modesMessage *mm) {
 
     // printMode == 0: aircraft.json / globe.json / apiBuffer
     // printMode == 1: trace.json
@@ -783,7 +783,7 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, uint64_t now,
     return p;
 }
 
-char *sprintAircraftRecent(char *p, char *end, struct aircraft *a, uint64_t now, int printMode, struct modesMessage *mm, uint64_t recent) {
+char *sprintAircraftRecent(char *p, char *end, struct aircraft *a, int64_t now, int printMode, struct modesMessage *mm, int64_t recent) {
     if (printMode == 1) {
     }
     char *start = p;
@@ -930,7 +930,7 @@ char *sprintAircraftRecent(char *p, char *end, struct aircraft *a, uint64_t now,
 }
 
 /*
-static void check_state_all(struct aircraft *test, uint64_t now) {
+static void check_state_all(struct aircraft *test, int64_t now) {
     size_t buflen = 4096;
     char buffer1[buflen];
     char buffer2[buflen];
@@ -968,7 +968,7 @@ static void check_state_all(struct aircraft *test, uint64_t now) {
 }
 */
 
-static inline __attribute__((always_inline)) int includeGlobeJson(uint64_t now, struct aircraft *a) {
+static inline __attribute__((always_inline)) int includeGlobeJson(int64_t now, struct aircraft *a) {
     if (a == NULL)
         return 0;
     if (a->messages < 2)
@@ -991,7 +991,7 @@ static inline __attribute__((always_inline)) int includeGlobeJson(uint64_t now, 
     return 1;
 }
 
-static inline __attribute__((always_inline)) int includeAircraftJson(uint64_t now, struct aircraft *a) {
+static inline __attribute__((always_inline)) int includeAircraftJson(int64_t now, struct aircraft *a) {
     if (a == NULL)
         return 0;
     if (a->messages < 2)
@@ -1012,7 +1012,7 @@ static inline __attribute__((always_inline)) int includeAircraftJson(uint64_t no
 
 struct char_buffer generateAircraftBin() {
     struct char_buffer cb;
-    uint64_t now = mstime();
+    int64_t now = mstime();
     struct aircraft *a;
 
     struct craftArray *ca = &Modes.aircraftActive;
@@ -1089,7 +1089,7 @@ struct char_buffer generateAircraftBin() {
 
 struct char_buffer generateGlobeBin(int globe_index, int mil) {
     struct char_buffer cb;
-    uint64_t now = mstime();
+    int64_t now = mstime();
     struct aircraft *a;
     size_t alloc = 4096; // The initial buffer is resized as needed
 
@@ -1198,7 +1198,7 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
 
 struct char_buffer generateGlobeJson(int globe_index){
     struct char_buffer cb;
-    uint64_t now = mstime();
+    int64_t now = mstime();
     struct aircraft *a;
     size_t alloc = 4096; // The initial buffer is resized as needed
 
@@ -1298,9 +1298,9 @@ struct char_buffer generateGlobeJson(int globe_index){
     return cb;
 }
 
-struct char_buffer generateAircraftJson(uint64_t onlyRecent){
+struct char_buffer generateAircraftJson(int64_t onlyRecent){
     struct char_buffer cb;
-    uint64_t now = mstime();
+    int64_t now = mstime();
     struct aircraft *a;
 
     struct craftArray *ca = &Modes.aircraftActive;
@@ -1367,7 +1367,7 @@ struct char_buffer generateAircraftJson(uint64_t onlyRecent){
     return cb;
 }
 
-static char *sprintTracePoint(char *p, char *end, struct aircraft *a, int i, uint64_t startStamp) {
+static char *sprintTracePoint(char *p, char *end, struct aircraft *a, int i, int64_t startStamp) {
     struct state *trace = &a->trace[i];
 
     int32_t altitude = trace->altitude * 25;
@@ -1412,7 +1412,7 @@ static char *sprintTracePoint(char *p, char *end, struct aircraft *a, int i, uin
         p = safe_snprintf(p, end, ",null");
 
     if (i % 4 == 0) {
-        uint64_t now = trace->timestamp;
+        int64_t now = trace->timestamp;
         struct state_all *all = &(a->trace_all[i/4]);
         struct aircraft b;
         memset(&b, 0, sizeof(struct aircraft));
@@ -1433,7 +1433,7 @@ static char *sprintTracePoint(char *p, char *end, struct aircraft *a, int i, uin
 
     return p;
 }
-static void checkTraceCache(struct aircraft *a, uint64_t now) {
+static void checkTraceCache(struct aircraft *a, int64_t now) {
     if (!a->traceCache) {
         if (now > a->seen_pos + TRACE_CACHE_LIFETIME / 2 || !a->trace) {
             return;
@@ -1448,7 +1448,7 @@ static void checkTraceCache(struct aircraft *a, uint64_t now) {
     struct traceCache *c = a->traceCache;
     char *p;
     char *end = c->json + sizeof(c->json);
-    int firstRecent = max(0, a->trace_len - TRACE_RECENT_POINTS);
+    int firstRecent = imax(0, a->trace_len - TRACE_RECENT_POINTS);
 
     struct traceCacheEntry *e = c->entries;
     int k = 0;
@@ -1478,7 +1478,7 @@ static void checkTraceCache(struct aircraft *a, uint64_t now) {
                 fprintf(stderr, "%06x ", a->addr);
         } else if (newEntryCount + c->entriesLen > TRACE_CACHE_POINTS) {
             // if the cache would get full, do memmove fun!
-            int moveIndexes = min(k, TRACE_CACHE_EXTRA);
+            int moveIndexes = imin(k, TRACE_CACHE_EXTRA);
             c->entriesLen -= moveIndexes;
             k -= moveIndexes;
             memmove(e, e + TRACE_CACHE_EXTRA, c->entriesLen * sizeof(struct traceCacheEntry));
@@ -1554,7 +1554,7 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
     if (!Modes.json_globe_index) {
         return cb;
     }
-    uint64_t now = mstime();
+    int64_t now = mstime();
 
     int limit = a->trace_len + (a->tracePosBuffered ? 1 : 0);
     int recent = (last == -2) ? 1 : 0;
@@ -1562,7 +1562,7 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
         last = limit - 1;
     }
 
-    int traceCount = max(last - start + 1, 0);
+    int traceCount = imax(last - start + 1, 0);
     size_t alloc = traceCount * 300 + 1024;
 
     char *buf = (char *) aligned_malloc(alloc), *p = buf, *end = buf + alloc;
@@ -1595,7 +1595,7 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
             p = safe_snprintf(p, end, ",\n\"noRegData\":true");
     }
 
-    uint64_t startStamp = a->trace[start].timestamp;
+    int64_t startStamp = a->trace[start].timestamp;
 
     if (recent) {
         checkTraceCache(a, now);
@@ -1862,7 +1862,7 @@ int writeJsonToGzip (const char* dir, const char *file, struct char_buffer cb, i
 
 struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {
     struct char_buffer cb;
-    uint64_t now = mstime();
+    int64_t now = mstime();
     struct aircraft *a;
     size_t buflen = 256*1024; // The initial buffer is resized as needed
     char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
@@ -2048,7 +2048,7 @@ skip_fields:
 
 struct char_buffer generateClientsJson() {
     struct char_buffer cb;
-    uint64_t now = mstime();
+    int64_t now = mstime();
 
     size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
     char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;

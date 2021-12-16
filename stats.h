@@ -56,8 +56,8 @@
 
 struct stats
 {
-  uint64_t start;
-  uint64_t end;
+  int64_t start;
+  int64_t end;
   // Mode S demodulator counts:
   uint32_t demod_preambles;
   uint32_t demod_rejected_bad;
@@ -184,10 +184,10 @@ struct char_buffer generateStatusProm();
 struct char_buffer generateStatsJson();
 struct char_buffer generatePromFile();
 
-void statsUpdate(uint64_t now);
-void checkDisplayStats(uint64_t now);
+void statsUpdate(int64_t now);
+void checkDisplayStats(int64_t now);
 void statsResetCount();
-void statsCountAircraft(uint64_t now);
-void statsWrite(uint64_t now);
+void statsCountAircraft(int64_t now);
+void statsWrite(int64_t now);
 
 #endif

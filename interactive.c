@@ -97,8 +97,8 @@ void interactiveCleanup(void) {
 }
 
 void interactiveShowData(void) {
-    static uint64_t next_update;
-    uint64_t now = mstime();
+    static int64_t next_update;
+    int64_t now = mstime();
     char progress;
     char spinner[4] = "|/-\\";
 

@@ -334,7 +334,7 @@ after_pre:
 
         // reduce number of preamble detections if we recently dropped samples
         if (Modes.stats_15min.samples_dropped)
-            ref_level = base_noise * max(PREAMBLE_THRESHOLD_PIZERO, Modes.preambleThreshold);
+            ref_level = base_noise * imax(PREAMBLE_THRESHOLD_PIZERO, Modes.preambleThreshold);
         else
             ref_level = base_noise * Modes.preambleThreshold;
 

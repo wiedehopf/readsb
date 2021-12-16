@@ -80,20 +80,20 @@
 //    handled via non-blocking I/O and manually polling clients to see if
 //    they have something new to share with us when reading is needed.
 
-static int handleCommandSocket(struct client *c, char *p, int remote, uint64_t now);
-static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t now);
-static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now);
-static int decodeHexMessage(struct client *c, char *hex, int remote, uint64_t now);
-static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now);
-static int decodeSbsLineMlat(struct client *c, char *line, int remote, uint64_t now) {
+static int handleCommandSocket(struct client *c, char *p, int remote, int64_t now);
+static int handleBeastCommand(struct client *c, char *p, int remote, int64_t now);
+static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now);
+static int decodeHexMessage(struct client *c, char *hex, int remote, int64_t now);
+static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now);
+static int decodeSbsLineMlat(struct client *c, char *line, int remote, int64_t now) {
     MODES_NOTUSED(remote);
     return decodeSbsLine(c, line, 64 + SOURCE_MLAT, now);
 }
-static int decodeSbsLinePrio(struct client *c, char *line, int remote, uint64_t now) {
+static int decodeSbsLinePrio(struct client *c, char *line, int remote, int64_t now) {
     MODES_NOTUSED(remote);
     return decodeSbsLine(c, line, 64 + SOURCE_PRIO, now);
 }
-static int decodeSbsLineJaero(struct client *c, char *line, int remote, uint64_t now) {
+static int decodeSbsLineJaero(struct client *c, char *line, int remote, int64_t now) {
     MODES_NOTUSED(remote);
     return decodeSbsLine(c, line, 64 + SOURCE_JAERO, now);
 }
@@ -105,9 +105,9 @@ static void send_sbs_heartbeat(struct net_service *service);
 static void autoset_modeac();
 static void *pthreadGetaddrinfo(void *param);
 
-static int flushClient(struct client *c, uint64_t now);
+static int flushClient(struct client *c, int64_t now);
 static char *read_uuid(struct client *c, char *p, char *eod);
-static void modesReadFromClient(struct client *c, uint64_t start);
+static void modesReadFromClient(struct client *c, int64_t start);
 
 //
 //=========================================================================
@@ -204,7 +204,7 @@ struct client *createSocketClient(struct net_service *service, int fd) {
 
 struct client *createGenericClient(struct net_service *service, int fd) {
     struct client *c;
-    uint64_t now = mstime();
+    int64_t now = mstime();
 
     if (!service || fd == -1) {
         fprintf(stderr, "<3> FATAL: createGenericClient called with invalid parameters!\n");
@@ -279,7 +279,7 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     return c;
 }
 
-static void checkServiceConnected(struct net_connector *con, uint64_t now) {
+static void checkServiceConnected(struct net_connector *con, int64_t now) {
     int rv;
 
     struct pollfd pfd = {con->fd, (POLLIN | POLLOUT), 0};
@@ -396,12 +396,12 @@ static void checkServiceConnected(struct net_connector *con, uint64_t now) {
 
 // Initiate an outgoing connection.
 // Return the new client or NULL if the connection failed
-static void serviceConnect(struct net_connector *con, uint64_t now) {
+static void serviceConnect(struct net_connector *con, int64_t now) {
 
     int fd;
 
     // make sure backoff is never too small
-    con->backoff = max(Modes.net_connector_delay / 32, con->backoff);
+    con->backoff = imax(Modes.net_connector_delay / 32, con->backoff);
 
     if (con->try_addr && con->try_addr->ai_next) {
         // we have another address to try,
@@ -454,7 +454,7 @@ static void serviceConnect(struct net_connector *con, uint64_t now) {
             fprintf(stderr, "%s: Name resolution for %s failed: %s\n", con->service->descr, con->address, gai_strerror(con->gai_error));
             // limit name resolution attempts via backoff
             con->next_reconnect = now + con->backoff;
-            con->backoff = min(Modes.net_connector_delay, 2 * con->backoff);
+            con->backoff = imin(Modes.net_connector_delay, 2 * con->backoff);
             return;
         }
 
@@ -483,7 +483,7 @@ static void serviceConnect(struct net_connector *con, uint64_t now) {
     if (!con->try_addr->ai_next) {
         // limit tcp connection attemtps via backoff
         con->next_reconnect = now + con->backoff;
-        con->backoff = min(Modes.net_connector_delay, 2 * con->backoff);
+        con->backoff = imin(Modes.net_connector_delay, 2 * con->backoff);
     } else {
         // quickly try all IPs associated with a name if there are multiple
         con->next_reconnect = now + 20;
@@ -512,7 +512,7 @@ static void serviceConnect(struct net_connector *con, uint64_t now) {
 
 // Timer callback checking periodically whether the push service lost its server
 // connection and requires a re-connect.
-static void serviceReconnectCallback(uint64_t now) {
+static void serviceReconnectCallback(int64_t now) {
     // Loop through the connectors, and
     //  - If it's not connected:
     //    - If it's "connecting", check to see if the fd is ready
@@ -836,7 +836,7 @@ void modesInitNet(void) {
 //
 //=========================================================================
 // Accept new connections
-static void modesAcceptClients(struct client *c, uint64_t now) {
+static void modesAcceptClients(struct client *c, int64_t now) {
     if (!c || !c->acceptSocket)
         return;
 
@@ -855,7 +855,7 @@ static void modesAcceptClients(struct client *c, uint64_t now) {
         if (Modes.modesClientCount > maxModesClients) {
             // drop new modes clients if the count nears max_fds ... we want some extra fds for other stuff
             anetCloseSocket(c->fd);
-            static uint64_t antiSpam;
+            static int64_t antiSpam;
             if (now > antiSpam) {
                 antiSpam = now + 30 * SECONDS;
                 fprintf(stderr, "<3> Can't accept new connection, limited to %d clients, consider increasing ulimit!\n", maxModesClients);
@@ -919,13 +919,13 @@ static void modesCloseClient(struct client *c) {
     }
     struct net_connector *con = c->con;
     if (con) {
-        uint64_t now = mstime();
+        int64_t now = mstime();
         // Clean this up and set the next_reconnect timer for another try.
         con->connecting = 0;
         con->connected = 0;
         con->c = NULL;
 
-        uint64_t sinceLastConnect = now - con->lastConnect;
+        int64_t sinceLastConnect = now - con->lastConnect;
         // successfull connection, decrement backoff by connection time
         if (sinceLastConnect > con->backoff) {
             con->backoff = 0;
@@ -933,7 +933,7 @@ static void modesCloseClient(struct client *c) {
             con->backoff -= sinceLastConnect;
         }
         // make sure it's not too small
-        con->backoff = max(Modes.net_connector_delay / 32, con->backoff);
+        con->backoff = imax(Modes.net_connector_delay / 32, con->backoff);
 
         // if we were connected for some time, an immediate reconnect is expected
         con->next_reconnect = con->lastConnect + con->backoff;
@@ -1010,12 +1010,12 @@ static void pingClient(struct client *c, uint32_t ping) {
     if (0 && Modes.debug_ping)
         fprintf(stderr, "Sending Ping c: %d\n", ping);
 }
-static void pong(struct client *c, uint64_t now) {
+static void pong(struct client *c, int64_t now) {
     if (now < c->pingReceived)
         fprintf(stderr, "WAT?! now < c->pingReceived\n");
     pingClient(c, c->ping + (now - c->pingReceived));
 }
-static void pingSenders(struct net_service *service, uint64_t now) {
+static void pingSenders(struct net_service *service, int64_t now) {
     if (!Modes.ping)
         return;
     uint32_t newPing = now & ((1 << 24) - 1);
@@ -1041,15 +1041,15 @@ static void pingSenders(struct net_service *service, uint64_t now) {
         }
     }
 }
-static int pongReceived(struct client *c, uint64_t now) {
+static int pongReceived(struct client *c, int64_t now) {
     c->pongReceived = now;
-    static uint64_t antiSpam;
+    static int64_t antiSpam;
 
     // times in milliseconds
 
 
-    uint64_t pong = c->pong;
-    uint64_t current = now & ((1 << 24) - 1);
+    int64_t pong = c->pong;
+    int64_t current = now & ((1LL << 24) - 1);
     // handle 24 bit overflow by making the 2 numbers comparable
     if (current + 1 * SECONDS < pong) {
         current += (1 << 24);
@@ -1146,7 +1146,7 @@ static int pongReceived(struct client *c, uint64_t now) {
 }
 
 
-static inline int flushClient(struct client *c, uint64_t now) {
+static inline int flushClient(struct client *c, int64_t now) {
     if (!c->service) { fprintf(stderr, "report error: Ahlu8pie\n"); return -1; }
     int toWrite = c->sendq_len;
     char *psendq = c->sendq;
@@ -1195,7 +1195,7 @@ static inline int flushClient(struct client *c, uint64_t now) {
     }
 
     // If writing has failed for longer than 8 * flush_interval, disconnect.
-    uint64_t flushTimeout = max(800, 8 * Modes.net_output_flush_interval);
+    int64_t flushTimeout = imax(800, 8 * Modes.net_output_flush_interval);
     if (c->last_flush + flushTimeout < now) {
         fprintf(stderr, "%s: Couldn't flush data for %.2fs (Insufficient bandwidth?): disconnecting: %s port %s (fd %d, SendQ %d)\n", c->service->descr, flushTimeout / 1000.0, c->host, c->port, c->fd, c->sendq_len);
         modesCloseClient(c);
@@ -1211,7 +1211,7 @@ static inline int flushClient(struct client *c, uint64_t now) {
 //
 static void flushWrites(struct net_writer *writer) {
     struct client *c;
-    uint64_t now = mstime();
+    int64_t now = mstime();
 
     for (c = writer->service->clients; c; c = c->next) {
         if (!c->service)
@@ -1453,7 +1453,7 @@ static void send_raw_heartbeat(struct net_service *service) {
 //
 // Read SBS input from TCP clients
 //
-static int decodeSbsLine(struct client *c, char *line, int remote, uint64_t now) {
+static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now) {
     struct modesMessage mm;
     size_t line_len = strlen(line);
     size_t max_len = 200;
@@ -2126,7 +2126,7 @@ void sendBeastSettings(int fd, const char *settings) {
     anetWrite(fd, buf, len);
 }
 
-static int handleCommandSocket(struct client *c, char *p, int remote, uint64_t now) {
+static int handleCommandSocket(struct client *c, char *p, int remote, int64_t now) {
     MODES_NOTUSED(c);
     MODES_NOTUSED(remote);
     MODES_NOTUSED(now);
@@ -2142,8 +2142,8 @@ static int handleCommandSocket(struct client *c, char *p, int remote, uint64_t n
         }
         struct hexInterval* new = malloc(sizeof(struct hexInterval));
         new->hex = (uint32_t) strtol(t1, NULL, 16);
-        new->from = (uint64_t) strtol(t2, NULL, 10);
-        new->to = (uint64_t) strtol(t3, NULL, 10);
+        new->from = (int64_t) strtol(t2, NULL, 10);
+        new->to = (int64_t) strtol(t3, NULL, 10);
         new->next = Modes.deleteTrace;
         Modes.deleteTrace = new;
         fprintf(stderr, "Deleting %06x from %lld to %lld\n", new->hex, (long long) new->from, (long long) new->to);
@@ -2157,7 +2157,7 @@ static int handleCommandSocket(struct client *c, char *p, int remote, uint64_t n
 // Currently, we just look for the Mode A/C command message
 // and ignore everything else.
 //
-static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t now) {
+static int handleBeastCommand(struct client *c, char *p, int remote, int64_t now) {
     MODES_NOTUSED(remote);
     MODES_NOTUSED(now);
     if (p[0] == 'P') {
@@ -2182,7 +2182,7 @@ static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t no
             // reduce data rate, double beast reduce interval for 30 seconds
             case 'S':
                 {
-                    static uint64_t antiSpam;
+                    static int64_t antiSpam;
                     // only log this at most every 15 minutes and only if it's already active
                     if (now < Modes.doubleBeastReduceIntervalUntil && now > antiSpam) {
                         antiSpam = now + 900 * SECONDS;
@@ -2210,7 +2210,7 @@ static int handleBeastCommand(struct client *c, char *p, int remote, uint64_t no
 // case where we want broken messages here to close the client connection.
 //
 // to save a couple cycles we remove the escapes in the calling function and expect nonescaped messages here
-static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now) {
+static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now) {
     int msgLen = 0;
     int j;
     unsigned char ch;
@@ -2378,7 +2378,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, uint64_t now)
 // The function always returns 0 (success) to the caller as there is no
 // case where we want broken messages here to close the client connection.
 //
-static int decodeHexMessage(struct client *c, char *hex, int remote, uint64_t now) {
+static int decodeHexMessage(struct client *c, char *hex, int remote, int64_t now) {
     int l = strlen(hex), j;
     struct modesMessage mm;
     unsigned char *msg = mm.msg;
@@ -2566,7 +2566,7 @@ static const char *hexEscapeString(const char *str, char *buf, int len) {
 // The handler returns 0 on success, or 1 to signal this function we should
 // close the connection with the client in case of non-recoverable errors.
 //
-static void modesReadFromClient(struct client *c, uint64_t start) {
+static void modesReadFromClient(struct client *c, int64_t start) {
     assert(c->service);
 
     int left;
@@ -2574,13 +2574,13 @@ static void modesReadFromClient(struct client *c, uint64_t start) {
     int bContinue = 1;
     int discard = 0;
 
-    uint64_t now = start;
+    int64_t now = start;
 
     for (int loop = 0; bContinue && loop < 32; loop++, now = mstime()) {
 
         if (!discard && now > start + 200) {
             discard = 1;
-            static uint64_t antiSpam;
+            static int64_t antiSpam;
             if (now > antiSpam + 30 * SECONDS) {
                 antiSpam = now;
                 if (Modes.netIngest && c->proxy_string[0] != '\0')
@@ -3040,7 +3040,7 @@ const char *airground_enum_string(airground_t ag) {
     }
 }
 
-static void modesNetSecondWork(uint64_t now) {
+static void modesNetSecondWork(int64_t now) {
     struct net_service *s;
     for (s = Modes.services; s; s = s->next) {
         if (Modes.net_heartbeat_interval && s->writer
@@ -3072,7 +3072,7 @@ void netFreeClients() {
 }
 
 static void handleEpoll(int count) {
-    uint64_t now = mstime();
+    int64_t now = mstime();
 
     int i;
     for (i = 0; i < count; i++) {
@@ -3113,8 +3113,8 @@ static void handleEpoll(int count) {
 // Perform periodic network work
 //
 void modesNetPeriodicWork(void) {
-    static uint64_t next_tcp_json;
-    static uint64_t next_second;
+    static int64_t next_tcp_json;
+    static int64_t next_second;
     static struct timespec watch;
 
     if (!Modes.net_events) {
@@ -3142,7 +3142,7 @@ void modesNetPeriodicWork(void) {
 
     int64_t elapsed1 = lapWatch(&watch);
 
-    uint64_t now = mstime();
+    int64_t now = mstime();
 
     if (now > next_second) {
         next_second = now + 1000;
@@ -3153,7 +3153,7 @@ void modesNetPeriodicWork(void) {
 
     int64_t elapsed2 = lapWatch(&watch);
 
-    static uint64_t next_flush_interval;
+    static int64_t next_flush_interval;
     if (now > next_flush_interval) {
         next_flush_interval = now + Modes.net_output_flush_interval / 4;
         serviceReconnectCallback(now);
@@ -3171,7 +3171,7 @@ void modesNetPeriodicWork(void) {
 
     int64_t elapsed3 = lapWatch(&watch);
 
-    static uint64_t antiSpam;
+    static int64_t antiSpam;
     if ((elapsed1 > 150 || elapsed2 > 150 || elapsed3 > 150 || interval > 1100) && now > antiSpam + 5 * SECONDS) {
         antiSpam = now;
         fprintf(stderr, "<3>High load: modesNetPeriodicWork() elapsed1/2/3/interval %"PRId64"/%"PRId64"/%"PRId64"/%"PRId64" ms, suppressing for 5 seconds!\n",
@@ -3367,7 +3367,7 @@ static char *read_uuid(struct client *c, char *p, char *eod) {
         if (1 || valid > 5) {
             char uuid[64]; // needs 36 chars and null byte
             sprint_uuid(receiverId, receiverId2, uuid);
-            fprintf(stderr, "read_uuid() incomplete (%s): UUID |%.*s| -> |%s|\n", breakReason, min(36, eod - start), start, uuid);
+            fprintf(stderr, "read_uuid() incomplete (%s): UUID |%.*s| -> |%s|\n", breakReason, (int) imin(36, eod - start), start, uuid);
         }
     }
 
@@ -3379,8 +3379,8 @@ static char *read_uuid(struct client *c, char *p, char *eod) {
         if (Modes.debug_uuid) {
             char uuid[64]; // needs 36 chars and null byte
             sprint_uuid(receiverId, receiverId2, uuid);
-            fprintf(stderr, "reading UUID |%.*s| -> |%s|\n", min(36, eod - start), start, uuid);
-            //fprintf(stderr, "ADDR %s,%s rId %016"PRIx64" UUID %.*s\n", c->host, c->port, c->receiverId, min(eod - start, 36), start);
+            fprintf(stderr, "reading UUID |%.*s| -> |%s|\n", (int) imin(36, eod - start), start, uuid);
+            //fprintf(stderr, "ADDR %s,%s rId %016"PRIx64" UUID %.*s\n", c->host, c->port, c->receiverId, (int) imin(eod - start, 36), start);
         }
         lockReceiverId(c);
     }

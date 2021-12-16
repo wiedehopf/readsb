@@ -46,7 +46,7 @@ static struct range findLonRange(int32_t ref_from, int32_t ref_to, struct apiEnt
 
 
     // get upper bound (exclusive)
-    i = min(res.from, len - 1);
+    i = imin(res.from, len - 1);
     j = len - 1;
     while (j > i + 1) {
 
@@ -257,7 +257,7 @@ static struct char_buffer apiReq(struct apiThread *thread, double *box, uint32_t
     return cb;
 }
 
-static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, uint64_t now) {
+static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, int64_t now) {
     if (!(now < a->seen + 5 * MINUTES || a->position_valid.source == SOURCE_JAERO))
         return;
 
@@ -301,7 +301,7 @@ static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, uint64_t
     buffer->len++;
 }
 
-static inline void apiGenerateJson(struct apiBuffer *buffer, uint64_t now) {
+static inline void apiGenerateJson(struct apiBuffer *buffer, int64_t now) {
     sfree(buffer->json);
     buffer->json = NULL;
 
@@ -376,7 +376,7 @@ int apiUpdate(struct craftArray *ca) {
 
     buffer->aircraftJsonCount = 0;
 
-    uint64_t now = mstime();
+    int64_t now = mstime();
     for (int i = 0; i < ca->len; i++) {
         struct aircraft *a = ca->list[i];
 
@@ -810,7 +810,7 @@ static void *apiUpdateEntryPoint(void *arg) {
 
         end_cpu_timing(&cpu_timer, &Modes.stats_current.api_update_cpu);
 
-        //uint64_t elapsed = stopWatch(&watch);
+        //int64_t elapsed = stopWatch(&watch);
         //fprintf(stderr, "api req took: %.5f s, got %d aircraft!\n", elapsed / 1000.0, n);
 
         threadTimedWait(&Threads.apiUpdate, &ts, Modes.json_interval);

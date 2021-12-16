@@ -368,12 +368,12 @@ typedef enum
 
 struct mag_buf
 {
-    uint64_t sampleTimestamp; // Clock timestamp of the start of this block, 12MHz clock
+    int64_t sampleTimestamp; // Clock timestamp of the start of this block, 12MHz clock
     double mean_level; // Mean of normalized (0..1) signal level
     double mean_power; // Mean of normalized (0..1) power level
     uint32_t dropped; // Number of dropped samples preceding this buffer
     unsigned length; // Number of valid samples _after_ overlap. Total buffer length is buf->length + Modes.trailing_samples.
-    uint64_t sysTimestamp; // Estimated system time at start of block
+    int64_t sysTimestamp; // Estimated system time at start of block
     uint16_t *data; // Magnitude data. Starts with Modes.trailing_samples worth of overlap from the previous block
 #if defined(__arm__)
     /*padding 4 bytes*/
@@ -414,12 +414,12 @@ struct _Modes
     struct timespec hungTimer2;
     pthread_mutex_t hungTimerMutex;
     char *currentTask;
-    uint64_t joinTimeout;
+    int64_t joinTimeout;
 
     unsigned first_free_buffer; // Entry in mag_buffers that will next be filled with input.
     unsigned first_filled_buffer; // Entry in mag_buffers that has valid data and will be demodulated next. If equal to next_free_buffer, there is no unprocessed data.
     unsigned trailing_samples; // extra trailing samples in magnitude buffers
-    int8_t volatile exit; // Exit from the main loop when true
+    int volatile exit; // Exit from the main loop when true
     int fd; // --ifile option file descriptor
     input_format_t input_format; // --iformat option
     iq_convert_fn converter_function;
@@ -448,8 +448,8 @@ struct _Modes
     dbEntry **dbIndex;
     dbEntry *db2;
     dbEntry **db2Index;
-    uint64_t dbModificationTime;
-    uint64_t receiverCount;
+    int64_t dbModificationTime;
+    int64_t receiverCount;
     struct net_writer raw_out; // Raw output
     struct net_writer beast_out; // Beast-format output
     struct net_writer beast_reduce_out; // Reduced data Beast-format output
@@ -508,7 +508,6 @@ struct _Modes
     int8_t debug_bogus;
     int8_t decode_all;
     int8_t debug_maxRange;
-    int8_t position_persistence; // Maximum number of consecutive implausible positions from global CPR to invalidate a known position
 
     int8_t net_verbatim; // if true, send the original message, not the CRC-corrected one
     int8_t netReceiverId;
@@ -527,12 +526,14 @@ struct _Modes
     int8_t mlat; // Use Beast ascii format for raw data output, i.e. @...; iso *...;
     int8_t json_location_accuracy; // Accuracy of location metadata: 0=none, 1=approx, 2=exact
 
-    int8_t json_reliable;
     int8_t net; // Enable networking
     int8_t net_only; // Enable just networking
     int8_t jsonLongtype;
     int8_t viewadsb;
     int8_t sbsReduce; // apply beast reduce logic to SBS messages
+
+    int position_persistence; // Maximum number of consecutive implausible positions from global CPR to invalidate a known position
+    int json_reliable;
 
     uint32_t filterDF; // Only show messages with certain DF types
     uint32_t filterDFbitset; // Bitset, Only show messages with these DF types
@@ -548,20 +549,20 @@ struct _Modes
 
     uint32_t preambleThreshold;
     int net_output_flush_size; // Minimum Size of output data
-    uint32_t net_output_beast_reduce_interval; // Position update interval for data reduction
-    uint64_t doubleBeastReduceIntervalUntil;
+    int64_t net_output_beast_reduce_interval; // Position update interval for data reduction
+    int64_t doubleBeastReduceIntervalUntil;
     float beast_reduce_filter_distance;
     float beast_reduce_filter_altitude;
-    uint32_t net_connector_delay;
-    uint32_t net_heartbeat_interval; // TCP heartbeat interval (milliseconds)
-    uint32_t net_output_flush_interval; // Maximum interval (in milliseconds) between outputwrites
+    int64_t net_connector_delay;
+    int64_t net_heartbeat_interval; // TCP heartbeat interval (milliseconds)
+    int64_t net_output_flush_interval; // Maximum interval (in milliseconds) between outputwrites
     double fUserLat; // Users receiver/antenna lat/lon needed for initial surface location
     double fUserLon; // Users receiver/antenna lat/lon needed for initial surface location
     double maxRange; // Absolute maximum decoding range, in *metres*
     double sample_rate; // actual sample rate in use (in hz)
-    uint32_t interactive_display_ttl; // Interactive mode: TTL display
-    uint32_t json_interval; // Interval between rewriting the json aircraft file, in milliseconds; also the advertised map refresh interval
-    uint64_t stats; // Interval (millis) between stats dumps,
+    int64_t interactive_display_ttl; // Interactive mode: TTL display
+    int64_t json_interval; // Interval between rewriting the json aircraft file, in milliseconds; also the advertised map refresh interval
+    int64_t stats; // Interval (millis) between stats dumps,
     char *db_file;
     char *net_output_raw_ports; // List of raw output TCP ports
     char *net_input_raw_ports; // List of raw input TCP ports
@@ -576,7 +577,7 @@ struct _Modes
     char *net_output_api_ports;
     char *garbage_ports;
     char *net_output_vrs_ports; // List of VRS output TCP ports
-    uint64_t net_output_vrs_interval;
+    int64_t net_output_vrs_interval;
     struct net_connector **net_connectors; // client connectors
     int net_connectors_count;
     int net_connectors_size;
@@ -590,14 +591,14 @@ struct _Modes
     int state_only_on_exit;
     char *prom_file;
     int64_t heatmap_current_interval;
-    uint32_t heatmap_interval; // don't change data type
+    int64_t heatmap_interval; // don't change data type
     int heatmap;
     char *heatmap_dir;
-    uint32_t keep_traces; // how long traces are saved in internal memory
+    int64_t keep_traces; // how long traces are saved in internal memory
+    int64_t json_trace_interval; // max time ignoring new positions for trace
     int32_t traceMax; // max trace length
     int32_t traceReserve; // grow trace allocation if we have less than traceReserve free spots
     int json_globe_index; // Enable extra globe indexed json files.
-    uint32_t json_trace_interval; // max time ignoring new positions for trace
     int acasFD1; // file descriptor to write acasFDs to
     int acasFD2;
     struct tile *json_globe_special_tiles;
@@ -627,11 +628,11 @@ struct _Modes
     struct timespec reader_cpu_accumulator; // CPU time used by the reader thread, copied out and reset by the main thread under the mutex
     ALIGNED struct mag_buf mag_buffers[MODES_MAG_BUFFERS]; // Converted magnitude buffers from RTL or file input
 
-    uint64_t startup_time;
-    uint64_t next_stats_update;
-    uint64_t next_stats_display;
-    uint64_t next_api_update;
-    uint64_t next_remove_stale;
+    int64_t startup_time;
+    int64_t next_stats_update;
+    int64_t next_stats_display;
+    int64_t next_api_update;
+    int64_t next_remove_stale;
     int stats_bucket; // index that has just been writte to
     ALIGNED struct stats stats_10[STAT_BUCKETS];
     struct stats stats_current;
@@ -662,8 +663,8 @@ struct modesMessage
     double signalLevel; // RSSI, in the range [0..1], as a fraction of full-scale power
     struct client *client; // network client this message came from, NULL otherwise
 
-    uint64_t timestampMsg; // Timestamp of the message (12MHz clock)
-    uint64_t sysTimestampMsg; // Timestamp of the message (system time)
+    int64_t timestampMsg; // Timestamp of the message (12MHz clock)
+    int64_t sysTimestampMsg; // Timestamp of the message (system time)
     uint64_t receiverId; // zero if not transmitted
     int msgtype; // Downlink format #
     int msgbits; // Number of bits in message

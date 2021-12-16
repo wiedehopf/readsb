@@ -90,8 +90,8 @@
 
 typedef struct
 {
-  uint64_t updated; /* when it arrived */
-  uint64_t next_reduce_forward; /* when to next forward the data for reduced beast output */
+  int64_t updated; /* when it arrived */
+  int64_t next_reduce_forward; /* when to next forward the data for reduced beast output */
   datasource_t source:8; /* where the data came from */
   datasource_t last_source:8; /* where the data came from */
   int8_t stale; /* if it's stale 1 / 0 */
@@ -117,7 +117,7 @@ struct state_flags
 /* Structure representing one point in the aircraft trace */
 struct state
 {
-  uint64_t timestamp:48;
+  int64_t timestamp:48;
   struct state_flags flags; // 16 bits
 
   int32_t lat;
@@ -237,8 +237,8 @@ struct aircraft
   struct aircraft *next; // Next aircraft in our linked list
   uint32_t addr; // ICAO address
   addrtype_t addrtype; // highest priority address type seen for this aircraft
-  uint64_t seen; // Time (millis) at which the last packet with reliable address was received
-  uint64_t seen_pos; // Time (millis) at which the last position was received
+  int64_t seen; // Time (millis) at which the last packet with reliable address was received
+  int64_t seen_pos; // Time (millis) at which the last position was received
 
   uint32_t size_struct_aircraft; // size of this struct
   uint32_t messages; // Number of Mode S messages received
@@ -258,10 +258,10 @@ struct aircraft
   int altitude_geom; // Altitude (Geometric)
   int geom_delta; // Difference between Geometric and Baro altitudes
 
-  uint64_t trace_next_mw; // timestamp for next full trace write to /run (tmpfs)
-  uint64_t trace_next_perm; // timestamp for next trace write to history_dir (disk)
-  uint64_t lastSignalTimestamp; // timestamp the last message with RSSI was received
-  uint64_t trace_perm_last_timestamp; // timestamp for last trace point written to disk
+  int64_t trace_next_mw; // timestamp for next full trace write to /run (tmpfs)
+  int64_t trace_next_perm; // timestamp for next trace write to history_dir (disk)
+  int64_t lastSignalTimestamp; // timestamp the last message with RSSI was received
+  int64_t trace_perm_last_timestamp; // timestamp for last trace point written to disk
 
   // ----
 
@@ -271,21 +271,21 @@ struct aircraft
 
   float rr_lat; // very rough receiver latitude
   float rr_lon; // very rough receiver longitude
-  uint64_t rr_seen; // when we noted this rough position
-  uint64_t category_updated;
+  int64_t rr_seen; // when we noted this rough position
+  int64_t category_updated;
   unsigned category; // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
   uint16_t receiverCountMlat;
   uint8_t onActiveList;
   uint8_t paddingabc;
 
 
-  uint64_t seenAdsbReliable; // last time we saw a reliable SOURCE_ADSB positions from this aircraft
-  uint64_t addrtype_updated;
+  int64_t seenAdsbReliable; // last time we saw a reliable SOURCE_ADSB positions from this aircraft
+  int64_t addrtype_updated;
   float tat;
   uint16_t nogpsCounter;
   uint16_t receiverIdsNext;
-  uint64_t seenPosReliable; // last time we saw a reliable position
-  uint64_t lastPosReceiverId;
+  int64_t seenPosReliable; // last time we saw a reliable position
+  int64_t lastPosReceiverId;
 
   // ---- the following section has 9 instead of 8 times 8 bytes. but that's not critical as long as the 8 byte alignment is ok
 
@@ -303,8 +303,8 @@ struct aircraft
   float wind_direction;
   int wind_altitude;
   float oat;
-  uint64_t wind_updated;
-  uint64_t oat_updated;
+  int64_t wind_updated;
+  int64_t oat_updated;
 
   // ----
 
@@ -338,7 +338,7 @@ struct aircraft
 
   float true_heading; // True heading
   float calc_track; // Calculated Ground track
-  uint64_t next_reduce_forward_DF11;
+  int64_t next_reduce_forward_DF11;
   char callsign[16]; // Flight number
 
   // ----
@@ -425,7 +425,7 @@ struct aircraft
   data_validity alert_valid;
   data_validity spi_valid;
 
-  uint64_t seenPosGlobal; // seen global CPR or other hopefully reliable position
+  int64_t seenPosGlobal; // seen global CPR or other hopefully reliable position
   double latReliable; // last reliable position based on json_reliable threshold
   double lonReliable; // last reliable position based on json_reliable threshold
   char typeCode[4];
@@ -434,16 +434,16 @@ struct aircraft
   uint8_t dbFlags;
   uint16_t receiverIds[RECEIVERIDBUFFER]; // RECEIVERIDBUFFER = 12
 
-  uint64_t next_reduce_forward_DF0;
+  int64_t next_reduce_forward_DF0;
   unsigned char acas_ra[7]; // mm->MV from last acas RA message
   unsigned char acas_flags; // maybe use for some flags, would be padding otherwise
   data_validity acas_ra_valid;
-  uint64_t next_reduce_forward_DF16;
-  uint64_t next_reduce_forward_DF20;
-  uint64_t next_reduce_forward_DF21;
+  int64_t next_reduce_forward_DF16;
+  int64_t next_reduce_forward_DF20;
+  int64_t next_reduce_forward_DF21;
   struct traceCache *traceCache;
   double magneticDeclination;
-  uint64_t updatedDeclination;
+  int64_t updatedDeclination;
 
   uint16_t pos_nic_reliable;
   uint16_t pos_rc_reliable;
@@ -455,12 +455,12 @@ struct aircraft
   // previous position and timestamp
   double prev_lat; // previous latitude
   double prev_lon; // previous longitude
-  uint64_t prev_pos_time; // time the previous position was received
+  int64_t prev_pos_time; // time the previous position was received
 
   // most recent discarded position which led to decrementing reliability and timestamp (speed_check)
   double discarded_lat;
   double discarded_lon;
-  uint64_t discarded_time;
+  int64_t discarded_time;
 };
 
 /* Mode A/C tracking is done separately, not via the aircraft list,
@@ -473,7 +473,7 @@ extern uint32_t modeAC_age[4096];
 
 /* is this bit of data valid? */
 static inline void
-updateValidity (data_validity *v, uint64_t now, uint64_t expiration_timeout)
+updateValidity (data_validity *v, int64_t now, int64_t expiration_timeout)
 {
     if (v->source == SOURCE_INVALID)
         return;
@@ -526,7 +526,7 @@ static inline int altReliable(struct aircraft *a) {
 }
 
 static inline int
-trackVState (uint64_t now, const data_validity *v, const data_validity *pos_valid)
+trackVState (int64_t now, const data_validity *v, const data_validity *pos_valid)
 {
     // source is valid, allow normal expiration time for shitty position sources
     if (pos_valid->source > SOURCE_JAERO) {
@@ -537,8 +537,8 @@ trackVState (uint64_t now, const data_validity *v, const data_validity *pos_vali
 }
 
 /* what's the age of this data, in milliseconds? */
-static inline uint64_t
-trackDataAge (uint64_t now, const data_validity *v)
+static inline int64_t
+trackDataAge (int64_t now, const data_validity *v)
 {
   if (v->updated >= now)
     return 0;
@@ -554,7 +554,7 @@ static inline double toDeg(double radians) {
 // calculate great circle distance in meters
 //
 double greatcircle(double lat0, double lon0, double lat1, double lon1, int approx);
-void to_state_all(struct aircraft *a, struct state_all *new, uint64_t now);
+void to_state_all(struct aircraft *a, struct state_all *new, int64_t now);
 
 /* Update aircraft state from data in the provided mesage.
  * Return the tracked aircraft.
@@ -562,12 +562,12 @@ void to_state_all(struct aircraft *a, struct state_all *new, uint64_t now);
 struct modesMessage;
 struct aircraft *trackUpdateFromMessage (struct modesMessage *mm);
 
-void trackMatchAC(uint64_t now);
-void trackRemoveStale(uint64_t now);
+void trackMatchAC(int64_t now);
+void trackRemoveStale(int64_t now);
 
-void updateValidities(struct aircraft *a, uint64_t now);
+void updateValidities(struct aircraft *a, int64_t now);
 
-void from_state_all(struct state_all *in, struct aircraft *a , uint64_t ts);
+void from_state_all(struct state_all *in, struct aircraft *a , int64_t ts);
 struct aircraft *trackFindAircraft(uint32_t addr);
 
 /* Convert from a (hex) mode A value to a 0-4095 index */
@@ -584,54 +584,6 @@ indexToModeA (unsigned index)
   return (index & 0007) | ((index & 0070) << 1) | ((index & 0700) << 2) | ((index & 07000) << 3);
 }
 
-static inline int min32(int32_t a, int32_t b) {
-  if (a < b)
-    return a;
-  else
-    return b;
-}
-
-static inline int max32(int32_t a, int32_t b) {
-  if (a > b)
-    return a;
-  else
-    return b;
-}
-
-static inline int min(int64_t a, int64_t b) {
-  if (a < b)
-    return a;
-  else
-    return b;
-}
-
-static inline int max(int64_t a, int64_t b) {
-  if (a > b)
-    return a;
-  else
-    return b;
-}
-
-static inline double
-norm_diff (double a, double pi)
-{
-    if (a < -pi)
-        a +=  2 * pi;
-    if (a > pi)
-        a -=  2 * pi;
-
-    return a;
-}
-static inline double
-norm_angle (double a, double pi)
-{
-    if (a < 0)
-        a +=  2 * pi;
-    if (a >= 2 * pi)
-        a -=  2 * pi;
-
-    return a;
-}
 static inline int bogus_lat_lon(double lat, double lon) {
     if (fabs(lat) >= 90.0 || fabs(lon) >= 180.0)
         return 1;
@@ -647,6 +599,6 @@ static inline int get8bitSignal(struct aircraft *a) {
     signal = sqrt(signal) * 255.0;
     if (signal > 255) signal = 255;
     if (signal < 1 && signal > 0) signal = 1;
-    return nearbyint(signal);
+    return (int) nearbyint(signal);
 }
 #endif

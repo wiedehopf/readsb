@@ -10,7 +10,7 @@ TRACKS_UUID ?= no
 
 CPPFLAGS += -DMODES_READSB_VERSION=\"$(READSB_VERSION)\"
 CPPFLAGS += -D_GNU_SOURCE
-CPPFLAGS += -D_FORTIFY_SOURCE=2 -fstack-protector-strong -Wformat -Werror=format-security -faggressive-loop-optimizations -ftree-loop-linear -funsafe-math-optimizations
+CPPFLAGS += -D_FORTIFY_SOURCE=2 -fstack-protector-strong -Wformat -Werror=format-security
 
 #OPTIMIZE ?= -march=native
 

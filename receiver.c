@@ -41,7 +41,7 @@ struct receiver *receiverCreate(uint64_t id) {
         fprintf(stderr, "receiverCount: %"PRIu64"\n", Modes.receiverCount);
     return r;
 }
-void receiverTimeout(int part, int nParts, uint64_t now) {
+void receiverTimeout(int part, int nParts, int64_t now) {
     int stride = RECEIVER_TABLE_SIZE / nParts;
     int start = stride * part;
     int end = start + stride;
@@ -83,14 +83,14 @@ void receiverCleanup() {
         }
     }
 }
-void receiverPositionReceived(struct aircraft *a, struct modesMessage *mm, double lat, double lon, uint64_t now) {
+void receiverPositionReceived(struct aircraft *a, struct modesMessage *mm, double lat, double lon, int64_t now) {
     if (bogus_lat_lon(lat, lon))
         return;
     if (lat > 85.0 || lat < -85.0 || lon < -175 || lon > 175)
         return;
     int reliabilityRequired = Modes.position_persistence * 3 / 4;
     if (Modes.viewadsb || Modes.receiver_focus) {
-        reliabilityRequired = min(2, Modes.position_persistence);
+        reliabilityRequired = imin(2, Modes.position_persistence);
     }
     if (
             ! (
@@ -195,7 +195,7 @@ struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, str
     return r;
 }
 void receiverTest() {
-    uint64_t now = mstime();
+    int64_t now = mstime();
     for (uint64_t i = 0; i < (1<<22); i++) {
         uint64_t id = i << 22;
         receiver *r = receiverGet(id);
@@ -215,11 +215,11 @@ void receiverTest() {
     printf("%"PRIu64"\n", Modes.receiverCount);
 }
 
-static inline uint64_t timeout() {
+static inline int64_t timeout() {
     return 8 * SECONDS;
 }
 
-int receiverCheckBad(uint64_t id, uint64_t now) {
+int receiverCheckBad(uint64_t id, int64_t now) {
     struct receiver *r = receiverGet(id);
     if (r && now + timeout() / 2 < r->timedOutUntil)
         return 1;
@@ -227,7 +227,7 @@ int receiverCheckBad(uint64_t id, uint64_t now) {
         return 0;
 }
 
-struct receiver *receiverBad(uint64_t id, uint32_t addr, uint64_t now) {
+struct receiver *receiverBad(uint64_t id, uint32_t addr, int64_t now) {
     struct receiver *r = receiverGet(id);
 
     if (!r)
@@ -254,7 +254,7 @@ struct receiver *receiverBad(uint64_t id, uint32_t addr, uint64_t now) {
 
 struct char_buffer generateReceiversJson() {
     struct char_buffer cb;
-    uint64_t now = mstime();
+    int64_t now = mstime();
 
     size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
     char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;

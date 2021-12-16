@@ -171,9 +171,9 @@ void display_stats(struct stats *st) {
     printf("%u aircraft tracks where only one message was seen\n", st->single_message_aircraft);
 
     {
-        uint64_t demod_cpu_millis = (uint64_t) st->demod_cpu.tv_sec * 1000UL + st->demod_cpu.tv_nsec / 1000000UL;
-        uint64_t reader_cpu_millis = (uint64_t) st->reader_cpu.tv_sec * 1000UL + st->reader_cpu.tv_nsec / 1000000UL;
-        uint64_t background_cpu_millis = (uint64_t) st->background_cpu.tv_sec * 1000UL + st->background_cpu.tv_nsec / 1000000UL;
+        int64_t demod_cpu_millis = (int64_t) st->demod_cpu.tv_sec * 1000LL + st->demod_cpu.tv_nsec / 1000000LL;
+        int64_t reader_cpu_millis = (int64_t) st->reader_cpu.tv_sec * 1000LL + st->reader_cpu.tv_nsec / 1000000LL;
+        int64_t background_cpu_millis = (int64_t) st->background_cpu.tv_sec * 1000LL + st->background_cpu.tv_nsec / 1000000LL;
 
         printf("CPU load: %.1f%%\n"
                 "  %llu ms for demodulation\n"
@@ -433,7 +433,7 @@ void display_total_short_range_stats() {
 }
 
 
-void checkDisplayStats(uint64_t now) {
+void checkDisplayStats(int64_t now) {
     Modes.stats_current.end = now;
 
     if (Modes.stats && now >= Modes.next_stats_display) {
@@ -451,7 +451,7 @@ void checkDisplayStats(uint64_t now) {
     }
 }
 
-void statsUpdate(uint64_t now) {
+void statsUpdate(int64_t now) {
     Modes.stats_current.end = now;
     int i;
 
@@ -583,9 +583,9 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
     }
 
     {
-        unsigned long long trace_json_cpu_millis_sum = 0;
+        long long trace_json_cpu_millis_sum = 0;
         for (i = 0; i < TRACE_THREADS; i ++) {
-            trace_json_cpu_millis_sum += (uint64_t) st->trace_json_cpu[i].tv_sec * 1000UL + st->trace_json_cpu[i].tv_nsec / 1000000UL;
+            trace_json_cpu_millis_sum += (int64_t) st->trace_json_cpu[i].tv_sec * 1000UL + st->trace_json_cpu[i].tv_nsec / 1000000UL;
         }
 
         p = safe_snprintf(p, end,
@@ -604,15 +604,15 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
                 ",\"local_speed\":%u"
                 ",\"filtered\":%u}"
                 ",\"altitude_suppressed\":%u"
-                ",\"cpu\":{\"demod\":%llu,\"reader\":%llu,\"background\":%llu"
-                ",\"aircraft_json\":%llu"
-                ",\"globe_json\":%llu"
-                ",\"binCraft\":%llu"
-                ",\"trace_json\":%llu"
-                ",\"heatmap_and_state\":%llu"
-                ",\"api_workers\":%llu"
-                ",\"api_update\":%llu"
-                ",\"remove_stale\":%llu}"
+                ",\"cpu\":{\"demod\":%lld,\"reader\":%lld,\"background\":%lld"
+                ",\"aircraft_json\":%lld"
+                ",\"globe_json\":%lld"
+                ",\"binCraft\":%lld"
+                ",\"trace_json\":%lld"
+                ",\"heatmap_and_state\":%lld"
+                ",\"api_workers\":%lld"
+                ",\"api_update\":%lld"
+                ",\"remove_stale\":%lld}"
                 ",\"tracks\":{\"all\":%u"
                 ",\"single_message\":%u}"
                 ",\"messages\":%u"
@@ -655,14 +655,14 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
     return p;
 }
 
-struct char_buffer generateStatusProm(uint64_t now) {
+struct char_buffer generateStatusProm(int64_t now) {
     struct char_buffer cb;
     size_t buflen = 8192;
     char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
 
     struct statsCount *sC = &(Modes.globalStatsCount);
 
-    uint64_t uptime = now - Modes.startup_time;
+    int64_t uptime = now - Modes.startup_time;
     if (now < Modes.startup_time)
         uptime = 0;
 
@@ -683,12 +683,12 @@ struct char_buffer generateStatusProm(uint64_t now) {
     return cb;
 }
 
-struct char_buffer generateStatusJson(uint64_t now) {
+struct char_buffer generateStatusJson(int64_t now) {
     struct char_buffer cb;
     size_t buflen = 8192;
     char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
 
-    uint64_t uptime = now - Modes.startup_time;
+    int64_t uptime = now - Modes.startup_time;
     if (now < Modes.startup_time)
         uptime = 0;
 
@@ -707,14 +707,14 @@ struct char_buffer generateStatusJson(uint64_t now) {
 }
 
 
-struct char_buffer generateStatsJson() {
+struct char_buffer generateStatsJson(int64_t now) {
     struct char_buffer cb;
     int bufsize = 64 * 1024;
     char *buf = (char *) aligned_malloc(bufsize), *p = buf, *end = buf + bufsize;
 
     p = safe_snprintf(p, end,
             "{ \"now\" : %.1f",
-            mstime() / 1000.0);
+            now / 1000.0);
 
     if (!Modes.net_only) {
         p = safe_snprintf(p, end, ", \"gain_db\" : %.1f", Modes.gain / 10.0);
@@ -739,17 +739,16 @@ struct char_buffer generateStatsJson() {
     return cb;
 }
 
-struct char_buffer generatePromFile() {
+struct char_buffer generatePromFile(int64_t now) {
     struct char_buffer cb;
     int bufsize = 64 * 1024;
     char *buf = (char *) aligned_malloc(bufsize), *p = buf, *end = buf + bufsize;
-    uint64_t now = mstime();
 
     struct stats *st = &Modes.stats_1min;
 
     unsigned long long trace_json_cpu_millis_sum = 0;
     for (int i = 0; i < TRACE_THREADS; i ++) {
-        uint64_t res = (uint64_t) st->trace_json_cpu[i].tv_sec * 1000UL + st->trace_json_cpu[i].tv_nsec / 1000000UL;
+        int64_t res = (int64_t) st->trace_json_cpu[i].tv_sec * 1000UL + st->trace_json_cpu[i].tv_nsec / 1000000UL;
         trace_json_cpu_millis_sum += res;
         if (0 && Modes.debug_traceCount) {
             fprintf(stderr, "%7.3f ", res / 1000.0);
@@ -893,7 +892,7 @@ struct char_buffer generatePromFile() {
 
         p = safe_snprintf(p, end, "readsb_demod_preambles %"PRIu32"\n", st->demod_preambles);
     }
-    uint64_t uptime = now - Modes.startup_time;
+    int64_t uptime = now - Modes.startup_time;
     if (now < Modes.startup_time)
         uptime = 0;
     p = safe_snprintf(p, end, "readsb_uptime %"PRIu64"\n", uptime);
@@ -927,7 +926,7 @@ void statsResetCount() {
     s->readsb_aircraft_without_flight_number = 0;
 }
 
-void statsCountAircraft(uint64_t now) {
+void statsCountAircraft(int64_t now) {
     struct statsCount *s = &(Modes.globalStatsCount);
     uint32_t total_aircraft_count = 0;
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
@@ -981,7 +980,7 @@ void statsCountAircraft(uint64_t now) {
 
     Modes.total_aircraft_count = total_aircraft_count;
 
-    static uint64_t antiSpam2;
+    static int64_t antiSpam2;
     if (total_aircraft_count > 2 * AIRCRAFT_BUCKETS && now > antiSpam2 + 12 * HOURS) {
         fprintf(stderr, "<3>increase AIRCRAFT_HASH_BITS, aircraft hash table fill: %0.1f\n", total_aircraft_count / (double) AIRCRAFT_BUCKETS);
         antiSpam2 = now;
@@ -1045,7 +1044,7 @@ static void statsCalc() {
         s->readsb_aircraft_rssi_min = -50;
 }
 
-void statsWrite(uint64_t now) {
+void statsWrite(int64_t now) {
         statsCalc(); // calculate statistics stuff
 
         if (Modes.json_dir)

@@ -156,7 +156,7 @@ struct aircraft *aircraftCreate(uint32_t addr) {
     return a;
 }
 
-void toBinCraft(struct aircraft *a, struct binCraft *new, uint64_t now) {
+void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now) {
 
     memset(new, 0, sizeof(struct binCraft));
     new->hex = a->addr;
@@ -435,7 +435,7 @@ int dbUpdate() {
         fprintf(stderr, "%s: dbUpdate: fstat failed, wat?!\n", filename);
         goto DBU0;
     }
-    uint64_t modTime = fileinfo.st_mtim.tv_sec;
+    int64_t modTime = fileinfo.st_mtim.tv_sec;
 
     if (Modes.dbModificationTime == modTime)
         goto DBU0;
@@ -489,7 +489,7 @@ int dbUpdate() {
             continue;
 
 
-#define copyDetail(d) do { memcpy(curr->d , sot, min(sizeof(curr->d ), eot - sot)); sanitize(curr->d , sizeof(curr->d )); } while (0)
+#define copyDetail(d) do { memcpy(curr->d , sot, imin(sizeof(curr->d ), eot - sot)); sanitize(curr->d , sizeof(curr->d )); } while (0)
 
         if (!nextToken(';', &sot, &eot, &eol)) continue;
         copyDetail(registration);

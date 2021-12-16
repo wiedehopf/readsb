@@ -33,7 +33,7 @@
 
 #define sfree(x) do { free(x); x = NULL; } while (0)
 
-int tryJoinThread(pthread_t *thread, uint64_t timeout);
+int tryJoinThread(pthread_t *thread, int64_t timeout);
 typedef struct {
     pthread_t pthread;
     pthread_mutex_t mutex;
@@ -45,7 +45,7 @@ typedef struct {
 void threadDestroyAll();
 void threadInit(threadT *thread, char *name);
 void threadCreate(threadT *thread, const pthread_attr_t *attr, void *(*start_routine) (void *), void *arg);
-void threadTimedWait(threadT *thread, struct timespec *ts, uint64_t increment);
+void threadTimedWait(threadT *thread, struct timespec *ts, int64_t increment);
 void threadSignalJoin(threadT *thread);
 
 struct char_buffer
@@ -58,32 +58,32 @@ struct char_buffer readWholeFile(int fd, char *errorContext);
 struct char_buffer readWholeGz(gzFile gzfp, char *errorContext);
 int writeGz(gzFile gzfp, void *source, int toWrite, char *errorContext);
 
-static inline void msleep(uint64_t ms) {
+static inline void msleep(int64_t ms) {
     struct timespec slp = {ms / 1000, (ms % 1000) * 1000 * 1000};
     nanosleep(&slp, NULL);
 }
 
 /* Returns system time in milliseconds */
-uint64_t mstime (void);
+int64_t mstime (void);
 
-int snprintHMS(char *buf, size_t bufsize, uint64_t now);
+int snprintHMS(char *buf, size_t bufsize, int64_t now);
 
-uint64_t msThreadTime(void);
+int64_t msThreadTime(void);
 
 /* Returns the time elapsed, in nanoseconds, from t1 to t2,
  * where t1 and t2 are 12MHz counters.
  */
-int64_t receiveclock_ns_elapsed (uint64_t t1, uint64_t t2);
+int64_t receiveclock_ns_elapsed (int64_t t1, int64_t t2);
 
 /* Same, in milliseconds */
-int64_t receiveclock_ms_elapsed (uint64_t t1, uint64_t t2);
+int64_t receiveclock_ms_elapsed (int64_t t1, int64_t t2);
 
 /* Normalize the value in ts so that ts->nsec lies in
  * [0,999999999]
  */
 void normalize_timespec (struct timespec *ts);
 
-struct timespec msToTimespec(uint64_t ms);
+struct timespec msToTimespec(int64_t ms);
 
 /* record current CPU time in start_time */
 void start_cpu_timing (struct timespec *start_time);
@@ -105,14 +105,14 @@ unsigned int get_seed();
 
 // increment target by increment in ms, if result is in the past, set target to now.
 // specialized function for scheduling threads using pthreadcondtimedwait
-void incTimedwait(struct timespec *target, uint64_t increment);
+void incTimedwait(struct timespec *target, int64_t increment);
 void log_with_timestamp(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
 
 // based on a give epoch time in ms, calculate the nearest offset interval step
 // offset must be smaller than interval, at offset seconds after the full minute
 // is the first possible value, all additional return values differ by a multiple
 // of interval
-uint64_t roundSeconds(int interval, int offset, uint64_t epoch_ms);
+int64_t roundSeconds(int interval, int offset, int64_t epoch_ms);
 ssize_t check_write(int fd, const void *buf, size_t count, const char *error_context);
 
 int my_epoll_create();
@@ -121,5 +121,40 @@ void epollAllocEvents(struct epoll_event **events, int *maxEvents);
 char *sprint_uuid(uint64_t id1, uint64_t id2, char *p);
 char *sprint_uuid1(uint64_t id1, char *p);
 char *sprint_uuid2(uint64_t id2, char *p);
+
+static inline int64_t imin(int64_t a, int64_t b) {
+  if (a < b)
+    return a;
+  else
+    return b;
+}
+
+static inline int64_t imax(int64_t a, int64_t b) {
+  if (a > b)
+    return a;
+  else
+    return b;
+}
+
+static inline double
+norm_diff (double a, double pi)
+{
+    if (a < -pi)
+        a +=  2 * pi;
+    if (a > pi)
+        a -=  2 * pi;
+
+    return a;
+}
+static inline double
+norm_angle (double a, double pi)
+{
+    if (a < 0)
+        a +=  2 * pi;
+    if (a >= 2 * pi)
+        a -=  2 * pi;
+
+    return a;
+}
 
 #endif

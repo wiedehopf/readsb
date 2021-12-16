@@ -32,7 +32,7 @@ struct aircraft;
 struct modesMessage;
 struct client;
 struct net_service;
-typedef int (*read_fn)(struct client *, char *, int, uint64_t);
+typedef int (*read_fn)(struct client *, char *, int, int64_t);
 typedef void (*heartbeat_fn)(struct net_service *);
 
 typedef enum
@@ -89,10 +89,10 @@ struct net_connector
     int connected;
     int connecting;
     int fd;
-    uint64_t next_reconnect;
-    uint64_t connect_timeout;
-    uint64_t lastConnect; // timestamp for last connection establish
-    uint64_t backoff;
+    int64_t next_reconnect;
+    int64_t connect_timeout;
+    int64_t lastConnect; // timestamp for last connection establish
+    int64_t backoff;
     char resolved_addr[NI_MAXHOST+3];
     struct addrinfo *addr_info;
     struct addrinfo *try_addr; // pointer walking addr_info list
@@ -119,15 +119,15 @@ struct client
     int pingEnabled;
     uint32_t ping; // only 24 bit are ever sent
     uint32_t pong; // only 24 bit are ever sent
-    uint64_t pingReceived;
-    uint64_t pongReceived;
+    int64_t pingReceived;
+    int64_t pongReceived;
     uint64_t bytesReceived;
     uint64_t receiverId;
     uint64_t receiverId2;
-    uint64_t last_flush;
-    uint64_t last_send;
-    uint64_t last_read;  // This is used on write-only clients to help check for dead connections
-    uint64_t connectedSince;
+    int64_t last_flush;
+    int64_t last_send;
+    int64_t last_read;  // This is used on write-only clients to help check for dead connections
+    int64_t connectedSince;
     uint64_t messageCounter; // counter for incoming data
     uint64_t positionCounter; // counter for incoming data
     uint64_t garbage; // amount of garbage we have received from this client
@@ -157,7 +157,7 @@ struct net_writer
     int connections; // number of active clients
     struct net_service *service; // owning service
     heartbeat_fn send_heartbeat; // function that queues a heartbeat if needed
-    uint64_t lastWrite; // time of last write to clients
+    int64_t lastWrite; // time of last write to clients
     uint64_t lastReceiverId;
     int noTimestamps;
 };

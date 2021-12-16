@@ -56,20 +56,20 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-uint64_t mstime(void) {
+int64_t mstime(void) {
     if (Modes.synthetic_now)
         return Modes.synthetic_now;
 
     struct timeval tv;
-    uint64_t mst;
+    int64_t mst;
 
     gettimeofday(&tv, NULL);
-    mst = ((uint64_t) tv.tv_sec)*1000;
+    mst = ((int64_t) tv.tv_sec)*1000;
     mst += tv.tv_usec / 1000;
     return mst;
 }
 
-int snprintHMS(char *buf, size_t bufsize, uint64_t now) {
+int snprintHMS(char *buf, size_t bufsize, int64_t now) {
     time_t nowTime = nearbyint(now / 1000.0);
     struct tm local;
     localtime_r(&nowTime, &local);
@@ -78,17 +78,17 @@ int snprintHMS(char *buf, size_t bufsize, uint64_t now) {
     return snprintf(buf, bufsize, "%s.%03d", timebuf, (int) (now % 1000));
 }
 
-uint64_t msThreadTime(void) {
+int64_t msThreadTime(void) {
     struct timespec ts;
     clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
-    return ((uint64_t) ts.tv_sec * 1000 + ts.tv_nsec / (1000 * 1000));
+    return ((int64_t) ts.tv_sec * 1000 + ts.tv_nsec / (1000 * 1000));
 }
 
-int64_t receiveclock_ns_elapsed(uint64_t t1, uint64_t t2) {
+int64_t receiveclock_ns_elapsed(int64_t t1, int64_t t2) {
     return (t2 - t1) * 1000U / 12U;
 }
 
-int64_t receiveclock_ms_elapsed(uint64_t t1, uint64_t t2) {
+int64_t receiveclock_ms_elapsed(int64_t t1, int64_t t2) {
     return (t2 - t1) / 12000U;
 }
 
@@ -104,7 +104,7 @@ void normalize_timespec(struct timespec *ts) {
 }
 
 // convert ms to timespec
-struct timespec msToTimespec(uint64_t ms)  {
+struct timespec msToTimespec(int64_t ms)  {
     struct timespec ts;
     ts.tv_sec =  (ms / 1000);
     ts.tv_nsec = (ms % 1000) * 1000 * 1000;
@@ -176,7 +176,7 @@ unsigned int get_seed() {
 
 // increment target by increment in ms, if result is in the past, set target to now.
 // specialized function for scheduling threads using pthreadcondtimedwait
-void incTimedwait(struct timespec *target, uint64_t increment) {
+void incTimedwait(struct timespec *target, int64_t increment) {
     struct timespec inc = msToTimespec(increment);
     target->tv_sec += inc.tv_sec;
     target->tv_nsec += inc.tv_nsec;
@@ -238,7 +238,7 @@ void threadDestroyAll() {
     }
     uThreadCount = 0;
 }
-void threadTimedWait(threadT *thread, struct timespec *ts, uint64_t increment) {
+void threadTimedWait(threadT *thread, struct timespec *ts, int64_t increment) {
     // don't wait when we want to exit
     if (Modes.exit)
         return;
@@ -263,7 +263,7 @@ void threadSignalJoin(threadT *thread) {
         thread->joinFailed = 1;
         fprintf(stderr, "%s thread: threadSignalJoin timed out after %.1f seconds, undefined behaviour may result!\n", thread->name, (float) Modes.joinTimeout / (float) SECONDS);
         Modes.joinTimeout /= 2;
-        Modes.joinTimeout = max(Modes.joinTimeout, 2 * SECONDS);
+        Modes.joinTimeout = imax(Modes.joinTimeout, 2 * SECONDS);
     }
 }
 
@@ -390,7 +390,7 @@ void log_with_timestamp(const char *format, ...) {
     fprintf(stderr, "%s  %s\n", timebuf, msg);
 }
 
-uint64_t roundSeconds(int interval, int offset, uint64_t epoch_ms) {
+int64_t roundSeconds(int interval, int offset, int64_t epoch_ms) {
     if (offset >= interval)
         fprintf(stderr, "roundSeconds was used wrong, interval must be greater than offset\n");
     time_t epoch = epoch_ms / SECONDS + (epoch_ms % SECONDS >= SECONDS / 2);
