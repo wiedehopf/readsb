@@ -64,6 +64,7 @@ static void calc_wind(struct aircraft *a, uint64_t now);
 static void calc_temp(struct aircraft *a, uint64_t now);
 static inline int declination(struct aircraft *a, double *dec, uint64_t now);
 static const char *source_string(datasource_t source);
+static const char *cpr_string(cpr_type_t type);
 static void incrementReliable(struct aircraft *a, struct modesMessage *mm, uint64_t now, int odd);
 
 // Should we accept some new data from the given source?
@@ -476,16 +477,18 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         if (a->gs < 10) {
             // don't allow negative "bonus" below 10 knots speed
             track_bonus = fmaxf(0.0f, track_bonus);
+            speed += 2;
         }
         speed += track_bonus;
         if (track_diff > 160) {
             mm->pos_ignore = 1; // don't decrement pos_reliable
         }
+        range += 10;
     } else {
         // Work out a reasonable speed to use:
         //  current speed + 1/5
         speed = speed * 1.2f;
-        range += 50;
+        range += 40;
     }
 
     // plus distance covered at the given speed for the elapsed time + 0.2 seconds.
@@ -505,32 +508,37 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
             || (Modes.debug_maxRange && track_diff > 90)
        ) {
 
+        //(a->lat == lat && a->lon == lon) ? "L " : ((a->prev_lat == lat && a->prev_lon == lon) ? "P " : ""),
         //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
-        fprintf(stderr, "%02d:%04.1f %06x %s %s %s %s R:%2d %3.0ftD:%3.0f  %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
+        fprintf(stderr, "%02d:%02d:%04.1f %06x R:%2d %s %s %s %s %4.0f%% t%3.0f tD:%3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f\n",
+                (int) (now / (3600 * SECONDS) % 24),
                 (int) (now / (60 * SECONDS) % 60),
                 (now % (60 * SECONDS)) / 1000.0,
                 a->addr,
+                min(a->pos_reliable_odd, a->pos_reliable_even),
                 mm->cpr_odd ? "O" : "E",
                 cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "S"),
                 (surface ? "S" : "A"),
                 (override != -1 ? (override ? "ovrd" : "bogu") : (inrange ? "pass" : "FAIL")),
-                //(a->lat == lat && a->lon == lon) ? "L " : ((a->prev_lat == lat && a->prev_lon == lon) ? "P " : ""),
-                min(a->pos_reliable_odd, a->pos_reliable_even),
+                100.0f * distance / range,
                 track,
                 track_diff,
                 distance / 1000.0,
-                range / 1000.0,
                 elapsed / 1000.0,
                 (distance / elapsed * 1000.0 / 1852.0 * 3600.0),
-                (range / elapsed * 1000.0 / 1852.0 * 3600.0),
                 oldLat, oldLon, lat, lon);
+        if (!inrange) {
+            char uuid[32]; // needs 18 chars and null byte
+            sprint_uuid1(mm->receiverId, uuid);
+            fprintf(stderr, "  backInTime: %4.1f receiverId: %s dataSource: %s CPR: %s %s\n",
+                    backInTimeSeconds,
+                    uuid,
+                    source_string(mm->source),
+                    cpr_string(mm->cpr_type),
+                    mm->cpr_odd ? "odd " : "even");
+        }
     }
 
-    if (backInTimeSeconds > 2 && a->addr == Modes.cpr_focus) {
-        char uuid[32]; // needs 18 chars and null byte
-        sprint_uuid1(mm->receiverId, uuid);
-        fprintf(stderr, "backInTime: %.1f receiverId: %s\n", backInTimeSeconds, uuid);
-    }
 
     // override, this allows for printing stuff instead of returning
     if (override != -1) {
@@ -1967,7 +1975,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (cpr_new) {
         // this is in addition to the normal air / ground handling
         // making especially sure we catch surface -> airborne transitions
-        if (a->addrtype == mm->addrtype) {
+        if (mm->addrtype >= a->addrtype) {
             //if (a->last_cpr_type == CPR_SURFACE && mm->cpr_type == CPR_AIRBORNE
             if (mm->cpr_type == CPR_AIRBORNE
                     && accept_data(&a->airground_valid, mm->source, mm, a, 0)) {
@@ -2823,34 +2831,43 @@ void from_state_all(struct state_all *in, struct aircraft *a , uint64_t ts) {
 #undef F
 }
 
+static const char *cpr_string(cpr_type_t type) {
+    switch (type) {
+        case CPR_INVALID:  return "INVALID ";
+        case CPR_SURFACE:  return "SURFACE ";
+        case CPR_AIRBORNE: return "AIRBORNE";
+        case CPR_COARSE:   return "COARSE  ";
+        default:           return "ERR     ";
+    }
+}
 static const char *source_string(datasource_t source) {
     switch (source) {
         case SOURCE_INVALID:
-            return "INVALID";
+            return "INVALID ";
         case SOURCE_INDIRECT:
             return "INDIRECT";
         case SOURCE_MODE_AC:
-            return "MODE_AC";
+            return "MODE_AC ";
         case SOURCE_SBS:
-            return "SBS";
+            return "SBS     ";
         case SOURCE_MLAT:
-            return "MLAT";
+            return "MLAT    ";
         case SOURCE_MODE_S:
-            return "MODE_S";
+            return "MODE_S  ";
         case SOURCE_JAERO:
-            return "JAERO";
+            return "JAERO   ";
         case SOURCE_MODE_S_CHECKED:
-            return "MODE_CH";
+            return "MODE_CH ";
         case SOURCE_TISB:
-            return "TISB";
+            return "TISB    ";
         case SOURCE_ADSR:
-            return "ADSR";
+            return "ADSR    ";
         case SOURCE_ADSB:
-            return "ADSB";
+            return "ADSB    ";
         case SOURCE_PRIO:
-            return "PRIO";
+            return "PRIO    ";
         default:
-            return "UNKN";
+            return "ERROR   ";
     }
 }
 
