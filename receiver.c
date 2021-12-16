@@ -83,11 +83,25 @@ void receiverCleanup() {
         }
     }
 }
-void receiverPositionReceived(struct aircraft *a, uint64_t id, double lat, double lon, uint64_t now) {
+void receiverPositionReceived(struct aircraft *a, struct modesMessage *mm, double lat, double lon, uint64_t now) {
     if (bogus_lat_lon(lat, lon))
         return;
     if (lat > 85.0 || lat < -85.0 || lon < -175 || lon > 175)
         return;
+    int reliabilityRequired = Modes.filter_persistence * 3 / 4;
+    if (Modes.viewadsb || Modes.receiver_focus) {
+        reliabilityRequired = min(2, Modes.filter_persistence);
+    }
+    if (
+            ! (
+                mm->source == SOURCE_ADSB && mm->cpr_type != CPR_SURFACE
+                && a->pos_reliable_odd >= reliabilityRequired
+                && a->pos_reliable_even >= reliabilityRequired
+              )
+       ) {
+        return;
+    }
+    uint64_t id = mm->receiverId;
     struct receiver *r = receiverGet(id);
 
     if (!r || r->positionCounter == 0) {

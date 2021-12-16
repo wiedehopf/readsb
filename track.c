@@ -561,11 +561,9 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
             }
         }
-        if (inrange && mm->source == SOURCE_ADSB && mm->cpr_type != CPR_SURFACE
-                && a->pos_reliable_odd >= min(4, Modes.filter_persistence)
-                && a->pos_reliable_even >= min(4, Modes.filter_persistence)
-           ) {
-            receiverPositionReceived(a, mm->receiverId, lat, lon, now);
+
+        if (inrange) {
+            receiverPositionReceived(a, mm, lat, lon, now);
         }
     }
 
