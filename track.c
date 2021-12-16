@@ -368,12 +368,13 @@ static inline int duplicate_check(uint64_t now, struct aircraft *a, double new_l
 
 static int speed_check(struct aircraft *a, datasource_t source, double lat, double lon, struct modesMessage *mm, cpr_local_t cpr_local) {
     uint64_t now = mm->sysTimestampMsg;
+    uint64_t elapsed = trackDataAge(now, &a->position_valid);
 
     if (duplicate_check(now, a, lat, lon)) {
         // don't use duplicate positions
         mm->duplicate = 1;
         mm->pos_ignore = 1;
-        if  (a->receiverId == mm->receiverId && (Modes.debug_cpr || Modes.debug_speed_check || a->addr == Modes.cpr_focus)) {
+        if  (elapsed > 200 && a->receiverId == mm->receiverId && (Modes.debug_cpr || Modes.debug_speed_check || a->addr == Modes.cpr_focus)) {
             // let speed_check continue for displaying this duplicate (at least for non-aggregated receivers)
         } else {
             // omit rest of speed check to save on cycles
@@ -399,7 +400,6 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     double oldLat = a->lat;
     double oldLon = a->lon;
 
-    uint64_t elapsed = trackDataAge(now, &a->position_valid);
 
     int surface = trackDataValid(&a->airground_valid)
         && a->airground == AG_GROUND
@@ -448,21 +448,6 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         speed = min(speed, 2400);
     }
 
-    // Work out a reasonable speed to use:
-    //  current speed + 1/3
-    //  surface speed min 20kt, max 150kt
-    //  airborne speed min 200kt, no max
-    speed = speed * 1.3f;
-    if (surface) {
-        if (speed < 20)
-            speed = 20;
-        if (speed > 150)
-            speed = 150;
-    } else {
-        if (speed < 200)
-            speed = 200;
-    }
-
     // find actual distance
     distance = greatcircle(oldLat, oldLon, lat, lon, 0);
     mm->distance_traveled = distance;
@@ -494,11 +479,14 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
             mm->pos_ignore = 1; // don't decrement pos_reliable
         }
     } else {
-        range += 30; // 30m bonus for craft slower than 10 knots or without track comparison
+        // Work out a reasonable speed to use:
+        //  current speed + 1/5
+        speed = speed * 1.2f;
+        range += 50;
     }
 
-    // plus distance covered at the given speed for the elapsed time + 1 seconds.
-    range += (((float) elapsed + 1000.0f) / 1000.0f) * (speed * 1852.0f / 3600.0f);
+    // plus distance covered at the given speed for the elapsed time + 0.2 seconds.
+    range += (((float) elapsed + 200.0f) / 1000.0f) * (speed * 1852.0f / 3600.0f);
 
     inrange = (distance <= range);
 
@@ -507,34 +495,32 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         backInTimeSeconds = distance / (a->gs * (1852.0f / 3600.0f));
     }
 
-    if (elapsed > 2 * SECONDS || distance > 0) {
-        if (
-                (source > SOURCE_MLAT && track_diff < 190 && !inrange
-                 && (Modes.debug_cpr || Modes.debug_speed_check)
-                ) || (a->addr == Modes.cpr_focus)
-                || (Modes.debug_maxRange && track_diff > 90)
-           ) {
+    if (
+            (source > SOURCE_MLAT && track_diff < 190 && !inrange
+             && (Modes.debug_cpr || Modes.debug_speed_check)
+            ) || (a->addr == Modes.cpr_focus)
+            || (Modes.debug_maxRange && track_diff > 90)
+       ) {
 
-            //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
-            fprintf(stderr, "%02d:%04.1f %06x %s %s %s %s R:%2d %3.0ftD:%3.0f  %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
-                    (int) (now / (60 * SECONDS) % 60),
-                    (now % (60 * SECONDS)) / 1000.0,
-                    a->addr,
-                    mm->cpr_odd ? "O" : "E",
-                    cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "S"),
-                    (surface ? "S" : "A"),
-                    (override != -1 ? (override ? "ovrd" : "bogu") : (inrange ? "pass" : "FAIL")),
-                    //(a->lat == lat && a->lon == lon) ? "L " : ((a->prev_lat == lat && a->prev_lon == lon) ? "P " : ""),
-                    min(a->pos_reliable_odd, a->pos_reliable_even),
-                    track,
-                    track_diff,
-                    distance / 1000.0,
-                    range / 1000.0,
-                    elapsed / 1000.0,
-                    (distance / elapsed * 1000.0 / 1852.0 * 3600.0),
-                    (range / elapsed * 1000.0 / 1852.0 * 3600.0),
-                    oldLat, oldLon, lat, lon);
-        }
+        //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
+        fprintf(stderr, "%02d:%04.1f %06x %s %s %s %s R:%2d %3.0ftD:%3.0f  %7.3fkm/%7.2fkm in%4.1f s, %4.0fkt/%4.0fkt, %10.6f,%11.6f->%10.6f,%11.6f\n",
+                (int) (now / (60 * SECONDS) % 60),
+                (now % (60 * SECONDS)) / 1000.0,
+                a->addr,
+                mm->cpr_odd ? "O" : "E",
+                cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "S"),
+                (surface ? "S" : "A"),
+                (override != -1 ? (override ? "ovrd" : "bogu") : (inrange ? "pass" : "FAIL")),
+                //(a->lat == lat && a->lon == lon) ? "L " : ((a->prev_lat == lat && a->prev_lon == lon) ? "P " : ""),
+                min(a->pos_reliable_odd, a->pos_reliable_even),
+                track,
+                track_diff,
+                distance / 1000.0,
+                range / 1000.0,
+                elapsed / 1000.0,
+                (distance / elapsed * 1000.0 / 1852.0 * 3600.0),
+                (range / elapsed * 1000.0 / 1852.0 * 3600.0),
+                oldLat, oldLon, lat, lon);
     }
 
     // override, this allows for printing stuff instead of returning
@@ -632,10 +618,11 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
                 lat, lon);
         double refDistance = greatcircle(reflat, reflon, *lat, *lon, 0);
         if (refDistance > 450e3) {
-            if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
+            if (0 && (a->addr == Modes.cpr_focus || Modes.debug_cpr)) {
                 fprintf(stderr, "%06x CPRsurface ref %d refDistance: %4.0f km (%4.0f, %4.0f) allow_ac_rel %d\n", a->addr, ref, refDistance / 1000.0, reflat, reflon, a->surfaceCPR_allow_ac_rel);
             }
-            result = -2;
+            // change to failure which doesn't decrement reliable
+            result = -1;
             return result;
         }
     } else {
