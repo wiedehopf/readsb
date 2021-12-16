@@ -105,6 +105,7 @@ static struct argp_option optionsReadsb[] = {
     {"write-json-gzip", OptJsonGzip, 0, 0, "Write aircraft.json also as aircraft.json.gz", 1},
     {"write-json-binCraft-only", OptJsonOnlyBin, "<n>", 0, "Use only binary binCraft format for globe files (1), for aircraft.json as well (2)", 1},
     {"json-reliable", OptJsonReliable,"<n>", 0, "Minimum position reliability to put it into json (default: 1, globe options will default set this to 2, disable speed filter: -1, max: 4)", 1},
+    {"position-persistence", OptPositionPersistence,"<n>", 0, "Position persistence against outliers (default: 4), incremented by json-reliable minus 1", 1},
     {"jaero-timeout", OptJaeroTimeout,"<n>", 0, "How long in minutes JAERO positions remain valid and on the map in tar1090 (default:33)", 1},
     {"db-file", OptDbFile, "<file.csv.gz>", 0, "Default: \"none\"", 1},
     {"db-file-lt", OptDbFileLongtype, 0, 0, "Write long type to aircraft.json as field desc", 1},

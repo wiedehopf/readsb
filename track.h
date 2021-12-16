@@ -293,8 +293,8 @@ struct aircraft
   unsigned pos_rc; // Rc of last computed position
   double lat; // Coordinates obtained from CPR encoded data
   double lon; // Coordinates obtained from CPR encoded data
-  int pos_reliable_odd; // Number of good global CPRs, indicates position reliability
-  int pos_reliable_even;
+  float pos_reliable_odd; // Number of good global CPRs, indicates position reliability
+  float pos_reliable_even;
   int16_t traceWrittenForYesterday; // the permanent trace has been written for the previous day
   uint16_t mlatEPU;
   float gs_last_pos; // Save a groundspeed associated with the last position

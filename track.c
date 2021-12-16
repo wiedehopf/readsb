@@ -510,12 +510,12 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
         //(a->lat == lat && a->lon == lon) ? "L " : ((a->prev_lat == lat && a->prev_lon == lon) ? "P " : ""),
         //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
-        fprintf(stderr, "%02d:%02d:%04.1f %06x R:%2d %s %s %s %s %4.0f%% t%3.0f tD:%3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f\n",
+        fprintf(stderr, "%02d:%02d:%04.1f %06x R%3.1f %s %s %s %s %4.0f%% t%3.0f tD:%3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f\n",
                 (int) (now / (3600 * SECONDS) % 24),
                 (int) (now / (60 * SECONDS) % 60),
                 (now % (60 * SECONDS)) / 1000.0,
                 a->addr,
-                min(a->pos_reliable_odd, a->pos_reliable_even),
+                fminf(a->pos_reliable_odd, a->pos_reliable_even),
                 mm->cpr_odd ? "O" : "E",
                 cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "S"),
                 (surface ? "S" : "A"),
@@ -548,8 +548,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     if (!Modes.userLocationValid) {
         if (!inrange && mm->source == SOURCE_ADSB
                 && (distance - range > 800 || backInTimeSeconds > 4) && track_diff > 45
-                && a->pos_reliable_odd >= Modes.filter_persistence * 3 / 4
-                && a->pos_reliable_even >= Modes.filter_persistence * 3 / 4
+                && a->pos_reliable_odd >= Modes.position_persistence * 3 / 4
+                && a->pos_reliable_even >= Modes.position_persistence * 3 / 4
            ) {
             struct receiver *r = receiverBad(mm->receiverId, a->addr, now);
             if (r && Modes.debug_garbage && r->badCounter > 6) {
@@ -2476,8 +2476,8 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
     if (a->addr == Modes.cpr_focus)
         fprintf(stderr, "%06x: position_bad\n", a->addr);
 
-    a->pos_reliable_odd--;
-    a->pos_reliable_even--;
+    a->pos_reliable_odd -= 0.5f;
+    a->pos_reliable_even -= 0.5f;
 
     if (a->pos_reliable_odd <= 0 || a->pos_reliable_even <= 0) {
         a->position_valid.source = SOURCE_INVALID;
@@ -2996,8 +2996,8 @@ static void incrementReliable(struct aircraft *a, struct modesMessage *mm, uint6
         // if aircraft is close to last reliable position, treat new position as reliable immediately.
         // based on 2 minutes, 12 km equals 360 km/h or 194 knots
         if (distance < 12e3) {
-            a->pos_reliable_odd = max(1, Modes.json_reliable);
-            a->pos_reliable_even = max(1, Modes.json_reliable);
+            a->pos_reliable_odd = fmaxf(1, Modes.json_reliable);
+            a->pos_reliable_even = fmaxf(1, Modes.json_reliable);
             if (a->addr == Modes.cpr_focus)
                 fprintf(stderr, "%06x: fast track json_reliable\n", a->addr);
             return;
@@ -3011,8 +3011,8 @@ static void incrementReliable(struct aircraft *a, struct modesMessage *mm, uint6
     }
 
     if (odd)
-        a->pos_reliable_odd = min(a->pos_reliable_odd + 1, Modes.filter_persistence);
+        a->pos_reliable_odd = fminf(a->pos_reliable_odd + 1, Modes.position_persistence);
 
     if (!odd || odd == 2)
-        a->pos_reliable_even = min(a->pos_reliable_even + 1, Modes.filter_persistence);
+        a->pos_reliable_even = min(a->pos_reliable_even + 1, Modes.position_persistence);
 }

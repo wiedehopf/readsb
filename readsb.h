@@ -508,7 +508,7 @@ struct _Modes
     int8_t debug_bogus;
     int8_t decode_all;
     int8_t debug_maxRange;
-    int8_t filter_persistence; // Maximum number of consecutive implausible positions from global CPR to invalidate a known position
+    int8_t position_persistence; // Maximum number of consecutive implausible positions from global CPR to invalidate a known position
 
     int8_t net_verbatim; // if true, send the original message, not the CRC-corrected one
     int8_t netReceiverId;
@@ -925,6 +925,7 @@ enum {
     OptJsonGzip,
     OptJsonOnlyBin,
     OptJsonReliable,
+    OptPositionPersistence,
     OptJaeroTimeout,
     OptDbFile,
     OptDbFileLongtype,

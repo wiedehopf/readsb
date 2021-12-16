@@ -88,9 +88,9 @@ void receiverPositionReceived(struct aircraft *a, struct modesMessage *mm, doubl
         return;
     if (lat > 85.0 || lat < -85.0 || lon < -175 || lon > 175)
         return;
-    int reliabilityRequired = Modes.filter_persistence * 3 / 4;
+    int reliabilityRequired = Modes.position_persistence * 3 / 4;
     if (Modes.viewadsb || Modes.receiver_focus) {
-        reliabilityRequired = min(2, Modes.filter_persistence);
+        reliabilityRequired = min(2, Modes.position_persistence);
     }
     if (
             ! (

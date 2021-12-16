@@ -100,7 +100,7 @@ void receiverPositionChanged(float lat, float lon, float alt) {
 //
 // =============================== Initialization ===========================
 //
-static void modesInitConfig(void) {
+static void configSetDefaults(void) {
     // Default everything to zero/NULL
     memset(&Modes, 0, sizeof (Modes));
 
@@ -138,7 +138,7 @@ static void modesInitConfig(void) {
     Modes.maxRange = 1852 * 300; // 300NM default max range
     Modes.nfix_crc = 1;
     Modes.biastee = 0;
-    Modes.filter_persistence = 8;
+    Modes.position_persistence = 4;
     Modes.net_sndbuf_size = 2; // Default to 256 kB network write buffers
     Modes.net_output_flush_size = 1280; // Default to 1280 Bytes
     Modes.net_output_flush_interval = 50; // Default to 50 ms
@@ -216,19 +216,6 @@ static void modesInit(void) {
     // Allocate the various buffers used by Modes
     Modes.trailing_samples = (MODES_PREAMBLE_US + MODES_LONG_MSG_BITS + 16) * 1e-6 * Modes.sample_rate;
 
-    if (Modes.sdr_type == SDR_NONE) {
-        if (Modes.net)
-            Modes.net_only = 1;
-        if (!Modes.net_only) {
-            fprintf(stderr, "No networking or SDR input selected, exiting! Try '--device-type rtlsdr'! See 'readsb --help'\n");
-            cleanup_and_exit(1);
-        }
-    } else if (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS) {
-        Modes.net_only = 1;
-    } else {
-        Modes.net_only = 0;
-    }
-
     if (!Modes.net_only) {
         for (int i = 0; i < MODES_MAG_BUFFERS; ++i) {
             size_t alloc = (MODES_MAG_BUF_SAMPLES + Modes.trailing_samples) * sizeof (uint16_t);
@@ -242,55 +229,6 @@ static void modesInit(void) {
             Modes.mag_buffers[i].dropped = 0;
             Modes.mag_buffers[i].sampleTimestamp = 0;
         }
-    }
-
-    // Validate the users Lat/Lon home location inputs
-    if ((Modes.fUserLat > 90.0) // Latitude must be -90 to +90
-            || (Modes.fUserLat < -90.0) // and
-            || (Modes.fUserLon > 360.0) // Longitude must be -180 to +360
-            || (Modes.fUserLon < -180.0)) {
-        Modes.fUserLat = Modes.fUserLon = 0.0;
-    } else if (Modes.fUserLon > 180.0) { // If Longitude is +180 to +360, make it -180 to 0
-        Modes.fUserLon -= 360.0;
-    }
-    // If both Lat and Lon are 0.0 then the users location is either invalid/not-set, or (s)he's in the
-    // Atlantic ocean off the west coast of Africa. This is unlikely to be correct.
-    // Set the user LatLon valid flag only if either Lat or Lon are non zero. Note the Greenwich meridian
-    if ((Modes.fUserLat != 0.0) || (Modes.fUserLon != 0.0)) {
-        Modes.userLocationValid = 1;
-        fprintf(stderr, "Using lat: %9.4f, lon: %9.4f\n", Modes.fUserLat, Modes.fUserLon);
-    }
-    if (!Modes.userLocationValid || !Modes.json_dir) {
-        Modes.outline_json = 0; // disale outline_json
-    }
-    if (Modes.json_reliable == -13) {
-        if (Modes.userLocationValid && Modes.maxRange != 0)
-            Modes.json_reliable = 1;
-        else
-            Modes.json_reliable = 2;
-    }
-    //fprintf(stderr, "json_reliable: %d\n", Modes.json_reliable);
-
-    Modes.filter_persistence += Modes.json_reliable - 1;
-
-    if (Modes.net_output_flush_size > (MODES_OUT_BUF_SIZE)) {
-        Modes.net_output_flush_size = MODES_OUT_BUF_SIZE;
-    }
-    if (Modes.net_output_flush_size < 750) {
-        Modes.net_output_flush_size = 750;
-    }
-    if (Modes.net_output_flush_interval > (MODES_OUT_FLUSH_INTERVAL)) {
-        Modes.net_output_flush_interval = MODES_OUT_FLUSH_INTERVAL;
-    }
-    if (Modes.net_output_flush_interval < 4)
-        Modes.net_output_flush_interval = 4;
-
-    if (Modes.net_sndbuf_size > (MODES_NET_SNDBUF_MAX)) {
-        Modes.net_sndbuf_size = MODES_NET_SNDBUF_MAX;
-    }
-
-    if ((Modes.net_connector_delay <= 0) || (Modes.net_connector_delay > 86400 * 1000)) {
-        Modes.net_connector_delay = 30 * 1000;
     }
 
     // Prepare error correction tables
@@ -1144,6 +1082,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptJaeroTimeout:
             Modes.trackExpireJaero = (uint32_t) (atof(arg) * MINUTES);
             break;
+        case OptPositionPersistence:
+            Modes.position_persistence = atoi(arg);
+            break;
         case OptJsonReliable:
             Modes.json_reliable = atoi(arg);
             if (Modes.json_reliable < -1)
@@ -1540,6 +1481,68 @@ static void configAfterParse() {
     } else if (Modes.heatmap || Modes.trace_focus != BADDR) {
         Modes.keep_traces = 35 * MINUTES; // heatmap is written every 30 minutes
     }
+
+    // Validate the users Lat/Lon home location inputs
+    if ((Modes.fUserLat > 90.0) // Latitude must be -90 to +90
+            || (Modes.fUserLat < -90.0) // and
+            || (Modes.fUserLon > 360.0) // Longitude must be -180 to +360
+            || (Modes.fUserLon < -180.0)) {
+        Modes.fUserLat = Modes.fUserLon = 0.0;
+    } else if (Modes.fUserLon > 180.0) { // If Longitude is +180 to +360, make it -180 to 0
+        Modes.fUserLon -= 360.0;
+    }
+    // If both Lat and Lon are 0.0 then the users location is either invalid/not-set, or (s)he's in the
+    // Atlantic ocean off the west coast of Africa. This is unlikely to be correct.
+    // Set the user LatLon valid flag only if either Lat or Lon are non zero. Note the Greenwich meridian
+    if ((Modes.fUserLat != 0.0) || (Modes.fUserLon != 0.0)) {
+        Modes.userLocationValid = 1;
+        fprintf(stderr, "Using lat: %9.4f, lon: %9.4f\n", Modes.fUserLat, Modes.fUserLon);
+    }
+    if (!Modes.userLocationValid || !Modes.json_dir) {
+        Modes.outline_json = 0; // disale outline_json
+    }
+    if (Modes.json_reliable == -13) {
+        if (Modes.userLocationValid && Modes.maxRange != 0)
+            Modes.json_reliable = 1;
+        else
+            Modes.json_reliable = 2;
+    }
+    //fprintf(stderr, "json_reliable: %d\n", Modes.json_reliable);
+
+    Modes.position_persistence += Modes.json_reliable - 1;
+
+    if (Modes.net_output_flush_size > (MODES_OUT_BUF_SIZE)) {
+        Modes.net_output_flush_size = MODES_OUT_BUF_SIZE;
+    }
+    if (Modes.net_output_flush_size < 750) {
+        Modes.net_output_flush_size = 750;
+    }
+    if (Modes.net_output_flush_interval > (MODES_OUT_FLUSH_INTERVAL)) {
+        Modes.net_output_flush_interval = MODES_OUT_FLUSH_INTERVAL;
+    }
+    if (Modes.net_output_flush_interval < 4)
+        Modes.net_output_flush_interval = 4;
+
+    if (Modes.net_sndbuf_size > (MODES_NET_SNDBUF_MAX)) {
+        Modes.net_sndbuf_size = MODES_NET_SNDBUF_MAX;
+    }
+
+    if ((Modes.net_connector_delay <= 0) || (Modes.net_connector_delay > 86400 * 1000)) {
+        Modes.net_connector_delay = 30 * 1000;
+    }
+
+    if (Modes.sdr_type == SDR_NONE) {
+        if (Modes.net)
+            Modes.net_only = 1;
+        if (!Modes.net_only) {
+            fprintf(stderr, "No networking or SDR input selected, exiting! Try '--device-type rtlsdr'! See 'readsb --help'\n");
+            cleanup_and_exit(1);
+        }
+    } else if (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS) {
+        Modes.net_only = 1;
+    } else {
+        Modes.net_only = 0;
+    }
 }
 
 static void miscStuff() {
@@ -1643,11 +1646,12 @@ static void *miscEntryPoint(void *arg) {
 //
 
 int main(int argc, char **argv) {
+    srandom(get_seed());
+
     // Set sane defaults
-    modesInitConfig();
+    configSetDefaults();
 
     Modes.startup_time = mstime();
-    srandom(get_seed());
 
     // signal handling stuff
     Modes.exitEventfd = eventfd(0, EFD_NONBLOCK);
