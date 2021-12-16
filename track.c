@@ -393,8 +393,6 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     float range = 0;
     float speed;
     float calc_track = 0;
-    float track_diff = -1;
-    float track_bonus = 0;
     int inrange;
     int override = -1;
     double oldLat = a->lat;
@@ -452,6 +450,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     distance = greatcircle(oldLat, oldLon, lat, lon, 0);
     mm->distance_traveled = distance;
 
+    float track_diff = -1;
+    float track_bonus = 0;
     uint64_t track_max_age = 5 * SECONDS;
     uint64_t track_age;
     float track = -1;
@@ -466,7 +466,6 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
             && track > -1
             && trackDataAge(now, &a->position_valid) < 7 * SECONDS
             && trackDataAge(now, &a->gs_valid) < 7 * SECONDS
-            && a->gs > 10
             && (a->pos_reliable_odd >= Modes.json_reliable && a->pos_reliable_even >= Modes.json_reliable)
        ) {
         calc_track = bearing(oldLat, oldLon, lat, lon);
@@ -474,6 +473,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         track_diff = fabs(norm_diff(track - calc_track, 180));
         track_bonus = speed * (90.0f - track_diff) / 90.0f;
         track_bonus *= (surface ? 0.9f : 1.0f) * (1.0f - track_age / track_max_age);
+        if (a->gs < 10) {
+            // don't allow negative "bonus" below 10 knots speed
+            track_bonus = fmaxf(0.0f, track_bonus);
+        }
         speed += track_bonus;
         if (track_diff > 160) {
             mm->pos_ignore = 1; // don't decrement pos_reliable
@@ -491,7 +494,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     inrange = (distance <= range);
 
     float backInTimeSeconds = 0;
-    if (track_diff > 160 && trackDataAge(now, &a->gs_valid) < 10 * SECONDS) {
+    if (a->gs > 10 && track_diff > 160 && trackDataAge(now, &a->gs_valid) < 10 * SECONDS) {
         backInTimeSeconds = distance / (a->gs * (1852.0f / 3600.0f));
     }
 
@@ -521,6 +524,12 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                 (distance / elapsed * 1000.0 / 1852.0 * 3600.0),
                 (range / elapsed * 1000.0 / 1852.0 * 3600.0),
                 oldLat, oldLon, lat, lon);
+    }
+
+    if (backInTimeSeconds > 2 && a->addr == Modes.cpr_focus) {
+        char uuid[32]; // needs 18 chars and null byte
+        sprint_uuid1(mm->receiverId, uuid);
+        fprintf(stderr, "backInTime: %.1f receiverId: %s\n", backInTimeSeconds, uuid);
     }
 
     // override, this allows for printing stuff instead of returning
