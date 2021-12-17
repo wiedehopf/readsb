@@ -502,9 +502,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     }
 
     if (
-            (source > SOURCE_MLAT && track_diff < 190 && !inrange
-             && (Modes.debug_cpr || Modes.debug_speed_check)
-            ) || (a->addr == Modes.cpr_focus)
+            (source > SOURCE_MLAT && track_diff < 160 && !inrange && (Modes.debug_cpr || Modes.debug_speed_check))
+            || (a->addr == Modes.cpr_focus)
             || (Modes.debug_maxRange && track_diff > 90)
        ) {
 
