@@ -699,10 +699,10 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
         p = safe_snprintf(p, end, "]");
     }
     if (printMode != 1) {
-        if (posReliable(a)) {
+        if (now - a->seenPosReliable < TRACK_EXPIRE) {
             p = safe_snprintf(p, end, ",\"lat\":%f,\"lon\":%f,\"nic\":%u,\"rc\":%u,\"seen_pos\":%.1f",
-                    a->lat, a->lon, a->pos_nic, a->pos_rc,
-                    (now < a->position_valid.updated) ? 0 : ((now - a->position_valid.updated) / 1000.0));
+                    a->latReliable, a->lonReliable, a->pos_nic_reliable, a->pos_rc_reliable,
+                    (now < a->seenPosReliable) ? 0 : ((now - a->seenPosReliable) / 1000.0));
 #if defined(TRACKS_UUID)
             char uuid[32]; // needs 18 chars and null byte
             sprint_uuid1(a->lastPosReceiverId, uuid);
@@ -968,30 +968,32 @@ static void check_state_all(struct aircraft *test, int64_t now) {
 }
 */
 
-static inline __attribute__((always_inline)) int includeGlobeJson(int64_t now, struct aircraft *a) {
+int includeGlobeJson(int64_t now, struct aircraft *a) {
     if (a == NULL)
         return 0;
     if (a->messages < 2)
         return 0;
 
-    if (a->nogpsCounter >= NOGPS_SHOW && now < a->seenAdsbReliable + NOGPS_DWELL && now > a->seenAdsbReliable + 15 * SECONDS)
+    if (a->nogpsCounter >= NOGPS_SHOW && now < a->seenAdsbReliable + NOGPS_DWELL && now > a->seenAdsbReliable + 15 * SECONDS) {
         return 1;
-    // check aircraft without position:
-    if (a->position_valid.source == SOURCE_INVALID) {
-        // don't include stale aircraft
-        if (now > a->seen + TRACK_EXPIRE / 2 && now > a->seenPosReliable + TRACK_EXPIRE) {
-            return 0;
-        }
-        // don't include aircraft with very outdated positions in globe files
-        if (now > a->seenPosReliable + 30 * MINUTES) {
-            return 0;
-        }
+    }
+    // include all aircraft with valid position
+    if (a->position_valid.source != SOURCE_INVALID) {
+        return 1;
+    }
+    // include active aircraft
+    if (now < a->seen + TRACK_EXPIRE / 2) {
+        return 1;
+    }
+    // include aircraft with reliable position in the last 30 minutes
+    if (now < a->seenPosReliable + 30 * MINUTES) {
+        return 1;
     }
 
-    return 1;
+    return 0;
 }
 
-static inline __attribute__((always_inline)) int includeAircraftJson(int64_t now, struct aircraft *a) {
+int includeAircraftJson(int64_t now, struct aircraft *a) {
     if (a == NULL)
         return 0;
     if (a->messages < 2)
@@ -999,15 +1001,18 @@ static inline __attribute__((always_inline)) int includeAircraftJson(int64_t now
 
     if (a->nogpsCounter >= NOGPS_SHOW && now < a->seenAdsbReliable + NOGPS_DWELL && now > a->seenAdsbReliable + 15 * SECONDS)
         return 1;
-    // check aircraft without position:
-    if (a->position_valid.source == SOURCE_INVALID) {
-        // don't include stale aircraft
-        if (now > a->seen + TRACK_EXPIRE / 2 && now > a->seenPosReliable + TRACK_EXPIRE) {
-            return 0;
-        }
-    }
+    // include all aircraft with valid position
+    if (a->position_valid.source != SOURCE_INVALID)
+        return 1;
+    // include active aircraft
+    if (now < a->seen + TRACK_EXPIRE / 2)
+        return 1;
 
-    return 1;
+    // include aircraft which recently had a position
+    if (now < a->seenPosReliable + TRACK_EXPIRE)
+        return 1;
+
+    return 0;
 }
 
 struct char_buffer generateAircraftBin() {

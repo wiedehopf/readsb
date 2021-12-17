@@ -282,17 +282,12 @@ static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, int64_t 
     memcpy(entry->typeCode, a->typeCode, sizeof(entry->typeCode));
     entry->dbFlags = a->dbFlags;
 
-    if (a->messages >= 2 && (
-                a->position_valid.source == SOURCE_JAERO
-                || now < a->seen + TRACK_EXPIRE / 2
-                || now < a->seenPosReliable + TRACK_EXPIRE
-                )
-       ) {
+    if (includeAircraftJson(now, a)) {
         buffer->aircraftJsonCount++;
         entry->aircraftJson = 1;
     }
 
-    if (a->position_valid.source == SOURCE_JAERO || now < a->seenPosReliable + 2 * MINUTES) {
+    if (includeGlobeJson(now, a)) {
         entry->globe_index = a->globe_index;
     } else {
         entry->globe_index = -2;

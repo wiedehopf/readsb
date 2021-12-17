@@ -24,6 +24,9 @@
 #ifndef JSON_OUT_H
 #define JSON_OUT_H
 
+int includeAircraftJson(int64_t now, struct aircraft *a);
+int includeGlobeJson(int64_t now, struct aircraft *a);
+
 void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, int64_t now);
 void logACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, int64_t now);
 
