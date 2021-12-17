@@ -1791,8 +1791,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         a->geom_rate = mm->geom_rate;
     }
 
-    if (mm->airground != AG_INVALID &&
-            !(mm->source == SOURCE_MODE_S
+    if (
+            mm->airground != AG_INVALID
+            && (a->addrtype < ADDR_MLAT || mm->source >= a->airground_valid.source || trackDataAge(now, &a->airground_valid) > TRACK_EXPIRE_LONG * 3 / 4)
+            && !(mm->source == SOURCE_MODE_S
                 && trackDataAge(now, &a->cpr_even_valid) < TRACK_EXPIRE_LONG
                 && trackDataAge(now, &a->airground_valid) < TRACK_EXPIRE_LONG * 3 / 4
              )
