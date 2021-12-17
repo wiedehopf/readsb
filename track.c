@@ -546,7 +546,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
     if (!Modes.userLocationValid) {
         if (!inrange && mm->source == SOURCE_ADSB
-                && (distance - range > 800 || backInTimeSeconds > 4) && track_diff > 45
+                && (distance - range > 800 || backInTimeSeconds > 3) && track_diff > 45
                 && a->pos_reliable_odd >= Modes.position_persistence * 3 / 4
                 && a->pos_reliable_even >= Modes.position_persistence * 3 / 4
            ) {
