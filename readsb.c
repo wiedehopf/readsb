@@ -138,7 +138,7 @@ static void configSetDefaults(void) {
     Modes.maxRange = 1852 * 300; // 300NM default max range
     Modes.nfix_crc = 1;
     Modes.biastee = 0;
-    Modes.position_persistence = 4;
+    Modes.position_persistence = 3;
     Modes.net_sndbuf_size = 2; // Default to 256 kB network write buffers
     Modes.net_output_flush_size = 1280; // Default to 1280 Bytes
     Modes.net_output_flush_interval = 50; // Default to 50 ms
@@ -1086,7 +1086,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.trackExpireJaero = (uint32_t) (atof(arg) * MINUTES);
             break;
         case OptPositionPersistence:
-            Modes.position_persistence = atoi(arg);
+            Modes.position_persistence = imax(0, atoi(arg));
             break;
         case OptJsonReliable:
             Modes.json_reliable = atoi(arg);
@@ -1511,7 +1511,11 @@ static void configAfterParse() {
     }
     //fprintf(stderr, "json_reliable: %d\n", Modes.json_reliable);
 
-    Modes.position_persistence += Modes.json_reliable - 1;
+    if (Modes.position_persistence < Modes.json_reliable) {
+        Modes.position_persistence = imax(0, Modes.json_reliable);
+        fprintf(stderr, "position-persistence must be >= json-reliable! setting position-persistence: %d\n",
+                Modes.position_persistence);
+    }
 
     if (Modes.net_output_flush_size > (MODES_OUT_BUF_SIZE)) {
         Modes.net_output_flush_size = MODES_OUT_BUF_SIZE;
