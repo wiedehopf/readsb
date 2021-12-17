@@ -447,8 +447,7 @@ struct aircraft
 
   uint16_t pos_nic_reliable;
   uint16_t pos_rc_reliable;
-  uint16_t pad222;
-  uint16_t pad333;
+  int32_t trackUnreliable;
 
   uint64_t receiverId;
 

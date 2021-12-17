@@ -138,7 +138,7 @@ static void configSetDefaults(void) {
     Modes.maxRange = 1852 * 300; // 300NM default max range
     Modes.nfix_crc = 1;
     Modes.biastee = 0;
-    Modes.position_persistence = 3;
+    Modes.position_persistence = 4;
     Modes.net_sndbuf_size = 2; // Default to 256 kB network write buffers
     Modes.net_output_flush_size = 1280; // Default to 1280 Bytes
     Modes.net_output_flush_interval = 50; // Default to 50 ms

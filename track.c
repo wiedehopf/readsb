@@ -375,7 +375,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         // don't use duplicate positions
         mm->duplicate = 1;
         mm->pos_ignore = 1;
-        if  (elapsed > 200 && a->receiverId == mm->receiverId && (Modes.debug_cpr || Modes.debug_speed_check || a->addr == Modes.cpr_focus)) {
+        if (elapsed > 200 && a->receiverId == mm->receiverId && (Modes.debug_cpr || Modes.debug_speed_check || a->addr == Modes.cpr_focus)) {
             // let speed_check continue for displaying this duplicate (at least for non-aggregated receivers)
         } else {
             // omit rest of speed check to save on cycles
@@ -463,6 +463,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         track = a->true_heading;
         track_age = trackDataAge(now, &a->true_heading_valid);
     }
+
     if (distance > 1 && source > SOURCE_MLAT
             && track > -1
             && trackDataAge(now, &a->position_valid) < 7 * SECONDS
@@ -472,6 +473,9 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         calc_track = bearing(oldLat, oldLon, lat, lon);
         mm->calculated_track = calc_track;
         track_diff = fabs(norm_diff(track - calc_track, 180));
+    }
+
+    if (track_diff > -1 && a->trackUnreliable < 8) {
         track_bonus = speed * (90.0f - track_diff) / 90.0f;
         track_bonus *= (surface ? 0.9f : 1.0f) * (1.0f - track_age / track_max_age);
         if (a->gs < 10) {
@@ -483,12 +487,24 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         if (track_diff > 160) {
             mm->pos_ignore = 1; // don't decrement pos_reliable
         }
-        range += 10;
     } else {
         // Work out a reasonable speed to use:
         //  current speed + 1/5
         speed = speed * 1.2f;
-        range += 40;
+    }
+    if (surface) {
+        range += 10;
+    } else {
+        range += 30;
+    }
+    if (track_diff > 80.0f) {
+        a->trackUnreliable = imin(16, a->trackUnreliable + 1);
+    } else if (track_diff > -1) {
+        a->trackUnreliable = imax(0, a->trackUnreliable - 1);
+    }
+    // same TCP packet, two positions from same receiver id, allow plenty of extra range
+    if (elapsed < 2 && a->receiverId == mm->receiverId) {
+        range += 500; // 500 m extra in this case
     }
 
     // plus distance covered at the given speed for the elapsed time + 0.2 seconds.
@@ -1979,6 +1995,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         if (mm->addrtype >= a->addrtype) {
             //if (a->last_cpr_type == CPR_SURFACE && mm->cpr_type == CPR_AIRBORNE
             if (mm->cpr_type == CPR_AIRBORNE
+                    && (a->last_cpr_type == CPR_SURFACE || mm->airground == AG_AIRBORNE)
                     && accept_data(&a->airground_valid, mm->source, mm, a, 0)) {
                 focusGroundstateChange(a, mm, 2, now, AG_AIRBORNE);
                 a->airground = AG_AIRBORNE;
