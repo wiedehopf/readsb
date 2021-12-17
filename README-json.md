@@ -257,3 +257,23 @@ Each period has the following subkeys:
    * all: total tracks created
    * single_message: tracks consisting of only a single message. These are usually due to message decoding errors that produce a bad aircraft address.
  * messages: total number of messages accepted by readsb from any source
+
+## minimal example on how to use python to process aircraft.json:
+
+```
+from contextlib import closing
+from urllib.request import urlopen, URLError
+import json
+
+
+url="http://192.168.2.14/tar1090/data/aircraft.json"
+with closing(urlopen(url, None, 5.0)) as aircraft_file:
+    aircraft_data = json.load(aircraft_file)
+
+for a in aircraft_data['aircraft']:
+   hex = a.get('hex')
+   lat = a.get('lat')
+   lon = a.get('lon')
+   if lat and lon:
+      print("Icao 24 bit id: {hex} Latitude: {lat:.4f} Longitude: {lon:.4f}".format(hex=hex, lat=lat, lon=lon))
+```
