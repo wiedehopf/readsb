@@ -1934,10 +1934,9 @@ void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a) {
 //
 void modesQueueOutput(struct modesMessage *mm, struct aircraft *a) {
     int is_mlat = (mm->source == SOURCE_MLAT);
-    if (Modes.garbage_ports && (mm->garbage || mm->pos_bad)) {
-        if ((mm->garbage || !mm->pos_ignore) && Modes.garbage_out.connections)
-            modesSendBeastOutput(mm, &Modes.garbage_out);
-        return;
+
+    if (Modes.garbage_ports && (mm->garbage || mm->pos_bad) && !mm->pos_ignore && Modes.garbage_out.connections) {
+        modesSendBeastOutput(mm, &Modes.garbage_out);
     }
 
     if (a && (!Modes.sbsReduce || mm->reduce_forward)) {
@@ -2356,7 +2355,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now) 
         }
     }
 
-    if (Modes.garbage_ports && receiverCheckBad(mm.receiverId, now)) {
+    if ((Modes.garbage_ports || Modes.netReceiverId) && receiverCheckBad(mm.receiverId, now)) {
         mm.garbage = 1;
     }
 

@@ -2154,8 +2154,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         ca_add(&Modes.aircraftActive, a);
         //fprintf(stderr, "active len %d\n", Modes.aircraftActive.len);
     }
-    // never forward duplicate positions
-    if (mm->duplicate) {
+    // never reduce forward duplicate / bad / garbage positions
+    if (mm->duplicate || mm->pos_bad || mm->garbage) {
         mm->reduce_forward = 0;
     }
     // forward all CPRs to the apex for faster garbage detection and such
@@ -2479,17 +2479,24 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
     int64_t now = mm->sysTimestampMsg;
 
     if (
-            now < a->discarded_time + 1 * SECONDS
+            now - a->discarded_time < 1 * SECONDS
             && a->discarded_lat == mm->decoded_lat
             && a->discarded_lon == mm->decoded_lon
        ) {
         return; // don't decrement pos_reliable as we already got the same bad position within the last second
+    }
+    if (
+            now - a->discarded_time < 0.3 * SECONDS
+            && a->discarded_receiverId == mm->receiverId
+       ) {
+        return; // rate limit reliable decrement per receiver
     }
 
     // most recent discarded position which led to decrementing reliability and timestamp (speed_check)
     a->discarded_time = now;
     a->discarded_lat = mm->decoded_lat;
     a->discarded_lon = mm->decoded_lon;
+    a->discarded_receiverId = mm->receiverId;
 
     if (a->addr == Modes.cpr_focus)
         fprintf(stderr, "%06x: position_bad\n", a->addr);

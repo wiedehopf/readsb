@@ -460,6 +460,7 @@ struct aircraft
   double discarded_lat;
   double discarded_lon;
   int64_t discarded_time;
+  uint64_t discarded_receiverId;
 };
 
 /* Mode A/C tracking is done separately, not via the aircraft list,
