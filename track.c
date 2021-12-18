@@ -501,10 +501,12 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     } else {
         range += 30;
     }
-    if (track_diff > 80.0f) {
-        a->trackUnreliable = imin(16, a->trackUnreliable + 1);
-    } else if (track_diff > -1) {
-        a->trackUnreliable = imax(0, a->trackUnreliable - 1);
+    if (!mm->pos_ignore) {
+        if (track_diff > 80.0f) {
+            a->trackUnreliable = imin(16, a->trackUnreliable + 1);
+        } else if (track_diff > -1) {
+            a->trackUnreliable = imax(0, a->trackUnreliable - 1);
+        }
     }
     // same TCP packet, two positions from same receiver id, allow plenty of extra range
     if (elapsed < 2 && a->receiverId == mm->receiverId) {
