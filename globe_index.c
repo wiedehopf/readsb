@@ -671,6 +671,33 @@ static void traceWrite(struct aircraft *a, int64_t now, int init) {
                 a->trace_writeCounter);
 }
 
+static void free_aircraft(int blob) {
+    if (!Modes.free_aircraft)
+        return;
+
+    if (blob < 0 || blob > STATE_BLOBS)
+        fprintf(stderr, "free_aircraft: invalid argument: %02x", blob);
+    int stride = AIRCRAFT_BUCKETS / STATE_BLOBS;
+    int start = stride * blob;
+    int end = start + stride;
+    for (int j = start; j < end; j++) {
+        struct aircraft *a = Modes.aircraft[j], *na;
+        /* Go through tracked aircraft chain and free up any used memory */
+        while (a) {
+            na = a->next;
+            if (a) {
+                if (a->trace) {
+                    free(a->trace);
+                    free(a->trace_all);
+                    free(a->traceCache);
+                }
+                free(a);
+            }
+            a = na;
+        }
+    }
+}
+
 void *save_blobs(void *arg) {
     int thread_number = *((int *) arg);
     for (int j = 0; j < STATE_BLOBS; j++) {
@@ -679,6 +706,7 @@ void *save_blobs(void *arg) {
 
         //fprintf(stderr, "save_blob(%d)\n", j);
         save_blob(j);
+        free_aircraft(j);
     }
     return NULL;
 }
@@ -2425,15 +2453,13 @@ void checkNewDayLocked(int64_t now) {
 
 void writeInternalState() {
     pthread_t threads[Modes.io_threads];
-    int numbers[Modes.io_threads];
 
     fprintf(stderr, "saving state .....\n");
     struct timespec watch;
     startWatch(&watch);
 
     for (int i = 0; i < Modes.io_threads; i++) {
-        numbers[i] = i;
-        pthread_create(&threads[i], NULL, save_blobs, &numbers[i]);
+        pthread_create(&threads[i], NULL, save_blobs, &Modes.threadNumber[i]);
     }
     for (int i = 0; i < Modes.io_threads; i++) {
         pthread_join(threads[i], NULL);

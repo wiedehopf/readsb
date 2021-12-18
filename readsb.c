@@ -804,22 +804,6 @@ static void cleanup_and_exit(int code) {
     sfree(Modes.uuidFile);
     sfree(Modes.dbIndex);
     sfree(Modes.db);
-    /* Go through tracked aircraft chain and free up any used memory */
-    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
-        struct aircraft *a = Modes.aircraft[j], *na;
-        while (a) {
-            na = a->next;
-            if (a) {
-                if (a->trace) {
-                    sfree(a->trace);
-                    sfree(a->trace_all);
-                    sfree(a->traceCache);
-                }
-                sfree(a);
-            }
-            a = na;
-        }
-    }
 
     int i;
     for (i = 0; i < MODES_MAG_BUFFERS; ++i) {
@@ -1846,10 +1830,6 @@ int main(int argc, char **argv) {
         cleanupNetwork();
     }
 
-    if (Modes.state_dir) {
-        writeInternalState();
-    }
-
     threadDestroyAll();
 
     pthread_mutex_destroy(&Modes.traceDebugMutex);
@@ -1862,6 +1842,11 @@ int main(int argc, char **argv) {
     if (Modes.stats) {
         display_total_stats();
     }
+
+    // frees aircraft when Modes.free_aircraft is set
+    // writes state if Modes.state_dir is set
+    Modes.free_aircraft = 1;
+    writeInternalState();
 
     if (Modes.exit != 1) {
         log_with_timestamp("Abnormal exit.");

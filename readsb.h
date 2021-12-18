@@ -589,6 +589,7 @@ struct _Modes
     char *globe_history_dir;
     char *state_dir;
     int state_only_on_exit;
+    int free_aircraft;
     char *prom_file;
     int64_t heatmap_current_interval;
     int64_t heatmap_interval; // don't change data type
