@@ -375,6 +375,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         // don't use duplicate positions
         mm->duplicate = 1;
         mm->pos_ignore = 1;
+        // but count it as a received position towards receiver heuristics
+        if (!Modes.userLocationValid) {
+            receiverPositionReceived(a, mm, lat, lon, now);
+        }
         if (elapsed > 200 && a->receiverId == mm->receiverId && (Modes.debug_cpr || Modes.debug_speed_check || a->addr == Modes.cpr_focus)) {
             // let speed_check continue for displaying this duplicate (at least for non-aggregated receivers)
         } else {
