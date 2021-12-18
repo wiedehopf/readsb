@@ -2452,21 +2452,18 @@ void checkNewDayLocked(int64_t now) {
 }
 
 void writeInternalState() {
-    pthread_t threads[Modes.io_threads];
+    pthread_t *threads;
+    threads = malloc(sizeof(pthread_t) * Modes.io_threads);
 
-    fprintf(stderr, "saving state .....\n");
     struct timespec watch;
-    startWatch(&watch);
+    if (Modes.state_dir) {
+        fprintf(stderr, "saving state .....\n");
+        startWatch(&watch);
+    }
 
     for (int i = 0; i < Modes.io_threads; i++) {
         pthread_create(&threads[i], NULL, save_blobs, &Modes.threadNumber[i]);
     }
-    for (int i = 0; i < Modes.io_threads; i++) {
-        pthread_join(threads[i], NULL);
-    }
-
-    double elapsed = stopWatch(&watch) / 1000.0;
-    fprintf(stderr, " .......... done, saved %llu aircraft in %.3f seconds!\n", (unsigned long long) Modes.total_aircraft_count, elapsed);
 
     if (Modes.outline_json) {
         char pathbuf[PATH_MAX];
@@ -2478,18 +2475,61 @@ void writeInternalState() {
             gzclose(gzfp);
         }
     }
+
+    for (int i = 0; i < Modes.io_threads; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    if (Modes.state_dir) {
+        double elapsed = stopWatch(&watch) / 1000.0;
+        fprintf(stderr, " .......... done, saved %llu aircraft in %.3f seconds!\n", (unsigned long long) Modes.total_aircraft_count, elapsed);
+    }
+
+    sfree(threads);
 }
 
 void readInternalState() {
     fprintf(stderr, "loading state .....\n");
     struct timespec watch;
     startWatch(&watch);
-    pthread_t threads[Modes.io_threads];
-    int numbers[Modes.io_threads];
+    pthread_t *threads;
+    threads = malloc(sizeof(pthread_t) * Modes.io_threads);
+
     for (int i = 0; i < Modes.io_threads; i++) {
-        numbers[i] = i;
-        pthread_create(&threads[i], NULL, load_blobs, &numbers[i]);
+        pthread_create(&threads[i], NULL, load_blobs, &Modes.threadNumber[i]);
     }
+
+    {
+        char pathbuf[PATH_MAX];
+
+        if (Modes.globe_history_dir && mkdir(Modes.globe_history_dir, 0755) && errno != EEXIST) {
+            perror(Modes.globe_history_dir);
+        }
+
+        if (mkdir(Modes.state_dir, 0755) && errno != EEXIST) {
+            perror(pathbuf);
+        }
+
+        if (Modes.outline_json) {
+            struct char_buffer cb;
+            snprintf(pathbuf, PATH_MAX, "%s/rangeDirs.gz", Modes.state_dir);
+            gzFile gzfp = gzopen(pathbuf, "r");
+            if (gzfp) {
+                cb = readWholeGz(gzfp, pathbuf);
+                gzclose(gzfp);
+                if (cb.len == sizeof(Modes.lastRangeDirHour) + sizeof(Modes.rangeDirs)) {
+                    fprintf(stderr, "actual range outline, read bytes: %zu\n", cb.len);
+
+                    char *p = cb.buffer;
+                    memcpy(&Modes.lastRangeDirHour, p, sizeof(Modes.lastRangeDirHour));
+                    p += sizeof(Modes.lastRangeDirHour);
+                    memcpy(Modes.rangeDirs, p, sizeof(Modes.rangeDirs));
+                }
+                free(cb.buffer);
+            }
+        }
+    }
+
     for (int i = 0; i < Modes.io_threads; i++) {
         pthread_join(threads[i], NULL);
     }
@@ -2506,34 +2546,8 @@ void readInternalState() {
     fprintf(stderr, " .......... done, loaded %llu aircraft in %.3f seconds!\n", (unsigned long long) aircraftCount, elapsed);
     fprintf(stderr, "aircraft table fill: %0.1f\n", aircraftCount / (double) AIRCRAFT_BUCKETS );
 
-    char pathbuf[PATH_MAX];
+    sfree(threads);
 
-    if (Modes.globe_history_dir && mkdir(Modes.globe_history_dir, 0755) && errno != EEXIST) {
-        perror(Modes.globe_history_dir);
-    }
-
-    if (mkdir(Modes.state_dir, 0755) && errno != EEXIST) {
-        perror(pathbuf);
-    }
-
-    if (Modes.outline_json) {
-        struct char_buffer cb;
-        snprintf(pathbuf, PATH_MAX, "%s/rangeDirs.gz", Modes.state_dir);
-        gzFile gzfp = gzopen(pathbuf, "r");
-        if (gzfp) {
-            cb = readWholeGz(gzfp, pathbuf);
-            gzclose(gzfp);
-            if (cb.len == sizeof(Modes.lastRangeDirHour) + sizeof(Modes.rangeDirs)) {
-                fprintf(stderr, "actual range outline, read bytes: %zu\n", cb.len);
-
-                char *p = cb.buffer;
-                memcpy(&Modes.lastRangeDirHour, p, sizeof(Modes.lastRangeDirHour));
-                p += sizeof(Modes.lastRangeDirHour);
-                memcpy(Modes.rangeDirs, p, sizeof(Modes.rangeDirs));
-            }
-            free(cb.buffer);
-        }
-    }
 }
 void traceDelete() {
     struct hexInterval* entry = Modes.deleteTrace;
