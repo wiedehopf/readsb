@@ -614,13 +614,13 @@ struct _Modes
     int net_sndbuf_size; // TCP output buffer size (64Kb * 2^n)
     int json_aircraft_history_next;
     int json_aircraft_history_full;
+    int trace_hist_only;
     int8_t userLocationValid;
     int8_t biastee;
     int8_t triggerPermWriteDay;
     int8_t acasDay;
     int8_t traceDay;
     int8_t onlyBin; // only write binCraft for globe (1) and also aircraft.json (2)
-    int8_t trace_hist_only;
 
     int8_t updateStats;
     int8_t staleStop;

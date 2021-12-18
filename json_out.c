@@ -1440,6 +1440,9 @@ static char *sprintTracePoint(char *p, char *end, struct aircraft *a, int i, int
 }
 static void checkTraceCache(struct aircraft *a, int64_t now) {
     if (!a->traceCache) {
+        if (Modes.trace_hist_only & 8) {
+            return; // no cache in this special case ... please ignore :)
+        }
         if (now > a->seen_pos + TRACE_CACHE_LIFETIME / 2 || !a->trace) {
             return;
         }

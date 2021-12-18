@@ -457,6 +457,22 @@ static void traceWrite(struct aircraft *a, int64_t now, int init) {
         if (Modes.trace_hist_only & 2)
             hist_only_mask |= WRECENT;
 
+        if (Modes.trace_hist_only & 8) {
+            if (a->trace_writeCounter > recent_points) {
+                hist_only_mask |= WRECENT;
+                a->trace_writeCounter = 0;
+            }
+            if (now > a->trace_next_mw) {
+                hist_only_mask |= WMEM;
+                for (int i = 0; i < a->trace_len; i++) {
+                    if (a->trace[i].timestamp > now - GLOBE_MEM_IVAL) {
+                        startFull = i;
+                        break;
+                    }
+                }
+            }
+        }
+
         trace_write &= hist_only_mask;
     }
 
