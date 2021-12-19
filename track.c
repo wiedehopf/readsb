@@ -347,15 +347,15 @@ static void update_range_histogram(struct aircraft *a, struct modesMessage *mm, 
 }
 
 static inline int duplicate_check(int64_t now, struct aircraft *a, double new_lat, double new_lon) {
-    // if the last position is older than 3 seconds we don't consider it a duplicate
-    if (now > a->seen_pos + 3 * SECONDS)
+    // if the last position is older than 2 seconds we don't consider it a duplicate
+    if (now > a->seen_pos + 2 * SECONDS)
         return 0;
     // duplicate
     if (a->lat == new_lat && a->lon == new_lon)
         return 1;
 
-    // if the previous position is older than 3 seconds we don't consider it a duplicate
-    if (now > a->prev_pos_time + 3 * SECONDS)
+    // if the previous position is older than 2 seconds we don't consider it a duplicate
+    if (now > a->prev_pos_time + 2 * SECONDS)
         return 0;
     // duplicate (this happens either with some transponder or delayed data arrival due to odd / even CPR, not certain)
     if (a->prev_lat == new_lat && a->prev_lon == new_lon)
@@ -415,9 +415,11 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         override = 1;
     } else if (bogus_lat_lon(lat, lon) ||
             (mm->cpr_valid && mm->cpr_lat == 0 && mm->cpr_lon == 0)
-            || (mm->cpr_valid && (mm->cpr_lat == 0 || mm->cpr_lon == 0)
-                && (a->position_valid.source < SOURCE_TISB || !posReliable(a)))
-       ) {
+            || (
+                mm->cpr_valid && (mm->cpr_lat == 0 || mm->cpr_lon == 0)
+                && (a->position_valid.source < SOURCE_TISB || !posReliable(a))
+               )
+            ) {
         mm->pos_ignore = 1; // don't decrement pos_reliable
         override = 0;
     } else if (a->pos_reliable_odd <= 0 || a->pos_reliable_even <= 0) {
@@ -2160,8 +2162,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         ca_add(&Modes.aircraftActive, a);
         //fprintf(stderr, "active len %d\n", Modes.aircraftActive.len);
     }
-    // never reduce forward duplicate / bad / garbage positions
-    if (mm->duplicate || mm->pos_bad || mm->garbage) {
+    // don't reduce forward duplicate / garbage / bad positions when garbage ports is active
+    if ((mm->duplicate || mm->garbage || mm->pos_bad) && Modes.garbage_ports) {
         mm->reduce_forward = 0;
     }
     // forward all CPRs to the apex for faster garbage detection and such
