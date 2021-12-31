@@ -3063,8 +3063,8 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
     if (a->addr == Modes.cpr_focus)
         fprintf(stderr, "%06x: position_bad %u %u\n", a->addr, mm->cpr_lat, mm->cpr_lon);
 
-    a->pos_reliable_odd -= 0.5f;
+    a->pos_reliable_odd -= 0.4f;
     a->pos_reliable_odd = fmax(0, a->pos_reliable_odd);
-    a->pos_reliable_even -= 0.5f;
+    a->pos_reliable_even -= 0.4f;
     a->pos_reliable_even = fmax(0, a->pos_reliable_even);
 }
