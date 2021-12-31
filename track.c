@@ -421,8 +421,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                )
             ) {
         mm->pos_ignore = 1; // don't decrement pos_reliable
-        override = 0;
-    } else if (a->pos_reliable_odd <= 0 || a->pos_reliable_even <= 0) {
+        override = -2;
+    } else if (a->pos_reliable_odd < 0.9 || a->pos_reliable_even < 0.9) {
         override = 1;
     } else if (now > a->position_valid.updated + (120 * 1000)) {
         override = 1; // no reference or older than 120 seconds, assume OK
@@ -551,7 +551,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                 mm->cpr_odd ? "O" : "E",
                 cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "S"),
                 (surface ? "S" : "A"),
-                (override != -1 ? (override ? "ovrd" : "bogu") : (inrange ? "pass" : "FAIL")),
+                (override != -1 ? (override == -2 ? "bogu" : "ovrd") : (inrange ? "pass" : "FAIL")),
                 100.0f * distance / range,
                 track,
                 calc_track,
@@ -573,7 +573,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
 
     // override, this allows for printing stuff instead of returning
-    if (override != -1) {
+    if (override < 0) {
         inrange = override;
     }
 
@@ -2487,43 +2487,6 @@ static void adjustExpire(struct aircraft *a, int64_t timeout) {
 }
 */
 
-static void position_bad(struct modesMessage *mm, struct aircraft *a) {
-    if (mm->garbage)
-        return;
-    if (mm->pos_ignore)
-        return;
-    if (mm->source < a->position_valid.source)
-        return;
-
-    int64_t now = mm->sysTimestampMsg;
-
-    if (
-            now - a->discarded_time < 1 * SECONDS
-            && a->discarded_lat == mm->decoded_lat
-            && a->discarded_lon == mm->decoded_lon
-       ) {
-        return; // don't decrement pos_reliable as we already got the same bad position within the last second
-    }
-    if (
-            now - a->discarded_time < 0.3 * SECONDS
-            && a->discarded_receiverId == mm->receiverId
-       ) {
-        return; // rate limit reliable decrement per receiver
-    }
-
-    // most recent discarded position which led to decrementing reliability and timestamp (speed_check)
-    a->discarded_time = now;
-    a->discarded_lat = mm->decoded_lat;
-    a->discarded_lon = mm->decoded_lon;
-    a->discarded_receiverId = mm->receiverId;
-
-    if (a->addr == Modes.cpr_focus)
-        fprintf(stderr, "%06x: position_bad\n", a->addr);
-
-    a->pos_reliable_odd -= 0.4f;
-    a->pos_reliable_even -= 0.4f;
-}
-
 void to_state_all(struct aircraft *a, struct state_all *new, int64_t now) {
             for (int i = 0; i < 8; i++)
                 new->callsign[i] = a->callsign[i];
@@ -3024,10 +2987,10 @@ static void incrementReliable(struct aircraft *a, struct modesMessage *mm, int64
     a->localCPR_allow_ac_rel = 1;
 
     if (mm->source > SOURCE_JAERO && now > a->seenPosReliable + 2 * MINUTES
-            && a->pos_reliable_odd <= 0 && a->pos_reliable_even <= 0) {
+            && (a->pos_reliable_odd < Modes.json_reliable || a->pos_reliable_even < Modes.json_reliable)) {
         double distance = greatcircle(a->latReliable, a->lonReliable, mm->decoded_lat, mm->decoded_lon, 0);
         // if aircraft is close to last reliable position, treat new position as reliable immediately.
-        // based on 2 minutes, 12 km equals 360 km/h or 194 knots
+        // based on 2 minutes and 12 km equals 360 km/h or 194 knots
         if (distance < 12e3) {
             a->pos_reliable_odd = fmaxf(1, Modes.json_reliable);
             a->pos_reliable_even = fmaxf(1, Modes.json_reliable);
@@ -3037,9 +3000,8 @@ static void incrementReliable(struct aircraft *a, struct modesMessage *mm, int64
         }
     }
 
-    if (a->pos_reliable_odd <= 0 || a->pos_reliable_even <= 0) {
-        a->pos_reliable_odd = 1;
-        a->pos_reliable_even = 1;
+    if (a->pos_reliable_odd < 1 || a->pos_reliable_even < 1) {
+        a->pos_reliable_odd = a->pos_reliable_even = fminf(a->pos_reliable_odd + 1, a->pos_reliable_even + 1);
         return;
     }
 
@@ -3048,4 +3010,54 @@ static void incrementReliable(struct aircraft *a, struct modesMessage *mm, int64
 
     if (!odd || odd == 2)
         a->pos_reliable_even = imin(a->pos_reliable_even + 1, Modes.position_persistence);
+}
+
+static void position_bad(struct modesMessage *mm, struct aircraft *a) {
+    if (mm->garbage)
+        return;
+    if (mm->pos_ignore)
+        return;
+    if (mm->source < a->position_valid.source)
+        return;
+
+    int64_t now = mm->sysTimestampMsg;
+
+    if (mm->cpr_valid) {
+        struct discarded *disc;
+        for (int i = 0; i < DISCARD_CACHE; i++) {
+            disc = &a->disc_cache[i];
+            // don't decrement pos_reliable if we already got the same bad position within the last second
+            // rate limit reliable decrement per receiver
+            if (
+                    (
+                     now - disc->ts < 4 * SECONDS
+                     && disc->cpr_lat == mm->cpr_lat
+                     && disc->cpr_lon == mm->cpr_lon
+                    )
+                    ||
+                    (
+                     now - disc->ts < 0.3 * SECONDS
+                     && disc->receiverId == mm->receiverId
+                    )
+               ) {
+                return;
+            }
+        }
+        a->disc_cache_index = (a->disc_cache_index + 1) % DISCARD_CACHE;
+
+        // most recent discarded position which led to decrementing reliability and timestamp (speed_check)
+        disc = &a->disc_cache[a->disc_cache_index];
+        disc->ts = now;
+        disc->cpr_lat = mm->cpr_lat;
+        disc->cpr_lon = mm->cpr_lon;
+        disc->receiverId = mm->receiverId;
+    }
+
+    if (a->addr == Modes.cpr_focus)
+        fprintf(stderr, "%06x: position_bad %u %u\n", a->addr, mm->cpr_lat, mm->cpr_lon);
+
+    a->pos_reliable_odd -= 0.4f;
+    a->pos_reliable_odd = fmax(0, a->pos_reliable_odd);
+    a->pos_reliable_even -= 0.4f;
+    a->pos_reliable_even = fmax(0, a->pos_reliable_even);
 }

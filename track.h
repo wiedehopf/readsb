@@ -83,6 +83,8 @@
 
 #define RECEIVERIDBUFFER (12)
 
+#define DISCARD_CACHE (4)
+
 // data moves through three states:
 //  fresh: data is valid. Updates from a less reliable source are not accepted.
 //  stale: data is valid. Updates from a less reliable source are accepted.
@@ -230,6 +232,12 @@ struct state_all
   unsigned padding:22;
 } __attribute__ ((__packed__));
 
+struct discarded {
+  unsigned cpr_lat;
+  unsigned cpr_lon;
+  int64_t ts;
+  uint64_t receiverId;
+};
 
 /* Structure used to describe the state of one tracked aircraft */
 struct aircraft
@@ -456,11 +464,10 @@ struct aircraft
   double prev_lon; // previous longitude
   int64_t prev_pos_time; // time the previous position was received
 
-  // most recent discarded position which led to decrementing reliability and timestamp (speed_check)
-  double discarded_lat;
-  double discarded_lon;
-  int64_t discarded_time;
-  uint64_t discarded_receiverId;
+  // keep this at the end of the aircraft struct as save / restore shouldn't matter for this:
+  // recent discarded positions which led to decrementing reliability (position_bad() / speed_check())
+  uint32_t disc_cache_index;
+  struct discarded disc_cache[DISCARD_CACHE];
 };
 
 /* Mode A/C tracking is done separately, not via the aircraft list,
