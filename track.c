@@ -394,10 +394,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                );
     }
 
-    float distance;
-    float range = 0;
-    float speed;
-    float calc_track = 0;
+    float distance = -1;
+    float range = -1;
+    float speed = -1;
+    float calc_track = -1;
     int inrange;
     int override = -1;
     double oldLat = a->lat;
@@ -470,15 +470,18 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         track_age = trackDataAge(now, &a->true_heading_valid);
     }
 
-    if (distance > 1 && source > SOURCE_MLAT
-            && track > -1
-            && trackDataAge(now, &a->position_valid) < 7 * SECONDS
-            && trackDataAge(now, &a->gs_valid) < 7 * SECONDS
-            && (a->pos_reliable_odd >= Modes.json_reliable && a->pos_reliable_even >= Modes.json_reliable)
-       ) {
+    if (distance > 1) {
         calc_track = bearing(oldLat, oldLon, lat, lon);
-        mm->calculated_track = calc_track;
-        track_diff = fabs(norm_diff(track - calc_track, 180));
+        if (posReliable(a)) {
+            mm->calculated_track = calc_track;
+            if (source > SOURCE_MLAT
+                    && track > -1
+                    && trackDataAge(now, &a->position_valid) < 7 * SECONDS
+                    && trackDataAge(now, &a->gs_valid) < 7 * SECONDS
+               ) {
+                track_diff = fabs(norm_diff(track - calc_track, 180));
+            }
+        }
     }
 
     if (track_diff > -1 && a->trackUnreliable < 8) {
@@ -533,7 +536,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
         //(a->lat == lat && a->lon == lon) ? "L " : ((a->prev_lat == lat && a->prev_lon == lon) ? "P " : ""),
         //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
-        fprintf(stderr, "%02d:%02d:%04.1f %06x R%3.1f %s %s %s %s %4.0f%% t%3.0f tD:%3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f\n",
+        fprintf(stderr, "%02d:%02d:%04.1f %06x R%3.1f %s %s %s %s %4.0f%% t %3.0f ct %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f\n",
                 (int) (now / (3600 * SECONDS) % 24),
                 (int) (now / (60 * SECONDS) % 60),
                 (now % (60 * SECONDS)) / 1000.0,
@@ -545,7 +548,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                 (override != -1 ? (override ? "ovrd" : "bogu") : (inrange ? "pass" : "FAIL")),
                 100.0f * distance / range,
                 track,
-                track_diff,
+                calc_track,
                 distance / 1000.0,
                 elapsed / 1000.0,
                 (distance / elapsed * 1000.0 / 1852.0 * 3600.0),
@@ -681,6 +684,8 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
                     a->cpr_odd_lat, a->cpr_odd_lon,
                     fflag ? "odd" : "even");
         }
+        // for partially bad transponders and some other cases, don't reduce reliability
+        mm->pos_ignore = 1;
         return result;
     }
 
@@ -2511,17 +2516,6 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
 
     a->pos_reliable_odd -= 0.5f;
     a->pos_reliable_even -= 0.5f;
-
-    if (a->pos_reliable_odd <= 0 || a->pos_reliable_even <= 0) {
-        a->position_valid.source = SOURCE_INVALID;
-        a->pos_reliable_odd = 0;
-        a->pos_reliable_even = 0;
-        a->cpr_odd_valid.source = SOURCE_INVALID;
-        a->cpr_even_valid.source = SOURCE_INVALID;
-
-        a->surfaceCPR_allow_ac_rel = 0;
-        a->localCPR_allow_ac_rel = 0;
-    }
 }
 
 void to_state_all(struct aircraft *a, struct state_all *new, int64_t now) {
