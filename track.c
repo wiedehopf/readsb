@@ -435,7 +435,6 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         override = 1;
     }
 
-    speed = surface ? 150 : 900; // guess
 
     if (trackDataValid(&a->gs_valid)) {
         // use the larger of the current and earlier speed
@@ -446,11 +445,6 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         speed = a->tas * 4 / 3;
     } else if (trackDataValid(&a->ias_valid)) {
         speed = a->ias * 2;
-    }
-
-    if (source <= SOURCE_MLAT) {
-        speed = speed * 2;
-        speed = fmin(speed, 2400);
     }
 
     // find actual distance
@@ -484,7 +478,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         }
     }
 
-    if (track_diff > -1 && a->trackUnreliable < 8) {
+    if (speed > 1 && track_diff > -1 && a->trackUnreliable < 8) {
         track_bonus = speed * (90.0f - track_diff) / 90.0f;
         track_bonus *= (surface ? 0.9f : 1.0f) * (1.0f - track_age / track_max_age);
         if (a->gs < 10) {
@@ -495,6 +489,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         speed += track_bonus;
         if (track_diff > 160) {
             mm->pos_ignore = 1; // don't decrement pos_reliable
+        }
+        // allow relatively big forward jumps
+        if (speed > 40 && track_diff < 10) {
+            range += 2e3;
         }
     } else {
         // Work out a reasonable speed to use:
@@ -516,6 +514,14 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     // same TCP packet, two positions from same receiver id, allow plenty of extra range
     if (elapsed < 2 && a->receiverId == mm->receiverId) {
         range += 500; // 500 m extra in this case
+    }
+
+    if (speed < 0) {
+        speed = surface ? 150 : 900; // guess
+    }
+    if (source <= SOURCE_MLAT) {
+        speed = speed * 2;
+        speed = fmin(speed, 2400);
     }
 
     // plus distance covered at the given speed for the elapsed time + 0.2 seconds.
