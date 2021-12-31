@@ -424,8 +424,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         override = -2;
     } else if (a->pos_reliable_odd < 0.9 || a->pos_reliable_even < 0.9) {
         override = 1;
-    } else if (now > a->position_valid.updated + (120 * 1000)) {
-        override = 1; // no reference or older than 120 seconds, assume OK
+    } else if (now > a->position_valid.updated + 60 * MINUTES) {
+        override = 1; // no reference or older than 60 minutes, assume OK
     } else if (source > a->position_valid.last_source) {
         override = 1; // data is better quality, OVERRIDE
     } else if (source <= SOURCE_MLAT && elapsed > 45 * SECONDS) {
@@ -504,7 +504,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     } else {
         range += 30;
     }
-    if (!mm->pos_ignore) {
+    if (!mm->pos_ignore && speed > 1) {
         if (track_diff > 80.0f) {
             a->trackUnreliable = imin(16, a->trackUnreliable + 1);
         } else if (track_diff > -1) {
@@ -521,8 +521,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     }
     if (source <= SOURCE_MLAT) {
         speed = speed * 2;
-        speed = fmin(speed, 2400);
+        range += 250;
     }
+    // cap speed at 2000 knots ..
+    speed = fmin(speed, 2000);
 
     // plus distance covered at the given speed for the elapsed time + 0.2 seconds.
     range += (((float) elapsed + 200.0f) / 1000.0f) * (speed * 1852.0f / 3600.0f);
@@ -542,7 +544,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
         //(a->lat == lat && a->lon == lon) ? "L " : ((a->prev_lat == lat && a->prev_lon == lon) ? "P " : ""),
         //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
-        fprintf(stderr, "%02d:%02d:%04.1f %06x R%3.1f %s %s %s %s %4.0f%% t %3.0f ct %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f\n",
+        fprintf(stderr, "%02d:%02d:%04.1f %06x R%3.1f %s %s %s %s %4.0f%% %1dt %3.0f ct %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f\n",
                 (int) (now / (3600 * SECONDS) % 24),
                 (int) (now / (60 * SECONDS) % 60),
                 (now % (60 * SECONDS)) / 1000.0,
@@ -552,7 +554,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                 cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "S"),
                 (surface ? "S" : "A"),
                 (override != -1 ? (override == -2 ? "bogu" : "ovrd") : (inrange ? "pass" : "FAIL")),
-                100.0f * distance / range,
+                fminf(9001.0f, 100.0f * distance / range),
+                a->trackUnreliable,
                 track,
                 calc_track,
                 distance / 1000.0,
@@ -2869,21 +2872,24 @@ static const char *source_string(datasource_t source) {
 
 void updateValidities(struct aircraft *a, int64_t now) {
 
-    a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = 0;
+    int64_t elapsed_seen_global = now - a->seenPosGlobal;
+    if (Modes.json_globe_index && elapsed_seen_global < 5 * MINUTES) {
+        a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = 0;
+    }
 
-    if (now > a->category_updated + Modes.trackExpireMax)
+    if (a->category != 0 && now > a->category_updated + Modes.trackExpireMax)
         a->category = 0;
 
-    // reset position reliability when no position was received for 10 minutes
-    if (now > a->seenPosGlobal + 10 * MINUTES) {
+    // reset position reliability when no position was received for 60 minutes
+    if (a->pos_reliable_odd != 0 && a->pos_reliable_even != 0 && elapsed_seen_global > POS_RELIABLE_TIMEOUT) {
         a->pos_reliable_odd = 0;
         a->pos_reliable_even = 0;
     }
-    if (now > a->seenPosReliable + TRACE_STALE) {
+    if (a->tracePosBuffered && now > a->seenPosReliable + TRACE_STALE) {
         traceUsePosBuffered(a);
     }
 
-    if (a->altitude_baro_valid.source == SOURCE_INVALID)
+    if (a->alt_reliable != 0 && a->altitude_baro_valid.source == SOURCE_INVALID)
         a->alt_reliable = 0;
 
     updateValidity(&a->callsign_valid, now, TRACK_EXPIRE_LONG);
@@ -2986,12 +2992,13 @@ static void incrementReliable(struct aircraft *a, struct modesMessage *mm, int64
     a->seenPosGlobal = now;
     a->localCPR_allow_ac_rel = 1;
 
-    if (mm->source > SOURCE_JAERO && now > a->seenPosReliable + 2 * MINUTES
-            && (a->pos_reliable_odd < Modes.json_reliable || a->pos_reliable_even < Modes.json_reliable)) {
+    if (a->seenPosReliable && now - a->seenPosReliable > POS_RELIABLE_TIMEOUT && mm->source > SOURCE_JAERO) {
         double distance = greatcircle(a->latReliable, a->lonReliable, mm->decoded_lat, mm->decoded_lon, 0);
-        // if aircraft is close to last reliable position, treat new position as reliable immediately.
-        // based on 2 minutes and 12 km equals 360 km/h or 194 knots
-        if (distance < 12e3) {
+        // if aircraft is within 50 km of last reliable position, treat new position as reliable immediately.
+        // pos_reliable is mostly to filter out bad decodes which usually show a much larger offset than 50km
+        // it's very unlikely to get a bad decode that's in a range of 50 km of the last known position
+        // at this point the position has already passed the speed check
+        if (distance < 50e3) {
             a->pos_reliable_odd = fmaxf(1, Modes.json_reliable);
             a->pos_reliable_even = fmaxf(1, Modes.json_reliable);
             if (a->addr == Modes.cpr_focus)
@@ -3036,7 +3043,7 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
                     )
                     ||
                     (
-                     now - disc->ts < 0.3 * SECONDS
+                     (now - disc->ts < 0.3 * SECONDS || now < disc->ts)
                      && disc->receiverId == mm->receiverId
                     )
                ) {
@@ -3056,8 +3063,8 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
     if (a->addr == Modes.cpr_focus)
         fprintf(stderr, "%06x: position_bad %u %u\n", a->addr, mm->cpr_lat, mm->cpr_lon);
 
-    a->pos_reliable_odd -= 0.4f;
+    a->pos_reliable_odd -= 0.5f;
     a->pos_reliable_odd = fmax(0, a->pos_reliable_odd);
-    a->pos_reliable_even -= 0.4f;
+    a->pos_reliable_even -= 0.5f;
     a->pos_reliable_even = fmax(0, a->pos_reliable_even);
 }

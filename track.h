@@ -68,6 +68,8 @@
 
 #define ALTITUDE_BARO_RELIABLE_MAX 20
 
+#define POS_RELIABLE_TIMEOUT (60 * MINUTES)
+
 #define TRACK_STALE (15*SECONDS)
 #define TRACK_EXPIRE (60*SECONDS)
 #define TRACK_EXPIRE_LONG (180*SECONDS)
@@ -484,7 +486,10 @@ updateValidity (data_validity *v, int64_t now, int64_t expiration_timeout)
 {
     if (v->source == SOURCE_INVALID)
         return;
-    v->stale = (now > v->updated + TRACK_STALE);
+    int stale = (now > v->updated + TRACK_STALE);
+    if (stale != v->stale)
+        v->stale = stale;
+
     if (v->source == SOURCE_JAERO) {
         if (now > v->updated + Modes.trackExpireJaero)
             v->source = SOURCE_INVALID;
