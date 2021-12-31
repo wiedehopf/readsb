@@ -29,7 +29,7 @@ struct receiver *receiverCreate(uint64_t id);
 
 struct char_buffer generateReceiversJson();
 
-void receiverPositionReceived(struct aircraft *a, struct modesMessage *mm, double lat, double lon, int64_t now);
+int receiverPositionReceived(struct aircraft *a, struct modesMessage *mm, double lat, double lon, int64_t now);
 void receiverTimeout(int part, int nParts, int64_t now);
 void receiverCleanup();
 void receiverTest();

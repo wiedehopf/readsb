@@ -399,7 +399,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     float speed = -1;
     float calc_track = -1;
     int inrange;
-    int override = -1;
+    int override = 0;
     double oldLat = a->lat;
     double oldLon = a->lon;
 
@@ -421,10 +421,9 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                )
             ) {
         mm->pos_ignore = 1; // don't decrement pos_reliable
-        override = -2;
     } else if (a->pos_reliable_odd < 0.9 || a->pos_reliable_even < 0.9) {
         override = 1;
-    } else if (now > a->position_valid.updated + 60 * MINUTES) {
+    } else if (now > a->position_valid.updated + POS_RELIABLE_TIMEOUT) {
         override = 1; // no reference or older than 60 minutes, assume OK
     } else if (source > a->position_valid.last_source) {
         override = 1; // data is better quality, OVERRIDE
@@ -553,7 +552,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                 mm->cpr_odd ? "O" : "E",
                 cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "S"),
                 (surface ? "S" : "A"),
-                (override != -1 ? (override == -2 ? "bogu" : "ovrd") : (inrange ? "pass" : "FAIL")),
+                override ? "ovrd" : (inrange ? "pass" : "FAIL"),
                 fminf(9001.0f, 100.0f * distance / range),
                 a->trackUnreliable,
                 track,
@@ -576,15 +575,16 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
 
     // override, this allows for printing stuff instead of returning
-    if (override > 0) {
+    if (override) {
         inrange = override;
     }
 
-    if (!Modes.userLocationValid) {
-        if (!inrange && mm->source == SOURCE_ADSB
+    if (!Modes.userLocationValid && !override && mm->source == SOURCE_ADSB) {
+        if (!inrange
                 && (distance - range > 800 || backInTimeSeconds > 3) && track_diff > 45
                 && a->pos_reliable_odd >= Modes.position_persistence * 3 / 4
                 && a->pos_reliable_even >= Modes.position_persistence * 3 / 4
+                && a->trackUnreliable < 3
            ) {
             struct receiver *r = receiverBad(mm->receiverId, a->addr, now);
             if (r && Modes.debug_garbage && r->badCounter > 6) {
@@ -601,7 +601,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         }
 
         if (inrange) {
-            receiverPositionReceived(a, mm, lat, lon, now);
+            if (receiverPositionReceived(a, mm, lat, lon, now) == -2) {
+                // far outside receiver area
+                mm->pos_ignore = 1;
+            }
         }
     }
 
@@ -2992,18 +2995,20 @@ static void incrementReliable(struct aircraft *a, struct modesMessage *mm, int64
     a->seenPosGlobal = now;
     a->localCPR_allow_ac_rel = 1;
 
-    if (a->seenPosReliable && now - a->seenPosReliable > POS_RELIABLE_TIMEOUT && mm->source > SOURCE_JAERO) {
+    float threshold = Modes.json_reliable;
+    if (a->seenPosReliable && now - a->seenPosReliable > POS_RELIABLE_TIMEOUT && mm->source > SOURCE_JAERO
+            && a->pos_reliable_odd < threshold && a->pos_reliable_even < threshold
+            ) {
         double distance = greatcircle(a->latReliable, a->lonReliable, mm->decoded_lat, mm->decoded_lon, 0);
         // if aircraft is within 50 km of last reliable position, treat new position as reliable immediately.
         // pos_reliable is mostly to filter out bad decodes which usually show a much larger offset than 50km
         // it's very unlikely to get a bad decode that's in a range of 50 km of the last known position
         // at this point the position has already passed the speed check
         if (distance < 50e3) {
-            a->pos_reliable_odd = fmaxf(1, Modes.json_reliable);
-            a->pos_reliable_even = fmaxf(1, Modes.json_reliable);
+            a->pos_reliable_odd = fmaxf(1, threshold);
+            a->pos_reliable_even = fmaxf(1, threshold);
             if (a->addr == Modes.cpr_focus)
                 fprintf(stderr, "%06x: fast track json_reliable\n", a->addr);
-            return;
         }
     }
 

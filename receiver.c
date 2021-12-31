@@ -83,11 +83,9 @@ void receiverCleanup() {
         }
     }
 }
-void receiverPositionReceived(struct aircraft *a, struct modesMessage *mm, double lat, double lon, int64_t now) {
-    if (bogus_lat_lon(lat, lon))
-        return;
+int receiverPositionReceived(struct aircraft *a, struct modesMessage *mm, double lat, double lon, int64_t now) {
     if (lat > 85.0 || lat < -85.0 || lon < -175 || lon > 175)
-        return;
+        return -1;
     int reliabilityRequired = Modes.position_persistence * 3 / 4;
     if (Modes.viewadsb || Modes.receiver_focus) {
         reliabilityRequired = imin(2, Modes.position_persistence);
@@ -99,20 +97,20 @@ void receiverPositionReceived(struct aircraft *a, struct modesMessage *mm, doubl
                 && a->pos_reliable_even >= reliabilityRequired
               )
        ) {
-        return;
+        return -1;
     }
+    double distance = 0;
     uint64_t id = mm->receiverId;
     struct receiver *r = receiverGet(id);
 
     if (!r || r->positionCounter == 0) {
         r = receiverCreate(id);
         if (!r)
-            return;
+            return -1;
         r->lonMin = lon;
         r->lonMax = lon;
         r->latMin = lat;
         r->latMax = lat;
-
     } else {
 
         // diff before applying new position
@@ -120,17 +118,20 @@ void receiverPositionReceived(struct aircraft *a, struct modesMessage *mm, doubl
         double latDiff = before.latMax - before.latMin;
         double lonDiff = before.lonMax - before.lonMin;
 
-
-        r->lonMin = fmin(r->lonMin, lon);
-        r->latMin = fmin(r->latMin, lat);
-
-        r->lonMax = fmax(r->lonMax, lon);
-        r->latMax = fmax(r->latMax, lat);
-
         double rlat = r->latMin + latDiff / 2;
         double rlon = r->lonMin + lonDiff / 2;
 
-        double distance = greatcircle(rlat, rlon, lat, lon, 1);
+        distance = greatcircle(rlat, rlon, lat, lon, 1);
+
+        if (distance < RECEIVER_MAX_RANGE) {
+            r->lonMin = fmin(r->lonMin, lon);
+            r->latMin = fmin(r->latMin, lat);
+
+            r->lonMax = fmax(r->lonMax, lon);
+            r->latMax = fmax(r->latMax, lat);
+            r->goodCounter++;
+            r->badCounter = fmax(0, r->badCounter - 0.5);
+        }
 
         if (!r->badExtent && distance > RECEIVER_MAX_RANGE) {
             r->badExtent = now;
@@ -147,10 +148,14 @@ void receiverPositionReceived(struct aircraft *a, struct modesMessage *mm, doubl
         }
     }
 
-    r->lastSeen = now;
     r->positionCounter++;
-    r->goodCounter++;
-    r->badCounter = fmax(0, r->badCounter - 0.5);
+    r->lastSeen = now;
+
+    if (distance > RECEIVER_MAX_RANGE) {
+        return -2;
+    }
+
+    return 1;
 }
 
 struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft *a, int noDebug) {
