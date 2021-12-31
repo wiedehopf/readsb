@@ -576,7 +576,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
 
     // override, this allows for printing stuff instead of returning
-    if (override < 0) {
+    if (override > 0) {
         inrange = override;
     }
 
