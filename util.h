@@ -119,6 +119,7 @@ int my_epoll_create();
 void epollAllocEvents(struct epoll_event **events, int *maxEvents);
 
 char *sprint_uuid(uint64_t id1, uint64_t id2, char *p);
+char *sprint_uuid1_partial(uint64_t id1, char *p);
 char *sprint_uuid1(uint64_t id1, char *p);
 char *sprint_uuid2(uint64_t id2, char *p);
 
