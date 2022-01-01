@@ -104,33 +104,48 @@ typedef struct
 } data_validity;
 // size must be multiple of 64 bits so it can be aligned in struct aircraft.
 
-struct state_flags
-{
-    unsigned on_ground:1;
-    unsigned stale:1;
-    unsigned leg_marker:1;
-    unsigned altitude_valid:1;
-    unsigned gs_valid:1;
-    unsigned track_valid:1;
-    unsigned rate_valid:1;
-    unsigned rate_geom:1;
-    unsigned altitude_geom:1;
-    int padding:7;
-} __attribute__ ((__packed__));
+// uint16: 0 to 65535
+#define _gs_factor (10.0f) // 6000 to 60000
+#define _track_factor (100.0f) // 360 -> 36000
+
+// int16: -32768 to 32767
+#define _alt_factor (1/6.25f) // 200000 to 32000
+#define _rate_factor (1/8.0f) // 262136 to 32767
+#define _roll_factor (100.0f) // 180 to 18000
 
 /* Structure representing one point in the aircraft trace */
 struct state
 {
   int64_t timestamp:48;
-  struct state_flags flags; // 16 bits
+  //struct state_flags flags; // 16 bits
+
+  unsigned on_ground:1;
+  unsigned stale:1;
+  unsigned leg_marker:1;
+  unsigned gs_valid:1;
+  unsigned track_valid:1;
+  unsigned baro_alt_valid:1;
+  unsigned baro_rate_valid:1;
+  unsigned geom_alt_valid:1;
+  unsigned geom_rate_valid:1;
+  unsigned roll_valid:1;
+  unsigned ias_valid:1;
+  unsigned padding:5;
 
   int32_t lat;
   int32_t lon;
 
-  int16_t altitude;
-  int16_t gs;
-  int16_t track;
-  int16_t rate;
+  uint16_t gs;
+  uint16_t track;
+  int16_t baro_alt;
+  int16_t baro_rate;
+
+  int16_t geom_alt;
+  int16_t geom_rate;
+  unsigned ias:12;
+  int roll:12;
+  addrtype_t addrtype:5;
+  int padding2:3;
 #if defined(TRACKS_UUID)
   uint64_t receiverId;
 #endif
@@ -140,24 +155,17 @@ struct state_all
 {
   char callsign[8]; // Flight number
 
-  int16_t altitude_geom;
-  int16_t baro_rate;
-  int16_t geom_rate;
-
   uint16_t squawk; // Squawk
-  uint16_t nav_altitude_mcp; // FCU/MCP selected altitude
-  uint16_t nav_altitude_fms; // FMS selected altitude
+  int16_t nav_altitude_mcp; // FCU/MCP selected altitude
+  int16_t nav_altitude_fms; // FMS selected altitude
 
   int16_t nav_qnh; // Altimeter setting (QNH/QFE), millibars
-  int16_t nav_heading; // target heading, degrees (0-359)
-  int16_t gs;
-  int16_t mach;
+  uint16_t nav_heading; // target heading, degrees (0-359)
+  uint16_t mach;
 
-  int16_t track; // Ground track
   int16_t track_rate; // Rate of change of ground track, degrees/second
-  int16_t roll; // Roll angle, degrees right
-  int16_t mag_heading; // Magnetic heading
-  int16_t true_heading; // True heading
+  uint16_t mag_heading; // Magnetic heading
+  uint16_t true_heading; // True heading
 
   int wind_direction:10;
   int wind_speed:10;
@@ -168,15 +176,13 @@ struct state_all
 
   unsigned pos_nic:8; // NIC of last computed position
   unsigned pos_rc:16; // Rc of last computed position
-  emergency_t emergency:4; // Emergency/priority status
-  addrtype_t addrtype:4; // highest priority address type seen for this aircraft
+  emergency_t emergency:3; // Emergency/priority status
   nav_modes_t nav_modes:7; // enabled modes (autopilot, vnav, etc)
   airground_t airground:2; // air/ground status
   nav_altitude_source_t nav_altitude_src:3;  // source of altitude used by automation
   sil_type_t sil_type:3; // SIL supplement from TSS or opstatus
 
   unsigned tas:12;
-  unsigned ias:12;
 
   unsigned adsb_version:4; // ADS-B version (from ADS-B operational status); -1 means no ADS-B messages seen
   unsigned adsr_version:4; // As above, for ADS-R messages
@@ -194,20 +200,12 @@ struct state_all
   unsigned spi : 1; // FS Flight status SPI (Special Position Identification) bit
 
   unsigned callsign_valid:1;
-  unsigned altitude_baro_valid:1;
-  unsigned altitude_geom_valid:1;
-  unsigned geom_delta_valid:1;
-  unsigned gs_valid:1;
-  unsigned ias_valid:1;
   unsigned tas_valid:1;
   unsigned mach_valid:1;
   unsigned track_valid:1;
   unsigned track_rate_valid:1;
-  unsigned roll_valid:1;
   unsigned mag_heading_valid:1;
   unsigned true_heading_valid:1;
-  unsigned baro_rate_valid:1;
-  unsigned geom_rate_valid:1;
   unsigned nic_a_valid:1;
   unsigned nic_c_valid:1;
   unsigned nic_baro_valid:1;
@@ -225,13 +223,12 @@ struct state_all
   unsigned nav_altitude_src_valid:1;
   unsigned nav_heading_valid:1;
   unsigned nav_modes_valid:1;
-  unsigned position_valid:1;
+  unsigned position_valid:1; // used for position accuracy stuff, position is in small state struct
   unsigned alert_valid:1;
   unsigned spi_valid:1;
   unsigned wind_valid:1;
   unsigned temp_valid:1;
 
-  unsigned padding:22;
 } __attribute__ ((__packed__));
 
 struct discarded {
@@ -543,12 +540,13 @@ static inline int altReliable(struct aircraft *a) {
 static inline int
 trackVState (int64_t now, const data_validity *v, const data_validity *pos_valid)
 {
-    // source is valid, allow normal expiration time for shitty position sources
-    if (pos_valid->source > SOURCE_JAERO) {
-        return (v->source != SOURCE_INVALID && now < v->updated + TRACK_EXPIRE);
+    if (pos_valid->source <= SOURCE_JAERO) {
+        // allow normal expiration time for shitty position sources
+        return (v->source != SOURCE_INVALID);
     }
+    // reduced expiration time for good sources
+    return (v->source != SOURCE_INVALID && now < v->updated + 35 * SECONDS);
 
-    return (v->source != SOURCE_INVALID);
 }
 
 /* what's the age of this data, in milliseconds? */
@@ -569,7 +567,9 @@ static inline double toDeg(double radians) {
 // calculate great circle distance in meters
 //
 double greatcircle(double lat0, double lon0, double lat1, double lon1, int approx);
+void to_state(struct aircraft *a, struct state *new, int64_t now, int on_ground, float track);
 void to_state_all(struct aircraft *a, struct state_all *new, int64_t now);
+void from_state_all(struct state_all *in, struct state *in2, struct aircraft *a , int64_t ts);
 
 /* Update aircraft state from data in the provided mesage.
  * Return the tracked aircraft.
@@ -582,7 +582,6 @@ void trackRemoveStale(int64_t now);
 
 void updateValidities(struct aircraft *a, int64_t now);
 
-void from_state_all(struct state_all *in, struct aircraft *a , int64_t ts);
 struct aircraft *trackFindAircraft(uint32_t addr);
 
 /* Convert from a (hex) mode A value to a 0-4095 index */

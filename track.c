@@ -2493,118 +2493,6 @@ static void adjustExpire(struct aircraft *a, int64_t timeout) {
 }
 */
 
-void to_state_all(struct aircraft *a, struct state_all *new, int64_t now) {
-            for (int i = 0; i < 8; i++)
-                new->callsign[i] = a->callsign[i];
-
-            new->pos_nic = a->pos_nic;
-            new->pos_rc = a->pos_rc;
-
-            new->altitude_geom = (int16_t) nearbyint(a->altitude_geom / 25.0);
-            new->baro_rate = (int16_t) nearbyint(a->baro_rate / 8.0);
-            new->geom_rate = (int16_t) nearbyint(a->geom_rate / 8.0);
-            new->ias = a->ias;
-            new->tas = a->tas;
-
-            new->squawk = a->squawk;
-            new->category = a->category; // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
-            new->nav_altitude_mcp = (uint16_t) nearbyint(a->nav_altitude_mcp / 4.0);
-            new->nav_altitude_fms = (uint16_t) nearbyint(a->nav_altitude_fms / 4.0);
-
-            new->nav_qnh = (int16_t) nearbyint(a->nav_qnh * 10.0);
-            new->gs = (int16_t) nearbyint(a->gs * 10.0);
-            new->mach = (int16_t) nearbyint(a->mach * 1000.0);
-
-            new->track_rate = (int16_t) nearbyint(a->track_rate * 100.0);
-            new->roll = (int16_t) nearbyint(a->roll * 100.0);
-
-            new->track = (int16_t) nearbyint(a->track * 90.0);
-            new->mag_heading = (int16_t) nearbyint(a->mag_heading * 90.0);
-            new->true_heading = (int16_t) nearbyint(a->true_heading * 90.0);
-            new->nav_heading = (int16_t) nearbyint(a->nav_heading * 90.0);
-
-            new->emergency = a->emergency;
-            new->airground = a->airground;
-            new->addrtype = a->addrtype;
-            new->nav_modes = a->nav_modes;
-            new->nav_altitude_src = a->nav_altitude_src;
-            new->sil_type = a->sil_type;
-
-            if (now < a->wind_updated + TRACK_EXPIRE && abs(a->wind_altitude - a->altitude_baro) < 500) {
-                new->wind_direction = (int) nearbyint(a->wind_direction);
-                new->wind_speed = (int) nearbyint(a->wind_speed);
-                new->wind_valid = 1;
-            }
-            if (now < a->oat_updated + TRACK_EXPIRE) {
-                new->oat = (int) nearbyint(a->oat);
-                new->tat = (int) nearbyint(a->tat);
-                new->temp_valid = 1;
-            }
-
-            if (a->adsb_version < 0)
-                new->adsb_version = 15;
-            else
-                new->adsb_version = a->adsb_version;
-
-            if (a->adsr_version < 0)
-                new->adsr_version = 15;
-            else
-                new->adsr_version = a->adsr_version;
-
-            if (a->tisb_version < 0)
-                new->tisb_version = 15;
-            else
-                new->tisb_version = a->tisb_version;
-
-            new->nic_a = a->nic_a;
-            new->nic_c = a->nic_c;
-            new->nic_baro = a->nic_baro;
-            new->nac_p = a->nac_p;
-            new->nac_v = a->nac_v;
-            new->sil = a->sil;
-            new->gva = a->gva;
-            new->sda = a->sda;
-            new->alert = a->alert;
-            new->spi = a->spi;
-
-#define F(f) do { new->f = trackVState(now, &a->f, &a->position_valid); } while (0)
-           F(callsign_valid);
-           F(altitude_baro_valid);
-           F(altitude_geom_valid);
-           F(geom_delta_valid);
-           F(gs_valid);
-           F(ias_valid);
-           F(tas_valid);
-           F(mach_valid);
-           F(track_valid);
-           F(track_rate_valid);
-           F(roll_valid);
-           F(mag_heading_valid);
-           F(true_heading_valid);
-           F(baro_rate_valid);
-           F(geom_rate_valid);
-           F(nic_a_valid);
-           F(nic_c_valid);
-           F(nic_baro_valid);
-           F(nac_p_valid);
-           F(nac_v_valid);
-           F(sil_valid);
-           F(gva_valid);
-           F(sda_valid);
-           F(squawk_valid);
-           F(emergency_valid);
-           F(airground_valid);
-           F(nav_qnh_valid);
-           F(nav_altitude_mcp_valid);
-           F(nav_altitude_fms_valid);
-           F(nav_altitude_src_valid);
-           F(nav_heading_valid);
-           F(nav_modes_valid);
-           F(position_valid);
-           F(alert_valid);
-           F(spi_valid);
-#undef F
-}
 static void calc_wind(struct aircraft *a, int64_t now) {
     uint32_t focus = 0xc0ffeeba;
 
@@ -2635,7 +2523,7 @@ static void calc_wind(struct aircraft *a, int64_t now) {
         if (now + 1500 < last->timestamp)
             last = &(a->trace[a->trace_len-2]);
         float track_diff = fabs(a->track - last->track / 10.0);
-        if (last->flags.track_valid && track_diff > 0.5)
+        if (last->track_valid && track_diff > 0.5)
             return;
     }
     */
@@ -2715,121 +2603,313 @@ static inline int declination(struct aircraft *a, double *dec, int64_t now) {
     return res;
 }
 
-void from_state_all(struct state_all *in, struct aircraft *a , int64_t ts) {
-            for (int i = 0; i < 8; i++)
-                a->callsign[i] = in->callsign[i];
-            a->callsign[8] = '\0';
+/*
+{
+  int64_t timestamp:48;
+  // 16 bits of flags
 
-            a->pos_nic = in->pos_nic;
-            a->pos_rc = in->pos_rc;
+  int32_t lat;
+  int32_t lon;
 
-            a->altitude_geom = in->altitude_geom * 25;
-            a->baro_rate = in->baro_rate * 8;
-            a->geom_rate = in->geom_rate * 8;
-            a->ias = in->ias;
-            a->tas = in->tas;
+  uint16_t gs;
+  uint16_t track;
+  int16_t baro_alt;
+  int16_t baro_rate;
 
-            a->squawk = in->squawk;
-            a->category =  in->category; // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
-            a->nav_altitude_mcp = in->nav_altitude_mcp * 4;
-            a->nav_altitude_fms = in->nav_altitude_fms * 4;
+  int16_t geom_alt;
+  int16_t geom_rate;
+  unsigned ias:12;
+  int roll:12;
+  addrtype_t addrtype:5;
+  int padding:3;
+#if defined(TRACKS_UUID)
+  uint64_t receiverId;
+  */
+void to_state(struct aircraft *a, struct state *new, int64_t now, int on_ground, float track) {
+    memset(new, 0, sizeof(struct state));
 
-            a->nav_qnh = in->nav_qnh / 10.0;
-            a->gs = in->gs / 10.0;
-            a->mach = in->mach / 1000.0;
+    new->timestamp = now;
 
-            a->track_rate = in->track_rate / 100.0;
-            a->roll = in->roll / 100.0;
+    new->lat = (int32_t) nearbyint(a->lat * 1E6);
+    new->lon = (int32_t) nearbyint(a->lon * 1E6);
 
-            a->track = in->track / 90.0;
-            a->mag_heading = in->mag_heading / 90.0;
-            a->true_heading = in->true_heading / 90.0;
-            a->nav_heading = in->nav_heading / 90.0;
+    if (now > a->seenPosReliable + TRACE_STALE)
+        new->stale = 1;
 
-            a->emergency = in->emergency;
-            a->airground = in->airground;
-            a->addrtype = in->addrtype;
-            a->nav_modes = in->nav_modes;
-            a->nav_altitude_src = in->nav_altitude_src;
-            a->sil_type = in->sil_type;
+    if (on_ground)
+        new->on_ground = 1;
 
-            if (in->wind_valid) {
-                a->wind_direction = in->wind_direction;
-                a->wind_speed = in->wind_speed;
-                a->wind_updated = ts - 5000;
-                a->wind_altitude = a->altitude_baro;
-            }
-            if (in->temp_valid) {
-                a->oat = in->oat;
-                a->tat = in->tat;
-                a->oat_updated = ts - 5000;
-            }
-
-            if (in->adsb_version == 15)
-                a->adsb_version = -1;
-            else
-                a->adsb_version = in->adsb_version;
-
-            if (in->adsr_version == 15)
-                a->adsr_version = -1;
-            else
-                a->adsr_version = in->adsr_version;
-
-            if (in->tisb_version == 15)
-                a->tisb_version = -1;
-            else
-                a->tisb_version = in->tisb_version;
-
-            a->nic_a = in->nic_a;
-            a->nic_c = in->nic_c;
-            a->nic_baro = in->nic_baro;
-            a->nac_p = in->nac_p;
-            a->nac_v = in->nac_v;
-            a->sil = in->sil;
-            a->gva = in->gva;
-            a->sda = in->sda;
-            a->alert = in->alert;
-            a->spi = in->spi;
+    if (trackVState(now, &a->gs_valid, &a->position_valid)) {
+        new->gs_valid = 1;
+        new->gs = (uint16_t) nearbyint(a->gs * _gs_factor);
+    }
+    if (track > -1) {
+        new->track = (uint16_t) nearbyint(track * _track_factor);
+        new->track_valid = 1;
+    }
 
 
-            // giving this a timestamp is kinda hacky, do it anyway
-            // we want to be able to reuse the sprintAircraft routine for printing aircraft details
+    if (trackVState(now, &a->altitude_baro_valid, &a->position_valid)
+            && a->alt_reliable >= ALTITUDE_BARO_RELIABLE_MAX / 5) {
+        new->baro_alt_valid = 1;
+        new->baro_alt = (int16_t) nearbyint(a->altitude_baro * _alt_factor);
+    }
+    if (trackVState(now, &a->baro_rate_valid, &a->position_valid)) {
+        new->baro_rate_valid = 1;
+        new->baro_rate = (int16_t) nearbyint(a->baro_rate * _rate_factor);
+    }
+
+    if (trackVState(now, &a->altitude_geom_valid, &a->position_valid)) {
+        new->geom_alt_valid = 1;
+        new->geom_alt = (int16_t) nearbyint(a->altitude_geom * _alt_factor);
+    }
+    if (trackVState(now, &a->geom_rate_valid, &a->position_valid)) {
+        new->geom_rate_valid = 1;
+        new->geom_rate = (int16_t) nearbyint(a->geom_rate * _rate_factor);
+    }
+
+    /*
+    unsigned ias:12;
+    int roll:12;
+    addrtype_t addrtype:5;
+    */
+
+    if (trackVState(now, &a->ias_valid, &a->position_valid)) {
+        new->ias = a->ias;
+        new->ias_valid = 1;
+    }
+    if (trackVState(now, &a->roll_valid, &a->position_valid)) {
+        new->roll = (int16_t) nearbyint(a->roll * _roll_factor);
+        new->roll_valid = 1;
+    }
+
+    new->addrtype = a->addrtype;
+
+#if defined(TRACKS_UUID)
+    new->receiverId = a->lastPosReceiverId;
+#endif
+}
+
+void to_state_all(struct aircraft *a, struct state_all *new, int64_t now) {
+    memset(new, 0, sizeof(struct state_all));
+    for (int i = 0; i < 8; i++)
+        new->callsign[i] = a->callsign[i];
+
+    new->pos_nic = a->pos_nic;
+    new->pos_rc = a->pos_rc;
+
+    new->tas = a->tas;
+
+    new->squawk = a->squawk;
+    new->category = a->category; // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
+    new->nav_altitude_mcp = (int16_t) nearbyint(a->nav_altitude_mcp / 4.0f);
+    new->nav_altitude_fms = (int16_t) nearbyint(a->nav_altitude_fms / 4.0f);
+
+    new->nav_qnh = (int16_t) nearbyint(a->nav_qnh * 10.0f);
+    new->mach = (int16_t) nearbyint(a->mach * 1000.0f);
+
+    new->track_rate = (int16_t) nearbyint(a->track_rate * 100.0f);
+
+    new->mag_heading = (uint16_t) nearbyint(a->mag_heading * _track_factor);
+    new->true_heading = (uint16_t) nearbyint(a->true_heading * _track_factor);
+    new->nav_heading = (uint16_t) nearbyint(a->nav_heading * _track_factor);
+
+    new->emergency = a->emergency;
+    new->airground = a->airground;
+    new->nav_modes = a->nav_modes;
+    new->nav_altitude_src = a->nav_altitude_src;
+    new->sil_type = a->sil_type;
+
+    if (now < a->wind_updated + TRACK_EXPIRE && abs(a->wind_altitude - a->altitude_baro) < 500) {
+        new->wind_direction = (int) nearbyint(a->wind_direction);
+        new->wind_speed = (int) nearbyint(a->wind_speed);
+        new->wind_valid = 1;
+    }
+    if (now < a->oat_updated + TRACK_EXPIRE) {
+        new->oat = (int) nearbyint(a->oat);
+        new->tat = (int) nearbyint(a->tat);
+        new->temp_valid = 1;
+    }
+
+    if (a->adsb_version < 0)
+        new->adsb_version = 15;
+    else
+        new->adsb_version = a->adsb_version;
+
+    if (a->adsr_version < 0)
+        new->adsr_version = 15;
+    else
+        new->adsr_version = a->adsr_version;
+
+    if (a->tisb_version < 0)
+        new->tisb_version = 15;
+    else
+        new->tisb_version = a->tisb_version;
+
+    new->nic_a = a->nic_a;
+    new->nic_c = a->nic_c;
+    new->nic_baro = a->nic_baro;
+    new->nac_p = a->nac_p;
+    new->nac_v = a->nac_v;
+    new->sil = a->sil;
+    new->gva = a->gva;
+    new->sda = a->sda;
+    new->alert = a->alert;
+    new->spi = a->spi;
+
+#define F(f) do { new->f = trackVState(now, &a->f, &a->position_valid); } while (0)
+    F(callsign_valid);
+    F(tas_valid);
+    F(mach_valid);
+    F(track_rate_valid);
+    F(mag_heading_valid);
+    F(true_heading_valid);
+    F(nic_a_valid);
+    F(nic_c_valid);
+    F(nic_baro_valid);
+    F(nac_p_valid);
+    F(nac_v_valid);
+    F(sil_valid);
+    F(gva_valid);
+    F(sda_valid);
+    F(squawk_valid);
+    F(emergency_valid);
+    F(airground_valid);
+    F(nav_qnh_valid);
+    F(nav_altitude_mcp_valid);
+    F(nav_altitude_fms_valid);
+    F(nav_altitude_src_valid);
+    F(nav_heading_valid);
+    F(nav_modes_valid);
+    F(position_valid);
+    F(alert_valid);
+    F(spi_valid);
+#undef F
+}
+
+void from_state_all(struct state_all *in, struct state *in2, struct aircraft *a , int64_t ts) {
+    for (int i = 0; i < 8; i++)
+        a->callsign[i] = in->callsign[i];
+    a->callsign[8] = '\0';
+
+    a->pos_nic = in->pos_nic;
+    a->pos_rc = in->pos_rc;
+
+    a->tas = in->tas;
+
+    a->squawk = in->squawk;
+    a->category =  in->category; // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
+    a->nav_altitude_mcp = in->nav_altitude_mcp * 4.0f;
+    a->nav_altitude_fms = in->nav_altitude_fms * 4.0f;
+
+    a->nav_qnh = in->nav_qnh / 10.0f;
+    a->mach = in->mach / 1000.0f;
+
+    a->track_rate = in->track_rate / 100.0f;
+    a->mag_heading = in->mag_heading / _track_factor;
+    a->true_heading = in->true_heading / _track_factor;
+    a->nav_heading = in->nav_heading / _track_factor;
+
+    a->emergency = in->emergency;
+    a->airground = in->airground;
+    a->nav_modes = in->nav_modes;
+    a->nav_altitude_src = in->nav_altitude_src;
+    a->sil_type = in->sil_type;
+
+    a->altitude_geom = in2->geom_alt / _alt_factor;
+    a->altitude_baro = in2->baro_alt / _alt_factor;
+
+    if (in->wind_valid) {
+        a->wind_direction = in->wind_direction;
+        a->wind_speed = in->wind_speed;
+        a->wind_updated = ts - 5000;
+        a->wind_altitude = a->altitude_baro;
+    }
+    if (in->temp_valid) {
+        a->oat = in->oat;
+        a->tat = in->tat;
+        a->oat_updated = ts - 5000;
+    }
+
+    if (in->adsb_version == 15)
+        a->adsb_version = -1;
+    else
+        a->adsb_version = in->adsb_version;
+
+    if (in->adsr_version == 15)
+        a->adsr_version = -1;
+    else
+        a->adsr_version = in->adsr_version;
+
+    if (in->tisb_version == 15)
+        a->tisb_version = -1;
+    else
+        a->tisb_version = in->tisb_version;
+
+    a->nic_a = in->nic_a;
+    a->nic_c = in->nic_c;
+    a->nic_baro = in->nic_baro;
+    a->nac_p = in->nac_p;
+    a->nac_v = in->nac_v;
+    a->sil = in->sil;
+    a->gva = in->gva;
+    a->sda = in->sda;
+    a->alert = in->alert;
+    a->spi = in->spi;
+
+    a->addrtype = in2->addrtype;
+    a->ias = in2->ias;
+
+    a->baro_rate = in2->baro_rate / _rate_factor;
+    a->geom_rate = in2->geom_rate / _rate_factor;
+
+    a->gs = in2->gs / _gs_factor;
+    a->roll = in2->roll / _roll_factor;
+    a->track = in2->track / _track_factor;
+
+    a->altitude_baro_valid.source = (in2->baro_alt_valid ? SOURCE_INDIRECT : SOURCE_INVALID);
+    a->altitude_baro_valid.updated = ts - 5000;
+    a->altitude_geom_valid.source = (in2->geom_alt_valid ? SOURCE_INDIRECT : SOURCE_INVALID);
+    a->altitude_geom_valid.updated = ts - 5000;
+
+#define F(f) do { a->f.source = (in2->f ? SOURCE_INDIRECT : SOURCE_INVALID); a->f.updated = ts - 5000; } while (0)
+    F(baro_rate_valid);
+    F(geom_rate_valid);
+    F(ias_valid);
+    F(roll_valid);
+    F(gs_valid);
+    F(track_valid);
+#undef F
+
+    // giving this a timestamp is kinda hacky, do it anyway
+    // we want to be able to reuse the sprintAircraft routine for printing aircraft details
 #define F(f) do { a->f.source = (in->f ? SOURCE_INDIRECT : SOURCE_INVALID); a->f.updated = ts - 5000; } while (0)
-           F(callsign_valid);
-           F(altitude_baro_valid);
-           F(altitude_geom_valid);
-           F(geom_delta_valid);
-           F(gs_valid);
-           F(ias_valid);
-           F(tas_valid);
-           F(mach_valid);
-           F(track_valid);
-           F(track_rate_valid);
-           F(roll_valid);
-           F(mag_heading_valid);
-           F(true_heading_valid);
-           F(baro_rate_valid);
-           F(geom_rate_valid);
-           F(nic_a_valid);
-           F(nic_c_valid);
-           F(nic_baro_valid);
-           F(nac_p_valid);
-           F(nac_v_valid);
-           F(sil_valid);
-           F(gva_valid);
-           F(sda_valid);
-           F(squawk_valid);
-           F(emergency_valid);
-           F(airground_valid);
-           F(nav_qnh_valid);
-           F(nav_altitude_mcp_valid);
-           F(nav_altitude_fms_valid);
-           F(nav_altitude_src_valid);
-           F(nav_heading_valid);
-           F(nav_modes_valid);
-           F(position_valid);
-           F(alert_valid);
-           F(spi_valid);
+    F(callsign_valid);
+    F(tas_valid);
+    F(mach_valid);
+    F(track_rate_valid);
+    F(mag_heading_valid);
+    F(true_heading_valid);
+    F(nic_a_valid);
+    F(nic_c_valid);
+    F(nic_baro_valid);
+    F(nac_p_valid);
+    F(nac_v_valid);
+    F(sil_valid);
+    F(gva_valid);
+    F(sda_valid);
+    F(squawk_valid);
+    F(emergency_valid);
+    F(airground_valid);
+    F(nav_qnh_valid);
+    F(nav_altitude_mcp_valid);
+    F(nav_altitude_fms_valid);
+    F(nav_altitude_src_valid);
+    F(nav_heading_valid);
+    F(nav_modes_valid);
+    F(position_valid);
+    F(alert_valid);
+    F(spi_valid);
 #undef F
 }
 

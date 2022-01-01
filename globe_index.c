@@ -934,12 +934,17 @@ static void mark_legs(struct aircraft *a, int start) {
     struct state *new_leg = NULL;
 
     for (int i = start; i < a->trace_len; i++) {
-        int32_t altitude = a->trace[i].altitude * 25;
-        int on_ground = a->trace[i].flags.on_ground;
-        int altitude_valid = a->trace[i].flags.altitude_valid;
+        int on_ground = a->trace[i].on_ground;
+        int altitude_valid = a->trace[i].baro_alt_valid;
+        int altitude = a->trace[i].baro_alt / _alt_factor;
 
-        if (a->trace[i].flags.leg_marker) {
-            a->trace[i].flags.leg_marker = 0;
+        if (!altitude_valid && a->trace[i].geom_alt_valid) {
+            altitude_valid = 1;
+            altitude = a->trace[i].geom_alt / _alt_factor;
+        }
+
+        if (a->trace[i].leg_marker) {
+            a->trace[i].leg_marker = 0;
             // reset leg marker
             last_leg = &a->trace[i];
         }
@@ -1011,23 +1016,19 @@ static void mark_legs(struct aircraft *a, int start) {
 
         int64_t elapsed = state->timestamp - prev->timestamp;
 
-        int32_t altitude = state->altitude * 25;
-        //int32_t geom_rate = state->geom_rate * 32;
-        //int geom_rate_valid = state->flags.geom_rate_valid;
-        //int stale = state->flags.stale;
-        int on_ground = state->flags.on_ground;
-        int altitude_valid = state->flags.altitude_valid;
-        //int gs_valid = state->flags.gs_valid;
-        //int track_valid = state->flags.track_valid;
-        //int leg_marker = state->flags.leg_marker;
-        //
+        int on_ground = state->on_ground;
+        int altitude_valid = state->baro_alt_valid;
+        int altitude = state->baro_alt / _alt_factor;
+
+        if (!altitude_valid && state->geom_alt_valid) {
+            altitude_valid = 1;
+            altitude = state->geom_alt / _alt_factor;
+        }
+
         if (!on_ground && !altitude_valid)
             continue;
         if (0 && a->addr == Modes.leg_focus) {
-            fprintf(stderr, "state: %d %d %d %d\n", i, a->trace[i].altitude * 25,
-                    a->trace[i].flags.altitude_valid,
-                    a->trace[i].flags.on_ground
-                   );
+            fprintf(stderr, "state: %d %d %d %d\n", i, altitude, altitude_valid, on_ground);
         }
 
         prev_tmp = i;
@@ -1115,12 +1116,12 @@ static void mark_legs(struct aircraft *a, int start) {
                 int bla = imax(0, last_low_index - 3);
                 while(bla > 0) {
                     if (0 && a->addr == Modes.leg_focus) {
-                        fprintf(stderr, "bla: %d %d %d %d\n", bla, a->trace[bla].altitude * 25,
-                                a->trace[bla].flags.altitude_valid,
-                                a->trace[bla].flags.on_ground
+                        fprintf(stderr, "bla: %d %d %d %d\n", bla, (int) (a->trace[bla].baro_alt / _alt_factor),
+                                a->trace[bla].baro_alt_valid,
+                                a->trace[bla].on_ground
                                );
                     }
-                    if (a->trace[bla].flags.altitude_valid && !a->trace[bla].flags.on_ground) {
+                    if (a->trace[bla].baro_alt_valid && !a->trace[bla].on_ground) {
                         break;
                     }
                     bla--;
@@ -1224,7 +1225,7 @@ static void mark_legs(struct aircraft *a, int start) {
 
             if (new_leg) {
                 leg_ts = new_leg->timestamp;
-                new_leg->flags.leg_marker = 1;
+                new_leg->leg_marker = 1;
                 // set leg marker
             }
 
@@ -1562,9 +1563,6 @@ int traceAdd(struct aircraft *a, int64_t now) {
 
     int traceDebug = (a->addr == Modes.trace_focus);
 
-    int32_t new_lat = (int32_t) nearbyint(a->lat * 1E6);
-    int32_t new_lon = (int32_t) nearbyint(a->lon * 1E6);
-
     int posUsed = 0;
     int bufferedPosUsed = 0;
     double distance = 0;
@@ -1603,11 +1601,8 @@ int traceAdd(struct aircraft *a, int64_t now) {
 
     int on_ground = 0;
     float track = a->track;
-    int track_valid = trackVState(now, &a->track_valid, &a->position_valid);
-    int stale = 0;
-
-    if (now > a->seenPosReliable + TRACE_STALE + 2 * SECONDS) {
-        stale = 1;
+    if (!trackVState(now, &a->track_valid, &a->position_valid)) {
+        track = -1;
     }
 
     int agValid = 0;
@@ -1617,9 +1612,8 @@ int traceAdd(struct aircraft *a, int64_t now) {
             on_ground = 1;
             if (trackVState(now, &a->true_heading_valid, &a->position_valid)) {
                 track = a->true_heading;
-                track_valid = 1;
             } else {
-                track_valid = 0;
+                track = -1;
             }
         }
     }
@@ -1636,10 +1630,13 @@ int traceAdd(struct aircraft *a, int64_t now) {
         elapsed_buffered = (int64_t) a->trace[a->trace_len].timestamp - (int64_t) last->timestamp;
     }
 
+    int32_t new_lat = (int32_t) nearbyint(a->lat * 1E6);
+    int32_t new_lon = (int32_t) nearbyint(a->lon * 1E6);
     duplicate = (elapsed < 1 * SECONDS && new_lat == last->lat && new_lon == last->lon);
 
     int alt = a->altitude_baro;
-    int32_t last_alt = last->altitude * 25;
+    int last_alt = last->baro_alt / _alt_factor;
+    int last_alt_valid = last->baro_alt_valid;
 
     int alt_diff = 0;
     if (trackVState(now, &a->altitude_baro_valid, &a->position_valid) && a->alt_reliable >= ALTITUDE_BARO_RELIABLE_MAX / 5) {
@@ -1647,28 +1644,26 @@ int traceAdd(struct aircraft *a, int64_t now) {
     }
 
     float speed_diff = 0;
-    if (trackDataValid(&a->gs_valid) && last->flags.gs_valid)
-        speed_diff = fabs(last->gs / 10.0 - a->gs);
+    if (trackDataValid(&a->gs_valid) && last->gs_valid)
+        speed_diff = fabs(last->gs / _gs_factor - a->gs);
 
     // keep the last air ground state if the current isn't valid
     if (!agValid) {
-        on_ground = last->flags.on_ground;
+        on_ground = last->on_ground;
     }
     if (on_ground) {
         // just do this twice so we cover the first point in a trace as well as using the last airground state
         if (trackVState(now, &a->true_heading_valid, &a->position_valid)) {
             track = a->true_heading;
-            track_valid = 1;
         } else {
-            track_valid = 0;
+            track = -1;
         }
     }
 
     float track_diff = 0;
-    if (last->flags.track_valid && track_valid) {
-        track_diff = fabs(track - last->track / 10.0);
-        if (track_diff > 180)
-            track_diff = 360 - track_diff;
+    float last_track = last->track / _track_factor;
+    if (last->track_valid && track > -1) {
+        track_diff = fabs(norm_diff(track - last_track, 180));
     }
 
 
@@ -1694,7 +1689,7 @@ int traceAdd(struct aircraft *a, int64_t now) {
     }
 
     // record ground air state changes precisely
-    if (on_ground != last->flags.on_ground) {
+    if (on_ground != last->on_ground) {
         goto save_state;
     }
 
@@ -1730,14 +1725,14 @@ int traceAdd(struct aircraft *a, int64_t now) {
     if (on_ground && elapsed > 4 * max_elapsed)
         goto save_state;
 
-    if (stale) {
+    if (now > a->seenPosReliable + TRACE_STALE) {
         // save a point if reception is spotty so we can mark track as spotty on display
         goto save_state;
     }
 
     if (on_ground) {
         if (distance * track_diff > 250) {
-            if (traceDebug) fprintf(stderr, "track_change: %0.1f %0.1f -> %0.1f", track_diff, last->track / 10.0, a->track);
+            if (traceDebug) fprintf(stderr, "track_change: %0.1f %0.1f -> %0.1f", track_diff, last_track, a->track);
             goto save_state;
         }
 
@@ -1748,16 +1743,16 @@ int traceAdd(struct aircraft *a, int64_t now) {
     if (track_diff > 0.5
             && (elapsed / 1000.0 * track_diff * turn_density > 100.0)
        ) {
-        if (traceDebug) fprintf(stderr, "track_change: %0.1f %0.1f -> %0.1f", track_diff, last->track / 10.0, a->track);
+        if (traceDebug) fprintf(stderr, "track_change: %0.1f %0.1f -> %0.1f", track_diff, last_track, a->track);
         goto save_state;
     }
 
     if (trackVState(now, &a->altitude_baro_valid, &a->position_valid)
             && a->alt_reliable >= ALTITUDE_BARO_RELIABLE_MAX / 5) {
-        if (!last->flags.altitude_valid) {
+        if (!last_alt_valid) {
             goto save_state;
         }
-        if (last->flags.altitude_valid) {
+        if (last_alt_valid) {
 
             int div = 500;
 
@@ -1846,69 +1841,12 @@ no_save_state:
     }
 
     struct state *new = &(a->trace[a->trace_len]);
-    memset(new, 0, sizeof(struct state));
 
-    new->lat = new_lat;
-    new->lon = new_lon;
-    new->timestamp = now;
-#if defined(TRACKS_UUID)
-    new->receiverId = a->lastPosReceiverId;
-#endif
+    to_state(a, new, now, on_ground, track);
 
-    /*
-       unsigned on_ground:1;
-       unsigned stale:1;
-       unsigned leg_marker:1;
-       unsigned altitude_valid:1;
-       unsigned gs_valid:1;
-       unsigned track_valid:1;
-       unsigned rate_valid:1;
-       unsigned rate_geom:1;
-       */
-
-
-    if (stale)
-        new->flags.stale = 1;
-
-    if (on_ground)
-        new->flags.on_ground = 1;
-
-    if (trackVState(now, &a->altitude_baro_valid, &a->position_valid)
-            && a->alt_reliable >= ALTITUDE_BARO_RELIABLE_MAX / 5) {
-        new->flags.altitude_valid = 1;
-        new->altitude = (int16_t) nearbyint(a->altitude_baro / 25.0);
-    } else if (trackVState(now, &a->altitude_geom_valid, &a->position_valid)) {
-        new->flags.altitude_valid = 1;
-        new->flags.altitude_geom = 1;
-        new->altitude = (int16_t) nearbyint(a->altitude_geom / 25.0);
-    }
-    if (trackVState(now, &a->gs_valid, &a->position_valid)) {
-        new->flags.gs_valid = 1;
-        new->gs = (int16_t) nearbyint(10 * a->gs);
-    }
-
-    if (trackVState(now, &a->baro_rate_valid, &a->position_valid)) {
-        new->flags.rate_valid = 1;
-        new->flags.rate_geom = 0;
-        new->rate = (int16_t) nearbyint(a->baro_rate / 32.0);
-    } else if (trackVState(now, &a->geom_rate_valid, &a->position_valid)) {
-        new->flags.rate_valid = 1;
-        new->flags.rate_geom = 1;
-        new->rate = (int16_t) nearbyint(a->geom_rate / 32.0);
-    } else {
-        new->rate = 0;
-        new->flags.rate_valid = 0;
-    }
-
-    if (track_valid) {
-        new->track = (int16_t) nearbyint(10 * track);
-        new->flags.track_valid = 1;
-    }
     // trace_all stuff:
-
     if (a->trace_len % 4 == 0) {
         struct state_all *new_all = &(a->trace_all[a->trace_len/4]);
-        memset(new_all, 0, sizeof(struct state_all));
 
         to_state_all(a, new_all, now);
     }
@@ -2201,7 +2139,8 @@ int handleHeatmap(int64_t now) {
                 }
                 if (trace[i].timestamp < next)
                     continue;
-                if (!trace[i].flags.altitude_valid)
+
+                if (!trace[i].baro_alt_valid && !trace[i].geom_alt_valid)
                     continue;
 
                 while (trace[i].timestamp > next + Modes.heatmap_interval) {
@@ -2213,12 +2152,17 @@ int handleHeatmap(int64_t now) {
                 buffer[len].lat = trace[i].lat;
                 buffer[len].lon = trace[i].lon;
 
-                if (!trace[i].flags.on_ground)
-                    buffer[len].alt = trace[i].altitude;
-                else
+                // altitude encoded in steps of 25 ft ... file convention
+                if (trace[i].on_ground)
                     buffer[len].alt = -123; // on ground
+                else if (trace[i].baro_alt_valid)
+                    buffer[len].alt = nearbyint(trace[i].baro_alt / (_alt_factor * 25.0f));
+                else if (trace[i].geom_alt_valid)
+                    buffer[len].alt = nearbyint(trace[i].geom_alt / (_alt_factor * 25.0f));
+                else
+                    buffer[len].alt = 0;
 
-                if (trace[i].flags.gs_valid)
+                if (trace[i].gs_valid)
                     buffer[len].gs = trace[i].gs;
                 else
                     buffer[len].gs = -1; // invalid

@@ -929,45 +929,6 @@ char *sprintAircraftRecent(char *p, char *end, struct aircraft *a, int64_t now, 
     return p;
 }
 
-/*
-static void check_state_all(struct aircraft *test, int64_t now) {
-    size_t buflen = 4096;
-    char buffer1[buflen];
-    char buffer2[buflen];
-    char *buf, *p, *end;
-
-    struct aircraft abuf = *test;
-    struct aircraft *a = &abuf;
-
-    buf = buffer1;
-    p = buf;
-    end = buf + buflen;
-    p = sprintAircraftObject(p, end, a, now, 1, NULL);
-
-    buf = buffer2;
-    p = buf;
-    end = buf + buflen;
-
-
-    struct state_all state_buf;
-    memset(&state_buf, 0, sizeof(struct state_all));
-    struct state_all *new_all = &state_buf;
-    to_state_all(a, new_all, now);
-
-    struct aircraft bbuf;
-    memset(&bbuf, 0, sizeof(struct aircraft));
-    struct aircraft *b = &bbuf;
-
-    from_state_all(new_all, b, now);
-
-    p = sprintAircraftObject(p, end, b, now, 1, NULL);
-
-    if (strncmp(buffer1, buffer2, buflen)) {
-        fprintf(stderr, "%s\n%s\n", buffer1, buffer2);
-    }
-}
-*/
-
 int includeGlobeJson(int64_t now, struct aircraft *a) {
     if (a == NULL)
         return 0;
@@ -1373,42 +1334,56 @@ struct char_buffer generateAircraftJson(int64_t onlyRecent){
 }
 
 static char *sprintTracePoint(char *p, char *end, struct aircraft *a, int i, int64_t startStamp) {
-    struct state *trace = &a->trace[i];
+    struct state *state = &a->trace[i];
 
-    int32_t altitude = trace->altitude * 25;
-    int32_t rate = trace->rate * 32;
-    int rate_valid = trace->flags.rate_valid;
-    int rate_geom = trace->flags.rate_geom;
-    int stale = trace->flags.stale;
-    int on_ground = trace->flags.on_ground;
-    int altitude_valid = trace->flags.altitude_valid;
-    int gs_valid = trace->flags.gs_valid;
-    int track_valid = trace->flags.track_valid;
-    int leg_marker = trace->flags.leg_marker;
-    int altitude_geom = trace->flags.altitude_geom;
+    int baro_alt = state->baro_alt / _alt_factor;
+    int baro_rate = state->baro_rate / _rate_factor;
+
+    int geom_alt = state->geom_alt / _alt_factor;
+    int geom_rate = state->geom_rate / _rate_factor;
+
+    int altitude = baro_alt;
+    int altitude_valid = state->baro_alt_valid;
+    int altitude_geom = 0;
+
+    if (!altitude_valid && state->geom_alt_valid) {
+        altitude = geom_alt;
+        altitude_valid = 1;
+        altitude_geom = 1;
+    }
+
+    int rate = baro_rate;
+    int rate_valid = state->baro_rate_valid;
+    int rate_geom = 0;
+
+    if (!rate_valid && state->geom_rate_valid) {
+        rate = geom_rate;
+        rate_valid = 1;
+        rate_geom = 1;
+    }
 
     // in the air
     p = safe_snprintf(p, end, "\n[%.1f,%f,%f",
-            (trace->timestamp - startStamp) / 1000.0, trace->lat / 1E6, trace->lon / 1E6);
+            (state->timestamp - startStamp) / 1000.0, state->lat / 1E6, state->lon / 1E6);
 
-    if (on_ground)
+    if (state->on_ground)
         p = safe_snprintf(p, end, ",\"ground\"");
     else if (altitude_valid)
         p = safe_snprintf(p, end, ",%d", altitude);
     else
         p = safe_snprintf(p, end, ",null");
 
-    if (gs_valid)
-        p = safe_snprintf(p, end, ",%.1f", trace->gs / 10.0);
+    if (state->gs_valid)
+        p = safe_snprintf(p, end, ",%.1f", state->gs / _gs_factor);
     else
         p = safe_snprintf(p, end, ",null");
 
-    if (track_valid)
-        p = safe_snprintf(p, end, ",%.1f", trace->track / 10.0);
+    if (state->track_valid)
+        p = safe_snprintf(p, end, ",%.1f", state->track / _track_factor);
     else
         p = safe_snprintf(p, end, ",null");
 
-    int bitfield = (altitude_geom << 3) | (rate_geom << 2) | (leg_marker << 1) | (stale << 0);
+    int bitfield = (altitude_geom << 3) | (rate_geom << 2) | (state->leg_marker << 1) | (state->stale << 0);
     p = safe_snprintf(p, end, ",%d", bitfield);
 
     if (rate_valid)
@@ -1417,21 +1392,44 @@ static char *sprintTracePoint(char *p, char *end, struct aircraft *a, int i, int
         p = safe_snprintf(p, end, ",null");
 
     if (i % 4 == 0) {
-        int64_t now = trace->timestamp;
-        struct state_all *all = &(a->trace_all[i/4]);
+        int64_t now = state->timestamp;
+        struct state_all *state_all = &(a->trace_all[i/4]);
         struct aircraft b;
         memset(&b, 0, sizeof(struct aircraft));
         struct aircraft *ac = &b;
-        from_state_all(all, ac, now);
+        from_state_all(state_all, state, ac, now);
 
         p = safe_snprintf(p, end, ",");
         p = sprintAircraftObject(p, end, ac, now, 1, NULL);
     } else {
         p = safe_snprintf(p, end, ",null");
     }
+
+    p = safe_snprintf(p, end, ",\"%s\"", addrtype_enum_string(state->addrtype));
+
+    if (state->geom_alt_valid)
+        p = safe_snprintf(p, end, ",%d", geom_alt);
+    else
+        p = safe_snprintf(p, end, ",null");
+
+    if (state->geom_rate_valid)
+        p = safe_snprintf(p, end, ",%d", geom_rate);
+    else
+        p = safe_snprintf(p, end, ",null");
+
+    if (state->ias_valid)
+        p = safe_snprintf(p, end, ",%d", state->ias);
+    else
+        p = safe_snprintf(p, end, ",null");
+
+    if (state->roll_valid)
+        p = safe_snprintf(p, end, ",%.1f", state->roll / _roll_factor);
+    else
+        p = safe_snprintf(p, end, ",null");
+
 #if defined(TRACKS_UUID)
     char uuid[32]; // needs 9 chars and null byte
-    sprint_uuid1_partial(trace->receiverId, uuid);
+    sprint_uuid1_partial(state->receiverId, uuid);
     p = safe_snprintf(p, end, ",\"%s\"", uuid);
 #endif
     p = safe_snprintf(p, end, "]");
@@ -1547,7 +1545,7 @@ static void checkTraceCache(struct aircraft *a, int64_t now) {
         sprintCount++;
 
         e[k].len = p - c->json - e[k].offset;
-        e[k].leg_marker = a->trace[i].flags.leg_marker;
+        e[k].leg_marker = a->trace[i].leg_marker;
 
         k++;
         c->entriesLen++;
@@ -1635,7 +1633,7 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
         int sprintCount = 0;
         for (int i = start; i <= last && i < limit; i++) {
             if (k < tCache->entriesLen && entries[k].stateIndex == i
-                    && a->trace[i].flags.leg_marker == entries[k].leg_marker) {
+                    && a->trace[i].leg_marker == entries[k].leg_marker) {
                 memcpy(p, tCache->json + entries[k].offset, entries[k].len);
                 p += entries[k].len;
             } else {

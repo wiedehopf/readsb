@@ -167,7 +167,13 @@ oldest history entry. To load history, you should:
                 (flags & 8 > 0): altitude is geometric and not barometric
              ,
             vertical rate in fpm or null,
-            aircraft object with extra details or null (see aircraft.json documentation, note that not all fields are present as lat and lon for example arlready in the values above)
+            aircraft object with extra details or null (see aircraft.json documentation, note that not all fields are present as lat and lon for example arlready in the values above),
+            // the following fields only in files generated 2022 and later:
+            type / source of this position or null,
+            geometric altitude or null,
+            geometric vertical rate or null,
+            indicated airspeed or null,
+            roll angle or null
         ],
         [next entry like the one before],
         [next entry like the one before],
