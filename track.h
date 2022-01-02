@@ -147,7 +147,7 @@ struct state
   addrtype_t addrtype:5;
   int padding2:3;
 #if defined(TRACKS_UUID)
-  uint64_t receiverId;
+  uint32_t receiverId;
 #endif
 } __attribute__ ((__packed__));
 

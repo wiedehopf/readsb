@@ -173,7 +173,7 @@ struct binCraft {
   // 108
   // javascript sucks, this must be a multiple of 4 bytes for Int32Array to work correctly
 #if defined(TRACKS_UUID)
-  uint64_t receiverId;
+  uint32_t receiverId;
 #endif
 } __attribute__ ((__packed__));
 
