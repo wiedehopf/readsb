@@ -1,4 +1,7 @@
 #include "readsb.h"
+#define STATE_SAVE_MAGIC (0x7ba09e63757913eeULL)
+#define STATE_SAVE_MAGIC_END (0x7ba09e63757913edULL)
+#define LZO_MAGIC (0xf7413cc6eaf227dbULL)
 
 static void mark_legs(struct aircraft *a, int start);
 static void load_blob(int blob);
@@ -1867,6 +1870,9 @@ no_save_state:
     return posUsed || bufferedPosUsed;
 }
 
+static int state_chunk_size() {
+    return imax(16 * 1024 * 1024, (stateBytes(Modes.traceMax) + stateAllBytes(Modes.traceMax)));
+}
 
 void save_blob(int blob) {
     if (!Modes.state_dir)
@@ -1876,17 +1882,16 @@ void save_blob(int blob) {
     if (blob < 0 || blob > STATE_BLOBS)
         fprintf(stderr, "save_blob: invalid argument: %02x", blob);
 
-    int gzip = 1;
+    int gzip = 0;
+    int lzo = 1;
 
     char filename[PATH_MAX];
     char tmppath[PATH_MAX];
-    if (gzip) {
-        snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
-        unlink(filename);
+    if (lzo) {
+        snprintf(filename, 1024, "%s/blob_%02x.lzol", Modes.state_dir, blob);
+    } else if (gzip) {
         snprintf(filename, 1024, "%s/blob_%02x.gz", Modes.state_dir, blob);
     } else {
-        snprintf(filename, 1024, "%s/blob_%02x.gz", Modes.state_dir, blob);
-        unlink(filename);
         snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
     }
     snprintf(tmppath, PATH_MAX, "%s.readsb_tmp", filename);
@@ -1918,31 +1923,67 @@ void save_blob(int blob) {
     int start = stride * blob;
     int end = start + stride;
 
-    uint64_t magic = 0x7ba09e63757913eeULL;
+    uint64_t magic = STATE_SAVE_MAGIC;
 
-    int alloc = imax(16 * 1024 * 1024, (stateBytes(Modes.traceMax) + stateAllBytes(Modes.traceMax)));
+    int alloc = state_chunk_size();
     unsigned char *buf = aligned_malloc(alloc);
     unsigned char *p = buf;
 
+    int lzo_out_alloc = alloc + alloc / 16 + 64 + 3; // from mini lzo example
+    lzo_uint compressed_len = 0;
+    unsigned char *lzo_out = NULL;
+    unsigned char *lzo_work = NULL;
+    if (lzo) {
+        lzo_out = aligned_malloc(lzo_out_alloc);
+        lzo_work = aligned_malloc(LZO1X_1_MEM_COMPRESS);
+    }
+
     for (int j = start; j < end; j++) {
-        for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
-            int trace_len = a->trace_len;
-            if (a->tracePosBuffered)
-                trace_len++; // use buffered position for saving state
+        for (struct aircraft *a = Modes.aircraft[j]; a || (j == end - 1); a = a->next) {
+            int trace_len = 0;
+            int size_state = 0;
+            int size_all = 0;
+            if (a) {
+                traceUsePosBuffered(a); // use buffered position for saving state
 
-            int size_state = stateBytes(trace_len);
-            int size_all = stateAllBytes(trace_len);
+                trace_len = a->trace_len;
+                size_state = stateBytes(trace_len);
+                size_all = stateAllBytes(trace_len);
+            }
 
-
-            if (p + sizeof(magic) + size_state + size_all + sizeof(struct aircraft) >= buf + alloc) {
+            if (!a || (p + 2 * sizeof(uint64_t) + size_state + size_all + sizeof(struct aircraft) >= buf + alloc)) {
                 //fprintf(stderr, "save_blob writing %d KB (buffer)\n", (int) ((p - buf) / 1024));
-                if (gzip) {
+
+                uint64_t magic_end = STATE_SAVE_MAGIC_END;
+                memcpy(p, &magic_end, sizeof(magic_end));
+                p += sizeof(magic_end);
+
+                if (lzo) {
+
+                    int res = lzo1x_1_compress(buf, p - buf, lzo_out + 2 * sizeof(uint64_t), &compressed_len, lzo_work);
+
+                    //fprintf(stderr, "%d %08lld\n", blob, (long long) compressed_len);
+
+                    if (res != LZO_E_OK) {
+                        fprintf(stderr, "lzo1x_1_compress error, couldn't save state blob: %s\n", filename);
+                        goto error;
+                    }
+                    uint64_t lzo_magic = LZO_MAGIC;
+                    memcpy(lzo_out, &lzo_magic, sizeof(uint64_t));
+                    uint64_t compressed_len_64 = compressed_len;
+                    memcpy(lzo_out + sizeof(uint64_t), &compressed_len_64, sizeof(uint64_t));
+                    check_write(fd, lzo_out, compressed_len + 2 * sizeof(uint64_t), tmppath);
+                } else if (gzip) {
                     writeGz(gzfp, buf, p - buf, tmppath);
                 } else {
                     check_write(fd, buf, p - buf, tmppath);
                 }
 
                 p = buf;
+            }
+
+            if (!a) {
+                break;
             }
 
             memcpy(p, &magic, sizeof(magic));
@@ -1965,17 +2006,6 @@ void save_blob(int blob) {
             }
         }
     }
-    magic--;
-    memcpy(p, &magic, sizeof(magic));
-    p += sizeof(magic);
-
-    //fprintf(stderr, "save_blob writing %d KB (end)\n", (int) ((p - buf) / 1024));
-    if (gzip) {
-        writeGz(gzfp, buf, p - buf, tmppath);
-    } else {
-        check_write(fd, buf, p - buf, tmppath);
-    }
-    p = buf;
 
     if (gzfp)
         gzclose(gzfp);
@@ -1987,7 +2017,19 @@ void save_blob(int blob) {
         perror("");
         unlink(tmppath);
     }
+    goto out;
+error:
+    if (gzfp)
+        gzclose(gzfp);
+    else if (fd != -1)
+        close(fd);
+    unlink(tmppath);
+out:
 
+    if (lzo) {
+        free(lzo_out);
+        free(lzo_work);
+    }
     free(buf);
 }
 void *load_blobs(void *arg) {
@@ -2001,40 +2043,9 @@ void *load_blobs(void *arg) {
     return NULL;
 }
 
-static void load_blob(int blob) {
-    //fprintf(stderr, "load blob %d\n", blob);
-    if (blob < 0 || blob >= STATE_BLOBS)
-        fprintf(stderr, "load_blob: invalid argument: %d", blob);
-    uint64_t magic = 0x7ba09e63757913eeULL;
-    char filename[1024];
-    int64_t now = mstime();
-    int fd = -1;
-    struct char_buffer cb;
-    char *p;
-    char *end;
-
-    snprintf(filename, 1024, "%s/blob_%02x.gz", Modes.state_dir, blob);
-    gzFile gzfp = gzopen(filename, "r");
-    if (gzfp) {
-        cb = readWholeGz(gzfp, filename);
-        gzclose(gzfp);
-    } else {
-        snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
-        fd = open(filename, O_RDONLY);
-        if (fd == -1) {
-            fprintf(stderr, "missing state blob:");
-            snprintf(filename, 1024, "%s/blob_%02x[.gz]", Modes.state_dir, blob);
-            perror(filename);
-            return;
-        }
-        cb = readWholeFile(fd, filename);
-        close(fd);
-    }
-    if (!cb.buffer)
-        return;
-    p = cb.buffer;
-    end = p + cb.len;
-
+static int load_aircrafts(char *p, char *end, char *filename, int64_t now) {
+    uint64_t magic = STATE_SAVE_MAGIC;
+    int count = 0;
     while (end - p > 0) {
         uint64_t value = 0;
         if (end - p >= (long) sizeof(value)) {
@@ -2043,12 +2054,100 @@ static void load_blob(int blob) {
         }
 
         if (value != magic) {
-            if (value != magic - 1)
+            if (value != magic - 1) {
                 fprintf(stderr, "Incomplete state file: %s\n", filename);
+                return -1;
+            }
             break;
         }
         load_aircraft(&p, end, now);
+        count++;
     }
+    return count;
+}
+
+static void load_blob(int blob) {
+    //fprintf(stderr, "load blob %d\n", blob);
+    if (blob < 0 || blob >= STATE_BLOBS)
+        fprintf(stderr, "load_blob: invalid argument: %d", blob);
+    char filename[1024];
+    int64_t now = mstime();
+    int fd = -1;
+    struct char_buffer cb;
+    char *p;
+    char *end;
+    int lzo = 0;
+
+    snprintf(filename, 1024, "%s/blob_%02x.lzol", Modes.state_dir, blob);
+    fd = open(filename, O_RDONLY);
+    if (fd != -1) {
+        lzo = 1;
+        cb = readWholeFile(fd, filename);
+        close(fd);
+    } else {
+        snprintf(filename, 1024, "%s/blob_%02x.gz", Modes.state_dir, blob);
+        gzFile gzfp = gzopen(filename, "r");
+        if (gzfp) {
+            cb = readWholeGz(gzfp, filename);
+            gzclose(gzfp);
+            unlink(filename); // moving to lzo
+        } else {
+            snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
+            fd = open(filename, O_RDONLY);
+            if (fd == -1) {
+                fprintf(stderr, "missing state blob:");
+                snprintf(filename, 1024, "%s/blob_%02x[.gz/.lzol]", Modes.state_dir, blob);
+                perror(filename);
+                return;
+            }
+            cb = readWholeFile(fd, filename);
+            close(fd);
+            unlink(filename); // moving to lzo
+        }
+    }
+    if (!cb.buffer)
+        return;
+    p = cb.buffer;
+    end = p + cb.len;
+
+    if (lzo) {
+        int lzo_out_alloc = state_chunk_size() * 8 / 7;
+        char *lzo_out = aligned_malloc(lzo_out_alloc);
+        while (end - p > 0) {
+            uint64_t value = 0;
+            uint64_t compressed_len = 0;
+            if (end - p >= (long) (sizeof(value) + sizeof(compressed_len))) {
+                value = *((uint64_t *) p);
+                p += sizeof(value);
+
+                compressed_len = *((uint64_t *) p);
+                p += sizeof(compressed_len);
+            }
+            //fprintf(stderr, "%d %08lld\n", blob, (long long) compressed_len);
+
+            if (value != LZO_MAGIC) {
+                fprintf(stderr, "Corrupt state file (LZO_MAGIC wrong): %s\n", filename);
+                break;
+            }
+
+            lzo_uint uncompressed_len = lzo_out_alloc;
+            int res = lzo1x_decompress_safe((unsigned char*) p, compressed_len, (unsigned char*) lzo_out, &uncompressed_len, NULL);
+            if (res != LZO_E_OK) {
+                fprintf(stderr, "Corrupt state file (decompression failure): %s\n", filename);
+                break;
+            }
+
+            if (load_aircrafts(lzo_out, lzo_out + uncompressed_len, filename, now) < 0) {
+                break;
+            }
+            p += compressed_len;
+        }
+
+        sfree(lzo_out);
+    } else {
+        load_aircrafts(p, end, filename, now);
+    }
+
     free(cb.buffer);
 }
 

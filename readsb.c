@@ -1643,6 +1643,13 @@ int main(int argc, char **argv) {
 
     Modes.startup_time = mstime();
 
+    if (lzo_init() != LZO_E_OK)
+    {
+        fprintf(stderr, "internal error - lzo_init() failed !!!\n");
+        fprintf(stderr, "(this usually indicates a compiler bug - try recompiling\nwithout optimizations, and enable '-DLZO_DEBUG' for diagnostics)\n");
+        return 3;
+    }
+
     // signal handling stuff
     Modes.exitEventfd = eventfd(0, EFD_NONBLOCK);
     signal(SIGINT, sigintHandler);

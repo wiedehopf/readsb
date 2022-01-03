@@ -101,6 +101,7 @@
 #include <sched.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
+#include "minilzo/minilzo.h"
 
 
 #include "compat/compat.h"
