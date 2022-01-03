@@ -64,12 +64,6 @@
 //
 //
 
-/* A timestamp that indicates the data is synthetic, created from a
- * multilateration result
- */
-#define MAGIC_MLAT_TIMESTAMP 0xFF004D4C4154ULL
-#define MAGIC_UAT_TIMESTAMP  0xFF004D4C4155ULL
-
 //
 //=========================================================================
 //

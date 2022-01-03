@@ -516,7 +516,8 @@ static inline int posReliable(struct aircraft *a) {
         return 1;
     }
     int reliable = Modes.json_reliable;
-    if (Modes.position_persistence > reliable && reliable > 1 && (a->addr & MODES_NON_ICAO_ADDRESS || a->addrtype == ADDR_TISB_ICAO || a->addrtype == ADDR_ADSR_ICAO)) {
+    // disable this extra requirement for the moment:
+    if (0 && Modes.position_persistence > reliable && reliable > 1 && (a->addr & MODES_NON_ICAO_ADDRESS || a->addrtype == ADDR_TISB_ICAO || a->addrtype == ADDR_ADSR_ICAO)) {
         reliable += 1; // require additional reliability for non-icao hex addresses
     }
 
@@ -614,5 +615,13 @@ static inline int get8bitSignal(struct aircraft *a) {
     if (signal > 255) signal = 255;
     if (signal < 1 && signal > 0) signal = 1;
     return (int) nearbyint(signal);
+}
+
+static inline int uat2esnt_duplicate(int64_t now, struct aircraft *a, struct modesMessage *mm) {
+    return (
+            mm->cpr_valid && mm->cpr_odd && mm->msgtype == 18
+            && (mm->timestampMsg == MAGIC_UAT_TIMESTAMP || mm->timestampMsg == 0)
+            && now - a->seenPosReliable < 2500
+           );
 }
 #endif

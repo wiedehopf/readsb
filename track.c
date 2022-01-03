@@ -537,30 +537,31 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
     if (
             (!inrange && track_diff < 160 && source == a->position_valid.source && source > SOURCE_MLAT && (Modes.debug_cpr || Modes.debug_speed_check))
-            || (a->addr == Modes.cpr_focus)
+            || (a->addr == Modes.cpr_focus && source >= a->position_valid.source)
             || (Modes.debug_maxRange && track_diff > 90)
        ) {
-
-        //(a->lat == lat && a->lon == lon) ? "L " : ((a->prev_lat == lat && a->prev_lon == lon) ? "P " : ""),
-        //fprintf(stderr, "%3.1f -> %3.1f\n", calc_track, a->track);
-        fprintf(stderr, "%02d:%02d:%04.1f %06x R%3.1f %s %s %s %s %4.0f%% %1dt %3.0f ct %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f\n",
-                (int) (now / (3600 * SECONDS) % 24),
-                (int) (now / (60 * SECONDS) % 60),
-                (now % (60 * SECONDS)) / 1000.0,
-                a->addr,
-                fminf(a->pos_reliable_odd, a->pos_reliable_even),
-                mm->cpr_odd ? "O" : "E",
-                cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "S"),
-                (surface ? "S" : "A"),
-                override ? "ovrd" : (inrange ? "pass" : "FAIL"),
-                fminf(9001.0f, 100.0f * distance / range),
-                a->trackUnreliable,
-                track,
-                calc_track,
-                distance / 1000.0,
-                elapsed / 1000.0,
-                (distance / elapsed * 1000.0 / 1852.0 * 3600.0),
-                oldLat, oldLon, lat, lon);
+        if (uat2esnt_duplicate(now, a, mm)) {
+            // don't show debug
+        } else {
+            fprintf(stderr, "%02d:%02d:%04.1f %06x R%3.1f %s %s %s %s %4.0f%% %1dt %3.0f ct %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f\n",
+                    (int) (now / (3600 * SECONDS) % 24),
+                    (int) (now / (60 * SECONDS) % 60),
+                    (now % (60 * SECONDS)) / 1000.0,
+                    a->addr,
+                    fminf(a->pos_reliable_odd, a->pos_reliable_even),
+                    mm->cpr_odd ? "O" : "E",
+                    cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "S"),
+                    (surface ? "S" : "A"),
+                    override ? "ovrd" : (inrange ? "pass" : "FAIL"),
+                    fminf(9001.0f, 100.0f * distance / range),
+                    a->trackUnreliable,
+                    track,
+                    calc_track,
+                    distance / 1000.0,
+                    elapsed / 1000.0,
+                    (distance / elapsed * 1000.0 / 1852.0 * 3600.0),
+                    oldLat, oldLon, lat, lon);
+        }
         if (!inrange) {
             char uuid[32]; // needs 18 chars and null byte
             sprint_uuid1(mm->receiverId, uuid);
@@ -850,6 +851,12 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
         // don't use duplicate positions
         mm->duplicate = 1;
         mm->pos_ignore = 1;
+    }
+
+    // for UAT messages converted by uat2esnt each position becomes a odd / even message pair
+    // only update the position for the odd message if we've recently seen a reliable position
+    if (uat2esnt_duplicate(now, a, mm)) {
+        return;
     }
 
     Modes.stats_current.pos_by_type[mm->addrtype]++;

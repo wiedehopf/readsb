@@ -23,12 +23,10 @@ struct apiEntry {
     uint32_t addr;
     int32_t lat;
 
-
     int32_t lon;
     int32_t alt;
 
     struct offset jsonOffset;
-
 
     float distance;
     char typeCode[4];
