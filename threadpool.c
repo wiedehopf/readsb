@@ -92,15 +92,18 @@ threadpool_t *threadpool_create(uint32_t thread_count)
 	pthread_mutex_init(&pool->master_lock, NULL);
 	pthread_cond_init(&pool->notify_master, NULL);
 
-	for (uint32_t i = 0; i < thread_count; i++)
-	{
-        thread_t *thread = &pool->threads[i];
-        thread->index = i;
-        thread->pool = pool;
-        thread->thread_time.tv_sec = 0;
-        thread->thread_time.tv_nsec = 0;
-		pthread_create(&thread->pthread, NULL, threadpool_threadproc, thread);
-	}
+    // only create worker threads for thread_count > 1
+    if (pool->thread_count > 1) {
+        for (uint32_t i = 0; i < thread_count; i++)
+        {
+            thread_t *thread = &pool->threads[i];
+            thread->index = i;
+            thread->pool = pool;
+            thread->thread_time.tv_sec = 0;
+            thread->thread_time.tv_nsec = 0;
+            pthread_create(&thread->pthread, NULL, threadpool_threadproc, thread);
+        }
+    }
 
 	return pool;
 }
@@ -120,10 +123,12 @@ void threadpool_destroy(threadpool_t *pool)
 	pthread_mutex_unlock(&pool->master_lock);
 
 
-	for (uint32_t i = 0; i < pool->thread_count; i++)
-	{
-		pthread_join(pool->threads[i].pthread, NULL);
-	}
+    if (pool->thread_count > 1) {
+        for (uint32_t i = 0; i < pool->thread_count; i++)
+        {
+            pthread_join(pool->threads[i].pthread, NULL);
+        }
+    }
 
 	pthread_mutex_destroy(&pool->worker_lock);
 	pthread_cond_destroy(&pool->notify_worker);
@@ -137,6 +142,15 @@ void threadpool_destroy(threadpool_t *pool)
 
 void threadpool_run(threadpool_t *pool, threadpool_task_t* tasks, uint32_t count)
 {
+    // with 1 thread only, we run the tasks directly to avoid extra threads / locking
+    if (pool->thread_count <= 1) {
+        for (uint32_t i = 0; i < count; i++) {
+            threadpool_task_t* task = &tasks[i];
+            task->function(task->argument);
+        }
+        return;
+    }
+
 	atomic_store(&pool->pending_count, count);
 	atomic_store(&pool->tasks, (intptr_t) tasks);
 	// incrementing task count means a thread could start doing work already

@@ -199,9 +199,21 @@ static void modesInit(void) {
     threadInit(&Threads.misc, "misc");
     threadInit(&Threads.apiUpdate, "apiUpdate");
 
+    if (Modes.json_globe_index) {
+        Modes.tracePoolSize = imax(1, Modes.num_procs - 2);
+        Modes.allPoolSize = imax(1, Modes.num_procs);
+    } else {
+        Modes.tracePoolSize = 1;
+        Modes.allPoolSize = 1;
+    }
     // to keep decoding and the other threads working well, don't use all available processors
-    Modes.workPoolSize = imax(1, Modes.num_procs - 2);
-    Modes.workPool = threadpool_create(Modes.workPoolSize);
+    Modes.tracePool = threadpool_create(Modes.tracePoolSize);
+    Modes.tracePoolTasks = malloc(10 * Modes.tracePoolSize * sizeof(threadpool_task_t));
+    Modes.tracePoolRanges = malloc(10 * Modes.tracePoolSize * sizeof(struct task_info));
+
+    Modes.allPool = threadpool_create(Modes.allPoolSize);
+    Modes.allPoolTasks = malloc(10 * Modes.allPoolSize * sizeof(threadpool_task_t));
+    Modes.allPoolRanges = malloc(10 * Modes.allPoolSize * sizeof(struct task_info));
 
     for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
         ca_init(&Modes.globeLists[i]);
@@ -686,12 +698,12 @@ static void *decodeEntryPoint(void *arg) {
 }
 
 static void traceWriteTask(void *arg) {
-    struct ival32 *range = (struct ival32 *) arg;
+    struct task_info *info = (struct task_info *) arg;
 
     int64_t now = mstime();
 
     struct aircraft *a;
-    for (int j = range->from; j < range->to; j++) {
+    for (int j = info->from; j < info->to; j++) {
         for (a = Modes.aircraft[j]; a; a = a->next) {
             if (a->trace_write) {
                 traceWrite(a, now, 0);
@@ -701,10 +713,10 @@ static void traceWriteTask(void *arg) {
 }
 
 static void writeTraces() {
-    int traceTasks = 4 * Modes.workPoolSize;
+    int traceTasks = 4 * Modes.tracePoolSize;
     int taskCount = traceTasks;
-    threadpool_task_t *tasks = malloc(traceTasks * sizeof(threadpool_task_t));
-    struct ival32 *ranges = malloc(traceTasks * sizeof(struct ival32));
+    threadpool_task_t *tasks = Modes.tracePoolTasks;
+    struct task_info *ranges = Modes.tracePoolRanges;
 
     // how long until we want to have checked every aircraft if a trace needs to be written
     int completeTime = 3 * SECONDS;
@@ -718,7 +730,7 @@ static void writeTraces() {
 
     for (int i = 0; i < traceTasks; i++) {
         threadpool_task_t *task = &tasks[i];
-        struct ival32 *range = &ranges[i];
+        struct task_info *range = &ranges[i];
 
         int thread_start = part * thread_section_len;
         int thread_end = thread_start + thread_section_len;
@@ -738,13 +750,10 @@ static void writeTraces() {
             part = 0;
         }
     }
-    struct timespec before = threadpool_get_cumulative_thread_time(Modes.workPool);
-    threadpool_run(Modes.workPool, tasks, taskCount);
-    struct timespec after = threadpool_get_cumulative_thread_time(Modes.workPool);
+    struct timespec before = threadpool_get_cumulative_thread_time(Modes.tracePool);
+    threadpool_run(Modes.tracePool, tasks, taskCount);
+    struct timespec after = threadpool_get_cumulative_thread_time(Modes.tracePool);
     timespec_add_elapsed(&before, &after, &Modes.stats_current.trace_json_cpu);
-
-    sfree(ranges);
-    sfree(tasks);
 }
 
 static void *upkeepEntryPoint(void *arg) {
@@ -1893,7 +1902,13 @@ int main(int argc, char **argv) {
 
     threadDestroyAll();
 
-    threadpool_destroy(Modes.workPool);
+    threadpool_destroy(Modes.tracePool);
+    threadpool_destroy(Modes.allPool);
+
+    sfree(Modes.tracePoolTasks);
+    sfree(Modes.tracePoolRanges);
+    sfree(Modes.allPoolTasks);
+    sfree(Modes.allPoolRanges);
 
     pthread_mutex_destroy(&Modes.traceDebugMutex);
     pthread_mutex_destroy(&Modes.hungTimerMutex);

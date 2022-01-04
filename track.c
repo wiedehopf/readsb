@@ -2319,8 +2319,12 @@ static void updateAircraft() {
 // we remove the aircraft from the list.
 //
 
-static void removeStaleRange(int start, int end, int64_t now) {
-    //fprintf(stderr, "%d %d %d %d\n", thread, start, end, AIRCRAFT_BUCKETS);
+static void removeStaleRange(void *arg) {
+
+    struct task_info *info = (struct task_info *) arg;
+    int64_t now = info->now;
+
+    //fprintf(stderr, "%9d %9d %9d\n", info->from, info->to, AIRCRAFT_BUCKETS);
 
     // non-icao timeout
     int64_t nonicaoTimeout = now - 1 * HOURS;
@@ -2341,7 +2345,7 @@ static void removeStaleRange(int start, int end, int64_t now) {
     // timeout for aircraft with position
     int64_t noposTimeout = now - 5 * MINUTES;
 
-    for (int j = start; j < end; j++) {
+    for (int j = info->from; j < info->to; j++) {
         struct aircraft **nextPointer = &(Modes.aircraft[j]);
         while (*nextPointer) {
             struct aircraft *a = *nextPointer;
@@ -2430,31 +2434,46 @@ static void activeUpdate(int64_t now) {
 
 // run activeUpdate and remove stale aircraft for a fraction of the entire hashtable
 void trackRemoveStale(int64_t now) {
-    //fprintf(stderr, "removeStale()\n");
-    //fprintf(stderr, "removeStale start: running for %ld ms\n", mstime() - Modes.startup_time);
 
     activeUpdate(now);
 
-    static int part;
-    int nParts = 64; // power of 2
-    int nStripes = 16; // power of 2
-    if (nParts * nStripes > AIRCRAFT_BUCKETS) {
-        fprintf(stderr, "WAT?!\n");
-        nStripes = AIRCRAFT_BUCKETS / nParts;
-    }
-    int stripeLen = AIRCRAFT_BUCKETS / nStripes;
-    int partLen = AIRCRAFT_BUCKETS / nParts / nStripes;
+    int taskCount = Modes.allPoolSize;
 
-    for (int i = 0; i < nStripes; i++) {
-        int start = i * stripeLen + part * partLen;
-        int end = start + partLen;
-        removeStaleRange(start, end, now);
-        //fprintf(stderr, "%6d %6d ", start, end);
-    }
-    //fprintf(stderr, " %6d \n", AIRCRAFT_BUCKETS);
+    static int part = 0;
+    int n_parts = 32 * taskCount;
 
-    part = (part + 1) % nParts;
-    //fprintf(stderr, "removeStale done: running for %ld ms\n", mstime() - Modes.startup_time);
+
+    threadpool_task_t *tasks = Modes.allPoolTasks;
+    struct task_info *ranges = Modes.allPoolRanges;
+
+    int thread_section_len = AIRCRAFT_BUCKETS / n_parts + 1;
+
+    // assign tasks
+    for (int i = 0; i < taskCount; i++) {
+        threadpool_task_t *task = &tasks[i];
+        struct task_info *range = &ranges[i];
+
+        int thread_start = part * thread_section_len;
+        int thread_end = thread_start + thread_section_len;
+        if (thread_end > AIRCRAFT_BUCKETS)
+            thread_end = AIRCRAFT_BUCKETS;
+        //fprintf(stderr, "%d %d\n", thread_start, thread_end);
+
+        range->now = now;
+        range->from = thread_start;
+        range->to = thread_end;
+
+        task->function = removeStaleRange;
+        task->argument = range;
+
+        //fprintf(stderr, "%d %d\n", thread_start, thread_end);
+
+        if (++part >= n_parts) {
+            part = 0;
+        }
+    }
+    // run tasks
+    threadpool_run(Modes.allPool, tasks, taskCount);
 }
 
 /*

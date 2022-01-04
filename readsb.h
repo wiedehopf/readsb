@@ -411,8 +411,14 @@ struct _Modes
     pthread_mutex_t traceDebugMutex;
 
     int num_procs;
-    int workPoolSize;
-    threadpool_t *workPool;
+    int allPoolSize;
+    threadpool_t *allPool;
+    threadpool_task_t *allPoolTasks;
+    struct task_info *allPoolRanges;
+    int tracePoolSize;
+    threadpool_t *tracePool;
+    threadpool_task_t *tracePoolTasks;
+    struct task_info *tracePoolRanges;
     int lockThreadsCount;
     ALIGNED threadT *lockThreads[LOCK_THREADS_MAX];
 

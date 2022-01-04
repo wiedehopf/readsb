@@ -48,7 +48,8 @@ void threadCreate(threadT *thread, const pthread_attr_t *attr, void *(*start_rou
 void threadTimedWait(threadT *thread, struct timespec *ts, int64_t increment);
 void threadSignalJoin(threadT *thread);
 
-struct ival32 {
+struct task_info {
+    int64_t now;
     int32_t from;
     int32_t to;
 };
