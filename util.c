@@ -92,25 +92,6 @@ int64_t receiveclock_ms_elapsed(int64_t t1, int64_t t2) {
     return (t2 - t1) / 12000U;
 }
 
-void normalize_timespec(struct timespec *ts) {
-    if (ts->tv_nsec >= 1000000000) {
-        ts->tv_sec += ts->tv_nsec / 1000000000;
-        ts->tv_nsec = ts->tv_nsec % 1000000000;
-    } else if (ts->tv_nsec < 0) {
-        long adjust = ts->tv_nsec / 1000000000 + 1;
-        ts->tv_sec -= adjust;
-        ts->tv_nsec = (ts->tv_nsec + 1000000000 * adjust) % 1000000000;
-    }
-}
-
-// convert ms to timespec
-struct timespec msToTimespec(int64_t ms)  {
-    struct timespec ts;
-    ts.tv_sec =  (ms / 1000);
-    ts.tv_nsec = (ms % 1000) * 1000 * 1000;
-    return ts;
-}
-
 /* record current CPU time in start_time */
 void start_cpu_timing(struct timespec *start_time) {
     clock_gettime(CLOCK_THREAD_CPUTIME_ID, start_time);
@@ -176,16 +157,18 @@ unsigned int get_seed() {
 
 // increment target by increment in ms, if result is in the past, set target to now.
 // specialized function for scheduling threads using pthreadcondtimedwait
-void incTimedwait(struct timespec *target, int64_t increment) {
+static void incTimedwait(struct timespec *target, int64_t increment) {
     struct timespec inc = msToTimespec(increment);
     target->tv_sec += inc.tv_sec;
     target->tv_nsec += inc.tv_nsec;
     normalize_timespec(target);
     struct timespec now;
     clock_gettime(CLOCK_REALTIME, &now);
-    if (target->tv_sec < now.tv_sec || (target->tv_sec == now.tv_sec && target->tv_nsec < now.tv_nsec)) {
+    int64_t min_sleep = 10 * 1000; // always wait a bit to yield (i hope)
+    if (target->tv_sec < now.tv_sec || (target->tv_sec == now.tv_sec && target->tv_nsec <= now.tv_nsec + min_sleep)) {
         target->tv_sec = now.tv_sec;
-        target->tv_nsec = now.tv_nsec;
+        target->tv_nsec = now.tv_nsec + min_sleep;
+        normalize_timespec(target);
     }
 }
 

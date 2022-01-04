@@ -81,9 +81,25 @@ int64_t receiveclock_ms_elapsed (int64_t t1, int64_t t2);
 /* Normalize the value in ts so that ts->nsec lies in
  * [0,999999999]
  */
-void normalize_timespec (struct timespec *ts);
 
-struct timespec msToTimespec(int64_t ms);
+static inline void normalize_timespec(struct timespec *ts) {
+    if (ts->tv_nsec >= 1000000000) {
+        ts->tv_sec += ts->tv_nsec / 1000000000;
+        ts->tv_nsec = ts->tv_nsec % 1000000000;
+    } else if (ts->tv_nsec < 0) {
+        long adjust = ts->tv_nsec / 1000000000 + 1;
+        ts->tv_sec -= adjust;
+        ts->tv_nsec = (ts->tv_nsec + 1000000000 * adjust) % 1000000000;
+    }
+}
+
+// convert ms to timespec
+static inline struct timespec msToTimespec(int64_t ms)  {
+    struct timespec ts;
+    ts.tv_sec =  (ms / 1000);
+    ts.tv_nsec = (ms % 1000) * 1000 * 1000;
+    return ts;
+}
 
 /* record current CPU time in start_time */
 void start_cpu_timing (struct timespec *start_time);
@@ -103,9 +119,6 @@ int64_t lapWatch(struct timespec *start_time);
 // get nanoseconds and some other stuff for use with srand
 unsigned int get_seed();
 
-// increment target by increment in ms, if result is in the past, set target to now.
-// specialized function for scheduling threads using pthreadcondtimedwait
-void incTimedwait(struct timespec *target, int64_t increment);
 void log_with_timestamp(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
 
 // based on a give epoch time in ms, calculate the nearest offset interval step

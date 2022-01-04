@@ -858,7 +858,7 @@ void *traceEntryPoint(void *arg) {
     srandom(get_seed());
 
     int part = 0;
-    int n_parts = 250;
+    int n_parts = 128;
 
     // adding 1 means we handle divisions with remainder gracefully
     // just need to check that we don't go out of bounds
@@ -869,8 +869,8 @@ void *traceEntryPoint(void *arg) {
         thread_end = AIRCRAFT_BUCKETS;
     //fprintf(stderr, "%d %d\n", thread_start, thread_end);
 
-    // write each part every 5 seconds
-    int64_t sleep_ms = 5 * SECONDS / n_parts;
+    // write each part every 3 seconds
+    int64_t sleep_ms = 3 * SECONDS / n_parts;
 
     pthread_mutex_lock(&Threads.trace[thread].mutex);
 
@@ -878,7 +878,6 @@ void *traceEntryPoint(void *arg) {
     clock_gettime(CLOCK_REALTIME, &ts);
 
     while (!Modes.exit) {
-        //fprintf(stderr, "%d %d %d\n", part, start, end);
         int64_t now = mstime();
 
         // adding 1 means we handle divisions with remainder gracefully
@@ -889,16 +888,21 @@ void *traceEntryPoint(void *arg) {
         if (end > thread_end)
             end = thread_end;
 
+        int count = 0;
+
         struct timespec start_time;
         start_cpu_timing(&start_time);
 
         struct aircraft *a;
         for (int j = start; j < end; j++) {
             for (a = Modes.aircraft[j]; a; a = a->next) {
-                if (a->trace_write)
+                count++;
+                if (a->trace_write) {
                     traceWrite(a, now, 0);
+                }
             }
         }
+        //fprintf(stderr, "%3d %9d %4d\n", part, start, count);
 
         part++;
         part %= n_parts;
