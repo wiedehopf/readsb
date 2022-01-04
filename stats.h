@@ -84,7 +84,7 @@ struct stats
   struct timespec reader_cpu;
   struct timespec background_cpu;
   struct timespec aircraft_json_cpu;
-  struct timespec trace_json_cpu[TRACE_THREADS];
+  struct timespec trace_json_cpu[TRACE_THREADS_MAX];
   struct timespec globe_json_cpu;
   struct timespec bin_cpu;
   struct timespec heatmap_and_state_cpu;

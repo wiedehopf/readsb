@@ -198,7 +198,7 @@ static void modesInit(void) {
     threadInit(&Threads.globeBin, "globeBin");
     threadInit(&Threads.misc, "misc");
     threadInit(&Threads.apiUpdate, "apiUpdate");
-    for (int i = 0; i < TRACE_THREADS; i++) {
+    for (int i = 0; i < Modes.traceThreadsCount; i++) {
         char buf[32];
         sprintf(buf, "trace%d", i);
         threadInit(&Threads.trace[i], buf);
@@ -692,7 +692,7 @@ static void *upkeepEntryPoint(void *arg) {
 
     pthread_mutex_lock(&Threads.upkeep.mutex);
 
-    for (int i = 0; i < TRACE_THREADS; i++) {
+    for (int i = 0; i < Modes.traceThreadsCount; i++) {
         Modes.lockThreads[Modes.lockThreadsCount++] = &Threads.trace[i];
     }
     Modes.lockThreads[Modes.lockThreadsCount++] = &Threads.apiUpdate;
@@ -1444,6 +1444,7 @@ static void configAfterParse() {
         Modes.preambleThreshold = PREAMBLE_THRESHOLD_DEFAULT;
     }
     Modes.io_threads = Modes.num_procs; // use the number of processors as the number of IO threads
+    Modes.traceThreadsCount = imin(TRACE_THREADS_MAX, imax(Modes.num_procs - 2, 1));
 
     if (Modes.mode_ac)
         Modes.mode_ac_auto = 0;
@@ -1740,7 +1741,7 @@ int main(int argc, char **argv) {
             // globe_xxxx.json
             threadCreate(&Threads.globeJson, NULL, globeJsonEntryPoint, NULL);
 
-            for (int i = 0; i < TRACE_THREADS; i++) {
+            for (int i = 0; i < Modes.traceThreadsCount; i++) {
                 threadCreate(&Threads.trace[i], NULL, traceEntryPoint, &Modes.threadNumber[i]);
             }
         }
@@ -1810,7 +1811,7 @@ int main(int argc, char **argv) {
         if (Modes.json_globe_index) {
             threadSignalJoin(&Threads.globeJson);
             threadSignalJoin(&Threads.globeBin);
-            for (int i = 0; i < TRACE_THREADS; i++) {
+            for (int i = 0; i < Modes.traceThreadsCount; i++) {
                 threadSignalJoin(&Threads.trace[i]);
             }
         }

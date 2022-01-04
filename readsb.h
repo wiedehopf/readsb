@@ -314,12 +314,10 @@ typedef enum {
 #define DB_BUCKETS (1 << DB_HASH_BITS) // this is critical for hashing purposes
 
 #define STATE_BLOBS 256 // change naming scheme if increasing this
-#ifndef TRACE_THREADS
-#define TRACE_THREADS 6
-#endif
-#define LOCK_THREADS_MAX 32
+#define LOCK_THREADS_MAX 64
 #define PERIODIC_UPDATE 200 // don't use values larger than 200 ... some hard-coded stuff
 #define API_THREADS 4
+#define TRACE_THREADS_MAX 32
 
 #define STAT_BUCKETS 90 // 90 * 10 seconds = 15 min (max interval in stats.json)
 
@@ -404,7 +402,7 @@ struct _Threads {
     threadT apiUpdate;
 
     // writing icao trace jsons
-    threadT trace[TRACE_THREADS];
+    threadT trace[TRACE_THREADS_MAX];
 };
 extern struct _Threads Threads;
 
@@ -415,6 +413,7 @@ struct _Modes
     pthread_mutex_t traceDebugMutex;
 
     int num_procs;
+    int traceThreadsCount;
     int lockThreadsCount;
     ALIGNED threadT *lockThreads[LOCK_THREADS_MAX];
 

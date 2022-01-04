@@ -823,14 +823,6 @@ static int load_aircraft(char **p, char *end, int64_t now) {
         // disable for now
         // traceMaintenance(a, now);
 
-        // write the recent trace to /run so it's available in the webinterface
-        // disable for the moment
-        if (a->position_valid.source != SOURCE_INVALID) {
-            a->trace_writeCounter = 0; // avoid full writes here
-            a->trace_write |= WRECENT;
-            traceWrite(a, now, 1);
-        }
-
         if (a->addr == Modes.leg_focus) {
             scheduleMemBothWrite(a, now);
             fprintf(stderr, "leg_focus: %06x trace len: %d\n", a->addr, a->trace_len);
@@ -840,6 +832,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
         // schedule writing all the traces into run so they are present for the webinterface
         if (a->position_valid.source != SOURCE_INVALID) {
             scheduleMemBothWrite(a, now); // write traces for aircraft with valid positions as quickly as possible
+            a->trace_write = 1;
         } else {
             scheduleMemBothWrite(a, now + 60 * SECONDS + (now - a->seen_pos) / (24 * 60 / 5)); // condense 24h into 4 minutes
         }
@@ -869,7 +862,7 @@ void *traceEntryPoint(void *arg) {
 
     // adding 1 means we handle divisions with remainder gracefully
     // just need to check that we don't go out of bounds
-    int thread_section_len = AIRCRAFT_BUCKETS / TRACE_THREADS + 1;
+    int thread_section_len = AIRCRAFT_BUCKETS / Modes.traceThreadsCount + 1;
     int thread_start = thread * thread_section_len;
     int thread_end = thread_start + thread_section_len;
     if (thread_end > AIRCRAFT_BUCKETS)
@@ -883,9 +876,6 @@ void *traceEntryPoint(void *arg) {
 
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
-
-    // offset the trace threads slightly .... this might be thrown over anyhow but just for the initial timing
-    threadTimedWait(&Threads.trace[thread], &ts, sleep_ms / TRACE_THREADS * thread);
 
     while (!Modes.exit) {
         //fprintf(stderr, "%d %d %d\n", part, start, end);
