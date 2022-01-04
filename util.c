@@ -106,6 +106,12 @@ void end_cpu_timing(const struct timespec *start_time, struct timespec *add_to) 
     normalize_timespec(add_to);
 }
 
+void timespec_add_elapsed(const struct timespec *start_time, const struct timespec *end_time, struct timespec *add_to) {
+    add_to->tv_sec += end_time->tv_sec - start_time->tv_sec;
+    add_to->tv_nsec += end_time->tv_nsec - start_time->tv_nsec;
+    normalize_timespec(add_to);
+}
+
 void start_monotonic_timing(struct timespec *start_time) {
     clock_gettime(CLOCK_MONOTONIC, start_time);
 }

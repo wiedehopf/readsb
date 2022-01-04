@@ -198,11 +198,10 @@ static void modesInit(void) {
     threadInit(&Threads.globeBin, "globeBin");
     threadInit(&Threads.misc, "misc");
     threadInit(&Threads.apiUpdate, "apiUpdate");
-    for (int i = 0; i < Modes.traceThreadsCount; i++) {
-        char buf[32];
-        sprintf(buf, "trace%d", i);
-        threadInit(&Threads.trace[i], buf);
-    }
+
+    // to keep decoding and the other threads working well, don't use all available processors
+    Modes.workPoolSize = imax(1, Modes.num_procs - 2);
+    Modes.workPool = threadpool_create(Modes.workPoolSize);
 
     for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
         ca_init(&Modes.globeLists[i]);
@@ -686,15 +685,74 @@ static void *decodeEntryPoint(void *arg) {
     return NULL;
 }
 
+static void traceWriteTask(void *arg) {
+    struct ival32 *range = (struct ival32 *) arg;
+
+    int64_t now = mstime();
+
+    struct aircraft *a;
+    for (int j = range->from; j < range->to; j++) {
+        for (a = Modes.aircraft[j]; a; a = a->next) {
+            if (a->trace_write) {
+                traceWrite(a, now, 0);
+            }
+        }
+    }
+}
+
+static void writeTraces() {
+    int traceTasks = 4 * Modes.workPoolSize;
+    int taskCount = traceTasks;
+    threadpool_task_t *tasks = malloc(traceTasks * sizeof(threadpool_task_t));
+    struct ival32 *ranges = malloc(traceTasks * sizeof(struct ival32));
+
+    // how long until we want to have checked every aircraft if a trace needs to be written
+    int completeTime = 3 * SECONDS;
+    // how many invocations we get in that timeframe
+    int invocations = completeTime / PERIODIC_UPDATE;
+    // how many parts we want to split the complete workload into
+    int n_parts = traceTasks * invocations;
+    int thread_section_len = AIRCRAFT_BUCKETS / n_parts + 1;
+
+    static int part = 0;
+
+    for (int i = 0; i < traceTasks; i++) {
+        threadpool_task_t *task = &tasks[i];
+        struct ival32 *range = &ranges[i];
+
+        int thread_start = part * thread_section_len;
+        int thread_end = thread_start + thread_section_len;
+        if (thread_end > AIRCRAFT_BUCKETS)
+            thread_end = AIRCRAFT_BUCKETS;
+        //fprintf(stderr, "%d %d\n", thread_start, thread_end);
+
+        range->from = thread_start;
+        range->to = thread_end;
+
+        task->function = traceWriteTask;
+        task->argument = range;
+
+        //fprintf(stderr, "%d %d\n", thread_start, thread_end);
+
+        if (++part >= n_parts) {
+            part = 0;
+        }
+    }
+    struct timespec before = threadpool_get_cumulative_thread_time(Modes.workPool);
+    threadpool_run(Modes.workPool, tasks, taskCount);
+    struct timespec after = threadpool_get_cumulative_thread_time(Modes.workPool);
+    timespec_add_elapsed(&before, &after, &Modes.stats_current.trace_json_cpu);
+
+    sfree(ranges);
+    sfree(tasks);
+}
+
 static void *upkeepEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
     srandom(get_seed());
 
     pthread_mutex_lock(&Threads.upkeep.mutex);
 
-    for (int i = 0; i < Modes.traceThreadsCount; i++) {
-        Modes.lockThreads[Modes.lockThreadsCount++] = &Threads.trace[i];
-    }
     Modes.lockThreads[Modes.lockThreadsCount++] = &Threads.apiUpdate;
     Modes.lockThreads[Modes.lockThreadsCount++] = &Threads.globeJson;
     Modes.lockThreads[Modes.lockThreadsCount++] = &Threads.globeBin;
@@ -713,6 +771,9 @@ static void *upkeepEntryPoint(void *arg) {
         int64_t wait = PERIODIC_UPDATE;
         if (Modes.synthetic_now)
             wait = 20;
+        if (Modes.json_globe_index) {
+            writeTraces();
+        }
         threadTimedWait(&Threads.upkeep, &ts, wait);
     }
 
@@ -1444,7 +1505,6 @@ static void configAfterParse() {
         Modes.preambleThreshold = PREAMBLE_THRESHOLD_DEFAULT;
     }
     Modes.io_threads = Modes.num_procs; // use the number of processors as the number of IO threads
-    Modes.traceThreadsCount = imin(TRACE_THREADS_MAX, imax(Modes.num_procs - 2, 1));
 
     if (Modes.mode_ac)
         Modes.mode_ac_auto = 0;
@@ -1740,10 +1800,6 @@ int main(int argc, char **argv) {
         if (Modes.json_globe_index) {
             // globe_xxxx.json
             threadCreate(&Threads.globeJson, NULL, globeJsonEntryPoint, NULL);
-
-            for (int i = 0; i < Modes.traceThreadsCount; i++) {
-                threadCreate(&Threads.trace[i], NULL, traceEntryPoint, &Modes.threadNumber[i]);
-            }
         }
 
         writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
@@ -1811,9 +1867,6 @@ int main(int argc, char **argv) {
         if (Modes.json_globe_index) {
             threadSignalJoin(&Threads.globeJson);
             threadSignalJoin(&Threads.globeBin);
-            for (int i = 0; i < Modes.traceThreadsCount; i++) {
-                threadSignalJoin(&Threads.trace[i]);
-            }
         }
     }
     threadSignalJoin(&Threads.misc);
@@ -1839,6 +1892,8 @@ int main(int argc, char **argv) {
     }
 
     threadDestroyAll();
+
+    threadpool_destroy(Modes.workPool);
 
     pthread_mutex_destroy(&Modes.traceDebugMutex);
     pthread_mutex_destroy(&Modes.hungTimerMutex);

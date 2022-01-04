@@ -102,6 +102,7 @@
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include "minilzo/minilzo.h"
+#include "threadpool.h"
 
 
 #include "compat/compat.h"
@@ -400,9 +401,6 @@ struct _Threads {
     threadT globeBin; // thread writing binCraft
     threadT misc;
     threadT apiUpdate;
-
-    // writing icao trace jsons
-    threadT trace[TRACE_THREADS_MAX];
 };
 extern struct _Threads Threads;
 
@@ -413,7 +411,8 @@ struct _Modes
     pthread_mutex_t traceDebugMutex;
 
     int num_procs;
-    int traceThreadsCount;
+    int workPoolSize;
+    threadpool_t *workPool;
     int lockThreadsCount;
     ALIGNED threadT *lockThreads[LOCK_THREADS_MAX];
 

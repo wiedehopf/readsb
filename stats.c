@@ -302,9 +302,7 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
     add_timespecs(&st1->remove_stale_cpu, &st2->remove_stale_cpu, &target->remove_stale_cpu);
     add_timespecs(&st1->api_update_cpu, &st2->api_update_cpu, &target->api_update_cpu);
     add_timespecs(&st1->api_worker_cpu, &st2->api_worker_cpu, &target->api_worker_cpu);
-    for (i = 0; i < Modes.traceThreadsCount; i ++) {
-        add_timespecs(&st1->trace_json_cpu[i], &st2->trace_json_cpu[i], &target->trace_json_cpu[i]);
-    }
+    add_timespecs(&st1->trace_json_cpu, &st2->trace_json_cpu, &target->trace_json_cpu);
     for (i = 0; i < NUM_TYPES; i ++) {
         target->pos_by_type[i] = st1->pos_by_type[i] + st2->pos_by_type[i];
     }
@@ -584,9 +582,7 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
 
     {
         long long trace_json_cpu_millis_sum = 0;
-        for (i = 0; i < Modes.traceThreadsCount; i ++) {
-            trace_json_cpu_millis_sum += (int64_t) st->trace_json_cpu[i].tv_sec * 1000UL + st->trace_json_cpu[i].tv_nsec / 1000000UL;
-        }
+        trace_json_cpu_millis_sum += (int64_t) st->trace_json_cpu.tv_sec * 1000UL + st->trace_json_cpu.tv_nsec / 1000000UL;
 
         p = safe_snprintf(p, end,
                 ",\"cpr\":{\"surface\":%u"
@@ -747,16 +743,7 @@ struct char_buffer generatePromFile(int64_t now) {
     struct stats *st = &Modes.stats_1min;
 
     unsigned long long trace_json_cpu_millis_sum = 0;
-    for (int i = 0; i < Modes.traceThreadsCount; i ++) {
-        int64_t res = (int64_t) st->trace_json_cpu[i].tv_sec * 1000UL + st->trace_json_cpu[i].tv_nsec / 1000000UL;
-        trace_json_cpu_millis_sum += res;
-        if (0 && Modes.debug_traceCount) {
-            fprintf(stderr, "%7.3f ", res / 1000.0);
-        }
-    }
-    if (0 && Modes.debug_traceCount) {
-        fprintf(stderr, "\n");
-    }
+    trace_json_cpu_millis_sum += (int64_t) st->trace_json_cpu.tv_sec * 1000UL + st->trace_json_cpu.tv_nsec / 1000000UL;
 
     struct statsCount *sC = &(Modes.globalStatsCount);
 

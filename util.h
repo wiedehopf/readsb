@@ -48,8 +48,12 @@ void threadCreate(threadT *thread, const pthread_attr_t *attr, void *(*start_rou
 void threadTimedWait(threadT *thread, struct timespec *ts, int64_t increment);
 void threadSignalJoin(threadT *thread);
 
-struct char_buffer
-{
+struct ival32 {
+    int32_t from;
+    int32_t to;
+};
+
+struct char_buffer {
     char *buffer;
     size_t len;
     size_t alloc;
@@ -106,6 +110,9 @@ void start_cpu_timing (struct timespec *start_time);
 
 /* add difference between start_time and the current CPU time to add_to */
 void end_cpu_timing (const struct timespec *start_time, struct timespec *add_to);
+
+// given a start and end time, add the difference to the third timespec
+void timespec_add_elapsed(const struct timespec *start_time, const struct timespec *end_time, struct timespec *add_to);
 
 void start_monotonic_timing(struct timespec *start_time);
 void end_monotonic_timing (const struct timespec *start_time, struct timespec *add_to);

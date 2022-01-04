@@ -421,7 +421,7 @@ static void scheduleMemBothWrite(struct aircraft *a, int64_t schedTime) {
     a->trace_writeCounter = 0xc0ffee;
 }
 
-static void traceWrite(struct aircraft *a, int64_t now, int init) {
+void traceWrite(struct aircraft *a, int64_t now, int init) {
     struct char_buffer recent;
     struct char_buffer full;
     struct char_buffer hist;
@@ -849,72 +849,6 @@ static int load_aircraft(char **p, char *end, int64_t now) {
     }
 
     return 0;
-}
-
-void *traceEntryPoint(void *arg) {
-
-    int thread = * (int *) arg;
-
-    srandom(get_seed());
-
-    int part = 0;
-    int n_parts = 128;
-
-    // adding 1 means we handle divisions with remainder gracefully
-    // just need to check that we don't go out of bounds
-    int thread_section_len = AIRCRAFT_BUCKETS / Modes.traceThreadsCount + 1;
-    int thread_start = thread * thread_section_len;
-    int thread_end = thread_start + thread_section_len;
-    if (thread_end > AIRCRAFT_BUCKETS)
-        thread_end = AIRCRAFT_BUCKETS;
-    //fprintf(stderr, "%d %d\n", thread_start, thread_end);
-
-    // write each part every 3 seconds
-    int64_t sleep_ms = 3 * SECONDS / n_parts;
-
-    pthread_mutex_lock(&Threads.trace[thread].mutex);
-
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-
-    while (!Modes.exit) {
-        int64_t now = mstime();
-
-        // adding 1 means we handle divisions with remainder gracefully
-        // just need to check that we don't go out of bounds
-        int section_len = thread_section_len / n_parts + 1;
-        int start = thread_start + part * section_len;
-        int end = start + section_len;
-        if (end > thread_end)
-            end = thread_end;
-
-        int count = 0;
-
-        struct timespec start_time;
-        start_cpu_timing(&start_time);
-
-        struct aircraft *a;
-        for (int j = start; j < end; j++) {
-            for (a = Modes.aircraft[j]; a; a = a->next) {
-                count++;
-                if (a->trace_write) {
-                    traceWrite(a, now, 0);
-                }
-            }
-        }
-        //fprintf(stderr, "%3d %9d %4d\n", part, start, count);
-
-        part++;
-        part %= n_parts;
-
-        end_cpu_timing(&start_time, &Modes.stats_current.trace_json_cpu[thread]);
-
-        threadTimedWait(&Threads.trace[thread], &ts, sleep_ms);
-    }
-
-    pthread_mutex_unlock(&Threads.trace[thread].mutex);
-
-    return NULL;
 }
 
 static void mark_legs(struct aircraft *a, int start) {
