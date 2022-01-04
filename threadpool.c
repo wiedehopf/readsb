@@ -26,6 +26,9 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVE
 #include <pthread.h>
 #include <stdatomic.h>
 //#include <stdio.h>
+//#include <sys/types.h>
+#include <unistd.h>
+
 
 #define ATOMIC_WORKER_LOCK (-1)
 
@@ -170,8 +173,16 @@ void threadpool_run(threadpool_t *pool, threadpool_task_t* tasks, uint32_t count
 	pthread_mutex_unlock(&pool->master_lock);
 }
 
+static unsigned get_seed() {
+    struct timespec time;
+    clock_gettime(CLOCK_REALTIME, &time);
+    return (time.tv_sec ^ time.tv_nsec ^ (getpid() << 16) ^ (uintptr_t) pthread_self());
+}
+
 static void *threadpool_threadproc(void *arg)
 {
+    srandom(get_seed());
+
     thread_t *thread = (thread_t *) arg;
 	threadpool_t *pool = thread->pool;
 	int task_count;
