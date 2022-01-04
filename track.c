@@ -2400,6 +2400,12 @@ static void activeUpdate(int64_t now) {
 
         updateValidities(a, now);
 
+        if (now - a->seen_pos < 5 * SECONDS) {
+            // do more regular maintenance on very recently seen aircraft
+            // this is to prevent traceAlloc starvation
+            traceMaintenance(a, now);
+        }
+
         if (a->globe_index >= 0 && now > a->seen_pos + Modes.trackExpireMax) {
             set_globe_index(a, -5);
         }
@@ -2441,7 +2447,6 @@ void trackRemoveStale(int64_t now) {
 
     static int part = 0;
     int n_parts = 32 * taskCount;
-
 
     threadpool_task_t *tasks = Modes.allPoolTasks;
     struct task_info *ranges = Modes.allPoolRanges;

@@ -353,7 +353,7 @@ static void trackPeriodicUpdate() {
     Modes.currentTask = "unlocked";
 
     static int64_t antiSpam;
-    if ((elapsed1 > 150 || elapsed2 > 150) && now > antiSpam + 30 * SECONDS) {
+    if (0 || ((elapsed1 > 150 || elapsed2 > 150) && now > antiSpam + 30 * SECONDS)) {
         fprintf(stderr, "<3>High load: removeStale took %"PRIi64"/%"PRIi64" ms! upcount: %d stats: %d (suppressing for 30 seconds)\n", elapsed1, elapsed2, (int) (upcount % (1 * SECONDS / PERIODIC_UPDATE)), Modes.updateStats);
         antiSpam = now;
     }
@@ -713,8 +713,7 @@ static void traceWriteTask(void *arg) {
 }
 
 static void writeTraces() {
-    int traceTasks = 4 * Modes.tracePoolSize;
-    int taskCount = traceTasks;
+    int taskCount = 4 * Modes.tracePoolSize;
     threadpool_task_t *tasks = Modes.tracePoolTasks;
     struct task_info *ranges = Modes.tracePoolRanges;
 
@@ -723,12 +722,12 @@ static void writeTraces() {
     // how many invocations we get in that timeframe
     int invocations = completeTime / PERIODIC_UPDATE;
     // how many parts we want to split the complete workload into
-    int n_parts = traceTasks * invocations;
+    int n_parts = taskCount * invocations;
     int thread_section_len = AIRCRAFT_BUCKETS / n_parts + 1;
 
     static int part = 0;
 
-    for (int i = 0; i < traceTasks; i++) {
+    for (int i = 0; i < taskCount; i++) {
         threadpool_task_t *task = &tasks[i];
         struct task_info *range = &ranges[i];
 
@@ -736,7 +735,8 @@ static void writeTraces() {
         int thread_end = thread_start + thread_section_len;
         if (thread_end > AIRCRAFT_BUCKETS)
             thread_end = AIRCRAFT_BUCKETS;
-        //fprintf(stderr, "%d %d\n", thread_start, thread_end);
+
+        //fprintf(stderr, "%8d %8d\n", thread_start, thread_end);
 
         range->from = thread_start;
         range->to = thread_end;
@@ -781,7 +781,9 @@ static void *upkeepEntryPoint(void *arg) {
         if (Modes.synthetic_now)
             wait = 20;
         if (Modes.json_globe_index) {
+            Modes.currentTask = "writeTraces_start";
             writeTraces();
+            Modes.currentTask = "writeTraces_end";
         }
         threadTimedWait(&Threads.upkeep, &ts, wait);
     }

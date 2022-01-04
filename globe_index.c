@@ -1349,6 +1349,8 @@ static void tracePrune(struct aircraft *a, int64_t now) {
     int new_start = -1;
     // throw out oldest values if approaching max trace size
     if (a->trace_len + Modes.traceReserve >= Modes.traceMax) {
+        fprintf(stderr, "<3>%06x: Truncating oldest data due to insufficient Modes.traceMax: trace_len %d Modes.traceMax %d\n",
+                a->addr, a->trace_len, Modes.traceMax);
         new_start = Modes.traceMax / 64 + 2 * Modes.traceReserve;
     } else if (a->trace->timestamp < keep_after - 30 * MINUTES)  {
         new_start = a->trace_len;
@@ -1774,16 +1776,13 @@ no_save_state:
         //fprintf(stderr, "%06x: new trace\n", a->addr);
     }
     if (a->trace_len + 1 >= a->trace_alloc) {
-        traceMaintenance(a, now);
-        if (a->trace_len + 1 >= a->trace_alloc) {
-            static int64_t antiSpam;
-            if (Modes.debug_traceAlloc || now > antiSpam + 5 * SECONDS) {
-                fprintf(stderr, "<3>%06x: trace_alloc insufficient: trace_len %d trace_alloc %d\n",
-                        a->addr, a->trace_len, a->trace_alloc);
-                antiSpam = now;
-            }
-            return 0;
+        static int64_t antiSpam;
+        if (Modes.debug_traceAlloc || now > antiSpam + 5 * SECONDS) {
+            fprintf(stderr, "<3>%06x: trace_alloc insufficient: trace_len %d trace_alloc %d\n",
+                    a->addr, a->trace_len, a->trace_alloc);
+            antiSpam = now;
         }
+        return 0;
     }
 
     struct state *new = &(a->trace[a->trace_len]);

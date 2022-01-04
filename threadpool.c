@@ -25,6 +25,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVE
 #include "threadpool.h"
 #include <pthread.h>
 #include <stdatomic.h>
+//#include <stdio.h>
 
 #define ATOMIC_WORKER_LOCK (-1)
 
@@ -179,6 +180,8 @@ static void *threadpool_threadproc(void *arg)
 	while (1)
 	{
 		task_count = atomic_load(&pool->task_count);
+
+        //fprintf(stderr, "%d %4d\n", thread->index, task_count);
 
 		if (task_count == 0)
 		{
