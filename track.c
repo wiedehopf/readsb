@@ -2394,8 +2394,6 @@ static void activeUpdate(int64_t now) {
             continue;
         }
 
-        traceMaintenance(a, now);
-
         updateValidities(a, now);
 
         if (a->globe_index >= 0 && now > a->seen_pos + Modes.trackExpireMax) {

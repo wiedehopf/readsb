@@ -2056,6 +2056,8 @@ static void load_blob(int blob) {
     if (lzo) {
         int lzo_out_alloc = state_chunk_size() * 8 / 7;
         char *lzo_out = aligned_malloc(lzo_out_alloc);
+        lzo_uint uncompressed_len = 0;
+        int res = 0;
         while (end - p > 0) {
             uint64_t value = 0;
             uint64_t compressed_len = 0;
@@ -2073,11 +2075,18 @@ static void load_blob(int blob) {
                 break;
             }
 
-            lzo_uint uncompressed_len = lzo_out_alloc;
-            int res = lzo1x_decompress_safe((unsigned char*) p, compressed_len, (unsigned char*) lzo_out, &uncompressed_len, NULL);
+decompress:
+            uncompressed_len = lzo_out_alloc;
+            res = lzo1x_decompress_safe((unsigned char*) p, compressed_len, (unsigned char*) lzo_out, &uncompressed_len, NULL);
             if (res != LZO_E_OK) {
-                fprintf(stderr, "Corrupt state file (decompression failure): %s\n", filename);
-                break;
+                lzo_out_alloc *= 2;
+                if (lzo_out_alloc > 256 * 1024 * 1024 || !lzo_out) {
+                    fprintf(stderr, "Corrupt state file (decompression failure): %s\n", filename);
+                    break;
+                }
+                sfree(lzo_out);
+                lzo_out = aligned_malloc(lzo_out_alloc);
+                goto decompress;
             }
 
             if (load_aircrafts(lzo_out, lzo_out + uncompressed_len, filename, now) < 0) {
