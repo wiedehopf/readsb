@@ -820,9 +820,11 @@ static int load_aircraft(char **p, char *end, int64_t now) {
 
     if (a->trace) {
         // let's clean up old points in the trace if necessary
-        traceMaintenance(a, now);
+        // disable for now
+        // traceMaintenance(a, now);
 
         // write the recent trace to /run so it's available in the webinterface
+        // disable for the moment
         if (a->position_valid.source != SOURCE_INVALID) {
             a->trace_writeCounter = 0; // avoid full writes here
             a->trace_write |= WRECENT;
@@ -836,7 +838,11 @@ static int load_aircraft(char **p, char *end, int64_t now) {
         }
 
         // schedule writing all the traces into run so they are present for the webinterface
-        scheduleMemBothWrite(a, now + random() % (90 * SECONDS) + (now - a->seen_pos) / (24 * 60 / 4)); // condense 24h into 4 minutes
+        if (a->position_valid.source != SOURCE_INVALID) {
+            scheduleMemBothWrite(a, now); // write traces for aircraft with valid positions as quickly as possible
+        } else {
+            scheduleMemBothWrite(a, now + 60 * SECONDS + (now - a->seen_pos) / (24 * 60 / 5)); // condense 24h into 4 minutes
+        }
     }
 
     int new_index = a->globe_index;
@@ -1393,14 +1399,12 @@ void traceRealloc(struct aircraft *a, int len) {
         return;
     }
     a->trace_alloc = len;
-    if (a->trace_alloc > Modes.traceMax)
+    if (a->trace_alloc > Modes.traceMax) {
         a->trace_alloc = Modes.traceMax;
+        fprintf(stderr, "Maximum trace alloc reached: %06x (%d).\n", a->addr, a->trace_alloc);
+    }
     a->trace = realloc(a->trace, stateBytes(a->trace_alloc));
     a->trace_all = realloc(a->trace_all, stateAllBytes(a->trace_alloc));
-
-    if (a->trace_len >= Modes.traceMax * 7 / 8) {
-        fprintf(stderr, "Quite a long trace: %06x (%d).\n", a->addr, a->trace_len);
-    }
 }
 
 static void tracePrune(struct aircraft *a, int64_t now) {
@@ -1488,6 +1492,23 @@ void traceCleanup(struct aircraft *a) {
     traceUnlink(a);
 }
 
+static int shrinkTraceSize(struct aircraft *a) {
+    int shrinkTo = (a->trace_alloc - Modes.traceReserve) * 6 / 8;
+    int shrinkLimit = a->trace_alloc - 32 * Modes.traceReserve;
+    if (shrinkTo < shrinkLimit) {
+        shrinkTo = shrinkLimit;
+    }
+    return shrinkTo;
+}
+
+static int growTraceSize(struct aircraft *a) {
+    int growTo = a->trace_alloc * 8 / 6 + Modes.traceReserve;
+    int limit = a->trace_alloc + 32 * Modes.traceReserve;
+    if (growTo > limit) {
+        growTo = limit;
+    }
+    return growTo;
+}
 
 void traceMaintenance(struct aircraft *a, int64_t now) {
     if (!a->trace_alloc)
@@ -1527,12 +1548,8 @@ void traceMaintenance(struct aircraft *a, int64_t now) {
     int newAlloc = -1;
 
     // shrink allocation if necessary
-    int shrinkTo = (a->trace_alloc - Modes.traceReserve) * 6 / 8;
     int shrink = 0;
-    int shrinkLimit = a->trace_alloc - 32 * Modes.traceReserve;
-    if (shrinkTo < shrinkLimit) {
-        shrinkTo = shrinkLimit;
-    }
+    int shrinkTo = shrinkTraceSize(a);
     if (a->trace_len && a->trace_len + 2 * Modes.traceReserve <= shrinkTo) {
         newAlloc = shrinkTo;
         shrink = 1;
@@ -1541,12 +1558,7 @@ void traceMaintenance(struct aircraft *a, int64_t now) {
     // grow allocation if necessary
     int grow = 0;
     if (a->trace_alloc && a->trace_len + Modes.traceReserve >= a->trace_alloc) {
-        int growTo = a->trace_alloc * 8 / 6 + Modes.traceReserve;
-        int limit = a->trace_alloc + 32 * Modes.traceReserve;
-        if (growTo > limit) {
-            growTo = limit;
-        }
-        newAlloc = growTo;
+        newAlloc = growTraceSize(a);
         grow = 1;
     }
 
@@ -1834,13 +1846,16 @@ no_save_state:
         //fprintf(stderr, "%06x: new trace\n", a->addr);
     }
     if (a->trace_len + 1 >= a->trace_alloc) {
-        static int64_t antiSpam;
-        if (Modes.debug_traceAlloc || now > antiSpam + 5 * SECONDS) {
-            fprintf(stderr, "<3>%06x: trace_alloc insufficient: trace_len %d trace_alloc %d\n",
-                    a->addr, a->trace_len, a->trace_alloc);
-            antiSpam = now;
+        traceMaintenance(a, now);
+        if (a->trace_len + 1 >= a->trace_alloc) {
+            static int64_t antiSpam;
+            if (Modes.debug_traceAlloc || now > antiSpam + 5 * SECONDS) {
+                fprintf(stderr, "<3>%06x: trace_alloc insufficient: trace_len %d trace_alloc %d\n",
+                        a->addr, a->trace_len, a->trace_alloc);
+                antiSpam = now;
+            }
+            return 0;
         }
-        return 0;
     }
 
     struct state *new = &(a->trace[a->trace_len]);
