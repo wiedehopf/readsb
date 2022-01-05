@@ -54,10 +54,6 @@
 #ifndef DUMP1090_TRACK_H
 #define DUMP1090_TRACK_H
 
-#define HOURS (60*60*1000LL)
-#define MINUTES (60*1000LL)
-#define SECONDS (1000LL)
-
 /* Minimum number of repeated Mode A/C replies with a particular Mode A code needed in a
  * 1 second period before accepting that code.
  */

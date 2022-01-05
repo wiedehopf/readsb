@@ -1498,13 +1498,13 @@ void traceMaintenance(struct aircraft *a, int64_t now) {
         grow = 1;
     }
     if (Modes.debug_traceAlloc && newAlloc >= 0) {
-        if (newAlloc > oldAlloc) {
-            fprintf(stderr, "%s%06x   grow: trace_len: %8d traceRealloc: %8d -> %8d\n",
-                    nonIcaoSpace(a), a->addr, a->trace_len, oldAlloc, newAlloc);
-        } else if (newAlloc < oldAlloc) {
-            fprintf(stderr, "%s%06x shrink: trace_len: %8d traceRealloc: %8d -> %8d\n",
-                    nonIcaoSpace(a), a->addr, a->trace_len, oldAlloc, newAlloc);
-        }
+        char *grow = "  grow";
+        if (newAlloc < oldAlloc)
+            grow = "shrink";
+
+        fprintTime(stderr, now);
+        fprintf(stderr, " %s%06x %s: trace_len: %8d traceRealloc: %8d -> %8d\n",
+                nonIcaoSpace(a), a->addr, grow, a->trace_len, oldAlloc, newAlloc);
     }
 
     if (newAlloc >= 0 && !(shrink && grow)) {

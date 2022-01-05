@@ -33,6 +33,10 @@
 
 #define sfree(x) do { free(x); x = NULL; } while (0)
 
+#define HOURS (60*60*1000LL)
+#define MINUTES (60*1000LL)
+#define SECONDS (1000LL)
+
 int tryJoinThread(pthread_t *thread, int64_t timeout);
 typedef struct {
     pthread_t pthread;
@@ -178,5 +182,13 @@ norm_angle (double a, double pi)
 
     return a;
 }
+
+static inline void fprintTime(FILE *stream, int64_t now) {
+    fprintf(stream, "%02d:%02d:%04.1f",
+            (int) ((now / (3600 * SECONDS)) % 24),
+            (int) ((now / (60 * SECONDS)) % 60),
+            (now % (60 * SECONDS)) / 1000.0);
+}
+
 
 #endif

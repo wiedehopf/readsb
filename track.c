@@ -543,10 +543,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         if (uat2esnt_duplicate(now, a, mm)) {
             // don't show debug
         } else {
-            fprintf(stderr, "%02d:%02d:%04.1f %06x R%3.1f %s %s %s %s %4.0f%% %1dt %3.0f ct %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f\n",
-                    (int) (now / (3600 * SECONDS) % 24),
-                    (int) (now / (60 * SECONDS) % 60),
-                    (now % (60 * SECONDS)) / 1000.0,
+            fprintTime(stderr, now);
+            fprintf(stderr, " %06x R%3.1f %s %s %s %s %4.0f%% %1dt %3.0f ct %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f\n",
                     a->addr,
                     fminf(a->pos_reliable_odd, a->pos_reliable_even),
                     mm->cpr_odd ? "O" : "E",
