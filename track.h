@@ -624,4 +624,12 @@ static inline int uat2esnt_duplicate(int64_t now, struct aircraft *a, struct mod
             && now - a->seenPosReliable < 2500
            );
 }
+static inline const char *nonIcaoSpace(struct aircraft *a) {
+    if (a->addr & MODES_NON_ICAO_ADDRESS) {
+        return "";
+    } else {
+        return " ";
+    }
+}
+
 #endif

@@ -199,7 +199,7 @@ static void modesInit(void) {
     threadInit(&Threads.misc, "misc");
     threadInit(&Threads.apiUpdate, "apiUpdate");
 
-    if (Modes.json_globe_index) {
+    if (Modes.json_globe_index || Modes.netReceiverId) {
         Modes.tracePoolSize = imax(1, Modes.num_procs - 2);
         Modes.allPoolSize = imax(1, Modes.num_procs);
     } else {
@@ -208,12 +208,14 @@ static void modesInit(void) {
     }
     // to keep decoding and the other threads working well, don't use all available processors
     Modes.tracePool = threadpool_create(Modes.tracePoolSize);
-    Modes.tracePoolTasks = malloc(10 * Modes.tracePoolSize * sizeof(threadpool_task_t));
-    Modes.tracePoolRanges = malloc(10 * Modes.tracePoolSize * sizeof(struct task_info));
+    Modes.tracePoolMaxTasks = 16 * Modes.tracePoolSize;
+    Modes.tracePoolTasks = malloc(Modes.tracePoolMaxTasks * sizeof(threadpool_task_t));
+    Modes.tracePoolRanges = malloc(Modes.tracePoolMaxTasks * sizeof(struct task_info));
 
     Modes.allPool = threadpool_create(Modes.allPoolSize);
-    Modes.allPoolTasks = malloc(10 * Modes.allPoolSize * sizeof(threadpool_task_t));
-    Modes.allPoolRanges = malloc(10 * Modes.allPoolSize * sizeof(struct task_info));
+    Modes.allPoolMaxTasks = STATE_BLOBS;
+    Modes.allPoolTasks = malloc(Modes.allPoolMaxTasks * sizeof(threadpool_task_t));
+    Modes.allPoolRanges = malloc(Modes.allPoolMaxTasks * sizeof(struct task_info));
 
     for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
         ca_init(&Modes.globeLists[i]);
@@ -713,7 +715,7 @@ static void traceWriteTask(void *arg) {
 }
 
 static void writeTraces() {
-    int taskCount = 4 * Modes.tracePoolSize;
+    int taskCount = imin(Modes.tracePoolMaxTasks, 4 * Modes.tracePoolSize);
     threadpool_task_t *tasks = Modes.tracePoolTasks;
     struct task_info *ranges = Modes.tracePoolRanges;
 
@@ -1515,7 +1517,6 @@ static void configAfterParse() {
     if (!Modes.preambleThreshold) {
         Modes.preambleThreshold = PREAMBLE_THRESHOLD_DEFAULT;
     }
-    Modes.io_threads = Modes.num_procs; // use the number of processors as the number of IO threads
 
     if (Modes.mode_ac)
         Modes.mode_ac_auto = 0;
@@ -1904,14 +1905,6 @@ int main(int argc, char **argv) {
 
     threadDestroyAll();
 
-    threadpool_destroy(Modes.tracePool);
-    threadpool_destroy(Modes.allPool);
-
-    sfree(Modes.tracePoolTasks);
-    sfree(Modes.tracePoolRanges);
-    sfree(Modes.allPoolTasks);
-    sfree(Modes.allPoolRanges);
-
     pthread_mutex_destroy(&Modes.traceDebugMutex);
     pthread_mutex_destroy(&Modes.hungTimerMutex);
 
@@ -1927,6 +1920,15 @@ int main(int argc, char **argv) {
     // writes state if Modes.state_dir is set
     Modes.free_aircraft = 1;
     writeInternalState();
+
+    threadpool_destroy(Modes.tracePool);
+    threadpool_destroy(Modes.allPool);
+
+    sfree(Modes.tracePoolTasks);
+    sfree(Modes.tracePoolRanges);
+    sfree(Modes.allPoolTasks);
+    sfree(Modes.allPoolRanges);
+
 
     if (Modes.exit != 1) {
         log_with_timestamp("Abnormal exit.");

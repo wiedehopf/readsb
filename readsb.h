@@ -412,10 +412,12 @@ struct _Modes
 
     int num_procs;
     int allPoolSize;
+    int allPoolMaxTasks;
     threadpool_t *allPool;
     threadpool_task_t *allPoolTasks;
     struct task_info *allPoolRanges;
     int tracePoolSize;
+    int tracePoolMaxTasks;
     threadpool_t *tracePool;
     threadpool_task_t *tracePoolTasks;
     struct task_info *tracePoolRanges;
@@ -480,7 +482,6 @@ struct _Modes
     struct hexInterval* deleteTrace;
 
     uint32_t currentPing;
-    int io_threads;
 
     int8_t apiUpdate; // creates json snippets also by non api stuff
     int8_t api; // enable api output

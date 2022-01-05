@@ -674,15 +674,7 @@ void traceWrite(struct aircraft *a, int64_t now, int init) {
                 a->trace_writeCounter);
 }
 
-static void free_aircraft(int blob) {
-    if (!Modes.free_aircraft)
-        return;
-
-    if (blob < 0 || blob > STATE_BLOBS)
-        fprintf(stderr, "free_aircraft: invalid argument: %02x", blob);
-    int stride = AIRCRAFT_BUCKETS / STATE_BLOBS;
-    int start = stride * blob;
-    int end = start + stride;
+static void free_aircraft_range(int start, int end) {
     for (int j = start; j < end; j++) {
         struct aircraft *a = Modes.aircraft[j], *na;
         /* Go through tracked aircraft chain and free up any used memory */
@@ -701,17 +693,20 @@ static void free_aircraft(int blob) {
     }
 }
 
-void *save_blobs(void *arg) {
-    int thread_number = *((int *) arg);
-    for (int j = 0; j < STATE_BLOBS; j++) {
-        if (j % Modes.io_threads != thread_number)
-            continue;
-
+static void save_blobs(void *arg) {
+    struct task_info *info = (struct task_info *) arg;
+    for (int j = info->from; j < info->to; j++) {
         //fprintf(stderr, "save_blob(%d)\n", j);
+
         save_blob(j);
-        free_aircraft(j);
+
+        if (Modes.free_aircraft) {
+            int stride = AIRCRAFT_BUCKETS / STATE_BLOBS;
+            int start = stride * j;
+            int end = start + stride;
+            free_aircraft_range(start, end);
+        }
     }
-    return NULL;
 }
 
 static int load_aircraft(char **p, char *end, int64_t now) {
@@ -766,9 +761,13 @@ static int load_aircraft(char **p, char *end, int64_t now) {
     // read trace
     int size_state = stateBytes(a->trace_len);
     int size_all = stateAllBytes(a->trace_len);
+
+    if (a->trace_alloc <= a->trace_len) {
+        a->trace_alloc = a->trace_len + 4 * Modes.traceReserve;
+    }
+
     // check that the trace meta data make sense before loading it
     if (a->trace_len > 0
-            && a->trace_alloc >= a->trace_len
             // let's allow for loading traces larger than we normally allow by a factor of 32
             && a->trace_len <= 32 * Modes.traceMax
             && a->trace_alloc <= 32 * Modes.traceMax
@@ -778,8 +777,6 @@ static int load_aircraft(char **p, char *end, int64_t now) {
         if (end - *p < (long) (size_state + size_all)) {
             // TRACE FAIL
             fprintf(stderr, "read trace fail 1\n");
-            a->trace = NULL;
-            a->trace_all = NULL;
             a->trace_alloc = 0;
             a->trace_len = 0;
         } else {
@@ -797,8 +794,6 @@ static int load_aircraft(char **p, char *end, int64_t now) {
             fprintf(stderr, "read trace fail 2\n");
             *p += a->trace_len * (size_state + size_all); // increment pointer not to invalidate state file
         }
-        a->trace = NULL;
-        a->trace_all = NULL;
         a->trace_len = 0;
         a->trace_alloc = 0;
     }
@@ -1326,13 +1321,20 @@ void traceRealloc(struct aircraft *a, int len) {
         traceCleanup(a);
         return;
     }
-    a->trace_alloc = len;
-    if (a->trace_alloc > Modes.traceMax) {
-        a->trace_alloc = Modes.traceMax;
+    if (len > Modes.traceMax) {
+        len = Modes.traceMax;
         fprintf(stderr, "Maximum trace alloc reached: %06x (%d).\n", a->addr, a->trace_alloc);
     }
-    a->trace = realloc(a->trace, stateBytes(a->trace_alloc));
-    a->trace_all = realloc(a->trace_all, stateAllBytes(a->trace_alloc));
+
+    a->trace = realloc(a->trace, stateBytes(len));
+    a->trace_all = realloc(a->trace_all, stateAllBytes(len));
+
+    a->trace_alloc = len;
+
+    if (!a->trace || !a->trace_all) {
+        fprintf(stderr, "FATAL: Could not allocate memory: %06x (trace_alloc %d).\n", a->addr, a->trace_alloc);
+        exit(1);
+    }
 }
 
 static void tracePrune(struct aircraft *a, int64_t now) {
@@ -1449,6 +1451,10 @@ void traceMaintenance(struct aircraft *a, int64_t now) {
     // throw out old data if older than keep_trace or trace is getting full
     tracePrune(a, now);
 
+    // if tracePrune deletes a trace, alloc becomes zero and we don't need to do any more
+    if (!a->trace_alloc)
+        return;
+
     if (Modes.json_globe_index) {
         if (now > a->trace_next_perm)
             a->trace_write |= WPERM;
@@ -1487,22 +1493,24 @@ void traceMaintenance(struct aircraft *a, int64_t now) {
 
     // grow allocation if necessary
     int grow = 0;
-    if (a->trace_alloc && a->trace_len + Modes.traceReserve >= a->trace_alloc) {
+    if (a->trace_len + Modes.traceReserve >= a->trace_alloc) {
         newAlloc = growTraceSize(a);
         grow = 1;
     }
-
-    if (Modes.debug_traceAlloc && newAlloc != -1) {
+    if (Modes.debug_traceAlloc && newAlloc >= 0) {
         if (newAlloc > oldAlloc) {
-            fprintf(stderr, "%06x   grow: trace_len: %6d traceRealloc: %6d -> %6d\n", a->addr, a->trace_len, oldAlloc, newAlloc);
+            fprintf(stderr, "%s%06x   grow: trace_len: %8d traceRealloc: %8d -> %8d\n",
+                    nonIcaoSpace(a), a->addr, a->trace_len, oldAlloc, newAlloc);
         } else if (newAlloc < oldAlloc) {
-            fprintf(stderr, "%06x shrink: trace_len: %6d traceRealloc: %6d -> %6d\n", a->addr, a->trace_len, oldAlloc, newAlloc);
+            fprintf(stderr, "%s%06x shrink: trace_len: %8d traceRealloc: %8d -> %8d\n",
+                    nonIcaoSpace(a), a->addr, a->trace_len, oldAlloc, newAlloc);
         }
     }
 
-    if (newAlloc != -1 && !(shrink && grow)) {
+    if (newAlloc >= 0 && !(shrink && grow)) {
         traceRealloc(a, newAlloc);
     }
+
 }
 
 
@@ -1779,7 +1787,7 @@ no_save_state:
 
         //fprintf(stderr, "%06x: new trace\n", a->addr);
     }
-    if (a->trace_len + 1 >= a->trace_alloc) {
+    if (a->trace_len + 2 >= a->trace_alloc) {
         static int64_t antiSpam;
         if (Modes.debug_traceAlloc || now > antiSpam + 5 * SECONDS) {
             fprintf(stderr, "<3>%06x: trace_alloc insufficient: trace_len %d trace_alloc %d\n",
@@ -1978,15 +1986,12 @@ out:
     }
     free(buf);
 }
-void *load_blobs(void *arg) {
-    int thread_number = *((int *) arg);
-    srandom(get_seed());
-    for (int j = 0; j < STATE_BLOBS; j++) {
-        if (j % Modes.io_threads != thread_number)
-           continue;
+static void load_blobs(void *arg) {
+    struct task_info *info = (struct task_info *) arg;
+
+    for (int j = info->from; j < info->to; j++) {
         load_blob(j);
     }
-    return NULL;
 }
 
 static int load_aircrafts(char *p, char *end, char *filename, int64_t now) {
@@ -2450,18 +2455,35 @@ void checkNewDayLocked(int64_t now) {
 }
 
 void writeInternalState() {
-    pthread_t *threads;
-    threads = malloc(sizeof(pthread_t) * Modes.io_threads);
-
     struct timespec watch;
+
     if (Modes.state_dir) {
         fprintf(stderr, "saving state .....\n");
         startWatch(&watch);
     }
 
-    for (int i = 0; i < Modes.io_threads; i++) {
-        pthread_create(&threads[i], NULL, save_blobs, &Modes.threadNumber[i]);
+    int64_t now = mstime();
+
+    threadpool_task_t *tasks = Modes.allPoolTasks;
+    struct task_info *ranges = Modes.allPoolRanges;
+
+    int taskCount = imin(STATE_BLOBS, Modes.allPoolMaxTasks);
+    int stride = STATE_BLOBS / taskCount + 1;
+
+    // assign tasks
+    for (int i = 0; i < taskCount; i++) {
+        threadpool_task_t *task = &tasks[i];
+        struct task_info *range = &ranges[i];
+
+        range->now = now;
+        range->from = i * stride;
+        range->to = imin(STATE_BLOBS, range->from + stride);
+
+        task->function = save_blobs;
+        task->argument = range;
     }
+    // run tasks
+    threadpool_run(Modes.allPool, tasks, taskCount);
 
     if (Modes.outline_json) {
         char pathbuf[PATH_MAX];
@@ -2474,28 +2496,42 @@ void writeInternalState() {
         }
     }
 
-    for (int i = 0; i < Modes.io_threads; i++) {
-        pthread_join(threads[i], NULL);
-    }
-
     if (Modes.state_dir) {
         double elapsed = stopWatch(&watch) / 1000.0;
         fprintf(stderr, " .......... done, saved %llu aircraft in %.3f seconds!\n", (unsigned long long) Modes.total_aircraft_count, elapsed);
     }
-
-    sfree(threads);
 }
 
 void readInternalState() {
     fprintf(stderr, "loading state .....\n");
     struct timespec watch;
     startWatch(&watch);
-    pthread_t *threads;
-    threads = malloc(sizeof(pthread_t) * Modes.io_threads);
 
-    for (int i = 0; i < Modes.io_threads; i++) {
-        pthread_create(&threads[i], NULL, load_blobs, &Modes.threadNumber[i]);
+    int64_t now = mstime();
+
+    threadpool_task_t *tasks = Modes.allPoolTasks;
+    struct task_info *ranges = Modes.allPoolRanges;
+
+    int taskCount = imin(STATE_BLOBS, Modes.allPoolMaxTasks);
+    int stride = STATE_BLOBS / taskCount + 1;
+
+    // assign tasks
+    for (int i = 0; i < taskCount; i++) {
+        threadpool_task_t *task = &tasks[i];
+        struct task_info *range = &ranges[i];
+
+        //fprintf(stderr, "%d\n", i);
+
+        range->now = now;
+        range->from = i * stride;
+        range->to = imin(STATE_BLOBS, range->from + stride);
+
+        task->function = load_blobs;
+        task->argument = range;
     }
+    // run tasks
+    threadpool_run(Modes.allPool, tasks, taskCount);
+
 
     {
         char pathbuf[PATH_MAX];
@@ -2528,10 +2564,6 @@ void readInternalState() {
         }
     }
 
-    for (int i = 0; i < Modes.io_threads; i++) {
-        pthread_join(threads[i], NULL);
-    }
-
     int64_t aircraftCount = 0; // includes quite old aircraft, just for checking hash table fill
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
@@ -2543,10 +2575,8 @@ void readInternalState() {
     double elapsed = stopWatch(&watch) / 1000.0;
     fprintf(stderr, " .......... done, loaded %llu aircraft in %.3f seconds!\n", (unsigned long long) aircraftCount, elapsed);
     fprintf(stderr, "aircraft table fill: %0.1f\n", aircraftCount / (double) AIRCRAFT_BUCKETS );
-
-    sfree(threads);
-
 }
+
 void traceDelete() {
     struct hexInterval* entry = Modes.deleteTrace;
     while (entry) {
