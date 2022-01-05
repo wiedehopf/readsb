@@ -200,20 +200,20 @@ static void modesInit(void) {
     threadInit(&Threads.apiUpdate, "apiUpdate");
 
     if (Modes.json_globe_index || Modes.netReceiverId) {
+        // to keep decoding and the other threads working well, don't use all available processors
         Modes.tracePoolSize = imax(1, Modes.num_procs - 2);
         Modes.allPoolSize = imax(1, Modes.num_procs);
     } else {
         Modes.tracePoolSize = 1;
         Modes.allPoolSize = 1;
     }
-    // to keep decoding and the other threads working well, don't use all available processors
     Modes.tracePool = threadpool_create(Modes.tracePoolSize);
     Modes.tracePoolMaxTasks = 16 * Modes.tracePoolSize;
     Modes.tracePoolTasks = malloc(Modes.tracePoolMaxTasks * sizeof(threadpool_task_t));
     Modes.tracePoolRanges = malloc(Modes.tracePoolMaxTasks * sizeof(struct task_info));
 
     Modes.allPool = threadpool_create(Modes.allPoolSize);
-    Modes.allPoolMaxTasks = STATE_BLOBS;
+    Modes.allPoolMaxTasks = imax(Modes.allPoolSize * 16, STATE_BLOBS + 1);
     Modes.allPoolTasks = malloc(Modes.allPoolMaxTasks * sizeof(threadpool_task_t));
     Modes.allPoolRanges = malloc(Modes.allPoolMaxTasks * sizeof(struct task_info));
 

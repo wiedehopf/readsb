@@ -2071,6 +2071,7 @@ decompress:
             res = lzo1x_decompress_safe((unsigned char*) p, compressed_len, (unsigned char*) lzo_out, &uncompressed_len, NULL);
             if (res != LZO_E_OK) {
                 lzo_out_alloc *= 2;
+                fprintf(stderr, "decompression failed, trying larger buffer: %s\n", filename);
                 if (lzo_out_alloc > 256 * 1024 * 1024 || !lzo_out) {
                     fprintf(stderr, "Corrupt state file (decompression failure): %s\n", filename);
                     break;
@@ -2485,6 +2486,38 @@ void writeInternalState() {
     }
 }
 
+static void readInternalMiscTask(void *arg) {
+    arg = arg; // unused
+    char pathbuf[PATH_MAX];
+
+    if (Modes.globe_history_dir && mkdir(Modes.globe_history_dir, 0755) && errno != EEXIST) {
+        perror(Modes.globe_history_dir);
+    }
+
+    if (mkdir(Modes.state_dir, 0755) && errno != EEXIST) {
+        perror(pathbuf);
+    }
+
+    if (Modes.outline_json) {
+        struct char_buffer cb;
+        snprintf(pathbuf, PATH_MAX, "%s/rangeDirs.gz", Modes.state_dir);
+        gzFile gzfp = gzopen(pathbuf, "r");
+        if (gzfp) {
+            cb = readWholeGz(gzfp, pathbuf);
+            gzclose(gzfp);
+            if (cb.len == sizeof(Modes.lastRangeDirHour) + sizeof(Modes.rangeDirs)) {
+                fprintf(stderr, "actual range outline, read bytes: %zu\n", cb.len);
+
+                char *p = cb.buffer;
+                memcpy(&Modes.lastRangeDirHour, p, sizeof(Modes.lastRangeDirHour));
+                p += sizeof(Modes.lastRangeDirHour);
+                memcpy(Modes.rangeDirs, p, sizeof(Modes.rangeDirs));
+            }
+            free(cb.buffer);
+        }
+    }
+}
+
 void readInternalState() {
     fprintf(stderr, "loading state .....\n");
     struct timespec watch;
@@ -2495,13 +2528,21 @@ void readInternalState() {
     threadpool_task_t *tasks = Modes.allPoolTasks;
     struct task_info *ranges = Modes.allPoolRanges;
 
-    int taskCount = imin(STATE_BLOBS, Modes.allPoolMaxTasks);
-    int stride = STATE_BLOBS / taskCount + 1;
+    int parts = imin(STATE_BLOBS, Modes.allPoolMaxTasks - 1);
 
     // assign tasks
-    for (int i = 0; i < taskCount; i++) {
-        threadpool_task_t *task = &tasks[i];
-        struct task_info *range = &ranges[i];
+    int taskCount = 0;
+    {
+        threadpool_task_t *task = &tasks[taskCount];
+        task->function = readInternalMiscTask;
+        task->argument = NULL;
+        taskCount++;
+    }
+
+    int stride = STATE_BLOBS / parts + 1;
+    for (int i = 0; i < parts; i++) {
+        threadpool_task_t *task = &tasks[taskCount];
+        struct task_info *range = &ranges[taskCount];
 
         //fprintf(stderr, "%d\n", i);
 
@@ -2511,41 +2552,11 @@ void readInternalState() {
 
         task->function = load_blobs;
         task->argument = range;
+
+        taskCount++;
     }
     // run tasks
     threadpool_run(Modes.allPool, tasks, taskCount);
-
-
-    {
-        char pathbuf[PATH_MAX];
-
-        if (Modes.globe_history_dir && mkdir(Modes.globe_history_dir, 0755) && errno != EEXIST) {
-            perror(Modes.globe_history_dir);
-        }
-
-        if (mkdir(Modes.state_dir, 0755) && errno != EEXIST) {
-            perror(pathbuf);
-        }
-
-        if (Modes.outline_json) {
-            struct char_buffer cb;
-            snprintf(pathbuf, PATH_MAX, "%s/rangeDirs.gz", Modes.state_dir);
-            gzFile gzfp = gzopen(pathbuf, "r");
-            if (gzfp) {
-                cb = readWholeGz(gzfp, pathbuf);
-                gzclose(gzfp);
-                if (cb.len == sizeof(Modes.lastRangeDirHour) + sizeof(Modes.rangeDirs)) {
-                    fprintf(stderr, "actual range outline, read bytes: %zu\n", cb.len);
-
-                    char *p = cb.buffer;
-                    memcpy(&Modes.lastRangeDirHour, p, sizeof(Modes.lastRangeDirHour));
-                    p += sizeof(Modes.lastRangeDirHour);
-                    memcpy(Modes.rangeDirs, p, sizeof(Modes.rangeDirs));
-                }
-                free(cb.buffer);
-            }
-        }
-    }
 
     int64_t aircraftCount = 0; // includes quite old aircraft, just for checking hash table fill
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
