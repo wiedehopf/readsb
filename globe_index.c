@@ -814,10 +814,6 @@ static int load_aircraft(char **p, char *end, int64_t now) {
     }
 
     if (a->trace) {
-        // let's clean up old points in the trace if necessary
-        // disable for now
-        // traceMaintenance(a, now);
-
         if (a->addr == Modes.leg_focus) {
             scheduleMemBothWrite(a, now);
             fprintf(stderr, "leg_focus: %06x trace len: %d\n", a->addr, a->trace_len);
@@ -835,7 +831,9 @@ static int load_aircraft(char **p, char *end, int64_t now) {
 
     int new_index = a->globe_index;
     a->globe_index = -5;
-    set_globe_index(a, new_index);
+    if (a->position_valid.source != SOURCE_INVALID) {
+        set_globe_index(a, new_index);
+    }
     updateValidities(a, now);
 
     if (a->onActiveList) {

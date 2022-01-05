@@ -2180,8 +2180,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     }
 
     if (!a->onActiveList) {
-        a->onActiveList = 1;
         ca_add(&Modes.aircraftActive, a);
+        a->onActiveList = 1;
         //fprintf(stderr, "active len %d\n", Modes.aircraftActive.len);
     }
     // don't reduce forward duplicate / garbage / bad positions when garbage ports is active
@@ -2321,7 +2321,6 @@ static void removeStaleRange(void *arg) {
 
     struct task_info *info = (struct task_info *) arg;
     int64_t now = info->now;
-
     //fprintf(stderr, "%9d %9d %9d\n", info->from, info->to, AIRCRAFT_BUCKETS);
 
     // non-icao timeout
@@ -2385,6 +2384,23 @@ static void removeStaleRange(void *arg) {
     }
 }
 
+static void activeUpdateRange(void *arg) {
+    struct task_info *info = (struct task_info *) arg;
+    int64_t now = info->now;
+    struct craftArray *ca = &Modes.aircraftActive;
+
+    for (int i = info->from; i < info->to; i++) {
+        struct aircraft *a = ca->list[i];
+        if (!a) {
+            continue;
+        }
+        updateValidities(a, now);
+        traceMaintenance(a, now);
+    }
+    //fprintf(stderr, "%9d %9d %9d\n", info->from, info->to, ca->len);
+}
+
+
 // update active Aircraft
 static void activeUpdate(int64_t now) {
     struct craftArray *ca = &Modes.aircraftActive;
@@ -2396,17 +2412,6 @@ static void activeUpdate(int64_t now) {
             continue;
         }
 
-        updateValidities(a, now);
-
-        if (now - a->seen_pos < 5 * SECONDS) {
-            // do more regular maintenance on very recently seen aircraft
-            // this is to prevent traceAlloc starvation
-            traceMaintenance(a, now);
-        }
-
-        if (a->globe_index >= 0 && now > a->seen_pos + Modes.trackExpireMax) {
-            set_globe_index(a, -5);
-        }
         if (
                 (a->position_valid.source == SOURCE_JAERO && now > a->seen + Modes.trackExpireJaero + 2 * MINUTES)
                 || (a->position_valid.source != SOURCE_JAERO && now > a->seen + TRACK_EXPIRE_LONG + 2 * MINUTES)
@@ -2439,32 +2444,54 @@ static void activeUpdate(int64_t now) {
 // run activeUpdate and remove stale aircraft for a fraction of the entire hashtable
 void trackRemoveStale(int64_t now) {
 
+    // update the active aircraft list
+    //fprintf(stderr, "activeUpdate\n");
     activeUpdate(now);
-
-    int taskCount = Modes.allPoolSize;
-
-    static int part = 0;
-    int n_parts = 32 * taskCount;
 
     threadpool_task_t *tasks = Modes.allPoolTasks;
     struct task_info *ranges = Modes.allPoolRanges;
 
-    int thread_section_len = AIRCRAFT_BUCKETS / n_parts + 1;
+    int taskCount = Modes.allPoolSize;
+    int section_len;
+
+
+    // tasks to maintain validities / traces in active list
+    struct craftArray *ca = &Modes.aircraftActive;
+    // we must not lock ca here as aircraft freeing locks it
+
+    section_len = ca->len / taskCount + 1;
+    // assign tasks
+    for (int i = 0; i < taskCount; i++) {
+        threadpool_task_t *task = &tasks[i];
+        struct task_info *range = &ranges[i];
+
+        range->now = now;
+        range->from = i * section_len;
+        range->to = imin(ca->len, range->from + section_len);
+
+        task->function = activeUpdateRange;
+        task->argument = range;
+
+        //fprintf(stderr, "%d %d\n", thread_start, thread_end);
+    }
+    threadpool_run(Modes.allPool, tasks, taskCount);
+
+    // tasks to maintain aircraft in list of all aircraft
+
+    static int part = 0;
+    int n_parts = 32 * taskCount;
+
+    section_len = AIRCRAFT_BUCKETS / n_parts + 1;
 
     // assign tasks
     for (int i = 0; i < taskCount; i++) {
         threadpool_task_t *task = &tasks[i];
         struct task_info *range = &ranges[i];
 
-        int thread_start = part * thread_section_len;
-        int thread_end = thread_start + thread_section_len;
-        if (thread_end > AIRCRAFT_BUCKETS)
-            thread_end = AIRCRAFT_BUCKETS;
-        //fprintf(stderr, "%d %d\n", thread_start, thread_end);
-
         range->now = now;
-        range->from = thread_start;
-        range->to = thread_end;
+
+        range->from = part * section_len;
+        range->to = imin(AIRCRAFT_BUCKETS, range->from + section_len);
 
         task->function = removeStaleRange;
         task->argument = range;
@@ -2475,8 +2502,12 @@ void trackRemoveStale(int64_t now) {
             part = 0;
         }
     }
+    //fprintf(stderr, "removeStaleRange start\n");
+
     // run tasks
     threadpool_run(Modes.allPool, tasks, taskCount);
+
+    //fprintf(stderr, "removeStaleRange done\n");
 }
 
 /*
@@ -2985,6 +3016,10 @@ void updateValidities(struct aircraft *a, int64_t now) {
     int64_t elapsed_seen_global = now - a->seenPosGlobal;
     if (Modes.json_globe_index && elapsed_seen_global < 5 * MINUTES) {
         a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = 0;
+    }
+
+    if (a->globe_index >= 0 && now > a->seen_pos + Modes.trackExpireMax) {
+        set_globe_index(a, -5);
     }
 
     if (a->category != 0 && now > a->category_updated + Modes.trackExpireMax)
