@@ -355,7 +355,7 @@ static void trackPeriodicUpdate() {
     Modes.currentTask = "unlocked";
 
     static int64_t antiSpam;
-    if (0 || ((elapsed1 > 150 || elapsed2 > 150) && now > antiSpam + 30 * SECONDS)) {
+    if ((Modes.debug_removeStaleDuration && Modes.next_remove_stale == now + 1 * SECONDS) || ((elapsed1 > 150 || elapsed2 > 150) && now > antiSpam + 30 * SECONDS)) {
         fprintf(stderr, "<3>High load: removeStale took %"PRIi64"/%"PRIi64" ms! upcount: %d stats: %d (suppressing for 30 seconds)\n", elapsed1, elapsed2, (int) (upcount % (1 * SECONDS / PERIODIC_UPDATE)), Modes.updateStats);
         antiSpam = now;
     }
@@ -1372,6 +1372,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                               Modes.decode_all = 1;
                         break;
                     case 'm': Modes.debug_maxRange = 1;
+                        break;
+                    case 'r': Modes.debug_removeStaleDuration = 1;
                         break;
                     default:
                         fprintf(stderr, "Unknown debugging flag: %c\n", *arg);

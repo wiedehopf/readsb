@@ -521,6 +521,7 @@ struct _Modes
     int8_t debug_bogus;
     int8_t decode_all;
     int8_t debug_maxRange;
+    int8_t debug_removeStaleDuration;
 
     int8_t net_verbatim; // if true, send the original message, not the CRC-corrected one
     int8_t netReceiverId;
