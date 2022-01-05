@@ -2451,7 +2451,8 @@ void writeInternalState() {
     threadpool_task_t *tasks = Modes.allPoolTasks;
     struct task_info *ranges = Modes.allPoolRanges;
 
-    int taskCount = imin(STATE_BLOBS, Modes.allPoolMaxTasks);
+    //int taskCount = imin(STATE_BLOBS, Modes.allPoolMaxTasks);
+    int taskCount = imin(Modes.allPoolSize * 3, Modes.allPoolMaxTasks);
     int stride = STATE_BLOBS / taskCount + 1;
 
     // assign tasks
@@ -2528,7 +2529,8 @@ void readInternalState() {
     threadpool_task_t *tasks = Modes.allPoolTasks;
     struct task_info *ranges = Modes.allPoolRanges;
 
-    int parts = imin(STATE_BLOBS, Modes.allPoolMaxTasks - 1);
+    //int parts = imin(STATE_BLOBS, Modes.allPoolMaxTasks - 1);
+    int parts = imin(Modes.allPoolSize * 3, Modes.allPoolMaxTasks - 1);
 
     // assign tasks
     int taskCount = 0;
