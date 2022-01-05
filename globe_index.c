@@ -1245,28 +1245,22 @@ void ca_add (struct craftArray *ca, struct aircraft *a) {
 void ca_remove (struct craftArray *ca, struct aircraft *a) {
     pthread_mutex_lock(&ca->mutex);
     if (!ca->list) {
+        fprintf(stderr, "<3>hex: %06x, ca_remove(): list does not exist!\n", a->addr);
         pthread_mutex_unlock(&ca->mutex);
         return;
     }
     int found = 0;
-    pthread_mutex_unlock(&ca->mutex);
     for (int i = 0; i < ca->len; i++) {
         if (ca->list[i] == a) {
-            pthread_mutex_lock(&ca->mutex);
-            // re-check under mutex
-            if (ca->list[i] == a) {
-                // replace with last element in array
-                ca->list[i] = ca->list[ca->len - 1];
-                ca->list[ca->len - 1] = NULL;
-                ca->len--;
-                i--;
-                if (found)
-                    fprintf(stderr, "<3>hex: %06x, ca_remove(): pointer found twice in array!\n", a->addr);
-                found = 1;
-            }
-            pthread_mutex_unlock(&ca->mutex);
+            // replace with last element in array
+            ca->list[i] = ca->list[ca->len - 1];
+            ca->list[ca->len - 1] = NULL;
+            ca->len--;
+            i--;
+            found = 1;
         }
     }
+    pthread_mutex_unlock(&ca->mutex);
     if (!found)
         fprintf(stderr, "<3>hex: %06x, ca_remove(): pointer not in array!\n", a->addr);
 }
