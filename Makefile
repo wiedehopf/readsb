@@ -14,7 +14,9 @@ CPPFLAGS += -D_FORTIFY_SOURCE=2 -fstack-protector-strong -Wformat -Werror=format
 
 #OPTIMIZE ?= -march=native
 
-CFLAGS := -std=c11 -g -W -D_DEFAULT_SOURCE -Wall -Werror -fno-common -O3 $(CFLAGS) $(OPTIMIZE)
+DIALECT = -std=c11
+
+CFLAGS := $(DIALECT) -g -W -D_DEFAULT_SOURCE -Wall -Werror -fno-common -O3 $(CFLAGS) $(OPTIMIZE)
 LIBS = -pthread -lpthread -lm -lrt
 
 ifeq ($(ZLIB_STATIC), yes)
@@ -112,10 +114,7 @@ readsb.o: readsb.c *.h .version
 minilzo.o: minilzo/minilzo.c minilzo/minilzo.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
-mimalloc.o: mimalloc/src/static.c
-	$(CC) -Imimalloc/include $(CPPFLAGS) $(CFLAGS) -c $< -o $@
-
-readsb: mimalloc.o readsb.o anet.o interactive.o mode_ac.o mode_s.o comm_b.o json_out.o net_io.o crc.o demod_2400.o \
+readsb: readsb.o anet.o interactive.o mode_ac.o mode_s.o comm_b.o json_out.o net_io.o crc.o demod_2400.o \
 	stats.o cpr.o icao_filter.o track.o util.o fasthash.o convert.o sdr_ifile.o sdr_beast.o sdr.o ais_charset.o \
 	globe_index.o geomag.o receiver.o aircraft.o api.o minilzo.o threadpool.o \
 	$(SDR_OBJ) $(COMPAT)
