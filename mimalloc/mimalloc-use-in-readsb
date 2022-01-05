@@ -1,0 +1,17 @@
+readsb uses mimalloc as a static override as described here:
+- https://github.com/microsoft/mimalloc/tree/master#single-source
+- https://microsoft.github.io/mimalloc/overrides.html
+
+Makefile compiles the static override (mimalloc.o)
+
+mimalloc.o: mimalloc/src/static.c
+	$(CC) -Imimalloc/include $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+It is linked as a first object
+
+readsb: mimalloc.o readsb.o
+
+why does readsb use mimalloc:
+- mulithreading issues with glibc malloc causing crashes
+- consistent malloc code across glibc versions
+
