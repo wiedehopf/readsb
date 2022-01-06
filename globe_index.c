@@ -2095,6 +2095,18 @@ decompress:
     free(cb.buffer);
 }
 
+static inline void heatmapCheckAlloc(struct heatEntry **buffer, int64_t **slices, int64_t *alloc, int64_t len) {
+    if (!*buffer || len >= *alloc) {
+        *alloc *= 3;
+        *buffer = realloc(*buffer, *alloc * sizeof(struct heatEntry));
+        *slices = realloc(*slices, *alloc * sizeof(int64_t));
+        if (!*buffer || !*slices) {
+            fprintf(stderr, "<3> FATAL: handleHeatmap not enough memory, trying to allocate %lld bytes\n",
+                    (long long) (*alloc * sizeof(struct heatEntry)));
+            exit(1);
+        }
+    }
+}
 
 int handleHeatmap(int64_t now) {
     if (!Modes.heatmap)
@@ -2127,18 +2139,18 @@ int handleHeatmap(int64_t now) {
     utc.tm_sec = 0;
     int64_t start = 1000 * (int64_t) (timegm(&utc));
     int64_t end = start + 30 * MINUTES;
-    int num_slices = (int)((30 * MINUTES) / Modes.heatmap_interval);
+    int64_t num_slices = (int)((30 * MINUTES) / Modes.heatmap_interval);
 
 
     char pathbuf[PATH_MAX];
     char tmppath[PATH_MAX];
-    int len = 0;
-    int len2 = 0;
-    int alloc = 1 * 1024 * 1024;
-    struct heatEntry *buffer = aligned_malloc(alloc * sizeof(struct heatEntry));
-    struct heatEntry *buffer2 = aligned_malloc(alloc * sizeof(struct heatEntry));
-    int *slices = aligned_malloc(alloc * sizeof(int));
-    struct heatEntry index[num_slices];
+    int64_t len = 0;
+    int64_t len2 = 0;
+    int64_t alloc = (50 + Modes.globalStatsCount.readsb_aircraft_with_position) * num_slices;
+    struct heatEntry *buffer = NULL;
+    int64_t *slices = NULL;
+
+    heatmapCheckAlloc(&buffer, &slices, &alloc, len);
 
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
@@ -2147,13 +2159,11 @@ int handleHeatmap(int64_t now) {
 
             struct state *trace = a->trace;
             int64_t next = start;
-            int slice = 0;
+            int64_t slice = 0;
             uint32_t squawk = 0x8888; // impossible squawk
             uint64_t callsign = 0; // quackery
 
             for (int i = 0; i < a->trace_len; i++) {
-                if (len >= alloc)
-                    break;
                 if (trace[i].timestamp > end)
                     break;
                 // get callsign and squawk from up to 2 mins before the half hour we write for
@@ -2178,6 +2188,7 @@ int handleHeatmap(int64_t now) {
 
                         slices[len] = slice;
                         len++;
+                        heatmapCheckAlloc(&buffer, &slices, &alloc, len);
                     }
                 }
                 if (trace[i].timestamp < next)
@@ -2213,12 +2224,24 @@ int handleHeatmap(int64_t now) {
                 slices[len] = slice;
 
                 len++;
+                heatmapCheckAlloc(&buffer, &slices, &alloc, len);
 
                 next += Modes.heatmap_interval;
                 slice++;
+
             }
         }
     }
+
+    struct heatEntry *buffer2 = malloc(alloc * sizeof(struct heatEntry));
+    if (!buffer2) {
+        fprintf(stderr, "<3> FATAL: handleHeatmap not enough memory, trying to allocate %lld bytes\n",
+                (long long) alloc * sizeof(struct heatEntry));
+        exit(1);
+    }
+    ssize_t indexSize = num_slices * sizeof(struct heatEntry);
+    struct heatEntry *index = malloc(indexSize);
+    memset(index, 0, indexSize); // avoid having to set zero individually
 
     for (int i = 0; i < num_slices; i++) {
         struct heatEntry specialSauce = (struct heatEntry) {0};
@@ -2228,7 +2251,6 @@ int handleHeatmap(int64_t now) {
         specialSauce.lon = slice_stamp & ((1ULL << 32) - 1);
         specialSauce.alt = Modes.heatmap_interval;
 
-        index[i] = (struct heatEntry) {0};
         index[i].hex = len2 + num_slices;
         buffer2[len2++] = specialSauce;
 
@@ -2271,10 +2293,9 @@ int handleHeatmap(int64_t now) {
         res = gzsetparams(gzfp, 9, Z_DEFAULT_STRATEGY);
         if (res < 0)
             fprintf(stderr, "gzsetparams fail: %d", res);
-        ssize_t toWrite = sizeof(index);
-        writeGz(gzfp, index, toWrite, tmppath);
+        writeGz(gzfp, index, indexSize, tmppath);
 
-        toWrite = len2 * sizeof(struct heatEntry);
+        ssize_t toWrite = len2 * sizeof(struct heatEntry);
         writeGz(gzfp, buffer2, toWrite, tmppath);
 
         gzclose(gzfp);
@@ -2284,6 +2305,7 @@ int handleHeatmap(int64_t now) {
         perror("");
     }
 
+    free(index);
     free(buffer);
     free(buffer2);
     free(slices);
