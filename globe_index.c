@@ -2291,7 +2291,7 @@ int handleHeatmap(int64_t now) {
     return 1;
 }
 
-static void gzip(char *file) {
+static void gzipFile(char *file) {
     int fd;
     char fileGz[PATH_MAX];
     gzFile gzfp;
@@ -2314,6 +2314,11 @@ static void gzip(char *file) {
         perror(fileGz);
         return;
     }
+    int res = gzsetparams(gzfp, 9, Z_DEFAULT_STRATEGY);
+    if (res < 0) {
+        fprintf(stderr, "gzsetparams fail: %d", res);
+    }
+
     writeGz(gzfp, cb.buffer, cb.len, fileGz);
     if (gzclose(gzfp) != Z_OK) {
         fprintf(stderr, "compressACAS gzclose failed: %s\n", fileGz);
@@ -2327,10 +2332,10 @@ static void gzip(char *file) {
 static void compressACAS(char *dateDir) {
     char filename[PATH_MAX];
     snprintf(filename, PATH_MAX, "%s/acas/acas.csv", dateDir);
-    gzip(filename);
+    gzipFile(filename);
 
     snprintf(filename, PATH_MAX, "%s/acas/acas.json", dateDir);
-    gzip(filename);
+    gzipFile(filename);
 }
 
 // this doesn't need to run under lock as the there should be no need for synchronisation
