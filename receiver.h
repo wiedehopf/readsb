@@ -4,6 +4,12 @@
 #define RECEIVER_TABLE_HASH_BITS 18
 #define RECEIVER_TABLE_SIZE (1 << RECEIVER_TABLE_HASH_BITS)
 
+#define RECEIVER_BAD_AIRCRAFT (2)
+
+struct bad_ac {
+  uint32_t addr;
+  int64_t ts;
+};
 typedef struct receiver {
     uint64_t id;
     struct receiver *next;
@@ -15,6 +21,7 @@ typedef struct receiver {
     double lonMin;
     double lonMax;
     int64_t badExtent; // timestamp of first lat/lon (max-min) > MAX_DIFF (receiver.c)
+    struct bad_ac badAircraft[RECEIVER_BAD_AIRCRAFT];
     float badCounter; // plus one for a bad position, -0.5 for a good position
     int32_t goodCounter; // plus one for a good position
     // reset both counters on timing out a receiver.

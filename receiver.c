@@ -134,16 +134,36 @@ int receiverPositionReceived(struct aircraft *a, struct modesMessage *mm, double
         }
 
         if (!r->badExtent && distance > RECEIVER_MAX_RANGE) {
-            r->badExtent = now;
+            int badExtent = 1;
+            for (int i = 0; i < RECEIVER_BAD_AIRCRAFT; i++) {
+                struct bad_ac *bad = &r->badAircraft[i];
+                if (bad->addr == a->addr) {
+                    badExtent = 0;
+                    break;
+                }
+            }
+            for (int i = 0; i < RECEIVER_BAD_AIRCRAFT; i++) {
+                struct bad_ac *bad = &r->badAircraft[i];
+                if (now - bad->ts > 3 * MINUTES) {
+                    // new entry
+                    bad->ts = now;
+                    bad->addr = a->addr;
+                    badExtent = 0;
+                    break;
+                }
+            }
+            if (badExtent) {
+                r->badExtent = now;
 
-            if (Modes.debug_receiver) {
-                char uuid[32]; // needs 18 chars and null byte
-                sprint_uuid1(r->id, uuid);
-                fprintf(stderr, "receiverBadExtent: %0.0f nmi hex: %06x id: %s #pos: %9"PRIu64" %12.5f %12.5f %4.0f %4.0f %4.0f %4.0f\n",
-                        distance / 1852.0, a->addr, uuid, r->positionCounter,
-                        lat, lon,
-                        before.latMin, before.latMax,
-                        before.lonMin, before.lonMax);
+                if (Modes.debug_receiver) {
+                    char uuid[32]; // needs 18 chars and null byte
+                    sprint_uuid1(r->id, uuid);
+                    fprintf(stderr, "receiverBadExtent: %0.0f nmi hex: %06x id: %s #pos: %9"PRIu64" %12.5f %12.5f %4.0f %4.0f %4.0f %4.0f\n",
+                            distance / 1852.0, a->addr, uuid, r->positionCounter,
+                            lat, lon,
+                            before.latMin, before.latMax,
+                            before.lonMin, before.lonMax);
+                }
             }
         }
     }
