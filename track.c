@@ -568,9 +568,6 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     // cap speed at 2000 knots ..
     speed = fmin(speed, 2000);
 
-    // plus distance covered at the given speed for the elapsed time + 0.2 seconds.
-    inrange = (distance <= range + (((float) elapsed + 200.0f) * (1.0f / 1000.0f)) * (speed * (1852.0f / 3600.0f)));
-
     if (distance > 1 && (track_diff < 70 || track_diff == -1)) {
         if (distance <= range + (((float) elapsed + 200.0f) * (1.0f / 1000.0f)) * (transmitted_speed * (1852.0f / 3600.0f))) {
             mm->speedUnreliable = -1;
@@ -579,6 +576,11 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         }
     }
 
+    // plus distance covered at the given speed for the elapsed time + 0.2 seconds.
+    range += (((float) elapsed + 200.0f) * (1.0f / 1000.0f)) * (speed * (1852.0f / 3600.0f));
+    inrange = (distance <= range);
+
+
 
     float backInTimeSeconds = 0;
     if (a->gs > 10 && track_diff > 160 && trackDataAge(now, &a->gs_valid) < 10 * SECONDS) {
@@ -586,40 +588,44 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     }
 
     if (
-            (!inrange && track_diff < 160 && source == a->position_valid.source && source > SOURCE_MLAT && (Modes.debug_cpr || Modes.debug_speed_check))
+            (
+             ((!inrange && track_diff < 160) || (!surface && (a->speedUnreliable > 8 || a->trackUnreliable > 8)))
+             && source == a->position_valid.source && source > SOURCE_MLAT && (Modes.debug_cpr || Modes.debug_speed_check)
+            )
             || (a->addr == Modes.cpr_focus && source >= a->position_valid.source)
             || (Modes.debug_maxRange && track_diff > 90)
        ) {
-        if (uat2esnt_duplicate(now, a, mm)) {
+        if (uat2esnt_duplicate(now, a, mm) || mm->in_disc_cache || mm->garbage) {
             // don't show debug
         } else {
             fprintTime(stderr, now);
-            fprintf(stderr, " %06x R%3.1f %s %s %s %s %4.0f%%%2ds%2dt %3.0f ct %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f\n",
+            fprintf(stderr, " %06x R%3.1f %s %s %s %s %4.0f%%%2ds%2dt %3.0f/%3.0f td %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f\n",
                     a->addr,
                     fminf(a->pos_reliable_odd, a->pos_reliable_even),
                     mm->cpr_odd ? "O" : "E",
                     cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "S"),
                     (surface ? "S" : "A"),
                     override ? "ovrd" : (inrange ? "pass" : "FAIL"),
-                    fminf(9001.0f, 100.0f * distance / range),
+                    fmin(9001.0, 100.0 * distance / range),
                     a->speedUnreliable,
                     a->trackUnreliable,
                     track,
                     calc_track,
-                    distance / 1000.0,
+                    track_diff,
+                    fmin(9001.0, distance / 1000.0),
                     elapsed / 1000.0,
-                    (distance / elapsed * 1000.0 / 1852.0 * 3600.0),
+                    fmin(9001.0, distance / elapsed * 1000.0 / 1852.0 * 3600.0),
                     oldLat, oldLon, lat, lon);
-        }
-        if (!inrange) {
-            char uuid[32]; // needs 18 chars and null byte
-            sprint_uuid1(mm->receiverId, uuid);
-            fprintf(stderr, "  backInTime: %4.1f receiverId: %s dataSource: %s CPR: %s %s\n",
-                    backInTimeSeconds,
-                    uuid,
-                    source_string(mm->source),
-                    cpr_string(mm->cpr_type),
-                    mm->cpr_odd ? "odd " : "even");
+            if (!inrange && a->addr == Modes.cpr_focus && source >= a->position_valid.source) {
+                char uuid[32]; // needs 18 chars and null byte
+                sprint_uuid1(mm->receiverId, uuid);
+                fprintf(stderr, "  backInTime: %4.1f receiverId: %s dataSource: %s CPR: %s %s\n",
+                        backInTimeSeconds,
+                        uuid,
+                        source_string(mm->source),
+                        cpr_string(mm->cpr_type),
+                        mm->cpr_odd ? "odd " : "even");
+            }
         }
     }
 
