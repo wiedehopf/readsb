@@ -91,6 +91,20 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
     if (a->position_valid.last_source != SOURCE_JAERO && source == SOURCE_JAERO && now < d->updated + 600 * 1000)
         return 0;
 
+    // if we have recent data and a recent position, only accept data from the last couple receivers that contributed a position
+    // this hopefully reduces data jitter introduced by differing receiver latencies
+    if (Modes.netReceiverId && !mm->cpr_valid && now - d->updated < 5 * SECONDS && now - a->seenPosReliable < 2 * SECONDS) {
+        uint16_t simpleHash = (uint16_t) mm->receiverId;
+        simpleHash = simpleHash ? simpleHash : 1;
+        int found = 0;
+        for (int i = 0; i < RECEIVERIDBUFFER; i++) {
+            found |= (a->receiverIds[i] == simpleHash);
+        }
+        if (!found) {
+            return 0;
+        }
+    }
+
     d->source = source;
     if (unlikely(source == SOURCE_PRIO))
         d->source = SOURCE_ADSB;
@@ -869,14 +883,14 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
     if (mm->mlatEPU) {
         a->mlatEPU = mm->mlatEPU;
     }
-    if (Modes.json_globe_index) {
-        if (mm->source == SOURCE_MLAT && mm->receiverCountMlat) {
-            a->receiverCountMlat = mm->receiverCountMlat;
-        } else {
-            uint16_t simpleHash = (uint16_t) mm->receiverId;
-            simpleHash = simpleHash ? simpleHash : 1;
-            a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = simpleHash;
-        }
+    if (mm->source == SOURCE_MLAT && mm->receiverCountMlat) {
+        a->receiverCountMlat = mm->receiverCountMlat;
+    }
+
+    if (Modes.netReceiverId) {
+        uint16_t simpleHash = (uint16_t) mm->receiverId;
+        simpleHash = simpleHash ? simpleHash : 1;
+        a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = simpleHash;
     }
 
     a->receiverId = mm->receiverId;
