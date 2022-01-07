@@ -103,7 +103,7 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
     int64_t reduceInterval = Modes.net_output_beast_reduce_interval;
     reduceInterval *= (1 + (Modes.doubleBeastReduceIntervalUntil > now));
 
-    if (now > d->next_reduce_forward && !mm->sbs_in) {
+    if (now > d->next_reduce_forward) {
         d->next_reduce_forward = now + reduceInterval * 4;
         if (reduce_often == 1)
             d->next_reduce_forward = now + reduceInterval;
