@@ -187,7 +187,6 @@ static void *threadpool_threadproc(void *arg)
 	threadpool_t *pool = thread->pool;
 	int task_count;
 
-    struct timespec threadtime_updated = { 0, 0 };
 	while (1)
 	{
 		task_count = atomic_load(&pool->task_count);
@@ -208,13 +207,9 @@ static void *threadpool_threadproc(void *arg)
 			// (task count is incremented BEFORE taking worker_lock to wake the workers)
 			if (atomic_load(&pool->task_count) == 0)
 			{
-                struct timespec coarse;
-                clock_gettime(CLOCK_MONOTONIC_COARSE, &coarse);
-                if (coarse.tv_sec != threadtime_updated.tv_sec) {
-                    // update thread_time
-                    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &thread->thread_time);
-                    threadtime_updated = coarse;
-                }
+                // update thread_time
+                clock_gettime(CLOCK_THREAD_CPUTIME_ID, &thread->thread_time);
+
                 // wait until we have more work
 				pthread_cond_wait(&pool->notify_worker, &pool->worker_lock);
 			}

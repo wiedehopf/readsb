@@ -302,6 +302,7 @@ static void trackPeriodicUpdate() {
     startWatch(&watch);
     struct timespec start_time;
     start_monotonic_timing(&start_time);
+    struct timespec before = threadpool_get_cumulative_thread_time(Modes.allPool);
 
 
     if (now > Modes.next_remove_stale && pthread_mutex_trylock(&Threads.misc.mutex) == 0) {
@@ -391,6 +392,8 @@ static void trackPeriodicUpdate() {
         }
     }
     end_monotonic_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
+    struct timespec after = threadpool_get_cumulative_thread_time(Modes.allPool);
+    timespec_add_elapsed(&before, &after, &Modes.stats_current.remove_stale_cpu);
     Modes.currentTask = "trackPeriodic_end";
 }
 
