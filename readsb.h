@@ -699,6 +699,9 @@ struct modesMessage
     bool duplicate; // associated position is a duplicate
     bool pos_ignore; // associated position is old / delayed / misc error
     bool pos_bad; // speed_check failed
+    int8_t trackUnreliable;
+    int8_t speedUnreliable;
+    int8_t in_disc_cache;
     bool jsonPos; // output a json position
     datasource_t source; // Characterizes the overall message source
     // Raw data, just extracted directly from the message

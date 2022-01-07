@@ -463,6 +463,7 @@ struct aircraft
   // recent discarded positions which led to decrementing reliability (position_bad() / speed_check())
   uint32_t disc_cache_index;
   struct discarded disc_cache[DISCARD_CACHE];
+  int32_t speedUnreliable;
 };
 
 /* Mode A/C tracking is done separately, not via the aircraft list,

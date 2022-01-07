@@ -408,9 +408,33 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                );
     }
 
+    if (mm->cpr_valid) {
+        struct discarded *disc;
+        for (int i = 0; i < DISCARD_CACHE; i++) {
+            disc = &a->disc_cache[i];
+            // don't decrement pos_reliable if we already got the same bad position within the last second
+            // rate limit reliable decrement per receiver
+            if (
+                    (
+                     now - disc->ts < 4 * SECONDS
+                     && disc->cpr_lat == mm->cpr_lat
+                     && disc->cpr_lon == mm->cpr_lon
+                    )
+                    ||
+                    (
+                     (now - disc->ts < 0.3 * SECONDS || now < disc->ts)
+                     && disc->receiverId == mm->receiverId
+                    )
+               ) {
+                mm->in_disc_cache = 1;
+            }
+        }
+    }
+
     float distance = -1;
     float range = -1;
     float speed = -1;
+    float transmitted_speed = -1;
     float calc_track = -1;
     int inrange;
     int override = 0;
@@ -459,6 +483,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     } else if (trackDataValid(&a->ias_valid)) {
         speed = a->ias * 2;
     }
+    transmitted_speed = speed;
 
     // find actual distance
     distance = greatcircle(oldLat, oldLon, lat, lon, 0);
@@ -479,16 +504,33 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
     if (distance > 1) {
         calc_track = bearing(oldLat, oldLon, lat, lon);
-        if (posReliable(a)) {
-            mm->calculated_track = calc_track;
-            if (source > SOURCE_MLAT
-                    && track > -1
-                    && trackDataAge(now, &a->position_valid) < 7 * SECONDS
-                    && trackDataAge(now, &a->gs_valid) < 7 * SECONDS
-               ) {
-                track_diff = fabs(norm_diff(track - calc_track, 180));
-            }
+        mm->calculated_track = calc_track;
+        if (source > SOURCE_MLAT
+                && track > -1
+                && trackDataAge(now, &a->position_valid) < 7 * SECONDS
+                && trackDataAge(now, &a->gs_valid) < 7 * SECONDS
+           ) {
+            track_diff = fabs(norm_diff(track - calc_track, 180));
         }
+    }
+
+    if (track_diff > 70.0f) {
+        mm->trackUnreliable = +1;
+    } else if (track_diff > -1) {
+        mm->trackUnreliable = -1;
+    }
+
+    if (!posReliable(a)) {
+        // don't use track_diff for further calculations unless position is already reliable
+        track_diff = -1;
+    }
+
+    if (speed < 0 || a->speedUnreliable > 8) {
+        speed = surface ? 120 : 900; // guess
+    }
+    if (source <= SOURCE_MLAT) {
+        speed = speed * 2;
+        range += 250;
     }
 
     if (speed > 1 && track_diff > -1 && a->trackUnreliable < 8) {
@@ -517,32 +559,26 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     } else {
         range += 30;
     }
-    if (!mm->pos_ignore && speed > 1) {
-        if (track_diff > 80.0f) {
-            a->trackUnreliable = imin(16, a->trackUnreliable + 1);
-        } else if (track_diff > -1) {
-            a->trackUnreliable = imax(0, a->trackUnreliable - 1);
-        }
-    }
+
     // same TCP packet, two positions from same receiver id, allow plenty of extra range
     if (elapsed < 2 && a->receiverId == mm->receiverId) {
         range += 500; // 500 m extra in this case
     }
 
-    if (speed < 0) {
-        speed = surface ? 150 : 900; // guess
-    }
-    if (source <= SOURCE_MLAT) {
-        speed = speed * 2;
-        range += 250;
-    }
     // cap speed at 2000 knots ..
     speed = fmin(speed, 2000);
 
     // plus distance covered at the given speed for the elapsed time + 0.2 seconds.
-    range += (((float) elapsed + 200.0f) / 1000.0f) * (speed * 1852.0f / 3600.0f);
+    inrange = (distance <= range + (((float) elapsed + 200.0f) * (1.0f / 1000.0f)) * (speed * (1852.0f / 3600.0f)));
 
-    inrange = (distance <= range);
+    if (distance > 1 && (track_diff < 70 || track_diff == -1)) {
+        if (distance <= range + (((float) elapsed + 200.0f) * (1.0f / 1000.0f)) * (transmitted_speed * (1852.0f / 3600.0f))) {
+            mm->speedUnreliable = -1;
+        } else {
+            mm->speedUnreliable = +1;
+        }
+    }
+
 
     float backInTimeSeconds = 0;
     if (a->gs > 10 && track_diff > 160 && trackDataAge(now, &a->gs_valid) < 10 * SECONDS) {
@@ -558,7 +594,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
             // don't show debug
         } else {
             fprintTime(stderr, now);
-            fprintf(stderr, " %06x R%3.1f %s %s %s %s %4.0f%% %1dt %3.0f ct %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f\n",
+            fprintf(stderr, " %06x R%3.1f %s %s %s %s %4.0f%%%2ds%2dt %3.0f ct %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f\n",
                     a->addr,
                     fminf(a->pos_reliable_odd, a->pos_reliable_even),
                     mm->cpr_odd ? "O" : "E",
@@ -566,6 +602,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                     (surface ? "S" : "A"),
                     override ? "ovrd" : (inrange ? "pass" : "FAIL"),
                     fminf(9001.0f, 100.0f * distance / range),
+                    a->speedUnreliable,
                     a->trackUnreliable,
                     track,
                     calc_track,
@@ -2188,9 +2225,16 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
     if (haveScratch && (mm->garbage || mm->pos_bad || mm->duplicate)) {
         memcpy(a, &scratch, sizeof(struct aircraft));
+    }
+
+    if (!(mm->source < a->position_valid.source || mm->in_disc_cache || mm->garbage || mm->pos_ignore)) {
         if (mm->pos_bad) {
             position_bad(mm, a);
         }
+        a->speedUnreliable += mm->speedUnreliable;
+        a->trackUnreliable += mm->trackUnreliable;
+        a->speedUnreliable = imax(0, imin(16, a->speedUnreliable));
+        a->trackUnreliable = imax(0, imin(16, a->trackUnreliable));
     }
 
     if (!a->onActiveList) {
@@ -3181,36 +3225,11 @@ static void incrementReliable(struct aircraft *a, struct modesMessage *mm, int64
 }
 
 static void position_bad(struct modesMessage *mm, struct aircraft *a) {
-    if (mm->garbage)
-        return;
-    if (mm->pos_ignore)
-        return;
-    if (mm->source < a->position_valid.source)
-        return;
 
     int64_t now = mm->sysTimestampMsg;
 
     if (mm->cpr_valid) {
         struct discarded *disc;
-        for (int i = 0; i < DISCARD_CACHE; i++) {
-            disc = &a->disc_cache[i];
-            // don't decrement pos_reliable if we already got the same bad position within the last second
-            // rate limit reliable decrement per receiver
-            if (
-                    (
-                     now - disc->ts < 4 * SECONDS
-                     && disc->cpr_lat == mm->cpr_lat
-                     && disc->cpr_lon == mm->cpr_lon
-                    )
-                    ||
-                    (
-                     (now - disc->ts < 0.3 * SECONDS || now < disc->ts)
-                     && disc->receiverId == mm->receiverId
-                    )
-               ) {
-                return;
-            }
-        }
         a->disc_cache_index = (a->disc_cache_index + 1) % DISCARD_CACHE;
 
         // most recent discarded position which led to decrementing reliability and timestamp (speed_check)
