@@ -1909,7 +1909,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                 || (a->addrtype >= ADDR_MLAT
                     && mm->airground == AG_UNCERTAIN
                     && a->airground != AG_AIRBORNE
-                    && altReliable(a)
+                    && altBaroReliable(a)
                     && trackDataAge(now, &a->gs_valid) < 3 * SECONDS
                     && a->gs > 80
                    )
@@ -2268,7 +2268,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             //fprintf(stderr, "%.0f %0.f\n", greatcircle(Modes.fUserLat, Modes.fUserLon, a->latReliable, a->lonReliable, 0) / 1852.0, Modes.beast_reduce_filter_distance / 1852.0);
         }
         if (Modes.beast_reduce_filter_altitude != -1
-                && altReliable(a)
+                && altBaroReliable(a)
                 && a->airground != AG_GROUND
                 && a->altitude_baro > Modes.beast_reduce_filter_altitude) {
             mm->reduce_forward = 0;
@@ -2771,13 +2771,11 @@ void to_state(struct aircraft *a, struct state *new, int64_t now, int on_ground,
         new->track = (uint16_t) nearbyint(track * _track_factor);
         new->track_valid = 1;
     }
-
-
-    if (trackVState(now, &a->altitude_baro_valid, &a->position_valid)
-            && a->alt_reliable >= ALTITUDE_BARO_RELIABLE_MAX / 5) {
+    if (altBaroReliableTrace(now, a)) {
         new->baro_alt_valid = 1;
         new->baro_alt = (int16_t) nearbyint(a->altitude_baro * _alt_factor);
     }
+
     if (trackVState(now, &a->baro_rate_valid, &a->position_valid)) {
         new->baro_rate_valid = 1;
         new->baro_rate = (int16_t) nearbyint(a->baro_rate * _rate_factor);

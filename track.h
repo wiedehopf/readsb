@@ -524,7 +524,7 @@ static inline int posReliable(struct aircraft *a) {
 
     return 0;
 }
-static inline int altReliable(struct aircraft *a) {
+static inline int altBaroReliable(struct aircraft *a) {
     if (!trackDataValid(&a->altitude_baro_valid))
         return 0;
     if (a->position_valid.source == SOURCE_JAERO)
@@ -545,6 +545,13 @@ trackVState (int64_t now, const data_validity *v, const data_validity *pos_valid
     // reduced expiration time for good sources
     return (v->source != SOURCE_INVALID && now < v->updated + 35 * SECONDS);
 
+}
+
+static inline int altBaroReliableTrace(int64_t now, struct aircraft *a) {
+    if (altBaroReliable(a) && trackVState(now, &a->altitude_baro_valid, &a->position_valid))
+        return 1;
+    else
+        return 0;
 }
 
 /* what's the age of this data, in milliseconds? */

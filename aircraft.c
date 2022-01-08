@@ -191,7 +191,7 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now) {
         new->pos_rc = a->pos_rc_reliable;
     }
 
-    new->altitude_baro_valid = altReliable(a);
+    new->altitude_baro_valid = altBaroReliable(a);
 
     new->altitude_baro = (int16_t) nearbyint(a->altitude_baro / 25.0);
 

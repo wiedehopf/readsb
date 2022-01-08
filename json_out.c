@@ -460,7 +460,7 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *byte
     else
         p = safe_snprintf(p, end, "           ,");
 
-    if (a && altReliable(a))
+    if (a && altBaroReliable(a))
         p = safe_snprintf(p, end, "%5d,ft,", a->altitude_baro);
     else
         p = safe_snprintf(p, end, "     ,ft,");
@@ -636,7 +636,7 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
             else
                 p = safe_snprintf(p, end, ",\"alt_baro\":\"ground\"");
         else {
-            if (altReliable(a))
+            if (altBaroReliable(a))
                 p = safe_snprintf(p, end, ",\"alt_baro\":%d", a->altitude_baro);
             if (printMode == 2)
                 p = safe_snprintf(p, end, ",\"ground\":false");
@@ -1920,7 +1920,7 @@ struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {
                 //p = safe_snprintf(p, end, ",\"PosTime\":%"PRIu64, a->position_valid.updated);
             }
 
-            if (altReliable(a))
+            if (altBaroReliable(a))
                 p = safe_snprintf(p, end, ",\"Alt\":%d", a->altitude_baro);
 
             if (trackDataValid(&a->geom_rate_valid)) {

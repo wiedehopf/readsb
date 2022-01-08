@@ -1521,18 +1521,20 @@ int traceAdd(struct aircraft *a, int64_t now) {
     int duplicate = 0;
 
     int64_t max_elapsed = Modes.json_trace_interval;
-    int64_t min_elapsed = imin(TRACE_MIN_ELAPSED, max_elapsed);
-    float turn_density = 4.5;
+    int64_t min_elapsed = imin(TRACE_MIN_ELAPSED, max_elapsed / 5);
 
+    float turn_density = 5.0;
     float max_speed_diff = 5.0;
-    int max_alt_diff = 125;
 
-    if (trackVState(now, &a->altitude_baro_valid, &a->position_valid) && a->altitude_baro > 10000) {
-        max_speed_diff = 10.0;
+    int alt = a->altitude_baro;
+    int alt_valid = altBaroReliableTrace(now, a);
+
+    if (alt_valid && a->altitude_baro > 10000) {
+        max_speed_diff *= 2;
     }
 
     if (a->position_valid.source == SOURCE_MLAT) {
-        min_elapsed *= 2;
+        min_elapsed = 2500; // 2.5 seconds
         turn_density /= 2;
         max_elapsed *= 0.75;
         max_speed_diff = 30;
@@ -1576,20 +1578,22 @@ int traceAdd(struct aircraft *a, int64_t now) {
     if (now >= last->timestamp)
         elapsed = now - last->timestamp;
 
+    struct state *buffered = NULL;
+
     if (a->tracePosBuffered) {
-        elapsed_buffered = (int64_t) a->trace[a->trace_len].timestamp - (int64_t) last->timestamp;
+        buffered = &(a->trace[a->trace_len]);
+        elapsed_buffered = (int64_t) buffered->timestamp - (int64_t) last->timestamp;
     }
 
     int32_t new_lat = (int32_t) nearbyint(a->lat * 1E6);
     int32_t new_lon = (int32_t) nearbyint(a->lon * 1E6);
     duplicate = (elapsed < 1 * SECONDS && new_lat == last->lat && new_lon == last->lon);
 
-    int alt = a->altitude_baro;
     int last_alt = last->baro_alt / _alt_factor;
     int last_alt_valid = last->baro_alt_valid;
 
     int alt_diff = 0;
-    if (trackVState(now, &a->altitude_baro_valid, &a->position_valid) && a->alt_reliable >= ALTITUDE_BARO_RELIABLE_MAX / 5) {
+    if (last_alt_valid && alt_valid) {
         alt_diff = abs(a->altitude_baro - last_alt);
     }
 
@@ -1628,13 +1632,12 @@ int traceAdd(struct aircraft *a, int64_t now) {
                 distance, alt, alt_diff, a->gs, speed_diff, a->track, track_diff);
     }
 
-    // record more points when the altitude changes very quickly
-    if (alt_diff >= max_alt_diff && elapsed <= min_elapsed) {
-        goto save_state;
-    }
-
-    if (speed_diff > max_speed_diff) {
+    if (speed_diff >= max_speed_diff) {
         if (traceDebug) fprintf(stderr, "speed_change: %0.1f %0.1f -> %0.1f", fabs(last->gs / 10.0 - a->gs), last->gs / 10.0, a->gs);
+
+        if (buffered && last->gs == buffered->gs) {
+            goto save_state_no_buf;
+        }
         goto save_state;
     }
 
@@ -1644,35 +1647,78 @@ int traceAdd(struct aircraft *a, int64_t now) {
     }
 
     // record non moving targets every 5 minutes
-    if (elapsed > 10 * max_elapsed)
-        goto save_state;
-
-    // don't record non moving targets ... unless json-interval is set to less than 5 seconds
-    if (distance < 25 && max_elapsed > 5 * SECONDS)
-        goto no_save_state;
-
-    // record trace precisely if we have a TCAS advisory
-    if (trackDataValid(&a->acas_ra_valid) && trackDataAge(now, &a->acas_ra_valid) < 15 * SECONDS) {
+    if (elapsed > 10 * max_elapsed) {
         goto save_state;
     }
+
+    if (alt_valid && !last_alt_valid) {
+        goto save_state;
+    }
+
+    // check altitude change before minimum interval
+    if (alt_diff > 0) {
+
+        int max_diff = 250;
+
+        if (alt <= 7000) {
+            if (buffered && last->baro_alt == buffered->baro_alt) {
+                max_diff = 200; // for transponders with 100 ft altitude increments
+            } else {
+                max_diff = 100;
+            }
+        } else if (alt <= 12000) {
+            max_diff = 200;
+        } else {
+            max_diff = 400;
+        }
+
+        if (alt_diff >= max_diff) {
+            if (traceDebug) fprintf(stderr, "alt_change1: %d -> %d", last_alt, alt);
+            if (alt_diff == max_diff || (buffered && last->baro_alt == buffered->baro_alt)) {
+                goto save_state_no_buf;
+            }
+            goto save_state;
+        }
+
+        int base = 800;
+        if (alt <= 7000) {
+            base = 125;
+        } else if (alt <= 12000) {
+            base = 250;
+        }
+        int64_t too_long = ((max_elapsed / 4) * base / (float) alt_diff);
+        if (alt_diff >= 25 && elapsed > too_long) {
+            if (traceDebug) fprintf(stderr, "alt_change2: %d -> %d, %5.1f", last_alt, alt, too_long / 1000.0);
+            goto save_state_no_buf;
+        }
+    }
+
+    // don't record non moving targets ... unless json-interval is set to less than 5 seconds
+    if (on_ground && distance < 10 && max_elapsed > 5 * SECONDS)
+        goto no_save_state;
 
     // don't record unnecessary many points
     if (elapsed < min_elapsed)
         goto no_save_state;
 
     // even if the squawk gets invalid we continue to record more points
-    if (a->squawk == 0x7700 && elapsed > 2 * min_elapsed) {
+    if (a->squawk == 0x7700) {
+        goto save_state;
+    }
+
+    // record trace precisely if we have a TCAS advisory
+    if (trackDataValid(&a->acas_ra_valid) && trackDataAge(now, &a->acas_ra_valid) < 15 * SECONDS) {
         goto save_state;
     }
 
     if (!on_ground && elapsed > max_elapsed) // default 30000 ms
         goto save_state;
 
-    // SS2
-    if (a->addr == 0xa19b53 && elapsed > max_elapsed / 4)
+    if (on_ground && elapsed > 4 * max_elapsed)
         goto save_state;
 
-    if (on_ground && elapsed > 4 * max_elapsed)
+    // SS2
+    if (a->addr == 0xa19b53 && elapsed > max_elapsed / 4)
         goto save_state;
 
     if (now > a->seenPosReliable + TRACE_STALE) {
@@ -1697,74 +1743,29 @@ int traceAdd(struct aircraft *a, int64_t now) {
         goto save_state;
     }
 
-    if (trackVState(now, &a->altitude_baro_valid, &a->position_valid)
-            && a->alt_reliable >= ALTITUDE_BARO_RELIABLE_MAX / 5) {
-        if (!last_alt_valid) {
-            goto save_state;
-        }
-        if (last_alt_valid) {
-
-            int div = 500;
-
-            if (alt > 8000) {
-                div = 500;
-            }
-
-            if (alt > 4000 && alt <= 8000) {
-                div = 250;
-            }
-            if (alt <= 4000) {
-                div = 125;
-            }
-
-            int offset = div / 2;
-            int alt_add = (alt >= 0) ? offset : (-1 * offset);
-            int last_alt_add = (last_alt >= 0) ? offset : (-1 * offset);
-
-            // think of this simpler equation for altitudes that are > 0, div 500 and offset 250
-            // abs((alt + 250)/500 - (last_alt + 250)/500) >= 1
-            // we are basically detecting changes between altitude slices or divs / divisions
-            int divDelta = abs((alt + alt_add)/div - (last_alt + last_alt_add)/div);
-            if (divDelta >= 1 && alt_diff >= div / 2) {
-                if (traceDebug) fprintf(stderr, "alt_change1: %d -> %d", last_alt, alt);
-
-                if (divDelta >= 2)
-                    goto save_state;
-                else
-                    goto save_state_no_buf;
-            }
-
-            if (alt_diff >= 25 && elapsed > (1000 * 22 * div / alt_diff)) {
-                if (traceDebug) fprintf(stderr, "alt_change2: %d -> %d, %d", last_alt, alt, (1000 * 24 * div / alt_diff));
-                goto save_state_no_buf;
-            }
-        }
-    }
-
     goto no_save_state;
 
 save_state:
     // always try using the buffered position instead of the current one
     // this should provide a better picture of changing track / speed / altitude
 
-    if ((elapsed > max_elapsed || elapsed_buffered > min_elapsed * 3 / 2) && traceUsePosBuffered(a)) {
-        if (traceDebug) fprintf(stderr, " buffer\n");
-        // in some cases we want to add the current point as well
-        // if not, the current point will be put in the buffer
-        traceAdd(a, now);
-        // return so the point isn't used a second time or put in the buffer
-        return 1;
-    } else {
-        posUsed = 1;
+    if (elapsed > max_elapsed || 2 * elapsed_buffered > elapsed || elapsed_buffered > 2700) {
+        if (traceUsePosBuffered(a)) {
+            if (traceDebug) fprintf(stderr, " buffer\n");
+            // in some cases we want to add the current point as well
+            // if not, the current point will be put in the buffer
+            traceAdd(a, now);
+            // return so the point isn't used a second time or put in the buffer
+            return 1;
+        }
     }
-    //fprintf(stderr, "traceAdd: %06x elapsed: %8.1f s distance: %8.3f km\n", a->addr, elapsed / 1000.0, distance / 1000.0);
-
-    goto no_save_state;
 
 save_state_no_buf:
     posUsed = 1;
+    //fprintf(stderr, "traceAdd: %06x elapsed: %8.1f s distance: %8.3f km\n", a->addr, elapsed / 1000.0, distance / 1000.0);
 
 no_save_state:
+
 
     if (duplicate) {
         // don't put a duplicate position in the buffer and don't use it for the trace
