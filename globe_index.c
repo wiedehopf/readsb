@@ -5,6 +5,7 @@
 
 static void mark_legs(struct aircraft *a, int start);
 static void load_blob(int blob);
+static int getTraceGrow(int len);
 
 void init_globe_index() {
     struct tile *s_tiles = Modes.json_globe_special_tiles = aligned_malloc(GLOBE_SPECIAL_INDEX * sizeof(struct tile));
@@ -763,7 +764,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
     int size_all = stateAllBytes(a->trace_len);
 
     if (a->trace_alloc <= a->trace_len) {
-        a->trace_alloc = a->trace_len + 4 * Modes.traceReserve;
+        a->trace_alloc = getTraceGrow(a->trace_len);
     }
 
     // check that the trace meta data make sense before loading it

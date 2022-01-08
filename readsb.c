@@ -1501,10 +1501,10 @@ int parseCommandLine(int argc, char **argv) {
 static void configAfterParse() {
     Modes.trackExpireMax = Modes.trackExpireJaero + TRACK_EXPIRE_LONG + 1 * MINUTES;
 
-    Modes.traceReserve = 24;
-    Modes.traceMax = 64 * 1024;
-    if (Modes.json_trace_interval < 6 * SECONDS) {
-        double oversize = 6.0 / fmax(0.4, (double) Modes.json_trace_interval / 1000.0);
+    Modes.traceReserve = 48;
+    Modes.traceMax = 128 * 1024;
+    if (Modes.json_trace_interval < 3 * SECONDS) {
+        double oversize = 3.0 / fmax(0.4, (double) Modes.json_trace_interval / 1000.0);
         Modes.traceReserve = (int) (Modes.traceReserve * oversize);
         Modes.traceMax = (int) (Modes.traceMax * oversize);
     }
