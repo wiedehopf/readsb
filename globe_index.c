@@ -344,6 +344,14 @@ void init_globe_index() {
         }
         Modes.json_globe_indexes[Modes.json_globe_indexes_len++] = i;
     }
+    // testing out of bounds
+    /*
+    for (double lat = -90; lat < 90; lat += 0.5) {
+        for (double lon = -180; lon < 180; lon += 0.5) {
+            globe_index(lat, lon);
+        }
+    }
+    */
 }
 void cleanup_globe_index() {
     free(Modes.json_globe_indexes);
@@ -378,7 +386,8 @@ int globe_index(double lat_in, double lon_in) {
 
     int res = (i * GLOBE_LAT_MULT + j + GLOBE_MIN_INDEX);
     if (res > GLOBE_MAX_INDEX) {
-        fprintf(stderr, "globe_index out of bounds: %d %d %d\n", res, lat, lon);
+        fprintf(stderr, "globe_index: %d larger than GLOBE_MAX_INDEX: %d grid: %d,%d input: %.2f,%.2f\n",
+                res, GLOBE_MAX_INDEX, lat, lon, lat_in, lon_in);
         return 0;
     }
     return res;
