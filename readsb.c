@@ -1638,11 +1638,17 @@ static void miscStuff() {
         snprintf(filename, PATH_MAX, "%s/writeState", Modes.state_dir);
         int fd = open(filename, O_RDONLY);
         if (fd > -1) {
-            // write complete state if triggered by file writeState existing
-            writeInternalState();
             close(fd);
-            unlink(filename);
+            Modes.writeInternalState = 1;
+        }
+        if (Modes.writeInternalState) {
+            Modes.writeInternalState = 0;
+            writeInternalState();
             next_blob = now + 45 * SECONDS;
+
+            // unlink only after writing state, if the file doesn't exist that's fine as well
+            // this is a hack to detect from a shell script when the task is done
+            unlink(filename);
         }
 
         // only continuously write state if we keep permanent trace

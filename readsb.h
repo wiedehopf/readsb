@@ -481,6 +481,7 @@ struct _Modes
 
     struct hexInterval* deleteTrace;
 
+    int writeInternalState;
     uint32_t currentPing;
 
     int8_t apiUpdate; // creates json snippets also by non api stuff

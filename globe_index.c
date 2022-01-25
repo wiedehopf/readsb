@@ -747,6 +747,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
         size_changed = 1;
         fprintf(stderr, "sizeof(struct aircraft) has changed from %ld to %ld bytes, this means the code changed and if the coder didn't think properly might result in bad aircraft data. If your map doesn't have weird stuff ... probably all good and just an upgrade.\n",
                 (long) source->size_struct_aircraft, (long) sizeof(struct aircraft));
+        Modes.writeInternalState = 1; // immediately write in the new format
     }
     a->size_struct_aircraft = sizeof(struct aircraft);
 
@@ -2034,6 +2035,7 @@ static void load_blob(int blob) {
         cb = readWholeFile(fd, filename);
         close(fd);
     } else {
+        Modes.writeInternalState = 1; // not the primary load method, immediately write state
         snprintf(filename, 1024, "%s/blob_%02x.gz", Modes.state_dir, blob);
         gzFile gzfp = gzopen(filename, "r");
         if (gzfp) {
