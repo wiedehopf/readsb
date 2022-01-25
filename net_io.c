@@ -772,7 +772,10 @@ void modesInitNet(void) {
     if (Modes.json_dir && Modes.json_globe_index && Modes.globe_history_dir) {
         /* command input */
         struct net_service *commandService = serviceInit("command input", NULL, NULL, READ_MODE_ASCII, "\n", handleCommandSocket);
+        char commandSocketFile[PATH_MAX];
         char commandSocket[PATH_MAX];
+        snprintf(commandSocketFile, PATH_MAX, "%s/cmd.sock", Modes.json_dir);
+        unlink(commandSocketFile);
         snprintf(commandSocket, PATH_MAX, "unix:%s/cmd.sock", Modes.json_dir);
         serviceListen(commandService, Modes.net_bind_address, commandSocket, Modes.net_epfd);
         chmod(commandSocket, 0600);

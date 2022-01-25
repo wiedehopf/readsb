@@ -1798,14 +1798,17 @@ static inline __attribute__((always_inline)) int writeJsonTo (const char* dir, c
     }
     snprintf(tmppath, PATH_MAX, "%s.readsb_tmp", pathbuf);
 
+    int firstOpenFail = 1;
 open:
     fd = open(tmppath, O_WRONLY | O_CREAT | O_EXCL, 0644);
     if (fd < 0) {
-        fprintf(stderr, "writeJsonTo open(): ");
-        perror(tmppath);
-        if (unlink(tmppath) == 0) {
+        if (firstOpenFail) {
+            unlink(tmppath);
+            firstOpenFail = 0;
             goto open;
         }
+        fprintf(stderr, "writeJsonTo open(): ");
+        perror(tmppath);
         if (!gzip)
             free(content);
         return -1;
