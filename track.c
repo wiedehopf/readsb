@@ -492,7 +492,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     float track_diff = -1;
     float track_bonus = 0;
     int64_t track_max_age = 5 * SECONDS;
-    int64_t track_age;
+    int64_t track_age = -1;
     float track = -1;
     if (trackDataAge(now, &a->track_valid) < track_max_age) {
         track = a->track;
