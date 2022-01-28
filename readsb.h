@@ -761,7 +761,7 @@ struct modesMessage
     bool sbs_pos_valid;
     bool alt_q_bit;
     bool acas_ra_valid;
-    bool padding1;
+    bool geom_alt_derived;
 
     // valid if altitude_baro_valid:
     int altitude_baro; // Altitude in either feet or meters

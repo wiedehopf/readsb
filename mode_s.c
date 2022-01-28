@@ -2014,6 +2014,11 @@ void displayModesMessage(struct modesMessage *mm) {
                 mm->altitude_geom,
                 altitude_unit_to_string(mm->altitude_geom_unit));
     }
+    if (mm->geom_alt_derived) {
+        printf("  Geom altitude (derived): %d %s\n",
+                mm->altitude_geom,
+                altitude_unit_to_string(mm->altitude_geom_unit));
+    }
 
     if (mm->geom_delta_valid) {
         printf("  Geom - baro:   %d ft\n",

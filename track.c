@@ -2065,7 +2065,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             && compare_validity(&a->altitude_baro_valid, &a->altitude_geom_valid) > 0
             && a->geom_delta_valid.source >= a->altitude_geom_valid.source) {
         // Baro is more recent than geometric, derive geometric from baro + delta
-        a->altitude_geom = a->altitude_baro + a->geom_delta;
+        mm->altitude_geom = a->altitude_baro + a->geom_delta;
+        mm->altitude_geom_unit = UNIT_FEET;
+        mm->geom_alt_derived = 1;
+        a->altitude_geom = mm->altitude_geom;
         combine_validity(&a->altitude_geom_valid, &a->altitude_baro_valid, &a->geom_delta_valid, now);
     }
 
