@@ -256,7 +256,7 @@ struct aircraft
 
   struct state *trace; // array of positions representing the aircrafts trace/trail
   struct state_all *trace_all;
-  int altitude_baro; // Altitude (Baro)
+  int baro_alt; // Altitude (Baro)
   int alt_reliable;
   int geom_alt; // Altitude (Geometric)
   int geom_delta; // Difference between Geometric and Baro altitudes
@@ -387,7 +387,7 @@ struct aircraft
   // ----
 
   data_validity callsign_valid;
-  data_validity altitude_baro_valid;
+  data_validity baro_alt_valid;
   data_validity geom_alt_valid;
   data_validity geom_delta_valid;
   data_validity gs_valid;
@@ -525,7 +525,7 @@ static inline int posReliable(struct aircraft *a) {
     return 0;
 }
 static inline int altBaroReliable(struct aircraft *a) {
-    if (!trackDataValid(&a->altitude_baro_valid))
+    if (!trackDataValid(&a->baro_alt_valid))
         return 0;
     if (a->position_valid.source == SOURCE_JAERO)
         return 1;
@@ -548,7 +548,7 @@ trackVState (int64_t now, const data_validity *v, const data_validity *pos_valid
 }
 
 static inline int altBaroReliableTrace(int64_t now, struct aircraft *a) {
-    if (altBaroReliable(a) && trackVState(now, &a->altitude_baro_valid, &a->position_valid))
+    if (altBaroReliable(a) && trackVState(now, &a->baro_alt_valid, &a->position_valid))
         return 1;
     else
         return 0;

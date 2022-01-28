@@ -272,8 +272,8 @@ static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, int64_t 
         entry->lat = INT32_MAX;
         entry->lon = INT32_MAX;
     }
-    if (trackDataValid(&a->altitude_baro_valid)) {
-        entry->alt = a->altitude_baro;
+    if (trackDataValid(&a->baro_alt_valid)) {
+        entry->alt = a->baro_alt;
     } else if (trackDataValid(&a->geom_alt_valid)) {
         entry->alt = a->geom_alt;
     } else {

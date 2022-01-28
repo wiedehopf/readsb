@@ -73,7 +73,7 @@ static char *append_flags(char *p, char *end, struct aircraft *a, datasource_t s
     char *start = p;
     if (a->callsign_valid.source == source)
         p = safe_snprintf(p, end, "\"callsign\",");
-    if (a->altitude_baro_valid.source == source)
+    if (a->baro_alt_valid.source == source)
         p = safe_snprintf(p, end, "\"altitude\",");
     if (a->geom_alt_valid.source == source)
         p = safe_snprintf(p, end, "\"alt_geom\",");
@@ -461,7 +461,7 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *byte
         p = safe_snprintf(p, end, "           ,");
 
     if (a && altBaroReliable(a))
-        p = safe_snprintf(p, end, "%5d,ft,", a->altitude_baro);
+        p = safe_snprintf(p, end, "%5d,ft,", a->baro_alt);
     else
         p = safe_snprintf(p, end, "     ,ft,");
 
@@ -637,7 +637,7 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
                 p = safe_snprintf(p, end, ",\"alt_baro\":\"ground\"");
         else {
             if (altBaroReliable(a))
-                p = safe_snprintf(p, end, ",\"alt_baro\":%d", a->altitude_baro);
+                p = safe_snprintf(p, end, ",\"alt_baro\":%d", a->baro_alt);
             if (printMode == 2)
                 p = safe_snprintf(p, end, ",\"ground\":false");
         }
@@ -652,7 +652,7 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
         p = safe_snprintf(p, end, ",\"tas\":%u", a->tas);
     if (trackDataValid(&a->mach_valid))
         p = safe_snprintf(p, end, ",\"mach\":%.3f", a->mach);
-    if (now < a->wind_updated + TRACK_EXPIRE && abs(a->wind_altitude - a->altitude_baro) < 500) {
+    if (now < a->wind_updated + TRACK_EXPIRE && abs(a->wind_altitude - a->baro_alt) < 500) {
         p = safe_snprintf(p, end, ",\"wd\":%.0f", a->wind_direction);
         p = safe_snprintf(p, end, ",\"ws\":%.0f", a->wind_speed);
     }
@@ -806,8 +806,8 @@ char *sprintAircraftRecent(char *p, char *end, struct aircraft *a, int64_t now, 
             p = safe_snprintf(p, end, ",\"ground\":false");
         }
     }
-    if (recent > trackDataAge(now, &a->altitude_baro_valid))
-        p = safe_snprintf(p, end, ",\"alt_baro\":%d", a->altitude_baro);
+    if (recent > trackDataAge(now, &a->baro_alt_valid))
+        p = safe_snprintf(p, end, ",\"alt_baro\":%d", a->baro_alt);
     if (recent > trackDataAge(now, &a->geom_alt_valid))
         p = safe_snprintf(p, end, ",\"alt_geom\":%d", a->geom_alt);
     if (recent > trackDataAge(now, &a->gs_valid))
@@ -818,7 +818,7 @@ char *sprintAircraftRecent(char *p, char *end, struct aircraft *a, int64_t now, 
         p = safe_snprintf(p, end, ",\"tas\":%u", a->tas);
     if (recent > trackDataAge(now, &a->mach_valid))
         p = safe_snprintf(p, end, ",\"mach\":%.3f", a->mach);
-    if (now < a->wind_updated + recent && abs(a->wind_altitude - a->altitude_baro) < 500) {
+    if (now < a->wind_updated + recent && abs(a->wind_altitude - a->baro_alt) < 500) {
         p = safe_snprintf(p, end, ",\"wd\":%.0f", a->wind_direction);
         p = safe_snprintf(p, end, ",\"ws\":%.0f", a->wind_speed);
     }
@@ -1924,7 +1924,7 @@ struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {
             }
 
             if (altBaroReliable(a))
-                p = safe_snprintf(p, end, ",\"Alt\":%d", a->altitude_baro);
+                p = safe_snprintf(p, end, ",\"Alt\":%d", a->baro_alt);
 
             if (trackDataValid(&a->geom_rate_valid)) {
                 p = safe_snprintf(p, end, ",\"Vsi\":%d", a->geom_rate);

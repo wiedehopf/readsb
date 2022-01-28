@@ -1559,7 +1559,7 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now) 
     }
 
     //fprintf(stderr, "%x type %s: ", mm.addr, t[2]);
-    //fprintf(stderr, "%x: %d, %0.5f, %0.5f\n", mm.addr, mm.altitude_baro, mm.decoded_lat, mm.decoded_lon);
+    //fprintf(stderr, "%x: %d, %0.5f, %0.5f\n", mm.addr, mm.baro_alt, mm.decoded_lat, mm.decoded_lon);
     //field 11, callsign
     if (t[11] && strlen(t[11]) > 0) {
         strncpy(mm.callsign, t[11], 9);
@@ -1580,12 +1580,12 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now) 
     }
     // field 12, altitude
     if (t[12] && strlen(t[12]) > 0) {
-        mm.altitude_baro = atoi(t[12]);
-        if (mm.altitude_baro > -5000 && mm.altitude_baro < 100000) {
-            mm.altitude_baro_valid = 1;
-            mm.altitude_baro_unit = UNIT_FEET;
+        mm.baro_alt = atoi(t[12]);
+        if (mm.baro_alt > -5000 && mm.baro_alt < 100000) {
+            mm.baro_alt_valid = 1;
+            mm.baro_alt_unit = UNIT_FEET;
         }
-        //fprintf(stderr, "alt: %d, ", mm.altitude_baro);
+        //fprintf(stderr, "alt: %d, ", mm.baro_alt);
     }
     // field 13, groundspeed
     if (t[13] && strlen(t[13]) > 0) {
@@ -1786,16 +1786,16 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, stru
     if (Modes.use_gnss) {
         if (mm->geom_alt_valid) {
             p += sprintf(p, ",%dH", mm->geom_alt);
-        } else if (mm->altitude_baro_valid && trackDataValid(&a->geom_delta_valid)) {
-            p += sprintf(p, ",%dH", mm->altitude_baro + a->geom_delta);
-        } else if (mm->altitude_baro_valid) {
-            p += sprintf(p, ",%d", mm->altitude_baro);
+        } else if (mm->baro_alt_valid && trackDataValid(&a->geom_delta_valid)) {
+            p += sprintf(p, ",%dH", mm->baro_alt + a->geom_delta);
+        } else if (mm->baro_alt_valid) {
+            p += sprintf(p, ",%d", mm->baro_alt);
         } else {
             p += sprintf(p, ",");
         }
     } else {
-        if (mm->altitude_baro_valid) {
-            p += sprintf(p, ",%d", mm->altitude_baro);
+        if (mm->baro_alt_valid) {
+            p += sprintf(p, ",%d", mm->baro_alt);
         } else if (mm->geom_alt_valid && trackDataValid(&a->geom_delta_valid)) {
             p += sprintf(p, ",%d", mm->geom_alt - a->geom_delta);
         } else {

@@ -191,9 +191,9 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now) {
         new->pos_rc = a->pos_rc_reliable;
     }
 
-    new->altitude_baro_valid = altBaroReliable(a);
+    new->baro_alt_valid = altBaroReliable(a);
 
-    new->altitude_baro = (int16_t) nearbyint(a->altitude_baro / 25.0);
+    new->baro_alt = (int16_t) nearbyint(a->baro_alt / 25.0);
 
     new->geom_alt = (int16_t) nearbyint(a->geom_alt / 25.0);
     new->baro_rate = (int16_t) nearbyint(a->baro_rate / 8.0);
@@ -231,7 +231,7 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now) {
     new->nav_altitude_src = a->nav_altitude_src;
     new->sil_type = a->sil_type;
 
-    new->wind_valid = (now < a->wind_updated + TRACK_EXPIRE && abs(a->wind_altitude - a->altitude_baro) < 500);
+    new->wind_valid = (now < a->wind_updated + TRACK_EXPIRE && abs(a->wind_altitude - a->baro_alt) < 500);
     new->wind_direction = (int) nearbyint(a->wind_direction) * new->wind_valid;
     new->wind_speed = (int) nearbyint(a->wind_speed) * new->wind_valid;
 

@@ -167,8 +167,8 @@ void interactiveShowData(void) {
                         snprintf(strFl, 7, " grnd");
                     } else if (Modes.use_gnss && trackDataValid(&a->geom_alt_valid)) {
                         snprintf(strFl, 7, "%5dH", convert_altitude(a->geom_alt));
-                    } else if (trackDataValid(&a->altitude_baro_valid)) {
-                        snprintf(strFl, 7, "%5d ", convert_altitude(a->altitude_baro));
+                    } else if (trackDataValid(&a->baro_alt_valid)) {
+                        snprintf(strFl, 7, "%5d ", convert_altitude(a->baro_alt));
                     }
 
                     mvprintw(row, 0, "%s%06X %-4s  %-4s  %-8s %6s %3s  %3s  %7s %8s %5.1f %5d %2.0f",

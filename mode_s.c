@@ -604,10 +604,10 @@ int decodeModesMessage(struct modesMessage *mm) {
         mm->AC = getbits(msg, 20, 32);
         if (mm->AC) { // Only attempt to decode if a valid (non zero) altitude is present
             unsigned q_bit = 0;
-            mm->altitude_baro = decodeAC13Field(mm->AC, &mm->altitude_baro_unit, &q_bit);
-            if (mm->altitude_baro != INVALID_ALTITUDE) {
+            mm->baro_alt = decodeAC13Field(mm->AC, &mm->baro_alt_unit, &q_bit);
+            if (mm->baro_alt != INVALID_ALTITUDE) {
                 mm->alt_q_bit = q_bit;
-                mm->altitude_baro_valid = 1;
+                mm->baro_alt_valid = 1;
             }
         }
     }
@@ -1088,9 +1088,9 @@ static void decodeESAirbornePosition(struct modesMessage *mm, int check_imf) {
                 mm->geom_alt_unit = unit;
                 mm->geom_alt_valid = 1;
             } else {
-                mm->altitude_baro = alt;
-                mm->altitude_baro_unit = unit;
-                mm->altitude_baro_valid = 1;
+                mm->baro_alt = alt;
+                mm->baro_alt_unit = unit;
+                mm->baro_alt_valid = 1;
             }
         }
     }
@@ -2003,10 +2003,10 @@ void displayModesMessage(struct modesMessage *mm) {
                 airground_to_string(mm->airground));
     }
 
-    if (mm->altitude_baro_valid) {
+    if (mm->baro_alt_valid) {
         printf("  Baro altitude: %d %s\n",
-                mm->altitude_baro,
-                altitude_unit_to_string(mm->altitude_baro_unit));
+                mm->baro_alt,
+                altitude_unit_to_string(mm->baro_alt_unit));
     }
 
     if (mm->geom_alt_valid) {

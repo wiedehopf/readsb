@@ -731,7 +731,7 @@ struct modesMessage
     unsigned char MV[7];
 
     // Decoded data
-    bool altitude_baro_valid;
+    bool baro_alt_valid;
     bool geom_alt_valid;
     bool track_valid;
     bool track_rate_valid;
@@ -763,9 +763,9 @@ struct modesMessage
     bool acas_ra_valid;
     bool geom_alt_derived;
 
-    // valid if altitude_baro_valid:
-    int altitude_baro; // Altitude in either feet or meters
-    altitude_unit_t altitude_baro_unit; // the unit used for altitude
+    // valid if baro_alt_valid:
+    int baro_alt; // Altitude in either feet or meters
+    altitude_unit_t baro_alt_unit; // the unit used for altitude
 
     // valid if geom_alt_valid:
     int geom_alt; // Altitude in either feet or meters

@@ -1527,14 +1527,14 @@ int traceAdd(struct aircraft *a, int64_t now) {
     float turn_density = 5.0;
     float max_speed_diff = 5.0;
 
-    int alt = a->altitude_baro;
+    int alt = a->baro_alt;
     int alt_valid = altBaroReliableTrace(now, a);
 
-    if (alt_valid && a->altitude_baro > 10000) {
+    if (alt_valid && a->baro_alt > 10000) {
         max_speed_diff *= 2;
     }
 
-    if (alt_valid && a->altitude_baro < 19750) {
+    if (alt_valid && a->baro_alt < 19750) {
         max_elapsed /= 2;
     }
 
@@ -1599,7 +1599,7 @@ int traceAdd(struct aircraft *a, int64_t now) {
 
     int alt_diff = 0;
     if (last_alt_valid && alt_valid) {
-        alt_diff = abs(a->altitude_baro - last_alt);
+        alt_diff = abs(a->baro_alt - last_alt);
     }
 
     float speed_diff = 0;

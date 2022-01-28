@@ -187,9 +187,9 @@ void decodeModeAMessage(struct modesMessage *mm, int ModeA) {
     if (!mm->spi) {
         int modeC = modeAToModeC(ModeA);
         if (modeC != INVALID_ALTITUDE) {
-            mm->altitude_baro = modeC * 100;
-            mm->altitude_baro_unit = UNIT_FEET;
-            mm->altitude_baro_valid = 1;
+            mm->baro_alt = modeC * 100;
+            mm->baro_alt_unit = UNIT_FEET;
+            mm->baro_alt_valid = 1;
         }
     }
 
