@@ -258,7 +258,7 @@ struct aircraft
   struct state_all *trace_all;
   int altitude_baro; // Altitude (Baro)
   int alt_reliable;
-  int altitude_geom; // Altitude (Geometric)
+  int geom_alt; // Altitude (Geometric)
   int geom_delta; // Difference between Geometric and Baro altitudes
 
   int64_t trace_next_mw; // timestamp for next full trace write to /run (tmpfs)
@@ -388,7 +388,7 @@ struct aircraft
 
   data_validity callsign_valid;
   data_validity altitude_baro_valid;
-  data_validity altitude_geom_valid;
+  data_validity geom_alt_valid;
   data_validity geom_delta_valid;
   data_validity gs_valid;
   data_validity ias_valid;

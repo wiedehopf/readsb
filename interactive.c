@@ -165,8 +165,8 @@ void interactiveShowData(void) {
 
                     if (trackDataValid(&a->airground_valid) && a->airground == AG_GROUND) {
                         snprintf(strFl, 7, " grnd");
-                    } else if (Modes.use_gnss && trackDataValid(&a->altitude_geom_valid)) {
-                        snprintf(strFl, 7, "%5dH", convert_altitude(a->altitude_geom));
+                    } else if (Modes.use_gnss && trackDataValid(&a->geom_alt_valid)) {
+                        snprintf(strFl, 7, "%5dH", convert_altitude(a->geom_alt));
                     } else if (trackDataValid(&a->altitude_baro_valid)) {
                         snprintf(strFl, 7, "%5d ", convert_altitude(a->altitude_baro));
                     }

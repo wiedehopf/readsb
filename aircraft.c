@@ -195,7 +195,7 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now) {
 
     new->altitude_baro = (int16_t) nearbyint(a->altitude_baro / 25.0);
 
-    new->altitude_geom = (int16_t) nearbyint(a->altitude_geom / 25.0);
+    new->geom_alt = (int16_t) nearbyint(a->geom_alt / 25.0);
     new->baro_rate = (int16_t) nearbyint(a->baro_rate / 8.0);
     new->geom_rate = (int16_t) nearbyint(a->geom_rate / 8.0);
     new->ias = a->ias;
@@ -290,7 +290,7 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now) {
         }
     }
 #define F(f) do { new->f##_valid = trackDataValid(&a->f##_valid); new->f *= new->f##_valid; } while (0)
-    F(altitude_geom);
+    F(geom_alt);
     F(gs);
     F(ias);
     F(tas);

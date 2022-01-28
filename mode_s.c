@@ -1084,9 +1084,9 @@ static void decodeESAirbornePosition(struct modesMessage *mm, int check_imf) {
         if (alt != INVALID_ALTITUDE) {
             mm->alt_q_bit = q_bit;
             if (mm->metype == 20 || mm->metype == 21 || mm->metype == 22) {
-                mm->altitude_geom = alt;
-                mm->altitude_geom_unit = unit;
-                mm->altitude_geom_valid = 1;
+                mm->geom_alt = alt;
+                mm->geom_alt_unit = unit;
+                mm->geom_alt_valid = 1;
             } else {
                 mm->altitude_baro = alt;
                 mm->altitude_baro_unit = unit;
@@ -2009,15 +2009,15 @@ void displayModesMessage(struct modesMessage *mm) {
                 altitude_unit_to_string(mm->altitude_baro_unit));
     }
 
-    if (mm->altitude_geom_valid) {
+    if (mm->geom_alt_valid) {
         printf("  Geom altitude: %d %s\n",
-                mm->altitude_geom,
-                altitude_unit_to_string(mm->altitude_geom_unit));
+                mm->geom_alt,
+                altitude_unit_to_string(mm->geom_alt_unit));
     }
     if (mm->geom_alt_derived) {
         printf("  Geom altitude (derived): %d %s\n",
-                mm->altitude_geom,
-                altitude_unit_to_string(mm->altitude_geom_unit));
+                mm->geom_alt,
+                altitude_unit_to_string(mm->geom_alt_unit));
     }
 
     if (mm->geom_delta_valid) {

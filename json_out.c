@@ -75,7 +75,7 @@ static char *append_flags(char *p, char *end, struct aircraft *a, datasource_t s
         p = safe_snprintf(p, end, "\"callsign\",");
     if (a->altitude_baro_valid.source == source)
         p = safe_snprintf(p, end, "\"altitude\",");
-    if (a->altitude_geom_valid.source == source)
+    if (a->geom_alt_valid.source == source)
         p = safe_snprintf(p, end, "\"alt_geom\",");
     if (a->gs_valid.source == source)
         p = safe_snprintf(p, end, "\"gs\",");
@@ -642,8 +642,8 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
                 p = safe_snprintf(p, end, ",\"ground\":false");
         }
     }
-    if (trackDataValid(&a->altitude_geom_valid))
-        p = safe_snprintf(p, end, ",\"alt_geom\":%d", a->altitude_geom);
+    if (trackDataValid(&a->geom_alt_valid))
+        p = safe_snprintf(p, end, ",\"alt_geom\":%d", a->geom_alt);
     if (printMode != 1 && trackDataValid(&a->gs_valid))
         p = safe_snprintf(p, end, ",\"gs\":%.1f", a->gs);
     if (trackDataValid(&a->ias_valid))
@@ -808,8 +808,8 @@ char *sprintAircraftRecent(char *p, char *end, struct aircraft *a, int64_t now, 
     }
     if (recent > trackDataAge(now, &a->altitude_baro_valid))
         p = safe_snprintf(p, end, ",\"alt_baro\":%d", a->altitude_baro);
-    if (recent > trackDataAge(now, &a->altitude_geom_valid))
-        p = safe_snprintf(p, end, ",\"alt_geom\":%d", a->altitude_geom);
+    if (recent > trackDataAge(now, &a->geom_alt_valid))
+        p = safe_snprintf(p, end, ",\"alt_geom\":%d", a->geom_alt);
     if (recent > trackDataAge(now, &a->gs_valid))
         p = safe_snprintf(p, end, ",\"gs\":%.1f", a->gs);
     if (recent > trackDataAge(now, &a->ias_valid))
@@ -1948,8 +1948,8 @@ struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {
                 p = safe_snprintf(p, end, ",\"Spd\":%u", a->tas);
             }
 
-            if (trackDataValid(&a->altitude_geom_valid))
-                p = safe_snprintf(p, end, ",\"GAlt\":%d", a->altitude_geom);
+            if (trackDataValid(&a->geom_alt_valid))
+                p = safe_snprintf(p, end, ",\"GAlt\":%d", a->geom_alt);
 
             if (trackDataValid(&a->airground_valid) && a->airground == AG_GROUND)
                 p = safe_snprintf(p, end, ",\"Gnd\":true");

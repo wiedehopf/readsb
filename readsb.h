@@ -732,7 +732,7 @@ struct modesMessage
 
     // Decoded data
     bool altitude_baro_valid;
-    bool altitude_geom_valid;
+    bool geom_alt_valid;
     bool track_valid;
     bool track_rate_valid;
     bool heading_valid;
@@ -767,9 +767,9 @@ struct modesMessage
     int altitude_baro; // Altitude in either feet or meters
     altitude_unit_t altitude_baro_unit; // the unit used for altitude
 
-    // valid if altitude_geom_valid:
-    int altitude_geom; // Altitude in either feet or meters
-    altitude_unit_t altitude_geom_unit; // the unit used for altitude
+    // valid if geom_alt_valid:
+    int geom_alt; // Altitude in either feet or meters
+    altitude_unit_t geom_alt_unit; // the unit used for altitude
 
     // following fields are valid if the corresponding _valid field is set:
     int geom_delta; // Difference between geometric and baro alt

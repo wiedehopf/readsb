@@ -59,7 +59,7 @@ struct binCraft {
   int16_t baro_rate;
   int16_t geom_rate;
   int16_t altitude_baro;
-  int16_t altitude_geom;
+  int16_t geom_alt;
   // 24
   uint16_t nav_altitude_mcp; // FCU/MCP selected altitude
   uint16_t nav_altitude_fms; // FMS selected altitude
@@ -118,7 +118,7 @@ struct binCraft {
   unsigned spi : 1; // FS Flight status SPI (Special Position Identification) bit
   unsigned callsign_valid:1;
   unsigned altitude_baro_valid:1;
-  unsigned altitude_geom_valid:1;
+  unsigned geom_alt_valid:1;
   unsigned position_valid:1;
   unsigned gs_valid:1;
   // 74

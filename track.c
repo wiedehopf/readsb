@@ -338,10 +338,10 @@ static void update_range_histogram(struct aircraft *a, struct modesMessage *mm, 
         current->distance = range;
         current->lat = lat;
         current->lon = lon;
-        if (trackDataValid(&a->altitude_baro_valid) || !trackDataValid(&a->altitude_geom_valid)) {
+        if (trackDataValid(&a->altitude_baro_valid) || !trackDataValid(&a->geom_alt_valid)) {
             current->alt = a->altitude_baro;
         } else {
-            current->alt = a->altitude_geom;
+            current->alt = a->geom_alt;
         }
     }
 
@@ -1815,8 +1815,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         a->emergency = mm->emergency;
     }
 
-    if (mm->altitude_geom_valid && accept_data(&a->altitude_geom_valid, mm->source, mm, a, 1)) {
-        a->altitude_geom = altitude_to_feet(mm->altitude_geom, mm->altitude_geom_unit);
+    if (mm->geom_alt_valid && accept_data(&a->geom_alt_valid, mm->source, mm, a, 1)) {
+        a->geom_alt = altitude_to_feet(mm->geom_alt, mm->geom_alt_unit);
     }
 
     if (mm->geom_delta_valid && accept_data(&a->geom_delta_valid, mm->source, mm, a, 1)) {
@@ -2060,24 +2060,24 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     // Now handle derived data
 
     // derive geometric altitude if we have baro + delta
-    if (a->altitude_baro_valid.updated > a->altitude_geom_valid.updated
+    if (a->altitude_baro_valid.updated > a->geom_alt_valid.updated
             && altBaroReliable(a)
-            && compare_validity(&a->altitude_baro_valid, &a->altitude_geom_valid) > 0
-            && a->geom_delta_valid.source >= a->altitude_geom_valid.source) {
+            && compare_validity(&a->altitude_baro_valid, &a->geom_alt_valid) > 0
+            && a->geom_delta_valid.source >= a->geom_alt_valid.source) {
         // Baro is more recent than geometric, derive geometric from baro + delta
-        mm->altitude_geom = a->altitude_baro + a->geom_delta;
-        mm->altitude_geom_unit = UNIT_FEET;
+        mm->geom_alt = a->altitude_baro + a->geom_delta;
+        mm->geom_alt_unit = UNIT_FEET;
         mm->geom_alt_derived = 1;
-        a->altitude_geom = mm->altitude_geom;
-        combine_validity(&a->altitude_geom_valid, &a->altitude_baro_valid, &a->geom_delta_valid, now);
+        a->geom_alt = mm->geom_alt;
+        combine_validity(&a->geom_alt_valid, &a->altitude_baro_valid, &a->geom_delta_valid, now);
     }
 
     // to keep the barometric altitude consistent with geometric altitude, save a derived geom_delta if all data are current
-    if (mm->altitude_geom_valid && altBaroReliable(a)
+    if (mm->geom_alt_valid && altBaroReliable(a)
             && trackDataAge(now, &a->altitude_baro_valid) < 1 * SECONDS
             && accept_data(&a->geom_delta_valid, mm->source, mm, a, 2)
        ) {
-        a->geom_delta = a->altitude_geom - a->altitude_baro;
+        a->geom_delta = a->geom_alt - a->altitude_baro;
     }
 
     // If we've got a new cpr_odd or cpr_even
@@ -2784,9 +2784,9 @@ void to_state(struct aircraft *a, struct state *new, int64_t now, int on_ground,
         new->baro_rate = (int16_t) nearbyint(a->baro_rate * _rate_factor);
     }
 
-    if (trackVState(now, &a->altitude_geom_valid, &a->position_valid)) {
+    if (trackVState(now, &a->geom_alt_valid, &a->position_valid)) {
         new->geom_alt_valid = 1;
-        new->geom_alt = (int16_t) nearbyint(a->altitude_geom * _alt_factor);
+        new->geom_alt = (int16_t) nearbyint(a->geom_alt * _alt_factor);
     }
     if (trackVState(now, &a->geom_rate_valid, &a->position_valid)) {
         new->geom_rate_valid = 1;
@@ -2941,7 +2941,7 @@ void from_state_all(struct state_all *in, struct state *in2, struct aircraft *a 
     a->nav_altitude_src = in->nav_altitude_src;
     a->sil_type = in->sil_type;
 
-    a->altitude_geom = in2->geom_alt / _alt_factor;
+    a->geom_alt = in2->geom_alt / _alt_factor;
     a->altitude_baro = in2->baro_alt / _alt_factor;
 
     if (in->wind_valid) {
@@ -2994,8 +2994,8 @@ void from_state_all(struct state_all *in, struct state *in2, struct aircraft *a 
 
     a->altitude_baro_valid.source = (in2->baro_alt_valid ? SOURCE_INDIRECT : SOURCE_INVALID);
     a->altitude_baro_valid.updated = ts - 5000;
-    a->altitude_geom_valid.source = (in2->geom_alt_valid ? SOURCE_INDIRECT : SOURCE_INVALID);
-    a->altitude_geom_valid.updated = ts - 5000;
+    a->geom_alt_valid.source = (in2->geom_alt_valid ? SOURCE_INDIRECT : SOURCE_INVALID);
+    a->geom_alt_valid.updated = ts - 5000;
 
 #define F(f) do { a->f.source = (in2->f ? SOURCE_INDIRECT : SOURCE_INVALID); a->f.updated = ts - 5000; } while (0)
     F(baro_rate_valid);
@@ -3106,7 +3106,7 @@ void updateValidities(struct aircraft *a, int64_t now) {
 
     updateValidity(&a->callsign_valid, now, TRACK_EXPIRE_LONG);
     updateValidity(&a->altitude_baro_valid, now, TRACK_EXPIRE);
-    updateValidity(&a->altitude_geom_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->geom_alt_valid, now, TRACK_EXPIRE);
     updateValidity(&a->geom_delta_valid, now, TRACK_EXPIRE);
     updateValidity(&a->gs_valid, now, TRACK_EXPIRE);
     updateValidity(&a->ias_valid, now, TRACK_EXPIRE);

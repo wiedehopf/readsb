@@ -1784,8 +1784,8 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, stru
 
     // Field 12 is the altitude (if we have it)
     if (Modes.use_gnss) {
-        if (mm->altitude_geom_valid) {
-            p += sprintf(p, ",%dH", mm->altitude_geom);
+        if (mm->geom_alt_valid) {
+            p += sprintf(p, ",%dH", mm->geom_alt);
         } else if (mm->altitude_baro_valid && trackDataValid(&a->geom_delta_valid)) {
             p += sprintf(p, ",%dH", mm->altitude_baro + a->geom_delta);
         } else if (mm->altitude_baro_valid) {
@@ -1796,8 +1796,8 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, stru
     } else {
         if (mm->altitude_baro_valid) {
             p += sprintf(p, ",%d", mm->altitude_baro);
-        } else if (mm->altitude_geom_valid && trackDataValid(&a->geom_delta_valid)) {
-            p += sprintf(p, ",%d", mm->altitude_geom - a->geom_delta);
+        } else if (mm->geom_alt_valid && trackDataValid(&a->geom_delta_valid)) {
+            p += sprintf(p, ",%d", mm->geom_alt - a->geom_delta);
         } else {
             p += sprintf(p, ",");
         }
