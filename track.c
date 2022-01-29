@@ -2145,7 +2145,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         double reflon;
         struct receiver *r = receiverGetReference(mm->receiverId, &reflat, &reflon, a, 1);
         if (r) {
-            if (a->rr_seen > now - 60 * SECONDS) {
+            if (now - a->rr_seen < 600 * SECONDS && fabs(a->lon - reflon) < 5 && fabs(a->lon - reflon) < 5) {
                 a->rr_lat = 0.1 * reflat + 0.9 * a->rr_lat;
                 a->rr_lon = 0.1 * reflon + 0.9 * a->rr_lon;
             } else {
