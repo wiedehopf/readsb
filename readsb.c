@@ -1502,9 +1502,9 @@ static void configAfterParse() {
     Modes.trackExpireMax = Modes.trackExpireJaero + TRACK_EXPIRE_LONG + 1 * MINUTES;
 
     Modes.traceReserve = 48;
-    Modes.traceMax = 128 * 1024;
-    if (Modes.json_trace_interval < 3 * SECONDS) {
-        double oversize = 3.0 / fmax(0.4, (double) Modes.json_trace_interval / 1000.0);
+    Modes.traceMax = 512 * 1024;
+    if (Modes.json_trace_interval < 4 * SECONDS) {
+        double oversize = 4.0 / fmax(0.4, (double) Modes.json_trace_interval / 1000.0);
         Modes.traceReserve = (int) (Modes.traceReserve * oversize);
         Modes.traceMax = (int) (Modes.traceMax * oversize);
     }
