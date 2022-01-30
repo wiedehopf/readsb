@@ -16,7 +16,7 @@ CPPFLAGS += -D_FORTIFY_SOURCE=2 -fstack-protector-strong -Wformat -Werror=format
 
 DIALECT = -std=c11
 
-CFLAGS := $(DIALECT) -g -W -D_DEFAULT_SOURCE -Wall -Werror -fno-common -O3 $(CFLAGS) $(OPTIMIZE)
+CFLAGS := $(DIALECT) -g -W -D_DEFAULT_SOURCE -Wall -Werror -fno-common -O2 $(CFLAGS) $(OPTIMIZE)
 LIBS = -pthread -lpthread -lm -lrt
 
 ifeq ($(ZLIB_STATIC), yes)
