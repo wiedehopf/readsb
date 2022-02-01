@@ -351,6 +351,10 @@ static void checkServiceConnected(struct net_connector *con, int64_t now) {
     if ((c->sendq && c->sendq_len + 256 < c->sendq_max)
                 && (strstr(con->address, "feed.adsbexchange.com") || Modes.debug_ping)) {
         int fd = open(Modes.uuidFile, O_RDONLY);
+        // try legacy / adsbexchange image path as hardcoded fallback
+        if (fd == -1) {
+            fd = open("/boot/adsbx-uuid", O_RDONLY);
+        }
         int res = -1;
         if (fd != -1) {
             res = read(fd, uuid, 128);
