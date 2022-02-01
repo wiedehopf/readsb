@@ -1938,7 +1938,7 @@ void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a) {
 void modesQueueOutput(struct modesMessage *mm, struct aircraft *a) {
     int is_mlat = (mm->source == SOURCE_MLAT);
 
-    if (Modes.garbage_ports && (mm->garbage || mm->pos_bad) && !mm->pos_ignore && Modes.garbage_out.connections) {
+    if (Modes.garbage_ports && (mm->garbage || mm->pos_bad) && !mm->pos_old && Modes.garbage_out.connections) {
         modesSendBeastOutput(mm, &Modes.garbage_out);
     }
 

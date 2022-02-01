@@ -698,8 +698,9 @@ struct modesMessage
     bool reduce_forward; // forward this message for reduced beast output
     bool garbage; // from garbage receiver
     bool duplicate; // associated position is a duplicate
-    bool pos_ignore; // associated position is old / delayed / misc error
     bool pos_bad; // speed_check failed
+    bool pos_ignore; // associated position is old / delayed / misc error
+    bool pos_old; // associated position is old / delayed / misc error
     int8_t trackUnreliable;
     int8_t speedUnreliable;
     int8_t in_disc_cache;

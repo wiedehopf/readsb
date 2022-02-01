@@ -384,6 +384,7 @@ static inline int duplicate_check(int64_t now, struct aircraft *a, double new_la
 static int speed_check(struct aircraft *a, datasource_t source, double lat, double lon, struct modesMessage *mm, cpr_local_t cpr_local) {
     int64_t now = mm->sysTimestampMsg;
     int64_t elapsed = trackDataAge(now, &a->position_valid);
+    int receiverRangeExceeded = 0;
 
     if (duplicate_check(now, a, lat, lon)) {
         // don't use duplicate positions
@@ -543,7 +544,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         }
         speed += track_bonus;
         if (track_diff > 160) {
-            mm->pos_ignore = 1; // don't decrement pos_reliable
+            mm->pos_old = 1; // don't decrement pos_reliable
         }
         // allow relatively big forward jumps
         if (speed > 40 && track_diff < 10) {
@@ -581,15 +582,45 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     inrange = (distance <= range);
 
 
-
     float backInTimeSeconds = 0;
     if (a->gs > 10 && track_diff > 160 && trackDataAge(now, &a->gs_valid) < 10 * SECONDS) {
         backInTimeSeconds = distance / (a->gs * (1852.0f / 3600.0f));
     }
 
+    if (!Modes.userLocationValid && (inrange || override)) {
+        if (receiverPositionReceived(a, mm, lat, lon, now) == -2) {
+            // far outside receiver area
+            receiverRangeExceeded = 1;
+            inrange = 0;
+        }
+    }
+
+    if (!Modes.userLocationValid && !override && mm->source == SOURCE_ADSB) {
+        if (!receiverRangeExceeded && !inrange
+                && (distance - range > 800 || backInTimeSeconds > 3) && track_diff > 45
+                && a->pos_reliable_odd >= Modes.position_persistence * 3 / 4
+                && a->pos_reliable_even >= Modes.position_persistence * 3 / 4
+                && a->trackUnreliable < 3
+           ) {
+            struct receiver *r = receiverBad(mm->receiverId, a->addr, now);
+            if (r && Modes.debug_garbage && r->badCounter > 6) {
+                fprintf(stderr, "hex: %06x id: %016"PRIx64" #good: %6d #bad: %3.0f trackDiff: %3.0f: %7.2fkm/%7.2fkm in %4.1f s, max %4.0f kt\n",
+                        a->addr, r->id, r->goodCounter, r->badCounter,
+                        track_diff,
+                        distance / 1000.0,
+                        range / 1000.0,
+                        elapsed / 1000.0,
+                        speed
+                       );
+
+            }
+        }
+
+    }
+
     if (
             (
-             ((!inrange && track_diff < 160) || (!surface && (a->speedUnreliable > 8 || a->trackUnreliable > 8)))
+             (receiverRangeExceeded || (!inrange && track_diff < 160) || (!surface && (a->speedUnreliable > 8 || a->trackUnreliable > 8)))
              && source == a->position_valid.source && source > SOURCE_MLAT && (Modes.debug_cpr || Modes.debug_speed_check)
             )
             || (a->addr == Modes.cpr_focus && source >= a->position_valid.source)
@@ -598,6 +629,16 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         if (uat2esnt_duplicate(now, a, mm) || mm->in_disc_cache || mm->garbage) {
             // don't show debug
         } else {
+            char *failMessage;
+            if (inrange) {
+                failMessage = "pass";
+            } else if (override) {
+                failMessage = "ovrd";
+            } else if (receiverRangeExceeded) {
+                failMessage = "RcvR";
+            } else {
+                failMessage = "FAIL";
+            }
             fprintTime(stderr, now);
             fprintf(stderr, " %06x R%3.1f %s %s %s %s %4.0f%%%2ds%2dt %3.0f/%3.0f td %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f\n",
                     a->addr,
@@ -605,7 +646,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                     mm->cpr_odd ? "O" : "E",
                     cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "S"),
                     (surface ? "S" : "A"),
-                    override ? "ovrd" : (inrange ? "pass" : "FAIL"),
+                    failMessage,
                     fmin(9001.0, 100.0 * distance / range),
                     a->speedUnreliable,
                     a->trackUnreliable,
@@ -629,40 +670,16 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         }
     }
 
-
     // override, this allows for printing stuff instead of returning
     if (override) {
         inrange = override;
     }
 
-    if (!Modes.userLocationValid && !override && mm->source == SOURCE_ADSB) {
-        if (!inrange
-                && (distance - range > 800 || backInTimeSeconds > 3) && track_diff > 45
-                && a->pos_reliable_odd >= Modes.position_persistence * 3 / 4
-                && a->pos_reliable_even >= Modes.position_persistence * 3 / 4
-                && a->trackUnreliable < 3
-           ) {
-            struct receiver *r = receiverBad(mm->receiverId, a->addr, now);
-            if (r && Modes.debug_garbage && r->badCounter > 6) {
-                fprintf(stderr, "hex: %06x id: %016"PRIx64" #good: %6d #bad: %3.0f trackDiff: %3.0f: %7.2fkm/%7.2fkm in %4.1f s, max %4.0f kt\n",
-                        a->addr, r->id, r->goodCounter, r->badCounter,
-                        track_diff,
-                        distance / 1000.0,
-                        range / 1000.0,
-                        elapsed / 1000.0,
-                        speed
-                       );
-
-            }
-        }
-
-        if (inrange) {
-            if (receiverPositionReceived(a, mm, lat, lon, now) == -2) {
-                // far outside receiver area
-                mm->pos_ignore = 1;
-            }
-        }
+    if (receiverRangeExceeded) {
+        inrange = 0; // far outside receiver area
+        mm->pos_ignore = 1;
     }
+
 
     return inrange;
 }
