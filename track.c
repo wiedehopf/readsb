@@ -1912,34 +1912,32 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
     if (
             mm->airground != AG_INVALID
-            && (a->addrtype < ADDR_MLAT || mm->source >= a->airground_valid.source || trackDataAge(now, &a->airground_valid) > TRACK_EXPIRE_LONG * 3 / 4)
-            && !(mm->source == SOURCE_MODE_S
-                && trackDataAge(now, &a->cpr_even_valid) < TRACK_EXPIRE_LONG
-                && trackDataAge(now, &a->airground_valid) < TRACK_EXPIRE_LONG * 3 / 4
-             )
+            // only consider changing ground state if the message has information about ground state
+            && (mm->source >= a->airground_valid.source || mm->source >= SOURCE_MODE_S_CHECKED || trackDataAge(now, &a->airground_valid) > 2 * TRACK_EXPIRE)
+            // don't accept lower quality data until our state is 2 minutes old
+            // usually lower quality data is allowed after 15 seconds by accept_data, this doesn't make sense for ground state
        ) {
-        // If our current state is UNCERTAIN, accept new data as normal
-        // If our current state is certain but new data is not, only accept the uncertain state if the certain data has gone stale
-        if (a->airground == AG_INVALID || a->airground == AG_UNCERTAIN
-                || mm->airground != AG_UNCERTAIN
-                || trackDataAge(now, &a->airground_valid) > TRACK_EXPIRE_LONG
-                || (a->addrtype >= ADDR_MLAT
-                    && mm->airground == AG_UNCERTAIN
-                    && a->airground != AG_AIRBORNE
+        // If our current state is UNCERTAIN or INVALID, accept new data
+        // If our current state is certain but new data is not, don't accept the new data
+        if (a->airground == AG_INVALID || a->airground == AG_UNCERTAIN || mm->airground != AG_UNCERTAIN
+                // also accept ground to air transitions for an uncertain ground state message if the plane is moving fast enough
+                // and the baro altitude is in a reliable state
+                || (mm->airground == AG_UNCERTAIN
+                    && a->airground == AG_GROUND
                     && altBaroReliable(a)
                     && trackDataAge(now, &a->gs_valid) < 3 * SECONDS
                     && a->gs > 80
                    )
            ) {
             if (
-                    !(a->airground == AG_INVALID || a->airground == AG_UNCERTAIN)
+                    (a->airground == AG_AIRBORNE || a->airground == AG_GROUND)
                     && (a->last_cpr_type == CPR_SURFACE || a->last_cpr_type == CPR_AIRBORNE)
                     && trackDataAge(now, &a->cpr_odd_valid) < 20 * SECONDS
                     && trackDataAge(now, &a->cpr_even_valid) < 20 * SECONDS
                     && now < a->seenPosReliable + 20 * SECONDS
                     && trackDataAge(now, &a->airground_valid) < 20 * SECONDS
                ) {
-                // if we have recent CPR / position data ...
+                // if we have very recent CPR / position data ...
                 // those are more reliable in an aggregation situation,
                 // ignore other airground status indication
             } else if (accept_data(&a->airground_valid, mm->source, mm, a, 0)) {
