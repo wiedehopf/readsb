@@ -625,6 +625,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
             )
             || (a->addr == Modes.cpr_focus && source >= a->position_valid.source)
             || (Modes.debug_maxRange && track_diff > 90)
+            || (receiverRangeExceeded && Modes.debug_receiverRangeLimit)
        ) {
         if (uat2esnt_duplicate(now, a, mm) || mm->in_disc_cache || mm->garbage) {
             // don't show debug
@@ -640,7 +641,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                 failMessage = "FAIL";
             }
             fprintTime(stderr, now);
-            fprintf(stderr, " %06x R%3.1f %s %s %s %s %4.0f%%%2ds%2dt %3.0f/%3.0f td %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f\n",
+            fprintf(stderr, " %06x R%3.1f %s %s %s %s %4.0f%%%2ds%2dt %3.0f/%3.0f td %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f",
                     a->addr,
                     fminf(a->pos_reliable_odd, a->pos_reliable_even),
                     mm->cpr_odd ? "O" : "E",
@@ -657,6 +658,13 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                     elapsed / 1000.0,
                     fmin(9001.0, distance / elapsed * 1000.0 / 1852.0 * 3600.0),
                     oldLat, oldLon, lat, lon);
+            if (receiverRangeExceeded && Modes.debug_receiverRangeLimit) {
+                char uuid[32]; // needs 18 chars and null byte
+                sprint_uuid1(mm->receiverId, uuid);
+                fprintf(stderr, " %s\n", uuid);
+            } else {
+                fprintf(stderr, "\n");
+            }
             if (!inrange && a->addr == Modes.cpr_focus && source >= a->position_valid.source) {
                 char uuid[32]; // needs 18 chars and null byte
                 sprint_uuid1(mm->receiverId, uuid);

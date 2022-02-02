@@ -1378,6 +1378,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         break;
                     case 'r': Modes.debug_removeStaleDuration = 1;
                         break;
+                    case 'X': Modes.debug_receiverRangeLimit = 1;
+                        break;
+
                     default:
                         fprintf(stderr, "Unknown debugging flag: %c\n", *arg);
                         break;
