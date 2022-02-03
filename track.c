@@ -683,7 +683,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         inrange = override;
     }
 
-    if (receiverRangeExceeded) {
+    if (receiverRangeExceeded && Modes.netReceiverId) {
         inrange = 0; // far outside receiver area
         mm->pos_ignore = 1;
     }
@@ -2276,16 +2276,12 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         a->onActiveList = 1;
         //fprintf(stderr, "active len %d\n", Modes.aircraftActive.len);
     }
-    // don't reduce forward duplicate / garbage / bad positions when garbage ports is active
-    if ((mm->duplicate || mm->garbage || mm->pos_bad) && Modes.garbage_ports) {
-        mm->reduce_forward = 0;
-    }
-    // forward all CPRs to the apex for faster garbage detection and such
-    // even the duplicates and the garbage
-    if (Modes.netIngest && mm->cpr_valid) {
-        mm->reduce_forward = 1;
-    }
+
     if (mm->reduce_forward) {
+        // don't reduce forward duplicate / garbage / bad positions when garbage ports is active
+        if ((mm->duplicate || mm->garbage || mm->pos_bad) && Modes.garbage_ports) {
+            mm->reduce_forward = 0;
+        }
         if (Modes.beast_reduce_filter_distance != -1
                 && now < a->seenPosReliable + 1 * MINUTES
                 && Modes.userLocationValid
@@ -2302,8 +2298,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         }
     }
 
-    if (0 && mm->reduce_forward && a->addr == 0x4BA893) {
-        displayModesMessage(mm);
+    // forward all CPRs to the apex for faster garbage detection and such
+    // even the duplicates and the garbage
+    if (Modes.netIngest && mm->cpr_valid) {
+        mm->reduce_forward = 1;
     }
 
     return (a);
