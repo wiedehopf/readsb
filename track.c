@@ -64,7 +64,6 @@ static void calc_wind(struct aircraft *a, int64_t now);
 static void calc_temp(struct aircraft *a, int64_t now);
 static inline int declination(struct aircraft *a, double *dec, int64_t now);
 static const char *source_string(datasource_t source);
-static const char *cpr_string(cpr_type_t type);
 static void incrementReliable(struct aircraft *a, struct modesMessage *mm, int64_t now, int odd);
 
 // Should we accept some new data from the given source?
@@ -640,8 +639,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
             } else {
                 failMessage = "FAIL";
             }
+            char uuid[32]; // needs 18 chars and null byte
+            sprint_uuid1(mm->receiverId, uuid);
             fprintTime(stderr, now);
-            fprintf(stderr, " %06x R%3.1f %s %s %s %s %4.0f%%%2ds%2dt %3.0f/%3.0f td %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f",
+            fprintf(stderr, " %06x R%3.1f %s %s %s %s %4.0f%%%2ds%2dt %3.0f/%3.0f td %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f biT %4.1f s %s rId %s\n",
                     a->addr,
                     fminf(a->pos_reliable_odd, a->pos_reliable_even),
                     mm->cpr_odd ? "O" : "E",
@@ -657,24 +658,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                     fmin(9001.0, distance / 1000.0),
                     elapsed / 1000.0,
                     fmin(9001.0, distance / elapsed * 1000.0 / 1852.0 * 3600.0),
-                    oldLat, oldLon, lat, lon);
-            if (receiverRangeExceeded && Modes.debug_receiverRangeLimit) {
-                char uuid[32]; // needs 18 chars and null byte
-                sprint_uuid1(mm->receiverId, uuid);
-                fprintf(stderr, " %s\n", uuid);
-            } else {
-                fprintf(stderr, "\n");
-            }
-            if (!inrange && a->addr == Modes.cpr_focus && source >= a->position_valid.source) {
-                char uuid[32]; // needs 18 chars and null byte
-                sprint_uuid1(mm->receiverId, uuid);
-                fprintf(stderr, "  backInTime: %4.1f receiverId: %s dataSource: %s CPR: %s %s\n",
-                        backInTimeSeconds,
-                        uuid,
-                        source_string(mm->source),
-                        cpr_string(mm->cpr_type),
-                        mm->cpr_odd ? "odd " : "even");
-            }
+                    oldLat, oldLon, lat, lon,
+                    backInTimeSeconds, source_string(mm->source), uuid);
         }
     }
 
@@ -3059,6 +3044,7 @@ void from_state_all(struct state_all *in, struct state *in2, struct aircraft *a 
 #undef F
 }
 
+/*
 static const char *cpr_string(cpr_type_t type) {
     switch (type) {
         case CPR_INVALID:  return "INVALID ";
@@ -3068,6 +3054,7 @@ static const char *cpr_string(cpr_type_t type) {
         default:           return "ERR     ";
     }
 }
+*/
 static const char *source_string(datasource_t source) {
     switch (source) {
         case SOURCE_INVALID:

@@ -307,16 +307,17 @@ struct char_buffer generateReceiversJson() {
             sprint_uuid1(r->id, uuid);
 
             double elapsed = (r->lastSeen - r->firstSeen) / 1000.0 + 1.0;
-            p = safe_snprintf(p, end, "    [ \"%s\", %6.2f, %6.2f, %0.2f, %0.2f, %0.2f, %0.2f ],\n",
+            p = safe_snprintf(p, end, "    [ \"%s\", %6.2f, %6.2f, %6.2f, %6.2f, %7.2f, %7.2f, %d, %0.2f,%0.2f ],\n",
                     uuid,
                     r->positionCounter / elapsed,
                     r->timedOutCounter * 3600.0 / elapsed,
                     r->latMin,
                     r->latMax,
                     r->lonMin,
-                    r->lonMax);
-
-
+                    r->lonMax,
+                    r->badExtent ? 1 : 0,
+                    r->latMin + (r->latMax - r->latMin) / 2.0,
+                    r->lonMin + (r->lonMax - r->lonMin) / 2.0);
 
             if (p >= end)
                 fprintf(stderr, "buffer overrun client json\n");
