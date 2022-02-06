@@ -2113,7 +2113,8 @@ decompress:
 }
 
 static inline void heatmapCheckAlloc(struct heatEntry **buffer, int64_t **slices, int64_t *alloc, int64_t len) {
-    if (!*buffer || len >= *alloc) {
+    if (!*buffer || len + 8 >= *alloc) {
+        *alloc += 8;
         *alloc *= 3;
         *buffer = realloc(*buffer, *alloc * sizeof(struct heatEntry));
         *slices = realloc(*slices, *alloc * sizeof(int64_t));
