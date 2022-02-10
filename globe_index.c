@@ -2238,7 +2238,7 @@ int handleHeatmap(int64_t now) {
                     buffer[len].alt = 0;
 
                 if (trace[i].gs_valid)
-                    buffer[len].gs = trace[i].gs;
+                    buffer[len].gs = nearbyint(trace[i].gs / _gs_factor * 10.0f);
                 else
                     buffer[len].gs = -1; // invalid
 
