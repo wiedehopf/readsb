@@ -2181,15 +2181,18 @@ int handleHeatmap(int64_t now) {
             uint32_t squawk = 0x8888; // impossible squawk
             uint64_t callsign = 0; // quackery
 
+            int64_t callsign_interval = imax(Modes.heatmap_interval, 1 * MINUTES);
+            int64_t next_callsign = start - callsign_interval;
+
             for (int i = 0; i < a->trace_len; i++) {
                 if (trace[i].timestamp > end)
                     break;
-                // get callsign and squawk from up to 2 mins before the half hour we write for
-                if (trace[i].timestamp + (int64_t) (2 * MINUTES) > start && i % 4 == 0) {
+                if (trace[i].timestamp >= start - callsign_interval && i % 4 == 0) {
                     struct state_all *all = &(a->trace_all[i/4]);
                     uint64_t *cs = (uint64_t *) &(all->callsign);
-                    if (*cs != callsign || squawk != all->squawk) {
+                    if (trace[i].timestamp >= next_callsign || *cs != callsign || squawk != all->squawk) {
 
+                        next_callsign = trace[i].timestamp + callsign_interval;
                         callsign = *cs;
                         squawk = all->squawk;
 
