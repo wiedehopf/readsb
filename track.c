@@ -2068,7 +2068,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     // Now handle derived data
 
     // derive geometric altitude if we have baro + delta
-    if (a->baro_alt_valid.updated > a->geom_alt_valid.updated
+    if (
+            (a->baro_alt_valid.updated > a->geom_alt_valid.updated || a->geom_delta_valid.updated > a->geom_alt_valid.updated)
             && altBaroReliable(a)
             && compare_validity(&a->baro_alt_valid, &a->geom_alt_valid) > 0
             && trackDataValid(&a->geom_delta_valid)
@@ -2082,10 +2083,13 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     }
 
     // to keep the barometric altitude consistent with geometric altitude, save a derived geom_delta if all data are current
-    if (mm->geom_alt_valid && altBaroReliable(a)
+    if (mm->geom_alt_valid
+            && a->geom_alt_valid.updated > a->geom_delta_valid.updated
+            && altBaroReliable(a)
             && trackDataAge(now, &a->baro_alt_valid) < 1 * SECONDS
             && accept_data(&a->geom_delta_valid, mm->source, mm, a, 2)
        ) {
+        combine_validity(&a->geom_delta_valid, &a->baro_alt_valid, &a->geom_alt_valid, now);
         a->geom_delta = a->geom_alt - a->baro_alt;
     }
 
