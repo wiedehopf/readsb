@@ -2588,12 +2588,12 @@ static void modesReadFromClient(struct client *c, int64_t start) {
         if (!discard && now > start + 200) {
             discard = 1;
             static int64_t antiSpam;
-            if (now > antiSpam + 30 * SECONDS) {
+            if (now > antiSpam + 5 * SECONDS) {
                 antiSpam = now;
                 if (Modes.netIngest && c->proxy_string[0] != '\0')
-                    fprintf(stderr, "<3>ERROR, not enough CPU: Discarding data from: %s (suppressing for 30 seconds)\n", c->proxy_string);
+                    fprintf(stderr, "<3>ERROR, not enough CPU: Discarding data from: %s (suppressing for 5 seconds)\n", c->proxy_string);
                 else
-                    fprintf(stderr, "<3>%s: ERROR, not enough CPU: Discarding data from: %s port %s (fd %d) (suppressing for 30 seconds)\n",
+                    fprintf(stderr, "<3>%s: ERROR, not enough CPU: Discarding data from: %s port %s (fd %d) (suppressing for 5 seconds)\n",
                             c->service->descr, c->host, c->port, c->fd);
             }
         }
