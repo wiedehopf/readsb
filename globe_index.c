@@ -2223,7 +2223,9 @@ int handleHeatmap(int64_t now) {
                     slice++;
                 }
 
-                buffer[len].hex = a->addr;
+                uint32_t addrtype_5bits = ((uint32_t) trace[i].addrtype) & 0x1F;
+
+                buffer[len].hex = a->addr | (addrtype_5bits << 27);
                 buffer[len].lat = trace[i].lat;
                 buffer[len].lon = trace[i].lon;
 
