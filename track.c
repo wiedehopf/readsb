@@ -2071,6 +2071,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (a->baro_alt_valid.updated > a->geom_alt_valid.updated
             && altBaroReliable(a)
             && compare_validity(&a->baro_alt_valid, &a->geom_alt_valid) > 0
+            && trackDataValid(&a->geom_delta_valid)
             && a->geom_delta_valid.source >= a->geom_alt_valid.source) {
         // Baro is more recent than geometric, derive geometric from baro + delta
         mm->geom_alt = a->baro_alt + a->geom_delta;
