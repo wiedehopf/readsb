@@ -918,6 +918,13 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
         mm->pos_ignore = 1;
     }
 
+    if (bogus_lat_lon(mm->decoded_lat, mm->decoded_lon)) {
+        if (fabs(mm->decoded_lat) >= 90.0 || fabs(mm->decoded_lon) >= 180.0) {
+            fprintf(stderr, "%06x lat,lon out of bounds: %.2f,%.2f source: %s\n", a->addr, mm->decoded_lat, mm->decoded_lon, source_enum_string(mm->source));
+        }
+        return;
+    }
+
     // for UAT messages converted by uat2esnt each position becomes a odd / even message pair
     // only update the position for the odd message if we've recently seen a reliable position
     if (uat2esnt_duplicate(now, a, mm)) {
