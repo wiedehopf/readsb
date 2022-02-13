@@ -1256,11 +1256,11 @@ static void *prepareWrite(struct net_writer *writer, int len) {
         return NULL;
     }
 
-    if (writer->dataUsed + len >= Modes.net_output_flush_size) {
+    if (writer->dataUsed && writer->dataUsed + len >= Modes.net_output_flush_size) {
         flushWrites(writer);
         if (writer->dataUsed + len > MODES_OUT_BUF_SIZE) {
             // this shouldn't happen due to flushWrites only writing to internal client buffers
-            fprintf(stderr, "prepareWrite: not enough space in writer buffer!\n");
+            fprintf(stderr, "prepareWrite: not enough space in writer buffer, requested len: %d\n", len);
             return NULL;
         }
     }
@@ -1925,16 +1925,21 @@ void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a) {
     MODES_NOTUSED(mm);
     char *p;
 
-    p = prepareWrite(&Modes.json_out, 1200);
+    int buflen = 8192;
+
+    p = prepareWrite(&Modes.json_out, buflen);
     if (!p)
         return;
-    char *end = p + 1200 - 1;
+
+    char *end = p + buflen - 1;
 
     p = sprintAircraftObject(p, end, a, mm->sysTimestampMsg, 2, NULL);
     *p++ = '\n';
-    completeWrite(&Modes.json_out, p);
-    if (p >= end) {
-        fprintf(stderr, "buffer full jsonPositionOutput()\n");
+
+    if (p < end) {
+        completeWrite(&Modes.json_out, p);
+    } else {
+        fprintf(stderr, "buffer insufficient jsonPositionOutput()\n");
     }
 }
 //
