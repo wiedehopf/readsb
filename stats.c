@@ -489,7 +489,7 @@ void statsUpdate(int64_t now) {
 
 static char * appendTypeCounts(char *p, char *end) {
     struct statsCount *sC = &(Modes.globalStatsCount);
-    p = safe_snprintf(p, end, ",\n\"aircaft_with_pos\": %d", sC->readsb_aircraft_with_position);
+    p = safe_snprintf(p, end, ",\n\"aircraft_with_pos\": %d", sC->readsb_aircraft_with_position);
     p = safe_snprintf(p, end, ", \"aircraft_without_pos\": %d", sC->readsb_aircraft_no_position);
     p = safe_snprintf(p, end, ", \"aircraft_count_by_type\": {");
     for (int i = 0; i < NUM_TYPES; i++) {
