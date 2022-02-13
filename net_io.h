@@ -73,36 +73,6 @@ struct net_service
     int sendqOverrideSize; // override size of program internal sendq for each client associated with this service
 };
 
-// Client connection
-struct net_connector
-{
-    char *address;
-    char *address0;
-    char *address1;
-    char *port;
-    char *port0;
-    char *port1;
-    char *protocol;
-    struct net_service *service;
-    struct client* c;
-    int use_addr;
-    int connected;
-    int connecting;
-    int fd;
-    int64_t next_reconnect;
-    int64_t connect_timeout;
-    int64_t lastConnect; // timestamp for last connection establish
-    int64_t backoff;
-    char resolved_addr[NI_MAXHOST+3];
-    struct addrinfo *addr_info;
-    struct addrinfo *try_addr; // pointer walking addr_info list
-    int gai_error;
-    int gai_request_in_progress;
-    int gai_request_done;
-    pthread_t thread;
-    pthread_mutex_t mutex;
-};
-
 // Structure used to describe a networking client
 
 struct client
@@ -111,7 +81,8 @@ struct client
     struct net_service *service; // Service this client is part of
     int fd; // File descriptor
     int buflen; // Amount of data on buffer
-    int acceptSocket; // not really a client but rather an accept Socket ... only fd and epollEvent will be valid
+    int8_t acceptSocket; // not really a client but rather an accept Socket ... only fd and epollEvent will be valid
+    int8_t net_connector_dummyClient; // dummy client used by net_connector
     int receiverIdLocked; // receiverId has been transmitted by other side.
     char *sendq;  // Write buffer - allocated later
     int sendq_len; // Amount of data in SendQ
@@ -146,6 +117,37 @@ struct client
     ALIGNED char host[NI_MAXHOST]; // For logging
     ALIGNED char port[NI_MAXSERV];
     ALIGNED char buf[MODES_CLIENT_BUF_SIZE + 4]; // Read buffer+padding
+};
+
+// Client connection
+struct net_connector
+{
+    char *address;
+    char *address0;
+    char *address1;
+    char *port;
+    char *port0;
+    char *port1;
+    char *protocol;
+    struct net_service *service;
+    struct client* c;
+    int use_addr;
+    int connected;
+    int connecting;
+    int fd;
+    int64_t next_reconnect;
+    int64_t connect_timeout;
+    int64_t lastConnect; // timestamp for last connection establish
+    int64_t backoff;
+    char resolved_addr[NI_MAXHOST+3];
+    struct addrinfo *addr_info;
+    struct addrinfo *try_addr; // pointer walking addr_info list
+    int gai_error;
+    int gai_request_in_progress;
+    int gai_request_done;
+    pthread_t thread;
+    pthread_mutex_t mutex;
+    struct client dummyClient; // client struct for epoll connection handling before we have a fully established connection
 };
 
 // Common writer state for all output sockets of one type

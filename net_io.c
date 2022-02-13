@@ -105,6 +105,7 @@ static void send_sbs_heartbeat(struct net_service *service);
 static void autoset_modeac();
 static void *pthreadGetaddrinfo(void *param);
 
+static void modesCloseClient(struct client *c);
 static int flushClient(struct client *c, int64_t now);
 static char *read_uuid(struct client *c, char *p, char *eod);
 static void modesReadFromClient(struct client *c, int64_t start);
@@ -280,27 +281,11 @@ struct client *createGenericClient(struct net_service *service, int fd) {
 }
 
 static void checkServiceConnected(struct net_connector *con, int64_t now) {
-    int rv;
 
-    struct pollfd pfd = {con->fd, (POLLIN | POLLOUT), 0};
-
-    rv = poll(&pfd, 1, 0);
-
-    if (rv == -1) {
-        fprintf(stderr, "checkServiceConnected: select() error: %s\n", strerror(errno));
-        return;
-    }
-
-    if (rv == 0) {
-        // If we've exceeded our connect timeout, bail but try again.
-        if (now >= con->connect_timeout) {
-            fprintf(stderr, "%s: Connection timed out: %s:%s port %s\n",
-                    con->service->descr, con->address, con->port, con->resolved_addr);
-            con->connecting = 0;
-            anetCloseSocket(con->fd);
-        }
-        return;
-    }
+    //fprintf(stderr, "checkServiceConnected fd: %d\n", con->fd);
+    // delete dummyClient epollEvent for connection that is being established
+    epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, con->fd, &con->dummyClient.epollEvent);
+    // we'll register new epollEvents in createSocketClient
 
     // At this point, we need to check getsockopt() to see if we succeeded or failed...
     int optval = -1;
@@ -399,7 +384,6 @@ static void checkServiceConnected(struct net_connector *con, int64_t now) {
 }
 
 // Initiate an outgoing connection.
-// Return the new client or NULL if the connection failed
 static void serviceConnect(struct net_connector *con, int64_t now) {
 
     int fd;
@@ -494,24 +478,46 @@ static void serviceConnect(struct net_connector *con, int64_t now) {
     }
 
 
-    fd = anetTcpNonBlockConnectAddr(Modes.aneterr, con->try_addr);
+
+    struct addrinfo *ai = con->try_addr;
+    fd = anetCreateSocket(Modes.aneterr, ai->ai_family, SOCK_NONBLOCK);
+
     if (fd == ANET_ERR) {
         fprintf(stderr, "%s: Connection to %s%s port %s failed: %s\n",
                 con->service->descr, con->address, con->resolved_addr, con->port, Modes.aneterr);
         return;
     }
 
-    con->connecting = 1;
-    con->connect_timeout = now + Modes.net_output_flush_interval + 20 + con->backoff;
     con->fd = fd;
+    con->connecting = 1;
+    con->connect_timeout = now + imin(Modes.net_connector_delay, 5000); // really if your connection won't establish after 5 seconds ... tough luck.
+    //fprintf(stderr, "connect_timeout: %ld\n", (long) (con->connect_timeout - now));
 
-    if (anetTcpKeepAlive(Modes.aneterr, fd) != ANET_OK)
+    if (anetTcpKeepAlive(Modes.aneterr, fd) != ANET_OK) {
         fprintf(stderr, "%s: Unable to set keepalive: connection to %s port %s ...\n", con->service->descr, con->address, con->port);
+    }
 
-    // Since this is a non-blocking connect, it will always return right away.
-    // We'll need to periodically check to see if it did, in fact, connect, but do it once here.
+    // struct client for epoll purposes
+    struct client *c = &con->dummyClient;
 
-    checkServiceConnected(con, now);
+    c->service = con->service;
+    c->fd = con->fd;
+    c->net_connector_dummyClient = 1;
+    c->epollEvent.events = EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
+    c->epollEvent.data.ptr = c;
+    c->con = con;
+
+    if (epoll_ctl(Modes.net_epfd, EPOLL_CTL_ADD, c->fd, &c->epollEvent)) {
+        perror("epoll_ctl fail:");
+    }
+
+    if (connect(fd, ai->ai_addr, ai->ai_addrlen) < 0 && errno != EINPROGRESS) {
+        epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, con->fd, &con->dummyClient.epollEvent);
+        con->connecting = 0;
+        anetCloseSocket(con->fd);
+        fprintf(stderr, "%s: Connection to %s%s port %s failed: %s\n",
+                con->service->descr, con->address, con->resolved_addr, con->port, strerror(errno));
+    }
 }
 
 // Timer callback checking periodically whether the push service lost its server
@@ -519,21 +525,36 @@ static void serviceConnect(struct net_connector *con, int64_t now) {
 static void serviceReconnectCallback(int64_t now) {
     // Loop through the connectors, and
     //  - If it's not connected:
-    //    - If it's "connecting", check to see if the fd is ready
+    //    - If it's "connecting", check to see if it timed out
     //    - Otherwise, if enough time has passed, try reconnecting
 
     for (int i = 0; i < Modes.net_connectors_count; i++) {
         struct net_connector *con = Modes.net_connectors[i];
         if (!con->connected) {
-            if (con->connecting) {
-                // Check to see...
-                checkServiceConnected(con, now);
-            } else if (con->next_reconnect <= now || Modes.synthetic_now) {
+            // If we've exceeded our connect timeout, close connection.
+            if (con->connecting && now >= con->connect_timeout) {
+                fprintf(stderr, "%s: Connection timed out: %s:%s port %s\n",
+                        con->service->descr, con->address, con->port, con->resolved_addr);
+                con->connecting = 0;
+                // delete dummyClient epollEvent for connection that is being established
+                epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, con->fd, &con->dummyClient.epollEvent);
+                anetCloseSocket(con->fd);
+            }
+            if (!con->connecting && (con->next_reconnect <= now || Modes.synthetic_now)) {
                 serviceConnect(con, now);
             }
-        }
-        if (Modes.net_heartbeat_interval && con->connected && con->c) {
-            modesReadFromClient(con->c, now);
+        } else {
+            // check for idle connection, this server version requires data
+            // or a heartbeat, otherwise it will force a reconnect
+            struct client *c = con->c;
+            if (Modes.net_heartbeat_interval && c
+                    && c->service->read_mode != READ_MODE_IGNORE && c->service->read_mode != READ_MODE_BEAST_COMMAND
+                    && c->last_read + Modes.net_heartbeat_interval + 5 * SECONDS <= now
+               ) {
+                fprintf(stderr, "%s: No data or heartbeat received for %.0f seconds, reconnecting: %s port %s\n",
+                        c->service->descr, (Modes.net_heartbeat_interval + 5 * SECONDS) / 1000.0, c->host, c->port);
+                modesCloseClient(c);
+            }
         }
     }
 }
@@ -2626,22 +2647,9 @@ static void modesReadFromClient(struct client *c, int64_t start) {
             bContinue = 0;
         }
 
-        if (nread > 0)
+        if (nread > 0) {
             c->last_read = now;
-
-        // check for idle connection, this server version requires data
-        // or a heartbeat, otherwise it will force a reconnect
-        if (
-                c->con && Modes.net_heartbeat_interval
-                && c->service->read_mode != READ_MODE_IGNORE && c->service->read_mode != READ_MODE_BEAST_COMMAND
-                && c->last_read + Modes.net_heartbeat_interval + 5 * SECONDS <= now
-           ) {
-            fprintf(stderr, "%s: No data or heartbeat received for %.0f seconds, reconnecting: %s port %s\n",
-                    c->service->descr, (Modes.net_heartbeat_interval + 5 * SECONDS) / 1000.0, c->host, c->port);
-            modesCloseClient(c);
-            return;
         }
-
 
         if (nread < 0) {
             if (err == EAGAIN || err == EWOULDBLOCK) {
@@ -3097,29 +3105,24 @@ static void handleEpoll(int count) {
         struct client *cl = (struct client *) Modes.net_events[i].data.ptr;
         if (!cl) { fprintf(stderr, "handleEpoll: epollEvent.data.ptr == NULL\n"); continue; }
 
-        if (cl->acceptSocket) {
-            modesAcceptClients(cl, now);
-        }
-        if (!cl->acceptSocket && (event.events & EPOLLOUT) && cl->service) {
-            // check if we need to flush a client because the send buffer was full previously
-            if (flushClient(cl, now) < 0) {
-                continue;
+        if (cl->acceptSocket || cl->net_connector_dummyClient) {
+            if (cl->acceptSocket) {
+                modesAcceptClients(cl, now);
             }
-        }
-    }
+            if (cl->net_connector_dummyClient) {
+                checkServiceConnected(cl->con, now);
+            }
+        } else {
+            if ((event.events & EPOLLOUT)) {
+                // check if we need to flush a client because the send buffer was full previously
+                if (cl->service)
+                    flushClient(cl, now);
+            }
 
-    // modesReadFromClient calls useModesMessage which needs to happen under decode lock
-    for (i = 0; i < count; i++) {
-        struct epoll_event event = Modes.net_events[i];
-        if (event.data.ptr == &Modes.exitEventfd) {
-            return;
-        }
-
-        struct client *cl = (struct client *) Modes.net_events[i].data.ptr;
-        if (!cl) { fprintf(stderr, "handleEpoll: epollEvent.data.ptr == NULL\n"); continue; }
-
-        if (!cl->acceptSocket && (event.events & (EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP)) && cl->service) {
-            modesReadFromClient(cl, now);
+            if ((event.events & (EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP))) {
+                if (cl->service)
+                    modesReadFromClient(cl, now);
+            }
         }
     }
 }
@@ -3175,13 +3178,12 @@ void modesNetPeriodicWork(void) {
     static int64_t next_flush_interval;
     if (now > next_flush_interval) {
         next_flush_interval = now + Modes.net_output_flush_interval / 4;
+
         serviceReconnectCallback(now);
         // If we have data that has been waiting to be written for a while,
         // write it now.
         for (struct net_service *s = Modes.services; s; s = s->next) {
-            if (!s->writer)
-                continue;
-            if (s->writer->dataUsed && now > s->writer->lastWrite + Modes.net_output_flush_interval) {
+            if (s->writer && s->writer->dataUsed && now > s->writer->lastWrite + Modes.net_output_flush_interval) {
                 flushWrites(s->writer);
                 //fprintf(stderr, "%s: interval flush\n", s->descr);
             }

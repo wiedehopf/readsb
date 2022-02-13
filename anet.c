@@ -147,7 +147,7 @@ static inline void emfileError() {
     fprintf(stderr, "<3>EMFILE: Out of file descriptors (either there is a leak that needs fixing or you need to increase ulimit if you need more than %d connections)!\n", (int) limits.rlim_cur);
 }
 
-static int anetCreateSocket(char *err, int domain, int typeFlags)
+int anetCreateSocket(char *err, int domain, int typeFlags)
 {
     int s, on = 1;
 

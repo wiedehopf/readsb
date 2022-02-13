@@ -1598,8 +1598,11 @@ static void configAfterParse() {
         Modes.net_sndbuf_size = MODES_NET_SNDBUF_MAX;
     }
 
-    if ((Modes.net_connector_delay <= 0) || (Modes.net_connector_delay > 86400 * 1000)) {
-        Modes.net_connector_delay = 30 * 1000;
+    if (Modes.net_connector_delay <= 50) {
+        Modes.net_connector_delay = 50;
+    }
+    if ((Modes.net_connector_delay > 600 * 1000)) {
+        Modes.net_connector_delay = 600 * 1000;
     }
 
     if (Modes.sdr_type == SDR_NONE) {
