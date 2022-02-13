@@ -502,7 +502,7 @@ static void serviceConnect(struct net_connector *con, int64_t now) {
     }
 
     con->connecting = 1;
-    con->connect_timeout = now + Modes.net_output_flush_interval + con->backoff;
+    con->connect_timeout = now + Modes.net_output_flush_interval + 20 + con->backoff;
     con->fd = fd;
 
     if (anetTcpKeepAlive(Modes.aneterr, fd) != ANET_OK)
@@ -3138,11 +3138,16 @@ void modesNetPeriodicWork(void) {
     // unlock decode mutex for waiting in handleEpoll
     pthread_mutex_unlock(&Threads.decode.mutex);
 
-    // we only wait here in net-only mode
-    // NO WAIT WHEN USING AN SDR !! IMPORTANT !!
-    int count = epoll_wait(Modes.net_epfd, Modes.net_events, Modes.net_maxEvents,
-            Modes.net_only ? Modes.net_output_flush_interval / 2 : 0);
-    // NO WAIT WHEN USING AN SDR !! IMPORTANT !!
+    int64_t wait_ms;
+    if (Modes.net_only) {
+        // wait in net-only mode, but never less than 1 ms (unless we get network packets, that wakes the wait immediately)
+        wait_ms = imax(1, Modes.net_output_flush_interval);
+    } else {
+        // NO WAIT WHEN USING AN SDR !! IMPORTANT !!
+        wait_ms = 0;
+    }
+
+    int count = epoll_wait(Modes.net_epfd, Modes.net_events, Modes.net_maxEvents, wait_ms);
 
     pthread_mutex_lock(&Threads.decode.mutex);
 

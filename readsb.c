@@ -1591,8 +1591,8 @@ static void configAfterParse() {
     if (Modes.net_output_flush_interval > (MODES_OUT_FLUSH_INTERVAL)) {
         Modes.net_output_flush_interval = MODES_OUT_FLUSH_INTERVAL;
     }
-    if (Modes.net_output_flush_interval < 4)
-        Modes.net_output_flush_interval = 4;
+    if (Modes.net_output_flush_interval < 0)
+        Modes.net_output_flush_interval = 0;
 
     if (Modes.net_sndbuf_size > (MODES_NET_SNDBUF_MAX)) {
         Modes.net_sndbuf_size = MODES_NET_SNDBUF_MAX;
