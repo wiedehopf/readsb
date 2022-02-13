@@ -1217,10 +1217,8 @@ static inline int flushClient(struct client *c, int64_t now) {
 // Send the write buffer for the specified writer to all connected clients
 //
 static void flushWrites(struct net_writer *writer) {
-    struct client *c;
     int64_t now = mstime();
-
-    for (c = writer->service->clients; c; c = c->next) {
+    for (struct client *c = writer->service->clients; c; c = c->next) {
         if (!c->service)
             continue;
         if (c->service->writer == writer->service->writer) {
@@ -1938,6 +1936,10 @@ void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a) {
 
     if (p < end) {
         completeWrite(&Modes.json_out, p);
+        if (Modes.json_out.dataUsed > 0) {
+            // flush unconditionally for this output
+            flushWrites(&Modes.json_out);
+        }
     } else {
         fprintf(stderr, "buffer insufficient jsonPositionOutput()\n");
     }
