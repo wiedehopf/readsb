@@ -40,7 +40,7 @@ struct traceCache {
     int32_t entriesLen;
     int64_t startStamp;
     struct traceCacheEntry entries[TRACE_CACHE_POINTS];
-    char json[TRACE_CACHE_POINTS * 256];
+    char json[TRACE_CACHE_POINTS * 384];
 };
 
 struct tile {
