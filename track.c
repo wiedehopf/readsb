@@ -89,6 +89,13 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
         return 0;
     if (a->position_valid.last_source != SOURCE_JAERO && source == SOURCE_JAERO && now < d->updated + 600 * 1000)
         return 0;
+    // don't allow crappy SBS / MLAT data to add track as long as we have a valid ADS-B or similar position
+    // but allow the position to be overriden normally
+    if ((source == SOURCE_MLAT || source == SOURCE_SBS)
+            && a->position_valid.source >= SOURCE_TISB
+            && trackDataAge(now, &a->position_valid) < TRACK_EXPIRE
+            && d != &a->position_valid)
+        return 0;
 
     // if we have recent data and a recent position, only accept data from the last couple receivers that contributed a position
     // this hopefully reduces data jitter introduced by differing receiver latencies
@@ -1701,8 +1708,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     float oldType = a->addrtype == ADDR_MODE_S ? 4.5 : a->addrtype;
     // change type ranking without messing with enum :/
     if (
-            (newType <= oldType && now > 30 * 1000 + a->addrtype_updated)
-            || (newType > oldType && now > 90 * 1000 + a->addrtype_updated)
+            (newType <= oldType && now - a->addrtype_updated > TRACK_EXPIRE * 3 / 4)
+            || (newType > oldType && now - a->addrtype_updated > TRACK_EXPIRE * 3 / 2)
        ) {
 
         if (mm->addrtype == ADDR_ADSB_ICAO && a->position_valid.source != SOURCE_ADSB) {
