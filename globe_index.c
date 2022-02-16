@@ -941,7 +941,9 @@ static void mark_legs(struct aircraft *a, int start) {
 
     int64_t last_airborne = 0;
     int64_t last_ground = 0;
+    int64_t last_ground_index = 0;
     int64_t first_ground = 0;
+    int64_t first_ground_index = 0;
 
     int was_ground = 0;
 
@@ -997,8 +999,10 @@ static void mark_legs(struct aircraft *a, int start) {
             // count the last point in time on ground to be when the aircraft is received airborn after being on ground
             if (state->timestamp > last_ground + 5 * MINUTES) {
                 first_ground = state->timestamp;
+                first_ground_index = i;
             }
             last_ground = state->timestamp;
+            last_ground_index = i;
         } else {
             last_airborne = state->timestamp;
         }
@@ -1013,6 +1017,16 @@ static void mark_legs(struct aircraft *a, int start) {
                 strftime (tstring, 100, "%H:%M:%S", &utc);
                 fprintf(stderr, "high: %d %s\n", altitude, tstring);
             }
+        }
+        if (!on_ground && major_descent && last_ground >= major_descent
+                && last_ground > first_ground + 1 * MINUTES
+                && state->timestamp > last_ground + 15 * SECONDS
+                && high - low > 200) {
+            // fake major_climb after takeoff ... bit hacky
+            high = low + threshold + 1;
+            last_high = state->timestamp;
+            last_low = last_ground;
+            last_low_index = last_ground_index;
         }
         if (altitude <= low) {
             low = altitude;
@@ -1156,13 +1170,25 @@ static void mark_legs(struct aircraft *a, int start) {
                         break;
                     }
                 }
-                int64_t half = major_descent + (major_climb - major_descent) / 2;
-                for (int i = major_descent_index + 1; i < major_climb_index; i++) {
-                    struct state *state = &a->trace[i];
+                if (last_ground > major_descent) {
+                    int64_t half = first_ground + (last_ground - first_ground) / 2;
+                    for (int i = first_ground_index + 1; i <= last_ground_index; i++) {
+                        struct state *state = &a->trace[i];
 
-                    if (state->timestamp > half) {
-                        new_leg = state;
-                        break;
+                        if (state->timestamp > half) {
+                            new_leg = state;
+                            break;
+                        }
+                    }
+                } else {
+                    int64_t half = major_descent + (major_climb - major_descent) / 2;
+                    for (int i = major_descent_index + 1; i < major_climb_index; i++) {
+                        struct state *state = &a->trace[i];
+
+                        if (state->timestamp > half) {
+                            new_leg = state;
+                            break;
+                        }
                     }
                 }
             }
