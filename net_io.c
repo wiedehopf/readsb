@@ -1667,8 +1667,12 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now) 
     }
 
     // field 22 ground status
-    if (t[22] && strlen(t[22]) > 0 && atoi(t[22]) > 0) {
-        mm.airground = AG_GROUND;
+    if (t[22] && strlen(t[22]) > 0) {
+        if (atoi(t[22]) > 0) {
+            mm.airground = AG_GROUND;
+        } else if (strcmp(t[22], "0")) {
+            mm.airground = AG_AIRBORNE;
+        }
         //fprintf(stderr, "onground, ");
     }
 
