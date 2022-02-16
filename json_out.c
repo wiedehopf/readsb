@@ -1493,7 +1493,7 @@ static void checkTraceCache(struct aircraft *a, int64_t now) {
             struct traceCacheEntry *last = &e[c->entriesLen - 1];
             int jsonLen = last->offset + last->len;
 
-            memmove(c->json, c->json + moveDist, jsonLen);
+            memmove(c->json, c->json + moveDist, jsonLen - moveDist);
             for (int x = 0; x < c->entriesLen; x++) {
                 e[x].offset -= moveDist;
             }
