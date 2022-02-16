@@ -1563,7 +1563,7 @@ int traceAdd(struct aircraft *a, int64_t now) {
     }
 
     int agValid = 0;
-    if (trackDataValid(&a->airground_valid) && a->airground_valid.source >= SOURCE_MODE_S_CHECKED) {
+    if (trackDataValid(&a->airground_valid)) {
         agValid = 1;
         if (a->airground == AG_GROUND) {
             on_ground = 1;
@@ -1608,7 +1608,7 @@ int traceAdd(struct aircraft *a, int64_t now) {
 
     // keep the last air ground state if the current isn't valid
     if (!agValid) {
-        on_ground = last->on_ground;
+        //on_ground = last->on_ground;
     }
     if (on_ground) {
         // just do this twice so we cover the first point in a trace as well as using the last airground state
