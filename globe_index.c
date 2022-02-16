@@ -1610,8 +1610,8 @@ int traceAdd(struct aircraft *a, int64_t now) {
         speed_diff = fabs(last->gs / _gs_factor - a->gs);
 
     // keep the last air ground state if the current isn't valid
-    if (!agValid) {
-        //on_ground = last->on_ground;
+    if (!agValid && !alt_valid) {
+        on_ground = last->on_ground;
     }
     if (on_ground) {
         // just do this twice so we cover the first point in a trace as well as using the last airground state
