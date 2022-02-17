@@ -1884,10 +1884,10 @@ void displayModesMessage(struct modesMessage *mm) {
     if (1 || !Modes.debug_bogus) {
         time_t nowTime = nearbyint(mm->sysTimestampMsg / 1000.0);
         struct tm local;
-        localtime_r(&nowTime, &local);
+        gmtime_r(&nowTime, &local);
         char timebuf[512];
         strftime(timebuf, 128, "%T", &local);
-        printf("systemTime: %.3fs      %s\n", mm->sysTimestampMsg / 1000.0, timebuf);
+        printf("utcTime: %s.%ld epoch: %.3f\n", timebuf, (long) mm->sysTimestampMsg % 1000, mm->sysTimestampMsg / 1000.0);
     }
 
     if (mm->sbs_in) {

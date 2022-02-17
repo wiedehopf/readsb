@@ -1430,7 +1430,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 
 int parseCommandLine(int argc, char **argv) {
     // check if we are running as viewadsb and set according behaviour
-    if (!strcmp(argv[0], "viewadsb")) {
+    if (strstr(argv[0], "viewadsb")) {
         Modes.viewadsb = 1;
         Modes.net = 1;
         Modes.sdr_type = SDR_NONE;
