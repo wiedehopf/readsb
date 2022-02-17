@@ -83,11 +83,12 @@ struct client
     int buflen; // Amount of data on buffer
     int8_t acceptSocket; // not really a client but rather an accept Socket ... only fd and epollEvent will be valid
     int8_t net_connector_dummyClient; // dummy client used by net_connector
-    int receiverIdLocked; // receiverId has been transmitted by other side.
+    int8_t pingEnabled;
+    int8_t modeac_requested; // 1 if this Beast output connection has asked for A/C
+    int8_t receiverIdLocked; // receiverId has been transmitted by other side.
     char *sendq;  // Write buffer - allocated later
     int sendq_len; // Amount of data in SendQ
     int sendq_max; // Max size of SendQ
-    int pingEnabled;
     uint32_t ping; // only 24 bit are ever sent
     uint32_t pong; // only 24 bit are ever sent
     int64_t pingReceived;
@@ -102,8 +103,7 @@ struct client
     uint64_t messageCounter; // counter for incoming data
     uint64_t positionCounter; // counter for incoming data
     uint64_t garbage; // amount of garbage we have received from this client
-    int32_t rtt; // last reported rtt in milliseconds
-    int32_t modeac_requested; // 1 if this Beast output connection has asked for A/C
+    int64_t rtt; // last reported rtt in milliseconds
     double latest_rtt; // in milliseconds, pseudo average with factor 0.9
     // crude IIR pseudo rolling average, old value factor 0.995
     // cumulative weigth of last 100 packets is 0.39

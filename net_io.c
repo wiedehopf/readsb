@@ -1089,11 +1089,15 @@ static int pongReceived(struct client *c, int64_t now) {
         // even when debugging let's not log it unless the it's more than 3 ms
         if (Modes.debug_ping && pong - current > 3 && now > antiSpam) {
             antiSpam = now + 100;
-            fprintf(stderr, "pongReceived strange: current < pong by %lu\n", (long) (pong - current));
+            fprintf(stderr, "pongReceived strange: current < pong by %ld\n", (long) (pong - current));
         }
     }
 
     c->rtt = current - pong;
+
+    if (c->rtt < 0) {
+        c->rtt = 0;
+    }
 
     int32_t bucket = 0;
     float bucketsize = PING_BUCKETBASE;
@@ -1126,8 +1130,8 @@ static int pongReceived(struct client *c, int64_t now) {
     if (Modes.debug_ping && 0) {
         char uuid[64]; // needs 36 chars and null byte
         sprint_uuid(c->receiverId, c->receiverId2, uuid);
-        fprintf(stderr, "rId %s %d %4.0f %s current: %lu pong: %lu\n",
-                uuid, c->rtt, c->recent_rtt, c->proxy_string, (long) current, (long) pong);
+        fprintf(stderr, "rId %s %ld %4.0f %s current: %ld pong: %ld\n",
+                uuid, (long) c->rtt, c->recent_rtt, c->proxy_string, (long) current, (long) pong);
     }
 
     // only log if the average is greater the rejection threshold, don't log for single packet events
@@ -1141,8 +1145,8 @@ static int pongReceived(struct client *c, int64_t now) {
                         c->latest_rtt, c->recent_rtt, uuid, c->proxy_string);
             } else {
                 antiSpam = now + 15 * SECONDS;
-                fprintf(stderr, "<3>high network delay: %6.0f ms %6.0f ms  rId %s %s\n",
-                        c->latest_rtt, c->recent_rtt, uuid, c->proxy_string);
+                fprintf(stderr, "<3>high network delay: %6.0f ms %6.0f ms  rId %s %s current: %ld pong: %ld\n",
+                        c->latest_rtt, c->recent_rtt, uuid, c->proxy_string, (long) current, (long) pong);
             }
     }
     if (c->latest_rtt > PING_REDUCE) {
