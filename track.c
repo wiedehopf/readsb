@@ -66,6 +66,17 @@ static inline int declination(struct aircraft *a, double *dec, int64_t now);
 static const char *source_string(datasource_t source);
 static void incrementReliable(struct aircraft *a, struct modesMessage *mm, int64_t now, int odd);
 
+static uint16_t simpleHash(uint64_t receiverId) {
+    uint16_t simpleHash = receiverId;
+    simpleHash ^= receiverId >> 16;
+    simpleHash ^= receiverId >> 32;
+    simpleHash ^= receiverId >> 48;
+    if (simpleHash == 0)
+        return 1;
+    return simpleHash;
+}
+
+
 // Should we accept some new data from the given source?
 // If so, update the validity and return 1
 
@@ -99,12 +110,11 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
 
     // if we have recent data and a recent position, only accept data from the last couple receivers that contributed a position
     // this hopefully reduces data jitter introduced by differing receiver latencies
-    if (Modes.netReceiverId && !mm->cpr_valid && now - d->updated < 5 * SECONDS && now - a->seenPosReliable < 5 * SECONDS) {
-        uint16_t simpleHash = (uint16_t) mm->receiverId;
-        simpleHash = simpleHash ? simpleHash : 1;
+    if (Modes.netReceiverId && d != &a->position_valid && a->position_valid.source >= SOURCE_TISB && now - d->updated < 5 * SECONDS && now - a->seenPosReliable < 5 * SECONDS) {
+        uint16_t hash = simpleHash(mm->receiverId);
         int found = 0;
         for (int i = 0; i < RECEIVERIDBUFFER; i++) {
-            found |= (a->receiverIds[i] == simpleHash);
+            found |= (a->receiverIds[i] == hash);
         }
         if (!found) {
             return 0;
@@ -908,7 +918,6 @@ static int64_t time_between(int64_t t1, int64_t t2) {
         return t2 - t1;
 }
 
-
 static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now) {
     if (0 && a->addr == Modes.cpr_focus) {
         showPositionDebug(a, mm, now, 0, 0);
@@ -955,9 +964,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
     }
 
     if (Modes.netReceiverId) {
-        uint16_t simpleHash = (uint16_t) mm->receiverId;
-        simpleHash = simpleHash ? simpleHash : 1;
-        a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = simpleHash;
+        a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = simpleHash(mm->receiverId);
     }
 
     a->receiverId = mm->receiverId;
