@@ -84,22 +84,22 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
     // if we have a jaero position, don't allow non-position data to have a lesser source
     if (a->position_valid.source == SOURCE_JAERO && d != &a->position_valid && source < SOURCE_JAERO)
         return 0;
-    // prevent JAERO and other SBS from disrupting other data sources too quickly
-    if (source < d->last_source && source <= SOURCE_MLAT && now < d->updated + 2 * TRACK_STALE)
+
+    // prevent JAERO from disrupting other data sources too quickly
+    if (a->position_valid.last_source != SOURCE_JAERO && source == SOURCE_JAERO && now < d->updated + 7 * MINUTES)
         return 0;
-    if (a->position_valid.last_source != SOURCE_JAERO && source == SOURCE_JAERO && now < d->updated + 600 * 1000)
-        return 0;
+
     // don't allow crappy SBS / MLAT data to add track as long as we have a valid ADS-B or similar position
     // but allow the position to be overriden normally
     if ((source == SOURCE_MLAT || source == SOURCE_SBS)
             && a->position_valid.source >= SOURCE_TISB
-            && trackDataAge(now, &a->position_valid) < TRACK_EXPIRE
+            && now - a->seenPosReliable < TRACK_EXPIRE
             && d != &a->position_valid)
         return 0;
 
     // if we have recent data and a recent position, only accept data from the last couple receivers that contributed a position
     // this hopefully reduces data jitter introduced by differing receiver latencies
-    if (Modes.netReceiverId && !mm->cpr_valid && now - d->updated < 5 * SECONDS && now - a->seenPosReliable < 2 * SECONDS) {
+    if (Modes.netReceiverId && !mm->cpr_valid && now - d->updated < 5 * SECONDS && now - a->seenPosReliable < 5 * SECONDS) {
         uint16_t simpleHash = (uint16_t) mm->receiverId;
         simpleHash = simpleHash ? simpleHash : 1;
         int found = 0;
@@ -1031,6 +1031,17 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
                 && trackDataValid(&a->nac_p_valid) && a->nac_p >= 4 // 1 nmi
            ) {
             a->seenAdsbReliable = now;
+        }
+
+        // when accepting crappy positions, invalidate the data indicating position accuracy
+        if (mm->source < SOURCE_TISB) {
+            // a->nic_baro_valid.source = SOURCE_INVALID;
+            a->nac_p_valid.source = SOURCE_INVALID;
+            a->nac_v_valid.source = SOURCE_INVALID;
+            a->sil_valid.source = SOURCE_INVALID;
+            a->gva_valid.source = SOURCE_INVALID;
+            a->sda_valid.source = SOURCE_INVALID;
+            a->sil_type = SIL_INVALID;
         }
     }
 
@@ -2148,22 +2159,35 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         }
         // avoid using already received positions
         if (old_jaero || greatcircle(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon, 1) < 1) {
-        } else if (!speed_check(a, mm->source, mm->decoded_lat, mm->decoded_lon, mm, CPR_NONE)) {
-            mm->pos_bad = 1;
-            // speed check failed, do nothing
         } else if (mm->source == SOURCE_MLAT && mm->mlatEPU > a->mlatEPU
                 && imin((int)(6000.0f * logf((float)mm->mlatEPU / (float)a->mlatEPU)), 36000) > (int64_t) trackDataAge(mm->sysTimestampMsg, &a->position_valid)
                 ) {
             // don't use less accurate MLAT positions unless some time has elapsed
             // only works with SBS input MLAT data coming from some versions of mlat-server
-        } else if (accept_data(&a->position_valid, mm->source, mm, a, 2)) {
+        } else {
+            int usePosition = 0;
+            if (mm->source == SOURCE_MLAT && now - a->seenPosReliable > TRACK_STALE) {
+                usePosition = 1;
 
-            incrementReliable(a, mm, now, 2);
+                // pretend it's been very long since we updated the position to guarantee accept_data to update position_valid
+                a->position_valid.updated = 0;
+                // force accept_data
+                accept_data(&a->position_valid, mm->source, mm, a, 2);
+            } else if (!speed_check(a, mm->source, mm->decoded_lat, mm->decoded_lon, mm, CPR_NONE)) {
+                mm->pos_bad = 1;
+                // speed check failed, do nothing
+            } else if (accept_data(&a->position_valid, mm->source, mm, a, 2)) {
+                usePosition = 1;
+            }
+            if (usePosition) {
 
-            setPosition(a, mm, now);
+                incrementReliable(a, mm, now, 2);
 
-            if (a->messages < 2)
-                a->messages = 2;
+                setPosition(a, mm, now);
+
+                if (a->messages < 2)
+                    a->messages = 2;
+            }
         }
     }
 
