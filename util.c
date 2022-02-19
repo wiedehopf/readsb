@@ -69,6 +69,20 @@ int64_t mstime(void) {
     return mst;
 }
 
+void milli_micro_seconds(int64_t *milli, int64_t *micro) {
+    if (Modes.synthetic_now) {
+        *milli = Modes.synthetic_now;
+        *micro = 1000 * Modes.synthetic_now;
+        return;
+    }
+
+    struct timeval tv;
+
+    gettimeofday(&tv, NULL);
+    *milli = ((int64_t) tv.tv_sec) * 1000 + ((int64_t) tv.tv_usec) / 1000;
+    *micro = ((int64_t) tv.tv_sec) * (1000 * 1000) + ((int64_t) tv.tv_usec);
+}
+
 int snprintHMS(char *buf, size_t bufsize, int64_t now) {
     time_t nowTime = nearbyint(now / 1000.0);
     struct tm local;

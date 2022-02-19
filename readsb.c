@@ -666,6 +666,31 @@ static void *decodeEntryPoint(void *arg) {
                 pthread_cond_signal(&Threads.reader.cond);
                 unlockReader();
 
+
+                {
+                    static int64_t last_sys;
+                    static int64_t last_sample;
+                    if (!last_sys) {
+                        last_sys = buf->sysMicroseconds;
+                        last_sample = buf->sampleTimestamp;
+                    }
+                    double elapsed_sys = buf->sysMicroseconds - last_sys;
+                    if (elapsed_sys > 20 * SECONDS * 1000) {
+                        double elapsed_sample = buf->sampleTimestamp - last_sample;
+                        double freq_ratio = elapsed_sample / (elapsed_sys * 12.0);
+                        double ppm = (freq_ratio - 1) * 1e6;
+                        if (fabs(ppm) > 150) {
+                            if (ppm < -500) {
+                                fprintf(stderr, "Lost %d packets on USB, MLAT will be UNSTABLE! (ppm: %.0f)\n", (int) (nearbyint(ppm / -2700)), ppm);
+                            } else {
+                                fprintf(stderr, "SDR ppm out of specification, could cause MLAT issues! ppm: %.0f\n", ppm);
+                            }
+                        }
+                        last_sys = buf->sysMicroseconds;
+                        last_sample = buf->sampleTimestamp;
+                    }
+                }
+
                 watchdogCounter = 100; // roughly 10 seconds
             } else {
                 // Nothing to process this time around.

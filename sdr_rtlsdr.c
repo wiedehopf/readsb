@@ -268,13 +268,22 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
     uint32_t slen;
     unsigned next_free_buffer;
     unsigned free_bufs;
-    unsigned block_duration;
+    int64_t block_duration;
 
     static int dropping = 0;
     static uint64_t sampleCounter = 0;
 
     static int antiSpam;
     static int antiSpam2;
+
+    /*
+     * simulating missed USB packets:
+    static int fail;
+    if (fail++ % (30 * 20) == 0) {
+        fprintf(stderr, "ignoring rtsdrCallback\n");
+        return;
+    }
+    */
 
     MODES_NOTUSED(ctx);
 
@@ -329,7 +338,10 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
 
     // Get the approx system time for the start of this block
     block_duration = 1e3 * slen / Modes.sample_rate;
-    outbuf->sysTimestamp = mstime() - block_duration;
+
+    milli_micro_seconds(&outbuf->sysTimestamp, &outbuf->sysMicroseconds);
+    outbuf->sysTimestamp -= block_duration;
+    outbuf->sysMicroseconds -= block_duration * 1000;
 
     // Copy trailing data from last block (or reset if not valid)
     if (outbuf->dropped == 0) {

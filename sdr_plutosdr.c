@@ -171,7 +171,7 @@ static void plutosdrCallback(int16_t *buf, uint32_t len) {
     uint32_t slen;
     unsigned next_free_buffer;
     unsigned free_bufs;
-    unsigned block_duration;
+    int64_t block_duration;
 
     static int was_odd = 0;
     static int dropping = 0;
@@ -219,7 +219,10 @@ static void plutosdrCallback(int16_t *buf, uint32_t len) {
     outbuf->sampleTimestamp = sampleCounter * 12e6 / Modes.sample_rate;
     sampleCounter += slen;
     block_duration = 1e3 * slen / Modes.sample_rate;
-    outbuf->sysTimestamp = mstime() - block_duration;
+    milli_micro_seconds(&outbuf->sysTimestamp, &outbuf->sysMicroseconds);
+    outbuf->sysTimestamp -= block_duration;
+    outbuf->sysMicroseconds -= block_duration * 1000;
+
 
     if (outbuf->dropped == 0) {
         memcpy(outbuf->data, lastbuf->data + lastbuf->length, Modes.trailing_samples * sizeof (uint16_t));

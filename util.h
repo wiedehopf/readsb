@@ -75,6 +75,8 @@ static inline void msleep(int64_t ms) {
 /* Returns system time in milliseconds */
 int64_t mstime (void);
 
+void milli_micro_seconds(int64_t *milli, int64_t *micro);
+
 int snprintHMS(char *buf, size_t bufsize, int64_t now);
 
 int64_t msThreadTime(void);

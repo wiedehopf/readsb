@@ -208,6 +208,8 @@ void ifileRun() {
 
         // Get the system time for the start of this block
         outbuf->sysTimestamp = outbuf->sampleTimestamp / 12000U + Modes.startup_time;
+        outbuf->sysMicroseconds = outbuf->sampleTimestamp / 12U + Modes.startup_time * 1000;
+
 
         toread = MODES_MAG_BUF_SAMPLES * ifile.bytes_per_sample;
         r = ifile.readbuf;
