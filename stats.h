@@ -67,6 +67,7 @@ struct stats
   uint32_t demod_bestPhase[5];
   uint64_t samples_processed;
   uint64_t samples_dropped;
+  uint64_t samples_lost;
   // Mode A/C demodulator counts:
   uint32_t demod_modeac;
   // number of signals with power > -3dBFS

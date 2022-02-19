@@ -83,6 +83,7 @@ void display_stats(struct stats *st) {
         printf("Local receiver:\n");
         printf("  %llu samples processed\n", (unsigned long long) st->samples_processed);
         printf("  %llu samples dropped\n", (unsigned long long) st->samples_dropped);
+        printf("  %llu samples lost\n", (unsigned long long) st->samples_lost);
 
         printf("  %u Mode A/C messages received\n", st->demod_modeac);
         printf("  %u Mode-S message preambles received\n", st->demod_preambles);
@@ -291,6 +292,7 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
 
     target->samples_processed = st1->samples_processed + st2->samples_processed;
     target->samples_dropped = st1->samples_dropped + st2->samples_dropped;
+    target->samples_lost = st1->samples_lost + st2->samples_lost;
 
     add_timespecs(&st1->demod_cpu, &st2->demod_cpu, &target->demod_cpu);
     add_timespecs(&st1->reader_cpu, &st2->reader_cpu, &target->reader_cpu);
@@ -513,12 +515,14 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
         p = safe_snprintf(p, end,
                 ",\"local\":{\"samples_processed\":%llu"
                 ",\"samples_dropped\":%llu"
+                ",\"samples_lost\":%llu"
                 ",\"modeac\":%u"
                 ",\"modes\":%u"
                 ",\"bad\":%u"
                 ",\"unknown_icao\":%u",
                 (unsigned long long) st->samples_processed,
                 (unsigned long long) st->samples_dropped,
+                (unsigned long long) st->samples_lost,
                 st->demod_modeac,
                 st->demod_preambles,
                 st->demod_rejected_bad,
@@ -714,6 +718,7 @@ struct char_buffer generateStatsJson(int64_t now) {
 
     if (!Modes.net_only) {
         p = safe_snprintf(p, end, ", \"gain_db\" : %.1f", Modes.gain / 10.0);
+        p = safe_snprintf(p, end, ", \"estimated_ppm\" : %.1f", Modes.estimated_ppm);
     }
 
     p = appendTypeCounts(p, end);
@@ -876,6 +881,8 @@ struct char_buffer generatePromFile(int64_t now) {
 
         p = safe_snprintf(p, end, "readsb_demod_samples_processed %"PRIu64"\n", st->samples_processed);
         p = safe_snprintf(p, end, "readsb_demod_samples_dropped %"PRIu64"\n", st->samples_dropped);
+        p = safe_snprintf(p, end, "readsb_demod_samples_lost %"PRIu64"\n", st->samples_lost);
+        p = safe_snprintf(p, end, "readsb_demod_estimated_ppm %.1f\n", Modes.estimated_ppm);
 
         p = safe_snprintf(p, end, "readsb_demod_preambles %"PRIu32"\n", st->demod_preambles);
     }

@@ -667,6 +667,7 @@ static void *decodeEntryPoint(void *arg) {
                 unlockReader();
 
 
+                Modes.stats_current.samples_lost += MODES_MAG_BUF_SAMPLES - buf->length;
                 {
                     static int64_t last_sys;
                     static int64_t last_sample;
@@ -679,9 +680,12 @@ static void *decodeEntryPoint(void *arg) {
                         double elapsed_sample = buf->sampleTimestamp - last_sample;
                         double freq_ratio = elapsed_sample / (elapsed_sys * 12.0);
                         double ppm = (freq_ratio - 1) * 1e6;
+                        Modes.estimated_ppm = ppm;
                         if (fabs(ppm) > 150) {
                             if (ppm < -500) {
-                                fprintf(stderr, "Lost %d packets on USB, MLAT will be UNSTABLE! (ppm: %.0f)\n", (int) (nearbyint(ppm / -2700)), ppm);
+                                int packets_lost = (int) nearbyint(ppm / -2700);
+                                Modes.stats_current.samples_lost += packets_lost * MODES_MAG_BUF_SAMPLES;
+                                fprintf(stderr, "Lost %d packets on USB, MLAT will be UNSTABLE! (ppm: %.0f)\n", packets_lost, ppm);
                             } else {
                                 fprintf(stderr, "SDR ppm out of specification, could cause MLAT issues! ppm: %.0f\n", ppm);
                             }

@@ -454,6 +454,7 @@ struct _Modes
     int max_fds;
     int modesClientCount;
     int total_aircraft_count;
+    float estimated_ppm;
 
     ALIGNED struct aircraft * aircraft[AIRCRAFT_BUCKETS];
     ALIGNED struct craftArray globeLists[GLOBE_MAX_INDEX+1];
