@@ -274,7 +274,7 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now) {
     if (Modes.json_globe_index) {
         if (a->position_valid.source == SOURCE_MLAT) {
             new->receiverCount = a->receiverCountMlat;
-        } else {
+        } else if (a->position_valid.source >= SOURCE_TISB) {
             uint16_t *set1 = a->receiverIds;
             uint16_t set2[16] = { 0 };
             int div = 0;
@@ -287,6 +287,8 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now) {
                     set2[div++] = set1[k];
             }
             new->receiverCount = div;
+        } else {
+            new->receiverCount = 1;
         }
     }
 #define F(f) do { new->f##_valid = trackDataValid(&a->f##_valid); new->f *= new->f##_valid; } while (0)

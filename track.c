@@ -68,11 +68,12 @@ static void incrementReliable(struct aircraft *a, struct modesMessage *mm, int64
 
 static uint16_t simpleHash(uint64_t receiverId) {
     uint16_t simpleHash = receiverId;
-    simpleHash ^= receiverId >> 16;
-    simpleHash ^= receiverId >> 32;
-    simpleHash ^= receiverId >> 48;
+    simpleHash ^= (uint16_t) (receiverId >> 16);
+    simpleHash ^= (uint16_t) (receiverId >> 32);
+    simpleHash ^= (uint16_t) (receiverId >> 48);
     if (simpleHash == 0)
         return 1;
+
     return simpleHash;
 }
 
@@ -110,7 +111,9 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
 
     // if we have recent data and a recent position, only accept data from the last couple receivers that contributed a position
     // this hopefully reduces data jitter introduced by differing receiver latencies
-    if (Modes.netReceiverId && d != &a->position_valid && a->position_valid.source >= SOURCE_TISB && now - d->updated < 5 * SECONDS && now - a->seenPosReliable < 5 * SECONDS) {
+    int is_pos = (d == &a->position_valid || d == &a->cpr_odd_valid || d == &a->cpr_even_valid);
+
+    if (Modes.netReceiverId && !is_pos && a->position_valid.source >= SOURCE_TISB && now - d->updated < 5 * SECONDS && now - a->seenPosReliable < 1.2 * SECONDS) {
         uint16_t hash = simpleHash(mm->receiverId);
         int found = 0;
         for (int i = 0; i < RECEIVERIDBUFFER; i++) {
@@ -120,6 +123,12 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
             return 0;
         }
     }
+
+    if (0 && is_pos && a->addr == Modes.cpr_focus) {
+        //fprintf(stderr, "%d %p %p\n", mm->duplicate, d, &a->position_valid);
+        fprintf(stderr, "%d %s", mm->duplicate, source_string(mm->source));
+    }
+
 
     d->source = source;
     if (unlikely(source == SOURCE_PRIO))
@@ -965,6 +974,9 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
 
     if (Modes.netReceiverId) {
         a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = simpleHash(mm->receiverId);
+        if (0 && a->addr == Modes.cpr_focus) {
+            fprintf(stderr, "%u\n", simpleHash(mm->receiverId));
+        }
     }
 
     a->receiverId = mm->receiverId;
