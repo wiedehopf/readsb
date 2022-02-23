@@ -279,7 +279,7 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
     /*
      * simulating missed USB packets:
     static int fail;
-    if (fail++ % (30 * 20) == 0) {
+    if (fail++ % (35 * 20) == 0) {
         fprintf(stderr, "ignoring rtsdrCallback\n");
         return;
     }

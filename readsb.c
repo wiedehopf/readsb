@@ -676,18 +676,18 @@ static void *decodeEntryPoint(void *arg) {
                         last_sample = buf->sampleTimestamp;
                     }
                     double elapsed_sys = buf->sysMicroseconds - last_sys;
-                    if (elapsed_sys > 20 * SECONDS * 1000) {
+                    if (elapsed_sys > 30 * SECONDS * 1000) {
                         double elapsed_sample = buf->sampleTimestamp - last_sample;
                         double freq_ratio = elapsed_sample / (elapsed_sys * 12.0);
                         double ppm = (freq_ratio - 1) * 1e6;
                         Modes.estimated_ppm = ppm;
-                        if (fabs(ppm) > 150) {
+                        if (last_sample != 0 && fabs(ppm) > 300) {
                             if (ppm < -500) {
-                                int packets_lost = (int) nearbyint(ppm / -2700);
+                                int packets_lost = (int) nearbyint(ppm / -1820);
                                 Modes.stats_current.samples_lost += packets_lost * MODES_MAG_BUF_SAMPLES;
-                                fprintf(stderr, "Lost %d packets on USB, MLAT will be UNSTABLE! (ppm: %.0f)\n", packets_lost, ppm);
+                                fprintf(stderr, "Lost %d packets on USB, MLAT could be UNSTABLE, check sync! (ppm: %.0f) (or the system clock jumped for some reason)\n", packets_lost, ppm);
                             } else {
-                                fprintf(stderr, "SDR ppm out of specification, could cause MLAT issues! ppm: %.0f\n", ppm);
+                                fprintf(stderr, "SDR ppm out of specification (could cause MLAT issues) or local clock jumped / not syncing with ntp or chrony! ppm: %.0f\n", ppm);
                             }
                         }
                         last_sys = buf->sysMicroseconds;
