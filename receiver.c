@@ -240,13 +240,9 @@ void receiverTest() {
     printf("%"PRIu64"\n", Modes.receiverCount);
 }
 
-static inline int64_t timeout() {
-    return 8 * SECONDS;
-}
-
 int receiverCheckBad(uint64_t id, int64_t now) {
     struct receiver *r = receiverGet(id);
-    if (r && now + timeout() / 2 < r->timedOutUntil)
+    if (r && now < r->timedOutUntil)
         return 1;
     else
         return 0;
@@ -258,7 +254,9 @@ struct receiver *receiverBad(uint64_t id, uint32_t addr, int64_t now) {
     if (!r)
         r = receiverCreate(id);
 
-    if (r && now + timeout() / 2 > r->timedOutUntil) {
+    int64_t timeout = 12 * SECONDS;
+
+    if (r && now + (timeout * 2 / 3) > r->timedOutUntil) {
         r->lastSeen = now;
         r->badCounter++;
         if (r->badCounter > 5.99) {
@@ -267,7 +265,7 @@ struct receiver *receiverBad(uint64_t id, uint32_t addr, int64_t now) {
                 fprintf(stderr, "timeout receiverId: %016"PRIx64" hex: %06x #good: %6d #bad: %5.0f #timeouts: %u\n",
                         r->id, addr, r->goodCounter, r->badCounter, r->timedOutCounter);
             }
-            r->timedOutUntil = now + timeout();
+            r->timedOutUntil = now + timeout;
             r->goodCounter = 0;
             r->badCounter = 0;
         }
