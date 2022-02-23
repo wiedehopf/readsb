@@ -695,8 +695,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     }
 
     if (receiverRangeExceeded && Modes.netReceiverId) {
-        inrange = 0; // far outside receiver area
-        mm->pos_ignore = 1;
+        mm->pos_receiver_range_exceeded = 1;
+        // disable acting on exceeded receiver range for the time being
+        //inrange = 0; // far outside receiver area
+        //mm->pos_ignore = 1;
     }
 
 
@@ -3291,16 +3293,21 @@ static void incrementReliable(struct aircraft *a, struct modesMessage *mm, int64
         }
     }
 
-    if (a->pos_reliable_odd < 1 || a->pos_reliable_even < 1) {
-        a->pos_reliable_odd = a->pos_reliable_even = fminf(a->pos_reliable_odd + 1, a->pos_reliable_even + 1);
+    float increment = 1.0f;
+    if (mm->pos_receiver_range_exceeded) {
+        increment = 0.25f;
+    }
+
+    if (a->pos_reliable_odd < increment || a->pos_reliable_even < increment) {
+        a->pos_reliable_odd = a->pos_reliable_even = increment;
         return;
     }
 
     if (odd)
-        a->pos_reliable_odd = fminf(a->pos_reliable_odd + 1, Modes.position_persistence);
+        a->pos_reliable_odd = fminf(a->pos_reliable_odd + increment, Modes.position_persistence);
 
     if (!odd || odd == 2)
-        a->pos_reliable_even = imin(a->pos_reliable_even + 1, Modes.position_persistence);
+        a->pos_reliable_even = imin(a->pos_reliable_even + increment, Modes.position_persistence);
 }
 
 static void position_bad(struct modesMessage *mm, struct aircraft *a) {

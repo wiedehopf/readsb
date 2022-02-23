@@ -696,14 +696,15 @@ struct modesMessage
     uint32_t addr; // Address Announced
     uint32_t maybe_addr; // probably the address, good chance to be wrong
     addrtype_t addrtype; // address format / source
-    bool remote; // If set this message is from a remote station
-    bool sbs_in; // Signifies this message is coming from basestation input
-    bool reduce_forward; // forward this message for reduced beast output
-    bool garbage; // from garbage receiver
-    bool duplicate; // associated position is a duplicate
-    bool pos_bad; // speed_check failed
-    bool pos_ignore; // associated position is old / delayed / misc error
-    bool pos_old; // associated position is old / delayed / misc error
+    int8_t remote; // If set this message is from a remote station
+    int8_t sbs_in; // Signifies this message is coming from basestation input
+    int8_t reduce_forward; // forward this message for reduced beast output
+    int8_t garbage; // from garbage receiver
+    int8_t duplicate; // associated position is a duplicate
+    int8_t pos_bad; // speed_check failed
+    int8_t pos_ignore; // associated position is old / delayed / misc error
+    int8_t pos_old; // associated position is old / delayed / misc error
+    int8_t pos_receiver_range_exceeded;
     int8_t trackUnreliable;
     int8_t speedUnreliable;
     int8_t in_disc_cache;
