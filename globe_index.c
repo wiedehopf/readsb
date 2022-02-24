@@ -2571,14 +2571,6 @@ static void readInternalMiscTask(void *arg) {
     arg = arg; // unused
     char pathbuf[PATH_MAX];
 
-    if (Modes.globe_history_dir && mkdir(Modes.globe_history_dir, 0755) && errno != EEXIST) {
-        perror(Modes.globe_history_dir);
-    }
-
-    if (mkdir(Modes.state_dir, 0755) && errno != EEXIST) {
-        perror(pathbuf);
-    }
-
     if (Modes.outline_json) {
         struct char_buffer cb;
         snprintf(pathbuf, PATH_MAX, "%s/rangeDirs.gz", Modes.state_dir);
@@ -2600,6 +2592,19 @@ static void readInternalMiscTask(void *arg) {
 }
 
 void readInternalState() {
+    int retval = mkdir(Modes.state_dir, 0755);
+    if (retval != 0 && errno != EEXIST) {
+        fprintf(stderr, "Unable to create state directory (%s): %s\n", Modes.state_dir, strerror(errno));
+        return;
+    }
+    if (retval == 0) {
+        fprintf(stderr, "%s: state directory didn't exist, created it, possible reasons: "
+                "first start with state enabled / directory not backed by persistent storage\n",
+                Modes.state_dir);
+        fprintf(stderr, "loading state ..... FAILED!\n");
+        return;
+    }
+
     fprintf(stderr, "loading state .....\n");
     struct timespec watch;
     startWatch(&watch);
