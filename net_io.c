@@ -1984,7 +1984,7 @@ void modesQueueOutput(struct modesMessage *mm, struct aircraft *a) {
     }
 
     if (a && (!Modes.sbsReduce || mm->reduce_forward)) {
-        if ((!is_mlat || Modes.forward_mlat) && Modes.sbs_out.connections)
+        if (Modes.sbs_out.connections)
             modesSendSBSOutput(mm, a, &Modes.sbs_out);
         if (is_mlat && Modes.sbs_out_mlat.connections)
             modesSendSBSOutput(mm, a, &Modes.sbs_out_mlat);
