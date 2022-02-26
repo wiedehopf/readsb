@@ -1428,7 +1428,7 @@ static char *sprintTracePoint(char *p, char *end, struct aircraft *a, int i, int
         p = safe_snprintf(p, end, ",null");
 
 #if defined(TRACKS_UUID)
-    char uuid[32]; // needs 9 chars and null byte
+    char uuid[32]; // needs 8 chars and null byte
     sprint_uuid1_partial(state->receiverId, uuid);
     p = safe_snprintf(p, end, ",\"%s\"", uuid);
 #endif

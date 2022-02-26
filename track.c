@@ -2881,7 +2881,7 @@ void to_state(struct aircraft *a, struct state *new, int64_t now, int on_ground,
     new->addrtype = a->addrtype;
 
 #if defined(TRACKS_UUID)
-    new->receiverId = (uint32_t) a->lastPosReceiverId;
+    new->receiverId = (uint32_t) (a->lastPosReceiverId >> 32);
 #endif
 }
 

@@ -447,9 +447,9 @@ void epollAllocEvents(struct epoll_event **events, int *maxEvents) {
 }
 char *sprint_uuid1_partial(uint64_t id1, char *p) {
     for (int i = 7; i >= 0; i--) {
-        int j = 7 - i;
-        if (j == 4)
-            *p++ = '-';
+        //int j = 7 - i;
+        //if (j == 4)
+        //*p++ = '-';
         uint64_t val = (id1 >> (4 * i)) & 15;
         if (val > 9)
             *p++ = val - 10 + 'a';
