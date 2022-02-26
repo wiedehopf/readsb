@@ -631,10 +631,10 @@ void updateTypeReg(struct aircraft *a) {
             //350000-37ffff = spain mil(sp)
             || (i >= 0x350000 && i <= 0x37ffff)
 
-            //3a8000-3affff = france mil_1(fs)
-            || (i >= 0x3a8000 && i <= 0x3affff)
-            //3b0000-3bffff = france mil_2(fs)
-            || (i >= 0x3b0000 && i <= 0x3bffff)
+            //3aa000-3affff = france mil_1(fs)
+            || (i >= 0x3aa000 && i <= 0x3affff)
+            //3b7000-3bffff = france mil_2(fs)
+            || (i >= 0x3b7000 && i <= 0x3bffff)
 
             //3ea000-3ebfff = germany mil_1(df)
             || (i >= 0x3ea000 && i <= 0x3ebfff)
