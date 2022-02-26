@@ -2447,6 +2447,46 @@ static int decodeHexMessage(struct client *c, char *hex, int remote, int64_t now
         l--;
     }
 
+    // https://www.aerobits.pl/wp-content/uploads/2021/07/OEM_MC_Datasheet.pdf
+    // *RAW_FRAME;(SIGS,SIGQ,TS)\r\n
+    // signal strength mV, signal quality mV, time from last PPS pulse in hex (microseconds?, document doesn't say)
+    // let's just create a bogus timestamp and parse the signal strength ....
+    if (hex[l - 1] == ')') {
+        hex[l - 1] = '\0';
+        int pos = l - 1;
+        while (pos && hex[pos] != '(') {
+            pos--;
+        } // find opening (
+        if (pos) {
+            hex[pos] = '\0';
+            l = pos;
+        } else {
+            return 0;
+        } // incomplete
+        char *token = strtok(&hex[pos + 1], ",");
+        if (!token) return 0;
+        mm.signalLevel = strtol(token, NULL, 10);
+        mm.signalLevel /= 1000; // let's assume 1000 mV max .. i only have a small sample, specification isn't clear
+        mm.signalLevel = mm.signalLevel * mm.signalLevel; // square it to get power
+        mm.signalLevel = fmin(1.0, mm.signalLevel); // cap at 1
+                                                    //
+        token = strtok(NULL, ","); // discard signal quality
+        if (!token) return 0;
+
+        token = strtok(NULL, ",");
+        if (token) {
+            int after_pps = strtol(token, NULL, 16);
+            // round down to current second, go to microseconds and add after_pps, go to 12 MHz clock
+            int64_t seconds = now / 1000;
+            if (after_pps / 1000 > (now % 1000) + 500) {
+                seconds -= 1;
+                // assume our clock is one second in front of the GPS clock, go back one second before adding the after pps time
+            }
+            mm.timestampMsg = (seconds * (1000 * 1000) + after_pps) * 12;
+        } else {
+            mm.timestampMsg = now * 12e3; // make 12 MHz timestamp from microseconds
+        }
+    }
     // Turn the message into binary.
     // Accept
     // *-AVR: raw
