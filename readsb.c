@@ -681,8 +681,8 @@ static void *decodeEntryPoint(void *arg) {
                         double freq_ratio = elapsed_sample / (elapsed_sys * 12.0);
                         double ppm = (freq_ratio - 1) * 1e6;
                         Modes.estimated_ppm = ppm;
-                        if (last_sample != 0 && fabs(ppm) > 300) {
-                            if (ppm < -500) {
+                        if (last_sample != 0 && fabs(ppm) > 600) {
+                            if (ppm < -1000) {
                                 int packets_lost = (int) nearbyint(ppm / -1820);
                                 Modes.stats_current.samples_lost += packets_lost * MODES_MAG_BUF_SAMPLES;
                                 fprintf(stderr, "Lost %d packets on USB, MLAT could be UNSTABLE, check sync! (ppm: %.0f) (or the system clock jumped for some reason)\n", packets_lost, ppm);
