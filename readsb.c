@@ -163,6 +163,7 @@ static void configSetDefaults(void) {
     Modes.show_only = BADDR;
 
     Modes.outline_json = 1; // enable by default
+    Modes.range_outline_duration = 24 * HOURS;
     //Modes.receiver_focus = 0x123456;
     //
     Modes.trackExpireJaero = TRACK_EXPIRE_JAERO;
@@ -1129,6 +1130,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptStatsEvery:
             Modes.stats = (int64_t) (1000.0 * atof(arg));
             break;
+        case OptRangeOutlineDuration:
+            Modes.range_outline_duration = (int64_t) (atof(arg) * HOURS);
+            break;
         case OptSnip:
             snipMode(atoi(arg));
             cleanup_and_exit(0);
@@ -1525,6 +1529,7 @@ int parseCommandLine(int argc, char **argv) {
        ) {
         exit(0);
     }
+    log_with_timestamp("readsb starting up.");
     fprintf(stderr, VERSION_STRING"\n");
 
     return 0;

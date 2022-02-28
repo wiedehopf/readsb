@@ -334,21 +334,21 @@ static void update_range_histogram(struct aircraft *a, struct modesMessage *mm, 
     int rangeDirDirection = nearbyint(bearing(Modes.fUserLat, Modes.fUserLon, lat, lon));
     rangeDirDirection %= RANGEDIRS_BUCKETS;
 
-    int rangeDirHour = (now / (1 * HOURS)) % RANGEDIRS_HOURS;
-    if (rangeDirHour != Modes.lastRangeDirHour) {
-        // RANGEDIRS_HOURS 25 holds the last 24 full hours and the current hour
-        // when the current hour changes, reset the data for it
-        memset(Modes.rangeDirs[rangeDirHour], 0, sizeof(Modes.rangeDirs[rangeDirHour]));
-        Modes.lastRangeDirHour = rangeDirHour;
+    int rangeDirIval = (now * (RANGEDIRS_IVALS - 1) / Modes.range_outline_duration) % RANGEDIRS_IVALS;
+    if (rangeDirIval != Modes.lastRangeDirHour) {
+        //log_with_timestamp("rangeDirIval: %d", rangeDirIval);
+        // when the current interval changes, reset the data for it
+        memset(Modes.rangeDirs[rangeDirIval], 0, sizeof(Modes.rangeDirs[rangeDirIval]));
+        Modes.lastRangeDirHour = rangeDirIval;
     }
 
-    struct distCoords *current = &(Modes.rangeDirs[rangeDirHour][rangeDirDirection]);
+    struct distCoords *current = &(Modes.rangeDirs[rangeDirIval][rangeDirDirection]);
 
 
     // if the position isn't proper reliable, only allow it if the range in that direction is increased by less than 25 nmi compared to the maximum of the last 24h
     if (range > current->distance && (a->pos_reliable_odd < 2 || a->pos_reliable_even < 2)) {
         float directionMax = 0;
-        for (int i = 0; i < RANGEDIRS_HOURS; i++) {
+        for (int i = 0; i < RANGEDIRS_IVALS; i++) {
             if (Modes.rangeDirs[i][rangeDirDirection].distance > directionMax)
                 directionMax = Modes.rangeDirs[i][rangeDirDirection].distance;
         }

@@ -1749,10 +1749,10 @@ struct char_buffer generateOutlineJson() {
     size_t buflen = 1024 + RANGEDIRS_BUCKETS * 64;
     char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
 
-    // check for maximum over last 24 full and current hour
+    // check for maximum over last 24 ivals and current ival
     struct distCoords record[RANGEDIRS_BUCKETS];
     memset(record, 0, sizeof(record));
-    for (int hour = 0; hour < RANGEDIRS_HOURS; hour++) {
+    for (int hour = 0; hour < RANGEDIRS_IVALS; hour++) {
         for (int i = 0; i < RANGEDIRS_BUCKETS; i++) {
             struct distCoords curr = Modes.rangeDirs[hour][i];
             if (curr.distance > record[i].distance) {

@@ -78,6 +78,7 @@ static struct argp_option optionsReadsb[] = {
     {"stats", OptStats, 0, 0, "With --ifile print stats at exit. No other output", 1},
     {"stats-range", OptStatsRange, 0, 0, "Collect/show range histogram", 1},
     {"stats-every", OptStatsEvery, "<sec>", 0, "Show and reset stats every <sec> seconds", 1},
+    {"range-outline-hours", OptRangeOutlineDuration, "<hours>", 0, "Make the range outline retain data for the last X hours (float, default: 24.0)", 1},
     {"onlyaddr", OptOnlyAddr, 0, 0, "Show only ICAO addresses", 1},
     {"gnss", OptGnss, 0, 0, "Show altitudes as GNSS when available", 1},
     {"snip", OptSnip, "<level>", 0, "Strip IQ file removing samples < level", 1},

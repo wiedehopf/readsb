@@ -323,7 +323,7 @@ typedef enum {
 #define STAT_BUCKETS 90 // 90 * 10 seconds = 15 min (max interval in stats.json)
 
 #define RANGEDIRS_BUCKETS 360
-#define RANGEDIRS_HOURS 25
+#define RANGEDIRS_IVALS 64
 
 #define PING_REJECT (3 * SECONDS)
 #define PING_DISCONNECT (15 * SECONDS)
@@ -581,6 +581,7 @@ struct _Modes
     int64_t interactive_display_ttl; // Interactive mode: TTL display
     int64_t json_interval; // Interval between rewriting the json aircraft file, in milliseconds; also the advertised map refresh interval
     int64_t stats; // Interval (millis) between stats dumps,
+    int64_t range_outline_duration;
     char *db_file;
     char *net_output_raw_ports; // List of raw output TCP ports
     char *net_input_raw_ports; // List of raw input TCP ports
@@ -667,7 +668,7 @@ struct _Modes
     ALIGNED int threadNumber[256];
 
     int lastRangeDirHour;
-    ALIGNED struct distCoords rangeDirs[RANGEDIRS_HOURS][RANGEDIRS_BUCKETS];
+    ALIGNED struct distCoords rangeDirs[RANGEDIRS_IVALS][RANGEDIRS_BUCKETS];
 };
 
 extern struct _Modes Modes;
@@ -934,6 +935,7 @@ enum {
     OptStats,
     OptStatsRange,
     OptStatsEvery,
+    OptRangeOutlineDuration,
     OptOnlyAddr,
     OptMetric,
     OptGnss,
