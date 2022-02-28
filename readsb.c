@@ -1823,12 +1823,13 @@ int main(int argc, char **argv) {
         }
     }
 
-    checkNewDay(mstime());
-    checkNewDayLocked(mstime());
-
     if (Modes.globe_history_dir && mkdir(Modes.globe_history_dir, 0755) && errno != EEXIST) {
         fprintf(stderr, "Unable to create globe history directory (%s): %s\n", Modes.globe_history_dir, strerror(errno));
     }
+
+    checkNewDay(mstime());
+    checkNewDayLocked(mstime());
+
     if (Modes.state_dir) {
         readInternalState();
     }
