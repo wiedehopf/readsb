@@ -1387,7 +1387,7 @@ static void tracePrune(struct aircraft *a, int64_t now) {
         fprintf(stderr, "<3>%06x: Truncating oldest data due to insufficient Modes.traceMax: trace_len %d Modes.traceMax %d\n",
                 a->addr, a->trace_len, Modes.traceMax);
         new_start = Modes.traceMax / 64 + 2 * Modes.traceReserve;
-    } else if (a->trace->timestamp < keep_after - 30 * MINUTES)  {
+    } else if (a->trace->timestamp < keep_after - imin(Modes.keep_traces, 30 * MINUTES))  {
         new_start = a->trace_len;
         for (int i = 0; i < a->trace_len; i++) {
             struct state *state = &a->trace[i];
