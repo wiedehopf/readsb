@@ -35,24 +35,24 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVE
 typedef struct {
     int index;
     threadpool_t* pool;
-	pthread_t pthread;
+    pthread_t pthread;
     struct timespec thread_time;
 } thread_t;
 
 struct threadpool_t
 {
-	pthread_mutex_t worker_lock;
-	pthread_cond_t notify_worker;
+    pthread_mutex_t worker_lock;
+    pthread_cond_t notify_worker;
 
-	pthread_mutex_t master_lock;
-	pthread_cond_t notify_master;
+    pthread_mutex_t master_lock;
+    pthread_cond_t notify_master;
 
-	thread_t* threads;
-	uint32_t thread_count;
-	uint32_t terminate;
-	atomic_intptr_t tasks;
-	atomic_int task_count;
-	atomic_int pending_count;
+    thread_t* threads;
+    uint32_t thread_count;
+    uint32_t terminate;
+    atomic_intptr_t tasks;
+    atomic_int task_count;
+    atomic_int pending_count;
 };
 
 static void *threadpool_threadproc(void *threadpool);
@@ -81,20 +81,20 @@ struct timespec threadpool_get_cumulative_thread_time(threadpool_t* pool) {
 
 threadpool_t *threadpool_create(uint32_t thread_count)
 {
-	threadpool_t *pool = (threadpool_t *) malloc(sizeof(threadpool_t));
+    threadpool_t *pool = (threadpool_t *) malloc(sizeof(threadpool_t));
 
-	pool->terminate = 0;
-	atomic_store(&pool->task_count, 0);
-	atomic_store(&pool->pending_count, 0);
-	atomic_store(&pool->tasks, (intptr_t) NULL);
-	pool->thread_count = thread_count;
-	pool->threads = (thread_t *) malloc(sizeof(thread_t) * thread_count);
+    pool->terminate = 0;
+    atomic_store(&pool->task_count, 0);
+    atomic_store(&pool->pending_count, 0);
+    atomic_store(&pool->tasks, (intptr_t) NULL);
+    pool->thread_count = thread_count;
+    pool->threads = (thread_t *) malloc(sizeof(thread_t) * thread_count);
 
-	pthread_mutex_init(&pool->worker_lock, NULL);
-	pthread_cond_init(&pool->notify_worker, NULL);
+    pthread_mutex_init(&pool->worker_lock, NULL);
+    pthread_cond_init(&pool->notify_worker, NULL);
 
-	pthread_mutex_init(&pool->master_lock, NULL);
-	pthread_cond_init(&pool->notify_master, NULL);
+    pthread_mutex_init(&pool->master_lock, NULL);
+    pthread_cond_init(&pool->notify_master, NULL);
 
     // only create worker threads for thread_count > 1
     if (pool->thread_count > 1) {
@@ -109,22 +109,22 @@ threadpool_t *threadpool_create(uint32_t thread_count)
         }
     }
 
-	return pool;
+    return pool;
 }
 
 void threadpool_destroy(threadpool_t *pool)
 {
-	pool->terminate = 1;
+    pool->terminate = 1;
 
-	pthread_mutex_lock(&pool->worker_lock);
-	atomic_store(&pool->task_count, 0);
-	pthread_cond_broadcast(&pool->notify_worker);
-	pthread_mutex_unlock(&pool->worker_lock);
+    pthread_mutex_lock(&pool->worker_lock);
+    atomic_store(&pool->task_count, 0);
+    pthread_cond_broadcast(&pool->notify_worker);
+    pthread_mutex_unlock(&pool->worker_lock);
 
-	pthread_mutex_lock(&pool->master_lock);
-	atomic_store(&pool->pending_count, 0);
-	pthread_cond_broadcast(&pool->notify_master);
-	pthread_mutex_unlock(&pool->master_lock);
+    pthread_mutex_lock(&pool->master_lock);
+    atomic_store(&pool->pending_count, 0);
+    pthread_cond_broadcast(&pool->notify_master);
+    pthread_mutex_unlock(&pool->master_lock);
 
 
     if (pool->thread_count > 1) {
@@ -134,14 +134,14 @@ void threadpool_destroy(threadpool_t *pool)
         }
     }
 
-	pthread_mutex_destroy(&pool->worker_lock);
-	pthread_cond_destroy(&pool->notify_worker);
+    pthread_mutex_destroy(&pool->worker_lock);
+    pthread_cond_destroy(&pool->notify_worker);
 
-	pthread_mutex_destroy(&pool->master_lock);
-	pthread_cond_destroy(&pool->notify_master);
+    pthread_mutex_destroy(&pool->master_lock);
+    pthread_cond_destroy(&pool->notify_master);
 
-	free(pool->threads);
-	free(pool);
+    free(pool->threads);
+    free(pool);
 }
 
 void threadpool_run(threadpool_t *pool, threadpool_task_t* tasks, uint32_t count)
@@ -155,22 +155,22 @@ void threadpool_run(threadpool_t *pool, threadpool_task_t* tasks, uint32_t count
         return;
     }
 
-	atomic_store(&pool->pending_count, count);
-	atomic_store(&pool->tasks, (intptr_t) tasks);
-	// incrementing task count means a thread could start doing work already
-	// pending_count / tasks need to be in place, so this order is important
-	atomic_store(&pool->task_count, count);
+    atomic_store(&pool->pending_count, count);
+    atomic_store(&pool->tasks, (intptr_t) tasks);
+    // incrementing task count means a thread could start doing work already
+    // pending_count / tasks need to be in place, so this order is important
+    atomic_store(&pool->task_count, count);
 
-	pthread_mutex_lock(&pool->worker_lock);
-	pthread_cond_broadcast(&pool->notify_worker); // wake up sleeping worker threads after task_count has been set
-	pthread_mutex_unlock(&pool->worker_lock);
+    pthread_mutex_lock(&pool->worker_lock);
+    pthread_cond_broadcast(&pool->notify_worker); // wake up sleeping worker threads after task_count has been set
+    pthread_mutex_unlock(&pool->worker_lock);
 
-	pthread_mutex_lock(&pool->master_lock);
-	while (atomic_load(&pool->pending_count) > 0 && !pool->terminate)
-	{
-		pthread_cond_wait(&pool->notify_master, &pool->master_lock);
-	}
-	pthread_mutex_unlock(&pool->master_lock);
+    pthread_mutex_lock(&pool->master_lock);
+    while (atomic_load(&pool->pending_count) > 0 && !pool->terminate)
+    {
+        pthread_cond_wait(&pool->notify_master, &pool->master_lock);
+    }
+    pthread_mutex_unlock(&pool->master_lock);
 }
 
 static unsigned get_seed() {
@@ -184,63 +184,63 @@ static void *threadpool_threadproc(void *arg)
     srandom(get_seed());
 
     thread_t *thread = (thread_t *) arg;
-	threadpool_t *pool = thread->pool;
-	int task_count;
+    threadpool_t *pool = thread->pool;
+    int task_count;
 
-	while (1)
-	{
-		task_count = atomic_load(&pool->task_count);
+    while (1)
+    {
+        task_count = atomic_load(&pool->task_count);
 
         //fprintf(stderr, "%d %4d\n", thread->index, task_count);
 
-		if (task_count == 0)
-		{
-			pthread_mutex_lock(&pool->worker_lock);
+        if (task_count == 0)
+        {
+            pthread_mutex_lock(&pool->worker_lock);
 
-			if (pool->terminate)
-			{
-				pthread_mutex_unlock(&pool->worker_lock);
-				return NULL;
-			}
-			// re-check task_count inside worker_lock before sleeping
-			// this makes lost wakeup impossible
-			// (task count is incremented BEFORE taking worker_lock to wake the workers)
-			if (atomic_load(&pool->task_count) == 0)
-			{
+            if (pool->terminate)
+            {
+                pthread_mutex_unlock(&pool->worker_lock);
+                return NULL;
+            }
+            // re-check task_count inside worker_lock before sleeping
+            // this makes lost wakeup impossible
+            // (task count is incremented BEFORE taking worker_lock to wake the workers)
+            if (atomic_load(&pool->task_count) == 0)
+            {
                 // update thread_time
                 clock_gettime(CLOCK_THREAD_CPUTIME_ID, &thread->thread_time);
 
                 // wait until we have more work
-				pthread_cond_wait(&pool->notify_worker, &pool->worker_lock);
-			}
+                pthread_cond_wait(&pool->notify_worker, &pool->worker_lock);
+            }
 
-			pthread_mutex_unlock(&pool->worker_lock);
+            pthread_mutex_unlock(&pool->worker_lock);
 
-			continue;
-		}
+            continue;
+        }
 
-		int expected = task_count;
-		task_count--;
-		if (!atomic_compare_exchange_weak(&pool->task_count, &expected, task_count))
-		{
-			continue;
-		}
+        int expected = task_count;
+        task_count--;
+        if (!atomic_compare_exchange_weak(&pool->task_count, &expected, task_count))
+        {
+            continue;
+        }
 
-		threadpool_task_t* task = (threadpool_task_t*) atomic_load(&pool->tasks) + task_count;
+        threadpool_task_t* task = (threadpool_task_t*) atomic_load(&pool->tasks) + task_count;
 
-		task->function(task->argument);
+        task->function(task->argument);
 
-		int pending_count = atomic_fetch_sub(&pool->pending_count, 1) - 1;
+        int pending_count = atomic_fetch_sub(&pool->pending_count, 1) - 1;
 
-		if (pending_count == 0)
-		{
-			pthread_mutex_lock(&pool->master_lock);
-			pthread_cond_broadcast(&pool->notify_master);
-			pthread_mutex_unlock(&pool->master_lock);
-		}
-	}
+        if (pending_count == 0)
+        {
+            pthread_mutex_lock(&pool->master_lock);
+            pthread_cond_broadcast(&pool->notify_master);
+            pthread_mutex_unlock(&pool->master_lock);
+        }
+    }
 
-	//pthread_exit(NULL);
+    //pthread_exit(NULL);
 
-	return NULL;
+    return NULL;
 }

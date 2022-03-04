@@ -32,8 +32,8 @@ typedef struct threadpool_t threadpool_t;
 
 typedef struct
 {
-	void (* function)(void *);
-	void *argument;
+    void (* function)(void *);
+    void *argument;
 } threadpool_task_t;
 
 // create a thread pool
