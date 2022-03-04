@@ -279,14 +279,16 @@ struct char_buffer readWholeFile(int fd, char *errorContext) {
     }
     size_t fsize = fileinfo.st_size;
 
-    cb.buffer = aligned_malloc(fsize + 1);
+    int extra = 128 * 1024;
+    cb.buffer = aligned_malloc(fsize + extra);
+    memset(cb.buffer + fsize, 0x0, extra); // pad extra bit with zeros
     if (!cb.buffer) {
         fprintf(stderr, "%s: readWholeFile couldn't allocate buffer!\n", errorContext);
         return cb;
     }
     int res;
     int toRead = fsize;
-    while (true) {
+    while (toRead >= 0) {
         res = read(fd, cb.buffer + cb.len, toRead);
         if (res == EINTR)
             continue;
@@ -295,8 +297,14 @@ struct char_buffer readWholeFile(int fd, char *errorContext) {
         cb.len += res;
         toRead -= res;
     }
-    cb.buffer[fsize] = '\0'; // for good measure put a null byte to terminate the string. (consumers should honor cb.len)
-    if (res < 0 || cb.len != fsize) {
+    if (fstat(fd, &fileinfo)) {
+        fprintf(stderr, "%s: readWholeFile: fstat failed, wat?!\n", errorContext);
+        goto error2;
+    }
+
+    if (toRead < 0 || res < 0 || cb.len != fsize || (size_t) fileinfo.st_size != fsize) {
+        fprintf(stderr, "%s: readWholeFile size mismatch!\n", errorContext);
+error2:
         sfree(cb.buffer);
         cb = (struct char_buffer) {0};
     }
