@@ -134,7 +134,7 @@ static void configSetDefaults(void) {
     Modes.net_connector_delay = 30 * 1000;
     Modes.interactive_display_ttl = MODES_INTERACTIVE_DISPLAY_TTL;
     Modes.json_interval = 1000;
-    Modes.json_location_accuracy = 1;
+    Modes.json_location_accuracy = 2;
     Modes.maxRange = 1852 * 300; // 300NM default max range
     Modes.nfix_crc = 1;
     Modes.biastee = 0;
