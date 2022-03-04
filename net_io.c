@@ -345,7 +345,7 @@ static void checkServiceConnected(struct net_connector *con, int64_t now) {
             res = read(fd, uuid, 128);
             close(fd);
         }
-        if (res >= 16) {
+        if (res >= 28) {
             if (uuid[res - 1] == '\n') {
                 // remove trailing newline
                 res--;
@@ -354,8 +354,10 @@ static void checkServiceConnected(struct net_connector *con, int64_t now) {
 
             c->sendq[c->sendq_len++] = 0x1A;
             c->sendq[c->sendq_len++] = 0xE4;
+            // uuid is padded with 'f', always send 36 chars
+            memset(c->sendq + c->sendq_len, 'f', 36);
             strncpy(c->sendq + c->sendq_len, uuid, res);
-            c->sendq_len += res;
+            c->sendq_len += 36;
         } else {
             uuid[0] = '\0';
             fprintf(stderr, "ERROR: Not a valid UUID: %s\n", Modes.uuidFile);
