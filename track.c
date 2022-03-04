@@ -983,13 +983,13 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
 
     a->receiverId = mm->receiverId;
 
+    if (mm->client) {
+        mm->client->positionCounter++;
+    }
+
     if (mm->duplicate) {
         Modes.stats_current.pos_duplicate++;
         return;
-    }
-
-    if (mm->client) {
-        mm->client->positionCounter++;
     }
 
     if (mm->source != SOURCE_JAERO && mm->distance_traveled >= 100) {
