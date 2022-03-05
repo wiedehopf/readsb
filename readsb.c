@@ -1152,20 +1152,15 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.heatmap_dir = strdup(arg);
             break;
         case OptGlobeHistoryDir:
+            sfree(Modes.globe_history_dir);
             Modes.globe_history_dir = strdup(arg);
-            if (!Modes.state_dir) {
-                Modes.state_dir = malloc(PATH_MAX);
-                snprintf(Modes.state_dir, PATH_MAX, "%s/internal_state", Modes.globe_history_dir);
-            }
             break;
         case OptStateOnlyOnExit:
             Modes.state_only_on_exit = 1;
             break;
         case OptStateDir:
-            if (Modes.state_dir)
-                sfree(Modes.state_dir);
-            Modes.state_dir = malloc(PATH_MAX);
-            snprintf(Modes.state_dir, PATH_MAX, "%s/internal_state", arg);
+            sfree(Modes.state_parent_dir);
+            Modes.state_parent_dir = strdup(arg);
             break;
         case OptJsonTime:
             Modes.json_interval = (int64_t) (1000.0 * atof(arg));
@@ -1821,6 +1816,18 @@ int main(int argc, char **argv) {
             snprintf(pathbuf, PATH_MAX, "%s/traces/%02x", Modes.json_dir, i);
             mkdir(pathbuf, 0755);
         }
+    }
+
+    if (Modes.state_parent_dir) {
+        Modes.state_dir = malloc(PATH_MAX);
+        snprintf(Modes.state_dir, PATH_MAX, "%s/internal_state", Modes.state_parent_dir);
+    } else if (Modes.globe_history_dir) {
+        Modes.state_dir = malloc(PATH_MAX);
+        snprintf(Modes.state_dir, PATH_MAX, "%s/internal_state", Modes.globe_history_dir);
+    }
+
+    if (Modes.state_parent_dir && mkdir(Modes.state_parent_dir, 0755) && errno != EEXIST) {
+        fprintf(stderr, "Unable to create state directory (%s): %s\n", Modes.state_parent_dir, strerror(errno));
     }
 
     if (Modes.globe_history_dir && mkdir(Modes.globe_history_dir, 0755) && errno != EEXIST) {

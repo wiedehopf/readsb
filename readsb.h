@@ -607,6 +607,7 @@ struct _Modes
     char *json_dir; // Path to json base directory, or NULL not to write json.
     char *globe_history_dir;
     char *state_dir;
+    char *state_parent_dir;
     int state_only_on_exit;
     int free_aircraft;
     char *prom_file;
