@@ -121,7 +121,7 @@ readsb: readsb.o anet.o interactive.o mode_ac.o mode_s.o comm_b.o json_out.o net
 	$(CC) -g -o $@ $^ $(LDFLAGS) $(LIBS) $(LIBS_SDR) -lncurses $(OPTIMIZE)
 
 viewadsb: readsb
-	cp -f readsb viewadsb
+	cp --remove-destination readsb viewadsb
 
 clean:
 	rm -f *.o compat/clock_gettime/*.o compat/clock_nanosleep/*.o readsb viewadsb cprtests crctests convert_benchmark
