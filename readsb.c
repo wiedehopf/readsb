@@ -681,14 +681,17 @@ static void *decodeEntryPoint(void *arg) {
                         double elapsed_sample = buf->sampleTimestamp - last_sample;
                         double freq_ratio = elapsed_sample / (elapsed_sys * 12.0);
                         double ppm = (freq_ratio - 1) * 1e6;
-                        Modes.estimated_ppm = ppm;
-                        if (last_sample != 0 && fabs(ppm) > 600) {
-                            if (ppm < -1000) {
-                                int packets_lost = (int) nearbyint(ppm / -1820);
-                                Modes.stats_current.samples_lost += packets_lost * MODES_MAG_BUF_SAMPLES;
-                                fprintf(stderr, "Lost %d packets on USB, MLAT could be UNSTABLE, check sync! (ppm: %.0f) (or the system clock jumped for some reason)\n", packets_lost, ppm);
-                            } else {
-                                fprintf(stderr, "SDR ppm out of specification (could cause MLAT issues) or local clock jumped / not syncing with ntp or chrony! ppm: %.0f\n", ppm);
+                        // ignore the first 30 seconds for alerting purposes
+                        if (last_sample != 0) {
+                            Modes.estimated_ppm = ppm;
+                            if (fabs(ppm) > 600) {
+                                if (ppm < -1000) {
+                                    int packets_lost = (int) nearbyint(ppm / -1820);
+                                    Modes.stats_current.samples_lost += packets_lost * MODES_MAG_BUF_SAMPLES;
+                                    fprintf(stderr, "Lost %d packets on USB, MLAT could be UNSTABLE, check sync! (ppm: %.0f) (or the system clock jumped for some reason)\n", packets_lost, ppm);
+                                } else {
+                                    fprintf(stderr, "SDR ppm out of specification (could cause MLAT issues) or local clock jumped / not syncing with ntp or chrony! ppm: %.0f\n", ppm);
+                                }
                             }
                         }
                         last_sys = buf->sysMicroseconds;
