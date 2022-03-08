@@ -113,7 +113,7 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
     // this hopefully reduces data jitter introduced by differing receiver latencies
     int is_pos = (d == &a->position_valid || d == &a->cpr_odd_valid || d == &a->cpr_even_valid);
 
-    if (Modes.netReceiverId && !is_pos && a->position_valid.source >= SOURCE_TISB && now - d->updated < 5 * SECONDS && now - a->seenPosReliable < 1.2 * SECONDS) {
+    if (Modes.netReceiverId && !is_pos && a->position_valid.source >= SOURCE_TISB && now - d->updated < 5 * SECONDS && now - a->seenPosReliable < 700 * MS) {
         uint16_t hash = simpleHash(mm->receiverId);
         int found = 0;
         for (int i = 0; i < RECEIVERIDBUFFER; i++) {
@@ -1829,6 +1829,11 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (mm->squawk_valid) {
         uint32_t oldsquawk = a->squawk;
 
+        if (a->squawkTentative != mm->squawk && now > a->squawk_valid.next_reduce_forward
+                && mm->source >= a->squawk_valid.source && (now - a->squawk_valid.updated < 15 * SECONDS || Modes.netReceiverId)) {
+            a->squawk_valid.next_reduce_forward = now + Modes.net_output_beast_reduce_interval;
+            mm->reduce_forward = 1;
+        }
         if (a->squawkTentative == mm->squawk && accept_data(&a->squawk_valid, mm->source, mm, a, 0)) {
             if (mm->squawk != a->squawk) {
                 a->modeA_hit = 0;
@@ -1836,7 +1841,6 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             a->squawk = mm->squawk;
         }
         a->squawkTentative = mm->squawk;
-
 
         if (Modes.debug_squawk
                 && (a->squawk == 0x7500 || a->squawk == 0x7600 || a->squawk == 0x7700
@@ -2277,7 +2281,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     }
 
     // forward DF0/DF11 every 2 * beast_reduce_interval for beast_reduce
-    if (mm->msgtype == 11 && mm->IID == 0 && mm->correctedbits == 0 && now > a->next_reduce_forward_DF11) {
+    if (mm->msgtype == 11 && mm->IID == 0 && mm->correctedbits == 0
+            && now > a->next_reduce_forward_DF11 && !(Modes.doubleBeastReduceIntervalUntil > now)) {
         a->next_reduce_forward_DF11 = now + 2 * Modes.net_output_beast_reduce_interval;
         mm->reduce_forward = 1;
     }

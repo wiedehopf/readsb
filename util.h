@@ -36,6 +36,7 @@
 #define HOURS (60*60*1000LL)
 #define MINUTES (60*1000LL)
 #define SECONDS (1000LL)
+#define MS (1LL)
 
 int tryJoinThread(pthread_t *thread, int64_t timeout);
 typedef struct {
