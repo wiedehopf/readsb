@@ -12,6 +12,22 @@ struct apiCon {
     struct char_buffer request;
 };
 
+struct apiOptions {
+    int64_t request_received;
+    int64_t request_processed;
+    double *box;
+    uint32_t *hexList;
+    int hexCount;
+    struct apiCircle *circle;
+    int is_box;
+    int is_circle;
+    int is_hexList;
+    int closest;
+    int all;
+    int all_with_pos;
+    int jamesv2;
+};
+
 struct offset {
     int32_t offset;
     int32_t len;

@@ -68,6 +68,27 @@ static struct range findLonRange(int32_t ref_from, int32_t ref_to, struct apiEnt
     return res;
 }
 
+static int findAllPos(struct apiBuffer *buffer, struct apiEntry *matches, size_t *alloc) {
+    struct range r[2];
+    memset(r, 0, sizeof(r));
+    int count = 0;
+
+    int32_t lon1 = (int32_t) (-180 * 1E6);
+    int32_t lon2 = (int32_t) (180 * 1E6);
+
+    r[0] = findLonRange(lon1, lon2, buffer->list, buffer->len);
+
+    for (int k = 0; k < 2; k++) {
+        for (int j = r[k].from; j < r[k].to; j++) {
+            struct apiEntry *e = &buffer->list[j];
+            matches[count++] = *e;
+            *alloc += e->jsonOffset.len;
+        }
+    }
+    //fprintf(stderr, "findAllPos count: %d\n", count);
+    return count;
+}
+
 static int findInBox(struct apiBuffer *buffer, double *box, struct apiEntry *matches, size_t *alloc) {
     struct range r[2];
     memset(r, 0, sizeof(r));
@@ -189,7 +210,7 @@ static int findInCircle(struct apiBuffer *buffer, struct apiCircle *circle, stru
     return count;
 }
 
-static struct char_buffer apiReq(struct apiThread *thread, double *box, uint32_t *hexList, int hexCount, struct apiCircle *circle) {
+static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions options) {
     pthread_mutex_lock(&thread->mutex);
     int flip = Modes.apiFlip;
     pthread_mutex_unlock(&thread->mutex);
@@ -201,12 +222,14 @@ static struct char_buffer apiReq(struct apiThread *thread, double *box, uint32_t
     size_t alloc = API_REQ_PADSTART + 1024;
     int count = 0;
 
-    if (box) {
-        count = findInBox(buffer, box, matches, &alloc);
-    } else if (hexList) {
-        count = findHexList(buffer, hexList, hexCount, matches, &alloc);
-    } else if (circle) {
-        count = findInCircle(buffer, circle, matches, &alloc);
+    if (options.all_with_pos) {
+        count = findAllPos(buffer, matches, &alloc);
+    } else if (options.is_box) {
+        count = findInBox(buffer, options.box, matches, &alloc);
+    } else if (options.is_hexList) {
+        count = findHexList(buffer, options.hexList, options.hexCount, matches, &alloc);
+    } else if (options.is_circle) {
+        count = findInCircle(buffer, options.circle, matches, &alloc);
         alloc += count * 20; // adding 15 characters per entry: ,"dst":1000.000
     }
 
@@ -220,9 +243,13 @@ static struct char_buffer apiReq(struct apiThread *thread, double *box, uint32_t
     char *p = cb.buffer + API_REQ_PADSTART;
     char *end = cb.buffer + alloc;
 
-    p = safe_snprintf(p, end, "{\"now\": %.1f,\n", buffer->timestamp / 1000.0);
-    p = safe_snprintf(p, end, "\"resultCount\": %d,\n", count);
-    p = safe_snprintf(p, end, "\"aircraft\":[");
+    if (options.jamesv2) {
+        p = safe_snprintf(p, end, "{\"ac\":[");
+    } else {
+        p = safe_snprintf(p, end, "{\"now\": %.1f,\n", buffer->timestamp / 1000.0);
+        p = safe_snprintf(p, end, "\"resultCount\": %d,\n", count);
+        p = safe_snprintf(p, end, "\"aircraft\":[");
+    }
 
     char *json = buffer->json;
 
@@ -236,7 +263,7 @@ static struct char_buffer apiReq(struct apiThread *thread, double *box, uint32_t
         }
         memcpy(p, json + off.offset, off.len);
         p += off.len;
-        if (circle) {
+        if (options.is_circle) {
             p--;
             p = safe_snprintf(p, end, ",\"dst\":%.3f}", e->distance / 1852.0);
         }
@@ -247,7 +274,18 @@ static struct char_buffer apiReq(struct apiThread *thread, double *box, uint32_t
 
     if (*(p - 1) == ',')
         p--; // remove trailing comma if necessary
-    p = safe_snprintf(p, end, "\n]}\n");
+
+    options.request_processed = mstime();
+    p = safe_snprintf(p, end, "\n]");
+
+    if (options.jamesv2) {
+        p = safe_snprintf(p, end, "\n,\"msg\": \"No error\"");
+        p = safe_snprintf(p, end, "\n,\"now\": %lld", (long long) buffer->timestamp);
+        p = safe_snprintf(p, end, "\n,\"total\": %d", count);
+        p = safe_snprintf(p, end, "\n,\"ctime\": %lld", (long long) buffer->timestamp);
+        p = safe_snprintf(p, end, "\n,\"ptime\": %lld", (long long) (options.request_processed - options.request_received));
+    }
+    p = safe_snprintf(p, end, "\n}\n");
 
     cb.len = p - cb.buffer;
 
@@ -463,26 +501,74 @@ static int parseDoubles(char *p, double *results, int max) {
 
 static struct char_buffer parseFetch(struct char_buffer *request, struct apiThread *thread) {
     struct char_buffer invalid = { 0 };
-    char *p, *needle, *eot;
+    char *p;
     char *saveptr;
 
     char *req = request->buffer;
-    char *eol = memchr(req, '\n', request->len);
-    if (!eol)
+
+    // GET URL HTTPVERSION
+    // skip URL to after ? which signifies start of query options
+    char *query = memchr(req, '?', request->len) + 1;
+    if (!query)
         return invalid;
-    // we only want the first line
-    *eol = '\0';
 
-    needle = "?box=";
-    p = strcasestr(req, needle);
-    if (p) {
-        p += strlen(needle);
+    // find end of query
+    char *eoq = memchr(query, ' ', request->len);
+    if (!eoq)
+        return invalid;
 
-        eot = strchr(p, '&');
-        if (eot) *eot = '\0';
+    // we only want the URL
+    *eoq = '\0';
 
+    struct apiOptions options = { 0 };
+
+    options.request_received = mstime();
+
+    char *mainParams = NULL;
+    while ((p = strsep(&query, "&"))) {
+        //fprintf(stderr, "%s\n", p);
+        char *option = strsep(&p, "=");
+        char *value = strsep(&p, "=");
+        if (value) {
+            if (strcasecmp(option, "box") == 0) {
+                options.is_box = 1;
+                mainParams = value;
+            } else if (strcasecmp(option, "closest") == 0) {
+                options.closest = 1;
+                mainParams = value;
+            } else if (strcasecmp(option, "circle") == 0) {
+                options.is_circle = 1;
+                mainParams = value;
+            } else if (strcasecmp(option, "hexList") == 0) {
+                options.is_hexList = 1;
+                mainParams = value;
+            } else if (strcasecmp(option, "all") == 0) {
+                return invalid;
+            } else {
+                return invalid;
+            }
+        } else {
+            if (strcasecmp(option, "jv2") == 0) {
+                options.jamesv2 = 1;
+            } else if (strcasecmp(option, "all_with_pos") == 0) {
+                options.all_with_pos = 1;
+            }
+        }
+    }
+    if ((
+                options.is_box
+                + options.is_circle
+                + options.is_hexList
+                + options.all
+                + options.all_with_pos
+                + options.closest
+        ) != 1) {
+        return invalid;
+    }
+
+    if (options.is_box) {
         double box[4];
-        int count = parseDoubles(p, box, 4);
+        int count = parseDoubles(mainParams, box, 4);
         if (count < 4)
             return invalid;
 
@@ -493,23 +579,18 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
         if (box[0] > box[1])
             return invalid;
 
-        return apiReq(thread, box, NULL, 0, NULL);
+        options.box = box;
+        return apiReq(thread, options);
     }
-    needle = "?hexlist=";
-    p = strcasestr(req, needle);
-    if (p) {
-        p += strlen(needle);
 
-        eot = strchr(p, '&');
-        if (eot) *eot = '\0';
-
+    if (options.is_hexList) {
         int hexCount = 0;
         int maxLen = 8192;
         uint32_t hexList[maxLen];
 
         saveptr = NULL;
         char *endptr = NULL;
-        char *tok = strtok_r(p, ",", &saveptr);
+        char *tok = strtok_r(mainParams, ",", &saveptr);
         while (tok && hexCount < maxLen) {
             hexList[hexCount] = (uint32_t) strtol(tok, &endptr, 16);
             if (tok != endptr)
@@ -518,26 +599,15 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
         }
         if (hexCount == 0)
             return invalid;
-        return apiReq(thread, NULL, hexList, hexCount, NULL);
-    }
-    needle = "?circle=";
-    p = strcasestr(req, needle);
-    bool onlyClosest = false;
-    if (!p) {
-        needle = "?closest=";
-        p = strcasestr(req, needle);
-        if (p)
-            onlyClosest = true;
-    }
-    if (p) {
-        p += strlen(needle);
 
-        eot = strchr(p, '&');
-        if (eot) *eot = '\0';
-
+        options.hexList = hexList;
+        options.hexCount = hexCount;
+        return apiReq(thread, options);
+    }
+    if (options.is_circle || options.closest) {
         struct apiCircle circle;
         double numbers[3];
-        int count = parseDoubles(p, numbers, 3);
+        int count = parseDoubles(mainParams, numbers, 3);
         if (count < 3)
             return invalid;
 
@@ -551,9 +621,14 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
         if (circle.lon > 180 || circle.lon < -180)
             return invalid;
 
-        circle.onlyClosest = onlyClosest;
+        circle.onlyClosest = options.closest;
+        options.is_circle = 1;
+        options.circle = &circle;
 
-        return apiReq(thread, NULL, NULL, 0, &circle);
+        return apiReq(thread, options);
+    }
+    if (options.all_with_pos) {
+        return apiReq(thread, options);
     }
     return invalid;
 }
