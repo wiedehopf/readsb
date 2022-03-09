@@ -1153,7 +1153,7 @@ void apiCleanup() {
 }
 
 struct char_buffer apiGenerateAircraftJson() {
-    struct char_buffer cb;
+    struct char_buffer cb { 0 };
 
     pthread_mutex_lock(&Modes.apiFlipMutex);
     int flip = Modes.apiFlip;
@@ -1164,6 +1164,10 @@ struct char_buffer apiGenerateAircraftJson() {
 
     size_t alloc = acCount * 1024 + 2048;
     char *buf = (char *) aligned_malloc(alloc), *p = buf, *end = buf + alloc;
+
+    if (!buf) {
+        return cb;
+    }
 
     p = safe_snprintf(p, end,
             "{ \"now\" : %.1f,\n"
