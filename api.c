@@ -76,15 +76,30 @@ static int findCall(struct apiEntry *haystack, int haylen, struct apiEntry *matc
     return count;
 }
 
+static int findAllSquawk(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc, struct apiOptions options) {
+    int count = 0;
+
+    for (int j = 0; j < haylen; j++) {
+        struct apiEntry *e = &haystack[j];
+        if (e->aircraftJson
+                && e->bin.squawk == options.squawk
+                && e->bin.squawk_valid) {
+            matches[count++] = *e;
+            *alloc += e->jsonOffset.len;
+        }
+    }
+
+    //fprintf(stderr, "findAllSquawk count: %d\n", count);
+    return count;
+}
+
 static int findAll(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc) {
     int count = 0;
 
     for (int j = 0; j < haylen; j++) {
         struct apiEntry *e = &haystack[j];
-        if (e->aircraftJson) {
             matches[count++] = *e;
             *alloc += e->jsonOffset.len;
-        }
     }
 
     //fprintf(stderr, "findAllPos count: %d\n", count);
@@ -104,10 +119,8 @@ static int findAllPos(struct apiEntry *haystack, int haylen, struct apiEntry *ma
     for (int k = 0; k < 2; k++) {
         for (int j = r[k].from; j < r[k].to; j++) {
             struct apiEntry *e = &haystack[j];
-            if (e->aircraftJson) {
                 matches[count++] = *e;
                 *alloc += e->jsonOffset.len;
-            }
         }
     }
     //fprintf(stderr, "findAllPos count: %d\n", count);
@@ -270,7 +283,9 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
     size_t alloc = alloc_base;
     int count = 0;
 
-    if (options.is_box) {
+    if (options.filter_squawk && (options.all || options.all_with_pos)) {
+        count = findAllSquawk(haystack, haylen, matches, &alloc, options);
+    } else if (options.is_box) {
         count = findInBox(haystack, haylen, options.box, matches, &alloc);
     } else if (options.is_hexList) {
         count = findHexList(buffer->hashList, options.hexList, options.hexCount, matches, &alloc);
@@ -999,11 +1014,12 @@ static void *apiThreadEntryPoint(void *arg) {
         }
         count = epoll_wait(thread->epfd, events, maxEvents, 1000);
 
-        if (loop++ % 128) {
+        if (loop++ % 128 == 0) {
             pthread_mutex_lock(&thread->mutex);
             end_cpu_timing(&cpu_timer, &Modes.stats_current.api_worker_cpu);
             pthread_mutex_unlock(&thread->mutex);
             start_cpu_timing(&cpu_timer);
+            //fprintf(stderr, "%2d %5d\n", thread->index, thread->openFDs);
         }
 
         for (int i = 0; i < count; i++) {
@@ -1015,7 +1031,7 @@ static void *apiThreadEntryPoint(void *arg) {
             if (con->accept) {
                 acceptConn(con, thread);
             } else {
-                if (event.events & (EPOLLIN | EPOLLERR | EPOLLHUP)) {
+                if (event.events & (EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
                     apiReadRequest(con, thread);
                 } else if (event.events & EPOLLOUT) {
                     apiSendData(con, thread);

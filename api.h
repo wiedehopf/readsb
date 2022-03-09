@@ -62,8 +62,7 @@ struct apiEntry {
 
     float distance;
     int32_t globe_index;
-
-    unsigned aircraftJson:1;
+    int aircraftJson;
 };
 
 
