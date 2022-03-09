@@ -13,6 +13,7 @@ struct apiCon {
     uint32_t events;
     struct char_buffer request;
     int open;
+    int wakeups;
 };
 
 struct apiCircle {
@@ -87,6 +88,7 @@ struct apiThread {
     int epfd;
     int eventfd;
     int openFDs;
+    int responseBytesBuffered;
     struct apiCon *cons;
     int nextCon;
 };

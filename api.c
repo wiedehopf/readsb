@@ -576,23 +576,29 @@ void apiUnlockMutex() {
     }
 }
 
-static void shutClose(int fd) {
+static int shutClose(int fd) {
     if (shutdown(fd, SHUT_RDWR) < 0) { // Secondly, terminate the reliable delivery
         if (errno != ENOTCONN && errno != EINVAL) { // SGI causes EINVAL
             fprintf(stderr, "API: Shutdown client socket failed.\n");
         }
     }
-    close(fd);
+    return close(fd);
 }
 
 static void apiCloseConn(struct apiCon *con, struct apiThread *thread) {
-    if (!con->open)
+    if (!con->open) {
+        fprintf(stderr, "apiCloseConn double close!\n");
         return;
+    }
 
     int fd = con->fd;
-    epoll_ctl(thread->epfd, EPOLL_CTL_DEL, fd, NULL);
+    if (epoll_ctl(thread->epfd, EPOLL_CTL_DEL, fd, NULL)) {
+        perror("apiCloseConn: epoll_ctl fail:");
+    }
 
-    shutClose(fd);
+    if (shutClose(fd) != 0) {
+        perror("apiCloseConn: close:");
+    }
 
     if (Modes.debug_api)
         fprintf(stderr, "%d: clo c: %d\n", thread->index, fd);
@@ -600,6 +606,8 @@ static void apiCloseConn(struct apiCon *con, struct apiThread *thread) {
     sfree(con->request.buffer);
 
     struct char_buffer *cb = &con->cb;
+
+    thread->responseBytesBuffered -= cb->len;
 
     sfree(cb->buffer);
     cb->len = 0;
@@ -610,13 +618,13 @@ static void apiCloseConn(struct apiCon *con, struct apiThread *thread) {
     //fprintf(stderr, "%2d %5d\n", thread->index, thread->openFDs);
 }
 
-static void send500(int fd) {
+static void send503(int fd) {
     char buf[256];
     char *p = buf;
     char *end = buf + sizeof(buf);
 
     p = safe_snprintf(p, end,
-    "HTTP/1.1 500 Internal Server Error\r\n"
+    "HTTP/1.1 503 Service Unavailable\r\n"
     "Server: readsb/3.1442\r\n"
     "Connection: close\r\n"
     "Content-Length: 0\r\n\r\n");
@@ -805,29 +813,38 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
 
 static void apiSendData(struct apiCon *con, struct apiThread *thread) {
     struct char_buffer *cb = &con->cb;
-    int len = cb->len - con->cbOffset;
+    int toSend = cb->len - con->cbOffset;
+
+    // all data has been sent, close the connection
+    if (toSend <= 0) {
+        if (toSend < 0)  {
+            fprintf(stderr, "wat?! apiSendData() being weird\n");
+        }
+        apiCloseConn(con, thread);
+        return;
+    }
     char *dataStart = cb->buffer + con->cbOffset;
 
-    int nwritten = send(con->fd, dataStart, len, 0);
+    int nwritten = send(con->fd, dataStart, toSend, 0);
 
     if (nwritten > 0) {
         con->cbOffset += nwritten;
     }
 
     // all data has been sent, close the connection
-    if (nwritten == len) {
+    if (nwritten == toSend) {
         apiCloseConn(con, thread);
         return;
     }
 
     // non recoverable error
     if (nwritten < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
-        fprintf(stderr, "apiSendData fail: %s (was trying to send %d bytes)\n", strerror(errno), len);
+        fprintf(stderr, "apiSendData fail: %s (was trying to send %d bytes)\n", strerror(errno), toSend);
         apiCloseConn(con, thread);
         return;
     }
 
-    //fprintf(stderr, "wrote only %d of %d\n", nwritten, len);
+    //fprintf(stderr, "wrote only %d of %d\n", nwritten, toSend);
 
     if (!(con->events & EPOLLOUT)) {
         int op;
@@ -852,26 +869,25 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
     int fd = con->fd;
 
     struct char_buffer *request = &con->request;
-    do {
-        if (request->len > 1024 + 7 * API_HEXLIST_MAX) {
-            send400(fd);
-            apiCloseConn(con, thread);
-            return;
-        }
-        if (request->len + 2048 > request->alloc) {
-            request->alloc += 16 * 1024;
-            request->buffer = realloc(request->buffer, request->alloc);
-        }
-        toRead = request->alloc - request->len - 1; // leave an extra byte we can set \0
-        nread = recv(fd, request->buffer + request->len, toRead, 0);
-        err = errno;
 
-        if (nread > 0) {
-            request->len += nread;
-            // terminate string
-            request->buffer[request->len] = '\0';
-        }
-    } while (nread == toRead);
+    if (request->len > 1024 + 7 * API_HEXLIST_MAX) {
+        send400(fd);
+        apiCloseConn(con, thread);
+        return;
+    }
+    if (request->len + 2048 > request->alloc) {
+        request->alloc += 16 * 1024;
+        request->buffer = realloc(request->buffer, request->alloc);
+    }
+    toRead = request->alloc - request->len - 1; // leave an extra byte we can set \0
+    nread = recv(fd, request->buffer + request->len, toRead, 0);
+    err = errno;
+
+    if (nread > 0) {
+        request->len += nread;
+        // terminate string
+        request->buffer[request->len] = '\0';
+    }
 
     if (nread < 0 && !(err == EAGAIN || err == EWOULDBLOCK || err == EINTR)) {
         send400(fd);
@@ -879,9 +895,22 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
         return;
     }
 
-    // we already have a response that hasn't been sent yet, discard request.
-    if (con->cb.buffer)
-        return;
+    if (con->cb.buffer) {
+        int toSend = con->cb.len - con->cbOffset;
+
+        if (toSend > 0) {
+            // we already have a response that hasn't been sent yet, don't parse request
+            // only one request per connection supported
+            return;
+        } else {
+            // all data has been sent, close the connection
+            if (toSend < 0)  {
+                fprintf(stderr, "wat?! apiSendData() being weird\n");
+            }
+            apiCloseConn(con, thread);
+            return;
+        }
+    }
 
     if (!memchr(request->buffer, '\n', request->len)) {
         // no newline, wait for more data
@@ -896,6 +925,8 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
         apiCloseConn(con, thread);
         return;
     }
+
+    thread->responseBytesBuffered += cb.len;
 
     // at header before payload
     char header[API_REQ_PADSTART];
@@ -928,6 +959,7 @@ static void acceptConn(struct apiCon *con, struct apiThread *thread) {
     struct sockaddr *saddr = (struct sockaddr *) &storage;
     socklen_t slen = sizeof(storage);
 
+
     char aneterr[ANET_ERR_LEN];
     int this_cycle = 0;
     while (this_cycle++ < Modes.api_fds_per_thread / 4) {
@@ -945,13 +977,23 @@ static void acceptConn(struct apiCon *con, struct apiThread *thread) {
             thread->nextCon = (thread->nextCon + 1) % Modes.api_fds_per_thread;
         } while (con->open && tryCounter++ < Modes.api_fds_per_thread / 8);
 
+        // when starving for connections, close and old connectiona and accept a new one
         if (con->open) {
-            fprintf(stderr, "too many concurrent connections / connections unresponsive, send 500 :/\n");
-            send500(con->fd);
+            fprintf(stderr, "too many concurrent connections / connections unresponsive, send 503 :/\n");
+            send503(con->fd);
             apiCloseConn(con, thread);
         }
-
         memset(con, 0, sizeof(struct apiCon));
+
+        // when running out of memory to buffer responses, reject new connections
+        if (thread->responseBytesBuffered > 384 * 1024 * 1024) {
+            fprintf(stderr, "more than 384 MB response buffered in this thread, send 503 :/\n");
+            send503(fd);
+            if (shutClose(fd) != 0) {
+                perror("accept: out of mem: close:");
+            }
+            return;
+        }
 
         con->open = 1;
         con->fd = fd;
@@ -1033,10 +1075,29 @@ static void *apiThreadEntryPoint(void *arg) {
             if (con->accept) {
                 acceptConn(con, thread);
             } else {
-                if (event.events & EPOLLOUT) {
+                if (con->open && (event.events & EPOLLOUT)) {
                     apiSendData(con, thread);
-                } else if (event.events & (EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
+                }
+                if (con->open && (event.events & (EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP))) {
                     apiReadRequest(con, thread);
+                }
+                if (0 && (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
+                    fprintf(stderr, "(EPOLLERR | EPOLLHUP | EPOLLRDHUP) --> sending 400 open: %d\n", con->open);
+                    send400(con->fd);
+                    apiCloseConn(con, thread);
+                    continue;
+                }
+                if (con->wakeups++ > 512 * 1024) {
+                    errno = 0;
+                    int bytes = recv(con->fd, con->request.buffer, 128, 0);
+                    if (errno)
+                        perror("recv: ");
+                    fprintf(stderr, "connection triggered too many events, send 503 :/ (EPOLLIN: %d, EPOLLOUT: %d) (cb.len: %d, cbOffset: %d, open: %d, rbytes: %d)\n",
+                            (event.events & EPOLLIN), (event.events & EPOLLOUT),
+                            (int) con->cb.len, (int) con->cbOffset, con->open, bytes);
+                    send503(con->fd);
+                    apiCloseConn(con, thread);
+                    continue;
                 }
             }
         }
@@ -1153,7 +1214,7 @@ void apiCleanup() {
 }
 
 struct char_buffer apiGenerateAircraftJson() {
-    struct char_buffer cb { 0 };
+    struct char_buffer cb = { 0 };
 
     pthread_mutex_lock(&Modes.apiFlipMutex);
     int flip = Modes.apiFlip;
