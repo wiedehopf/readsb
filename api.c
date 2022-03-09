@@ -809,49 +809,39 @@ static void apiSendData(struct apiCon *con, struct apiThread *thread) {
     char *dataStart = cb->buffer + con->cbOffset;
 
     int nwritten = send(con->fd, dataStart, len, 0);
-    int err = errno;
 
-    if ((nwritten >= 0 && nwritten < len) || (nwritten < 0 && (err == EAGAIN || err == EWOULDBLOCK))) {
-        //fprintf(stderr, "wrote only %d of %d\n", nwritten, len);
-
+    if (nwritten > 0) {
         con->cbOffset += nwritten;
-
-        if (!(con->events & EPOLLOUT)) {
-            // notify if fd is available for writing
-            con->events ^= EPOLLOUT; // toggle xor
-            struct epoll_event epollEvent = { .events = con->events };
-            epollEvent.data.ptr = con;
-
-            if (epoll_ctl(thread->epfd, EPOLL_CTL_MOD, con->fd, &epollEvent))
-                perror("epoll_ctl MOD fail:");
-        }
-
-        return;
-        // free stuff some other time
     }
 
-    sfree(cb->buffer);
-    cb->len = 0;
-    cb->buffer = NULL;
-
-    if (nwritten < 0) {
-        fprintf(stderr, "apiSendData fail: %s (was trying to send %d bytes)\n", strerror(err), len);
+    // all data has been sent, close the connection
+    if (nwritten == len) {
         apiCloseConn(con, thread);
         return;
     }
 
-    apiCloseConn(con, thread);
-    return;
+    // non recoverable error
+    if (nwritten < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
+        fprintf(stderr, "apiSendData fail: %s (was trying to send %d bytes)\n", strerror(errno), len);
+        apiCloseConn(con, thread);
+        return;
+    }
 
-    // doing one request per connection for the moment, keep-alive maybe later
-    if (con->events & EPOLLOUT) {
-        // no more writing necessary for the moment, no longer get notified for EPOLLOUT
-        con->events ^= EPOLLOUT; // toggle xor
+    //fprintf(stderr, "wrote only %d of %d\n", nwritten, len);
+
+    if (!(con->events & EPOLLOUT)) {
+        int op;
+        if (!con->events) {
+            op = EPOLL_CTL_ADD;
+        } else {
+            op = EPOLL_CTL_MOD;
+        }
+        con->events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP | EPOLLOUT;
         struct epoll_event epollEvent = { .events = con->events };
         epollEvent.data.ptr = con;
 
-        if (epoll_ctl(thread->epfd, EPOLL_CTL_MOD, con->fd, &epollEvent))
-            perror("epoll_ctl MOD fail:");
+        if (epoll_ctl(thread->epfd, op, con->fd, &epollEvent))
+            perror("epoll_ctl fail:");
     }
 
     return;
@@ -883,7 +873,8 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
         }
     } while (nread == toRead);
 
-    if (nread == 0 || (nread < 0 && (err != EAGAIN && err != EWOULDBLOCK))) {
+    if (nread < 0 && !(err == EAGAIN || err == EWOULDBLOCK || err == EINTR)) {
+        send400(fd);
         apiCloseConn(con, thread);
         return;
     }
@@ -964,16 +955,21 @@ static void acceptConn(struct apiCon *con, struct apiThread *thread) {
 
         con->open = 1;
         con->fd = fd;
-        con->events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
-        struct epoll_event epollEvent = { .events = con->events };
-        epollEvent.data.ptr = con;
-
 
         if (Modes.debug_api)
             fprintf(stderr, "%d: new c: %d\n", thread->index, fd);
 
-        if (epoll_ctl(thread->epfd, EPOLL_CTL_ADD, fd, &epollEvent))
-            perror("epoll_ctl fail:");
+        apiReadRequest(con, thread);
+
+        if (!con->cb.buffer && con->open) {
+            int op = EPOLL_CTL_ADD;
+            con->events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
+            struct epoll_event epollEvent = { .events = con->events };
+            epollEvent.data.ptr = con;
+
+            if (epoll_ctl(thread->epfd, op, fd, &epollEvent))
+                perror("epoll_ctl fail:");
+        }
     }
     if (errno) {
         if (!(errno & (EMFILE | EINTR | EAGAIN | EWOULDBLOCK))) {
@@ -1027,16 +1023,19 @@ static void *apiThreadEntryPoint(void *arg) {
             struct epoll_event event = events[i];
             if (event.data.ptr == &Modes.exitEventfd)
                 break;
+        }
+        for (int i = 0; i < count; i++) {
+            struct epoll_event event = events[i];
+            if (event.data.ptr == &Modes.exitEventfd)
+                break;
 
             struct apiCon *con = event.data.ptr;
             if (con->accept) {
                 acceptConn(con, thread);
             } else {
-                if (event.events & (EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
-                    apiReadRequest(con, thread);
-                } else if (event.events & EPOLLOUT) {
+                if (event.events & EPOLLOUT) {
                     apiSendData(con, thread);
-                } else {
+                } else if (event.events & (EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
                     apiReadRequest(con, thread);
                 }
             }
