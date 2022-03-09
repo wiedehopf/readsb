@@ -77,24 +77,16 @@ static int findCall(struct apiEntry *haystack, int haylen, struct apiEntry *matc
 }
 
 static int findAll(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc) {
-    struct range r[2];
-    memset(r, 0, sizeof(r));
     int count = 0;
 
-    int32_t lon1 = INT32_MIN;
-    int32_t lon2 = INT32_MAX;
-
-    r[0] = findLonRange(lon1, lon2, haystack, haylen);
-
-    for (int k = 0; k < 2; k++) {
-        for (int j = r[k].from; j < r[k].to; j++) {
-            struct apiEntry *e = &haystack[j];
-            if (e->aircraftJson) {
-                matches[count++] = *e;
-                *alloc += e->jsonOffset.len;
-            }
+    for (int j = 0; j < haylen; j++) {
+        struct apiEntry *e = &haystack[j];
+        if (e->aircraftJson) {
+            matches[count++] = *e;
+            *alloc += e->jsonOffset.len;
         }
     }
+
     //fprintf(stderr, "findAllPos count: %d\n", count);
     return count;
 }
@@ -112,8 +104,10 @@ static int findAllPos(struct apiEntry *haystack, int haylen, struct apiEntry *ma
     for (int k = 0; k < 2; k++) {
         for (int j = r[k].from; j < r[k].to; j++) {
             struct apiEntry *e = &haystack[j];
-            matches[count++] = *e;
-            *alloc += e->jsonOffset.len;
+            if (e->aircraftJson) {
+                matches[count++] = *e;
+                *alloc += e->jsonOffset.len;
+            }
         }
     }
     //fprintf(stderr, "findAllPos count: %d\n", count);
@@ -406,7 +400,7 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
 }
 
 static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, int64_t now) {
-    if (!(now < a->seen + 5 * MINUTES || includeAircraftJson(now, a)))
+    if (!(includeGlobeJson(now, a) || includeAircraftJson(now, a)))
         return;
 
     struct apiEntry *entry = &(buffer->list[buffer->len]);

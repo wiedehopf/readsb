@@ -946,8 +946,8 @@ int includeGlobeJson(int64_t now, struct aircraft *a) {
     if (now < a->seen + TRACK_EXPIRE / 2) {
         return 1;
     }
-    // include aircraft with reliable position in the last 30 minutes
-    if (now < a->seenPosReliable + 30 * MINUTES) {
+    // include aircraft with reliable position in the last 15 minutes
+    if (now < a->seenPosReliable + 15 * MINUTES) {
         return 1;
     }
 
