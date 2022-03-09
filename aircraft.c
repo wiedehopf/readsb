@@ -701,6 +701,8 @@ void updateTypeReg(struct aircraft *a) {
             || (i >= 0x7c822e && i <= 0x7c84ff)
             //7c8800-7c8fff = australia mil_7(av)
             || (i >= 0x7c8800 && i <= 0x7c88ff)
+            //7cf800-7cfaff australia mil
+            || (i >= 0x7cf800 && i <= 0x7cfaff)
             //7c9000-7c9fff = australia mil_8(av)
             //7ca000-7cbfff = australia mil_9(av)
             || (i >= 0x7c9000 && i <= 0x7cafff)
