@@ -566,22 +566,53 @@ void apiUnlockMutex() {
     }
 }
 
-
-static void apiCloseConn(struct apiCon *con, struct apiThread *thread) {
-    int fd = con->fd;
-    epoll_ctl(thread->epfd, EPOLL_CTL_DEL, fd, NULL);
-
+static void shutClose(int fd) {
     if (shutdown(fd, SHUT_RDWR) < 0) { // Secondly, terminate the reliable delivery
         if (errno != ENOTCONN && errno != EINVAL) { // SGI causes EINVAL
             fprintf(stderr, "API: Shutdown client socket failed.\n");
         }
     }
     close(fd);
+}
+
+static void apiCloseConn(struct apiCon *con, struct apiThread *thread) {
+    if (!con->open)
+        return;
+
+    int fd = con->fd;
+    epoll_ctl(thread->epfd, EPOLL_CTL_DEL, fd, NULL);
+
+    shutClose(fd);
 
     if (Modes.debug_api)
         fprintf(stderr, "%d: clo c: %d\n", thread->index, fd);
+
     sfree(con->request.buffer);
-    sfree(con);
+
+    struct char_buffer *cb = &con->cb;
+
+    sfree(cb->buffer);
+    cb->len = 0;
+    cb->buffer = NULL;
+
+    con->open = 0;
+    thread->openFDs--;
+    //fprintf(stderr, "%2d %5d\n", thread->index, thread->openFDs);
+}
+
+static void send500(int fd) {
+    char buf[256];
+    char *p = buf;
+    char *end = buf + sizeof(buf);
+
+    p = safe_snprintf(p, end,
+    "HTTP/1.1 500 Internal Server Error\r\n"
+    "Server: readsb/3.1442\r\n"
+    "Connection: close\r\n"
+    "Content-Length: 0\r\n\r\n");
+
+    int res = send(fd, buf, strlen(buf), 0);
+    MODES_NOTUSED(res);
 }
 
 static void send400(int fd) {
@@ -822,13 +853,13 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
 
     struct char_buffer *request = &con->request;
     do {
-        if (request->len > 60000) {
+        if (request->len > 1024 + 7 * API_HEXLIST_MAX) {
             send400(fd);
             apiCloseConn(con, thread);
             return;
         }
         if (request->len + 2048 > request->alloc) {
-            request->alloc += 4096;
+            request->alloc += 16 * 1024;
             request->buffer = realloc(request->buffer, request->alloc);
         }
         toRead = request->alloc - request->len - 1; // leave an extra byte we can set \0
@@ -895,15 +926,33 @@ static void acceptConn(struct apiCon *con, struct apiThread *thread) {
     struct sockaddr_storage storage;
     struct sockaddr *saddr = (struct sockaddr *) &storage;
     socklen_t slen = sizeof(storage);
-    int fd = -1;
 
-    errno = 0;
     char aneterr[ANET_ERR_LEN];
-    while ((fd = anetGenericAccept(aneterr, listen_fd, saddr, &slen, SOCK_NONBLOCK)) >= 0) {
-        struct apiCon *con = aligned_malloc(sizeof(struct apiCon));
-        memset(con, 0, sizeof(struct apiCon));
-        if (!con) fprintf(stderr, "EMEM, how much is the fish?\n"), exit(1);
+    int this_cycle = 0;
+    while (this_cycle++ < Modes.api_fds_per_thread / 4) {
+        errno = 0;
+        int fd = anetGenericAccept(aneterr, listen_fd, saddr, &slen, SOCK_NONBLOCK);
+        if (fd < 0) {
+            break;
+        }
+        thread->openFDs++;
 
+        struct apiCon *con;
+        int tryCounter = 0;
+        do {
+            con = &thread->cons[thread->nextCon];
+            thread->nextCon = (thread->nextCon + 1) % Modes.api_fds_per_thread;
+        } while (con->open && tryCounter++ < Modes.api_fds_per_thread / 8);
+
+        if (con->open) {
+            fprintf(stderr, "too many concurrent connections / connections unresponsive, send 500 :/\n");
+            send500(con->fd);
+            apiCloseConn(con, thread);
+        }
+
+        memset(con, 0, sizeof(struct apiCon));
+
+        con->open = 1;
         con->fd = fd;
         con->events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
         struct epoll_event epollEvent = { .events = con->events };
@@ -916,13 +965,15 @@ static void acceptConn(struct apiCon *con, struct apiThread *thread) {
         if (epoll_ctl(thread->epfd, EPOLL_CTL_ADD, fd, &epollEvent))
             perror("epoll_ctl fail:");
     }
-    if (!(errno & (EMFILE | EINTR | EAGAIN | EWOULDBLOCK))) {
-        fprintf(stderr, "<3>API: Error accepting new connection: %s\n", aneterr);
-    }
-    if (errno == EMFILE) {
-        fprintf(stderr, "<3>Out of file descriptors accepting api clients, "
-                "exiting to make sure we don't remain in a broken state!\n");
-        Modes.exit = 1;
+    if (errno) {
+        if (!(errno & (EMFILE | EINTR | EAGAIN | EWOULDBLOCK))) {
+            fprintf(stderr, "<3>API: Error accepting new connection: %s\n", aneterr);
+        }
+        if (errno == EMFILE) {
+            fprintf(stderr, "<3>Out of file descriptors accepting api clients, "
+                    "exiting to make sure we don't remain in a broken state!\n");
+            Modes.exit = 2;
+        }
     }
 }
 
@@ -954,7 +1005,7 @@ static void *apiThreadEntryPoint(void *arg) {
         }
         count = epoll_wait(thread->epfd, events, maxEvents, 1000);
 
-        if (loop++ % 5) {
+        if (loop++ % 128) {
             pthread_mutex_lock(&thread->mutex);
             end_cpu_timing(&cpu_timer, &Modes.stats_current.api_worker_cpu);
             pthread_mutex_unlock(&thread->mutex);
@@ -1069,7 +1120,10 @@ void apiInit() {
         con->events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
     }
 
+    Modes.api_fds_per_thread = Modes.max_fds * 7 / 8 / API_THREADS;
     for (int i = 0; i < API_THREADS; i++) {
+        Modes.apiThread[i].cons = aligned_malloc(Modes.api_fds_per_thread * sizeof(struct apiCon));
+        memset(Modes.apiThread[i].cons, 0x0, Modes.api_fds_per_thread * sizeof(struct apiCon));
         Modes.apiThread[i].index = i;
         pthread_create(&Modes.apiThread[i].thread, NULL, apiThreadEntryPoint, &Modes.apiThread[i]);
     }
@@ -1077,6 +1131,7 @@ void apiInit() {
 void apiCleanup() {
     for (int i = 0; i < API_THREADS; i++) {
         pthread_join(Modes.apiThread[i].thread, NULL);
+        sfree(Modes.apiThread[i].cons);
     }
 
     for (int i = 0; i < Modes.apiService.listener_count; ++i) {

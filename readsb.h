@@ -71,7 +71,6 @@
 
 #define MemoryAlignment 32
 #define ALIGNED __attribute__((aligned(MemoryAlignment)))
-#define aligned_malloc(size) aligned_alloc(MemoryAlignment, size)
 
 // ============================= Include files ==========================
 
@@ -342,6 +341,21 @@ typedef enum {
 #define MAGIC_MLAT_TIMESTAMP 0xFF004D4C4154ULL
 #define MAGIC_UAT_TIMESTAMP  0xFF004D4C4155ULL
 
+#define likely(x)       __builtin_expect((x),1)
+#define unlikely(x)     __builtin_expect((x),0)
+
+void setExit(int arg);
+
+static inline void *aligned_alloc_or_exit(size_t alignment, size_t size, const char *file, int line) {
+    void *buf = aligned_alloc(alignment, size);
+    if (unlikely(!buf)) {
+        setExit(2); // irregular exit ... soon
+        fprintf(stderr, "FATAL: aligned_alloc failed: %s:%d\n", file, line);
+    }
+    return buf;
+}
+
+#define aligned_malloc(size) aligned_alloc_or_exit(MemoryAlignment, size, __FILE__, __LINE__)
 
 // Include subheaders after all the #defines are in place
 
@@ -405,8 +419,6 @@ struct _Threads {
 };
 extern struct _Threads Threads;
 
-void setExit(int arg);
-
 struct _Modes
 { // Internal state
     pthread_mutex_t traceDebugMutex;
@@ -453,6 +465,7 @@ struct _Modes
     struct epoll_event *net_events;
     int max_fds;
     int modesClientCount;
+    int api_fds_per_thread;
     int total_aircraft_count;
     float estimated_ppm;
 
@@ -1022,6 +1035,7 @@ enum {
     OptPlutoUri,
     OptPlutoNetwork,
 };
+
 
 // This one needs modesMessage:
 #include "track.h"
