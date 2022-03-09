@@ -68,6 +68,18 @@ static struct range findLonRange(int32_t ref_from, int32_t ref_to, struct apiEnt
     return res;
 }
 
+static int findCall(struct apiBuffer *buffer, struct apiEntry *matches, size_t *alloc, char *callsign) {
+    int count = 0;
+    for (int j = 0; j < buffer->len; j++) {
+        struct apiEntry *e = &buffer->list[j];
+        if (e->bin.callsign_valid && strncasecmp(e->bin.callsign, callsign, 8) == 0) {
+            matches[count++] = *e;
+            *alloc += e->jsonOffset.len;
+        }
+    }
+    return count;
+}
+
 static int findAll(struct apiBuffer *buffer, struct apiEntry *matches, size_t *alloc) {
     struct range r[2];
     memset(r, 0, sizeof(r));
@@ -255,17 +267,19 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
     size_t alloc = API_REQ_PADSTART + 1024;
     int count = 0;
 
-    if (options.all) {
-        count = findAll(buffer, matches, &alloc);
-    } else if (options.all_with_pos) {
-        count = findAllPos(buffer, matches, &alloc);
-    } else if (options.is_box) {
+    if (options.is_box) {
         count = findInBox(buffer, options.box, matches, &alloc);
     } else if (options.is_hexList) {
         count = findHexList(buffer, options.hexList, options.hexCount, matches, &alloc);
     } else if (options.is_circle) {
         count = findInCircle(buffer, options.circle, matches, &alloc);
         alloc += count * 20; // adding 15 characters per entry: ,"dst":1000.000
+    } else if (options.find_callsign) {
+        count = findCall(buffer, matches, &alloc, options.callsign);
+    } else if (options.all) {
+        count = findAll(buffer, matches, &alloc);
+    } else if (options.all_with_pos) {
+        count = findAllPos(buffer, matches, &alloc);
     }
 
     // add for comma and new line for each entry
@@ -556,19 +570,18 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
         if (value) {
             if (strcasecmp(option, "box") == 0) {
                 options.is_box = 1;
-                mainParams = value;
             } else if (strcasecmp(option, "closest") == 0) {
                 options.closest = 1;
-                mainParams = value;
             } else if (strcasecmp(option, "circle") == 0) {
                 options.is_circle = 1;
-                mainParams = value;
             } else if (strcasecmp(option, "hexList") == 0) {
                 options.is_hexList = 1;
-                mainParams = value;
+            } else if (strcasecmp(option, "find_callsign") == 0) {
+                options.find_callsign = 1;
             } else {
                 return invalid;
             }
+            mainParams = value;
         } else {
             if (strcasecmp(option, "jv2") == 0) {
                 options.jamesv2 = 1;
@@ -576,6 +589,8 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
                 options.all = 1;
             } else if (strcasecmp(option, "all_with_pos") == 0) {
                 options.all_with_pos = 1;
+            } else {
+                return invalid;
             }
         }
     }
@@ -586,6 +601,7 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
                 + options.all
                 + options.all_with_pos
                 + options.closest
+                + options.find_callsign
         ) != 1) {
         return invalid;
     }
@@ -649,6 +665,15 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
         options.is_circle = 1;
         options.circle = &circle;
 
+        return apiReq(thread, options);
+    }
+    if (options.find_callsign) {
+        strncpy(options.callsign, mainParams, 8);
+        // strncpy pads with null bytes, replace with space padding
+        for (int i = 0; i < 8; i++) {
+            if (options.callsign[i] == '\0')
+                options.callsign[i] = ' ';
+        }
         return apiReq(thread, options);
     }
     if (options.all_with_pos || options.all) {

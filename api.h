@@ -26,6 +26,8 @@ struct apiOptions {
     int all;
     int all_with_pos;
     int jamesv2;
+    char callsign[9];
+    int find_callsign;
 };
 
 struct offset {
@@ -44,7 +46,6 @@ struct apiEntry {
     int32_t globe_index;
 
     unsigned aircraftJson:1;
-
 };
 
 struct apiCircle {
