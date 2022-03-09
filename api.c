@@ -10,7 +10,7 @@ static inline uint32_t apiHash(uint32_t addr) {
 static int compareLon(const void *p1, const void *p2) {
     struct apiEntry *a1 = (struct apiEntry*) p1;
     struct apiEntry *a2 = (struct apiEntry*) p2;
-    return (a1->lon > a2->lon) - (a1->lon < a2->lon);
+    return (a1->bin.lon > a2->bin.lon) - (a1->bin.lon < a2->bin.lon);
 }
 
 static void apiSort(struct apiBuffer *buffer) {
@@ -30,15 +30,15 @@ static struct range findLonRange(int32_t ref_from, int32_t ref_to, struct apiEnt
 
         int pivot = (i + j) / 2;
 
-        if (list[pivot].lon < ref_from)
+        if (list[pivot].bin.lon < ref_from)
             i = pivot;
         else
             j = pivot;
     }
 
-    if (list[j].lon < ref_from) {
+    if (list[j].bin.lon < ref_from) {
         res.from = j + 1;
-    } else if (list[i].lon < ref_from) {
+    } else if (list[i].bin.lon < ref_from) {
         res.from = i + 1;
     } else {
         res.from = i;
@@ -51,21 +51,44 @@ static struct range findLonRange(int32_t ref_from, int32_t ref_to, struct apiEnt
     while (j > i + 1) {
 
         int pivot = (i + j) / 2;
-        if (list[pivot].lon <= ref_to)
+        if (list[pivot].bin.lon <= ref_to)
             i = pivot;
         else
             j = pivot;
     }
 
-    if (list[j].lon <= ref_to) {
+    if (list[j].bin.lon <= ref_to) {
         res.to = j + 1;
-    } else if (list[i].lon <= ref_to) {
+    } else if (list[i].bin.lon <= ref_to) {
         res.to = i + 1;
     } else {
         res.to = i;
     }
 
     return res;
+}
+
+static int findAll(struct apiBuffer *buffer, struct apiEntry *matches, size_t *alloc) {
+    struct range r[2];
+    memset(r, 0, sizeof(r));
+    int count = 0;
+
+    int32_t lon1 = INT32_MIN;
+    int32_t lon2 = INT32_MAX;
+
+    r[0] = findLonRange(lon1, lon2, buffer->list, buffer->len);
+
+    for (int k = 0; k < 2; k++) {
+        for (int j = r[k].from; j < r[k].to; j++) {
+            struct apiEntry *e = &buffer->list[j];
+            if (e->aircraftJson) {
+                matches[count++] = *e;
+                *alloc += e->jsonOffset.len;
+            }
+        }
+    }
+    //fprintf(stderr, "findAllPos count: %d\n", count);
+    return count;
 }
 
 static int findAllPos(struct apiBuffer *buffer, struct apiEntry *matches, size_t *alloc) {
@@ -109,7 +132,7 @@ static int findInBox(struct apiBuffer *buffer, double *box, struct apiEntry *mat
     for (int k = 0; k < 2; k++) {
         for (int j = r[k].from; j < r[k].to; j++) {
             struct apiEntry *e = &buffer->list[j];
-            if (e->lat >= lat1 && e->lat <= lat2) {
+            if (e->bin.lat >= lat1 && e->bin.lat <= lat2) {
                 matches[count++] = *e;
                 *alloc += e->jsonOffset.len;
             }
@@ -124,7 +147,7 @@ static int findHexList(struct apiBuffer *buffer, uint32_t *hexList, int hexCount
         uint32_t hash = apiHash(addr);
         struct apiEntry *e = buffer->hashList[hash];
         while (e) {
-            if (e->addr == addr) {
+            if (e->bin.hex == addr) {
                 matches[count++] = *e;
                 *alloc += e->jsonOffset.len;
                 break;
@@ -146,18 +169,28 @@ static int findInCircle(struct apiBuffer *buffer, struct apiCircle *circle, stru
     double circum = 40075e3; // earth circumference is 40075km
     double fudge = 1.002; // make the box we check a little bigger
 
-    double latdiff = fudge * radius / (circum / 2) * 180.0;
-    double a1 = fmax(-90, lat - latdiff);
-    double a2 = fmin(90, lat + latdiff);
-    int32_t lat1 = (int32_t) (a1 * 1E6);
-    int32_t lat2 = (int32_t) (a2 * 1E6);
-
     double londiff = fudge * radius / (cos(lat * M_PI / 180.0) * circum + 1) * 360;
-    londiff = fmin(londiff, 179.9999);
     double o1 = lon - londiff;
     double o2 = lon + londiff;
     o1 = o1 < -180 ? o1 + 360: o1;
     o2 = o2 > 180 ? o2 - 360 : o2;
+    if (londiff >= 180) {
+        // just check all lon
+        o1 = -180;
+        o2 = 180;
+    }
+
+    double latdiff = fudge * radius / (circum / 2) * 180.0;
+    double a1 = lat - latdiff;
+    double a2 = lat + latdiff;
+    if (a1 < -90 || a2 > 90) {
+        // going over a pole, just check all lon
+        o1 = -180;
+        o2 = 180;
+    }
+    int32_t lat1 = (int32_t) (a1 * 1E6);
+    int32_t lat2 = (int32_t) (a2 * 1E6);
+
     int32_t lon1 = (int32_t) (o1 * 1E6);
     int32_t lon2 = (int32_t) (o2 * 1E6);
 
@@ -175,8 +208,8 @@ static int findInCircle(struct apiBuffer *buffer, struct apiCircle *circle, stru
         for (int k = 0; k < 2; k++) {
             for (int j = r[k].from; j < r[k].to; j++) {
                 struct apiEntry *e = &buffer->list[j];
-                if (e->lat >= lat1 && e->lat <= lat2) {
-                    double dist = greatcircle(lat, lon, e->lat / 1E6, e->lon / 1E6, 0);
+                if (e->bin.lat >= lat1 && e->bin.lat <= lat2) {
+                    double dist = greatcircle(lat, lon, e->bin.lat / 1E6, e->bin.lon / 1E6, 0);
                     if (dist < radius && dist < minDistance) {
                         // first match is overwritten repeatedly
                         matches[count] = *e;
@@ -195,8 +228,8 @@ static int findInCircle(struct apiBuffer *buffer, struct apiCircle *circle, stru
         for (int k = 0; k < 2; k++) {
             for (int j = r[k].from; j < r[k].to; j++) {
                 struct apiEntry *e = &buffer->list[j];
-                if (e->lat >= lat1 && e->lat <= lat2) {
-                    double dist = greatcircle(lat, lon, e->lat / 1E6, e->lon / 1E6, 0);
+                if (e->bin.lat >= lat1 && e->bin.lat <= lat2) {
+                    double dist = greatcircle(lat, lon, e->bin.lat / 1E6, e->bin.lon / 1E6, 0);
                     if (dist < radius) {
                         matches[count] = *e;
                         matches[count].distance = (float) dist;
@@ -222,7 +255,9 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
     size_t alloc = API_REQ_PADSTART + 1024;
     int count = 0;
 
-    if (options.all_with_pos) {
+    if (options.all) {
+        count = findAll(buffer, matches, &alloc);
+    } else if (options.all_with_pos) {
         count = findAllPos(buffer, matches, &alloc);
     } else if (options.is_box) {
         count = findInBox(buffer, options.box, matches, &alloc);
@@ -296,29 +331,18 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
 }
 
 static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, int64_t now) {
-    if (!(now < a->seen + 5 * MINUTES || a->position_valid.source == SOURCE_JAERO))
+    if (!(now < a->seen + 5 * MINUTES || includeAircraftJson(now, a)))
         return;
 
     struct apiEntry *entry = &(buffer->list[buffer->len]);
     memset(entry, 0, sizeof(struct apiEntry));
-    entry->addr = a->addr;
 
-    if (trackDataValid(&a->position_valid)) {
-        entry->lat = (int32_t) (a->lat * 1E6);
-        entry->lon = (int32_t) (a->lon * 1E6);
-    } else {
-        entry->lat = INT32_MAX;
-        entry->lon = INT32_MAX;
+    toBinCraft(a, &entry->bin, now);
+
+    if (!trackDataValid(&a->position_valid)) {
+        entry->bin.lat = INT32_MAX;
+        entry->bin.lon = INT32_MAX;
     }
-    if (trackDataValid(&a->baro_alt_valid)) {
-        entry->alt = a->baro_alt;
-    } else if (trackDataValid(&a->geom_alt_valid)) {
-        entry->alt = a->geom_alt;
-    } else {
-        entry->alt = INT32_MAX;
-    }
-    memcpy(entry->typeCode, a->typeCode, sizeof(entry->typeCode));
-    entry->dbFlags = a->dbFlags;
 
     if (includeAircraftJson(now, a)) {
         buffer->aircraftJsonCount++;
@@ -353,7 +377,7 @@ static inline void apiGenerateJson(struct apiBuffer *buffer, int64_t now) {
         }
 
         struct apiEntry *entry = &buffer->list[i];
-        struct aircraft *a = aircraftGet(entry->addr);
+        struct aircraft *a = aircraftGet(entry->bin.hex);
         if (!a) {
             fprintf(stderr, "apiGenerateJson: aircraft missing, this shouldn't happen.");
             entry->jsonOffset.offset = 0;
@@ -361,7 +385,7 @@ static inline void apiGenerateJson(struct apiBuffer *buffer, int64_t now) {
             continue;
         }
 
-        uint32_t hash = apiHash(entry->addr);
+        uint32_t hash = apiHash(entry->bin.hex);
         entry->next = buffer->hashList[hash];
         buffer->hashList[hash] = entry;
 
@@ -542,14 +566,14 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
             } else if (strcasecmp(option, "hexList") == 0) {
                 options.is_hexList = 1;
                 mainParams = value;
-            } else if (strcasecmp(option, "all") == 0) {
-                return invalid;
             } else {
                 return invalid;
             }
         } else {
             if (strcasecmp(option, "jv2") == 0) {
                 options.jamesv2 = 1;
+            } else if (strcasecmp(option, "all") == 0) {
+                options.all = 1;
             } else if (strcasecmp(option, "all_with_pos") == 0) {
                 options.all_with_pos = 1;
             }
@@ -627,7 +651,7 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
 
         return apiReq(thread, options);
     }
-    if (options.all_with_pos) {
+    if (options.all_with_pos || options.all) {
         return apiReq(thread, options);
     }
     return invalid;

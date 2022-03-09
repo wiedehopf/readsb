@@ -36,23 +36,16 @@ struct offset {
 struct apiEntry {
     struct apiEntry *next;
 
-    uint32_t addr;
-    int32_t lat;
-
-    int32_t lon;
-    int32_t alt;
+    struct binCraft bin;
 
     struct offset jsonOffset;
 
     float distance;
-    char typeCode[4];
-    uint16_t dbFlags;
-    unsigned aircraftJson:1;
-    unsigned padding:15;
     int32_t globe_index;
 
-    uint64_t pad3;
-} __attribute__ ((__packed__));
+    unsigned aircraftJson:1;
+
+};
 
 struct apiCircle {
     double lat;

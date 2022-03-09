@@ -1785,6 +1785,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "state: %zu\n", sizeof(struct state));
         fprintf(stderr, "state_all: %zu\n", sizeof(struct state_all));
         fprintf(stderr, "binCraft: %zu\n", sizeof(struct binCraft));
+        fprintf(stderr, "apiEntry: %zu\n", sizeof(struct apiEntry));
         //fprintf(stderr, "%zu\n", sizeof(struct state_flags));
         fprintf(stderr, "modesMessage: %zu\n", sizeof(struct modesMessage));
         exit(0);
