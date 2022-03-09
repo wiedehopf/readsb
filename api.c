@@ -13,10 +13,6 @@ static int compareLon(const void *p1, const void *p2) {
     return (a1->bin.lon > a2->bin.lon) - (a1->bin.lon < a2->bin.lon);
 }
 
-static void apiSort(struct apiBuffer *buffer) {
-    qsort(buffer->list, buffer->len, sizeof(struct apiEntry), compareLon);
-}
-
 static struct range findLonRange(int32_t ref_from, int32_t ref_to, struct apiEntry *list, int len) {
     struct range res;
     memset(&res, 0, sizeof(res));
@@ -68,10 +64,10 @@ static struct range findLonRange(int32_t ref_from, int32_t ref_to, struct apiEnt
     return res;
 }
 
-static int findCall(struct apiBuffer *buffer, struct apiEntry *matches, size_t *alloc, char *callsign) {
+static int findCall(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc, char *callsign) {
     int count = 0;
-    for (int j = 0; j < buffer->len; j++) {
-        struct apiEntry *e = &buffer->list[j];
+    for (int j = 0; j < haylen; j++) {
+        struct apiEntry *e = &haystack[j];
         if (e->bin.callsign_valid && strncasecmp(e->bin.callsign, callsign, 8) == 0) {
             matches[count++] = *e;
             *alloc += e->jsonOffset.len;
@@ -80,7 +76,7 @@ static int findCall(struct apiBuffer *buffer, struct apiEntry *matches, size_t *
     return count;
 }
 
-static int findAll(struct apiBuffer *buffer, struct apiEntry *matches, size_t *alloc) {
+static int findAll(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc) {
     struct range r[2];
     memset(r, 0, sizeof(r));
     int count = 0;
@@ -88,11 +84,11 @@ static int findAll(struct apiBuffer *buffer, struct apiEntry *matches, size_t *a
     int32_t lon1 = INT32_MIN;
     int32_t lon2 = INT32_MAX;
 
-    r[0] = findLonRange(lon1, lon2, buffer->list, buffer->len);
+    r[0] = findLonRange(lon1, lon2, haystack, haylen);
 
     for (int k = 0; k < 2; k++) {
         for (int j = r[k].from; j < r[k].to; j++) {
-            struct apiEntry *e = &buffer->list[j];
+            struct apiEntry *e = &haystack[j];
             if (e->aircraftJson) {
                 matches[count++] = *e;
                 *alloc += e->jsonOffset.len;
@@ -103,7 +99,7 @@ static int findAll(struct apiBuffer *buffer, struct apiEntry *matches, size_t *a
     return count;
 }
 
-static int findAllPos(struct apiBuffer *buffer, struct apiEntry *matches, size_t *alloc) {
+static int findAllPos(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc) {
     struct range r[2];
     memset(r, 0, sizeof(r));
     int count = 0;
@@ -111,11 +107,11 @@ static int findAllPos(struct apiBuffer *buffer, struct apiEntry *matches, size_t
     int32_t lon1 = (int32_t) (-180 * 1E6);
     int32_t lon2 = (int32_t) (180 * 1E6);
 
-    r[0] = findLonRange(lon1, lon2, buffer->list, buffer->len);
+    r[0] = findLonRange(lon1, lon2, haystack, haylen);
 
     for (int k = 0; k < 2; k++) {
         for (int j = r[k].from; j < r[k].to; j++) {
-            struct apiEntry *e = &buffer->list[j];
+            struct apiEntry *e = &haystack[j];
             matches[count++] = *e;
             *alloc += e->jsonOffset.len;
         }
@@ -124,10 +120,11 @@ static int findAllPos(struct apiBuffer *buffer, struct apiEntry *matches, size_t
     return count;
 }
 
-static int findInBox(struct apiBuffer *buffer, double *box, struct apiEntry *matches, size_t *alloc) {
+static int findInBox(struct apiEntry *haystack, int haylen, double *box, struct apiEntry *matches, size_t *alloc) {
     struct range r[2];
     memset(r, 0, sizeof(r));
     int count = 0;
+
 
     int32_t lat1 = (int32_t) (box[0] * 1E6);
     int32_t lat2 = (int32_t) (box[1] * 1E6);
@@ -135,29 +132,30 @@ static int findInBox(struct apiBuffer *buffer, double *box, struct apiEntry *mat
     int32_t lon2 = (int32_t) (box[3] * 1E6);
 
     if (lon1 <= lon2) {
-        r[0] = findLonRange(lon1, lon2, buffer->list, buffer->len);
+        r[0] = findLonRange(lon1, lon2, haystack, haylen);
     } else if (lon1 > lon2) {
-        r[0] = findLonRange(lon1, 180E6, buffer->list, buffer->len);
-        r[1] = findLonRange(-180E6, lon2, buffer->list, buffer->len);
+        r[0] = findLonRange(lon1, 180E6, haystack, haylen);
+        r[1] = findLonRange(-180E6, lon2, haystack, haylen);
         //fprintf(stderr, "%.1f to 180 and -180 to %1.f\n", lon1 / 1E6, lon2 / 1E6);
     }
     for (int k = 0; k < 2; k++) {
         for (int j = r[k].from; j < r[k].to; j++) {
-            struct apiEntry *e = &buffer->list[j];
+            struct apiEntry *e = &haystack[j];
             if (e->bin.lat >= lat1 && e->bin.lat <= lat2) {
                 matches[count++] = *e;
                 *alloc += e->jsonOffset.len;
             }
         }
     }
+    //fprintf(stderr, "box: lat %.1f to %.1f, lon %.1f to %.1f, count: %d\n", box[0], box[1], box[2], box[3], count);
     return count;
 }
-static int findHexList(struct apiBuffer *buffer, uint32_t *hexList, int hexCount, struct apiEntry *matches, size_t *alloc) {
+static int findHexList(struct apiEntry **hashList, uint32_t *hexList, int hexCount, struct apiEntry *matches, size_t *alloc) {
     int count = 0;
     for (int k = 0; k < hexCount; k++) {
         uint32_t addr = hexList[k];
         uint32_t hash = apiHash(addr);
-        struct apiEntry *e = buffer->hashList[hash];
+        struct apiEntry *e = hashList[hash];
         while (e) {
             if (e->bin.hex == addr) {
                 matches[count++] = *e;
@@ -169,7 +167,7 @@ static int findHexList(struct apiBuffer *buffer, uint32_t *hexList, int hexCount
     }
     return count;
 }
-static int findInCircle(struct apiBuffer *buffer, struct apiCircle *circle, struct apiEntry *matches, size_t *alloc) {
+static int findInCircle(struct apiEntry *haystack, int haylen, struct apiCircle *circle, struct apiEntry *matches, size_t *alloc) {
     struct range r[2];
     memset(r, 0, sizeof(r));
     int count = 0;
@@ -208,10 +206,10 @@ static int findInCircle(struct apiBuffer *buffer, struct apiCircle *circle, stru
 
     //fprintf(stderr, "radius:%8.0f latdiff: %8.0f londiff: %8.0f\n", radius, greatcircle(a1, lon, lat, lon), greatcircle(lat, o1, lat, lon, 0));
     if (lon1 <= lon2) {
-        r[0] = findLonRange(lon1, lon2, buffer->list, buffer->len);
+        r[0] = findLonRange(lon1, lon2, haystack, haylen);
     } else if (lon1 > lon2) {
-        r[0] = findLonRange(lon1, 180E6, buffer->list, buffer->len);
-        r[1] = findLonRange(-180E6, lon2, buffer->list, buffer->len);
+        r[0] = findLonRange(lon1, 180E6, haystack, haylen);
+        r[1] = findLonRange(-180E6, lon2, haystack, haylen);
         //fprintf(stderr, "%.1f to 180 and -180 to %1.f\n", lon1 / 1E6, lon2 / 1E6);
     }
     if (onlyClosest) {
@@ -219,7 +217,7 @@ static int findInCircle(struct apiBuffer *buffer, struct apiCircle *circle, stru
         double minDistance = 300E6; // larger than any distances we encounter, also how far light travels in a second
         for (int k = 0; k < 2; k++) {
             for (int j = r[k].from; j < r[k].to; j++) {
-                struct apiEntry *e = &buffer->list[j];
+                struct apiEntry *e = &haystack[j];
                 if (e->bin.lat >= lat1 && e->bin.lat <= lat2) {
                     double dist = greatcircle(lat, lon, e->bin.lat / 1E6, e->bin.lon / 1E6, 0);
                     if (dist < radius && dist < minDistance) {
@@ -239,7 +237,7 @@ static int findInCircle(struct apiBuffer *buffer, struct apiCircle *circle, stru
     if (!onlyClosest) {
         for (int k = 0; k < 2; k++) {
             for (int j = r[k].from; j < r[k].to; j++) {
-                struct apiEntry *e = &buffer->list[j];
+                struct apiEntry *e = &haystack[j];
                 if (e->bin.lat >= lat1 && e->bin.lat <= lat2) {
                     double dist = greatcircle(lat, lon, e->bin.lat / 1E6, e->bin.lon / 1E6, 0);
                     if (dist < radius) {
@@ -252,6 +250,7 @@ static int findInCircle(struct apiBuffer *buffer, struct apiCircle *circle, stru
             }
         }
     }
+    //fprintf(stderr, "circle count: %d\n", count);
     return count;
 }
 
@@ -260,26 +259,88 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
     int flip = Modes.apiFlip;
     pthread_mutex_unlock(&thread->mutex);
     struct apiBuffer *buffer = &Modes.apiBuffer[flip];
+    struct apiEntry *haystack;
+    int haylen;
+    if (options.filter_dbFlag) {
+        haystack = buffer->list_flag;
+        haylen = buffer->len_flag;
+    } else {
+        haystack = buffer->list;
+        haylen = buffer->len;
+    }
 
     struct char_buffer cb = { 0 };
-    struct apiEntry *matches = aligned_malloc(buffer->len * sizeof(struct apiEntry));
+    struct apiEntry *matches = aligned_malloc(haylen * sizeof(struct apiEntry));
 
-    size_t alloc = API_REQ_PADSTART + 1024;
+    size_t alloc_base = API_REQ_PADSTART + 1024;
+    size_t alloc = alloc_base;
     int count = 0;
 
     if (options.is_box) {
-        count = findInBox(buffer, options.box, matches, &alloc);
+        count = findInBox(haystack, haylen, options.box, matches, &alloc);
     } else if (options.is_hexList) {
-        count = findHexList(buffer, options.hexList, options.hexCount, matches, &alloc);
+        count = findHexList(buffer->hashList, options.hexList, options.hexCount, matches, &alloc);
     } else if (options.is_circle) {
-        count = findInCircle(buffer, options.circle, matches, &alloc);
+        count = findInCircle(haystack, haylen, &options.circle, matches, &alloc);
         alloc += count * 20; // adding 15 characters per entry: ,"dst":1000.000
     } else if (options.find_callsign) {
-        count = findCall(buffer, matches, &alloc, options.callsign);
+        count = findCall(haystack, haylen, matches, &alloc, options.callsign);
     } else if (options.all) {
-        count = findAll(buffer, matches, &alloc);
+        count = findAll(haystack, haylen, matches, &alloc);
     } else if (options.all_with_pos) {
-        count = findAllPos(buffer, matches, &alloc);
+        count = findAllPos(haystack, haylen, matches, &alloc);
+    }
+
+    if (options.filter_squawk) {
+        struct apiEntry *filtered = aligned_malloc(haylen * sizeof(struct apiEntry));
+        if (!filtered) {
+            fprintf(stderr, "FATAL: apiReq malloc fail\n");
+            setExit(2);
+            return cb;
+        }
+        int filtered_count = 0;
+        size_t alloc = alloc_base;
+
+        for (int i = 0; i < count; i++) {
+            struct apiEntry *e = &matches[i];
+            //fprintf(stderr, "%04x %04x\n", options.squawk, e->bin.squawk);
+            if (e->bin.squawk == options.squawk && e->bin.squawk_valid) {
+                filtered[filtered_count++] = *e;
+                alloc += e->jsonOffset.len;
+            }
+        }
+
+        sfree(matches);
+        matches = filtered;
+        count = filtered_count;
+    }
+    if (options.filter_dbFlag) {
+        struct apiEntry *filtered = aligned_malloc(haylen * sizeof(struct apiEntry));
+        if (!filtered) {
+            fprintf(stderr, "FATAL: apiReq malloc fail\n");
+            setExit(2);
+            return cb;
+        }
+        int filtered_count = 0;
+        size_t alloc = alloc_base;
+
+        for (int i = 0; i < count; i++) {
+            struct apiEntry *e = &matches[i];
+            //fprintf(stderr, "%04x %04x %01x\n", options.squawk, e->bin.squawk, e->bin.dbFlags);
+            if (
+                    (options.filter_mil && (e->bin.dbFlags & 1))
+                    || (options.filter_interesting && (e->bin.dbFlags & 2))
+                    || (options.filter_pia && (e->bin.dbFlags & 4))
+                    || (options.filter_ladd && (e->bin.dbFlags & 8))
+               ) {
+                filtered[filtered_count++] = *e;
+                alloc += e->jsonOffset.len;
+            }
+        }
+
+        sfree(matches);
+        matches = filtered;
+        count = filtered_count;
     }
 
     // add for comma and new line for each entry
@@ -422,18 +483,22 @@ int apiUpdate(struct craftArray *ca) {
     int flip = (Modes.apiFlip + 1) % 2;
     struct apiBuffer *buffer = &Modes.apiBuffer[flip];
 
-    int acCount = ca->len;
+    // reset buffer lengths
     buffer->len = 0;
-    if (buffer->len < acCount) {
+    buffer->len_flag = 0;
+
+    int acCount = ca->len;
+    if (buffer->alloc < acCount) {
         if (acCount > 50000) {
             fprintf(stderr, "api bailing, too many aircraft!\n");
-            buffer->len = 0;
             return buffer->len;
         }
         buffer->alloc = acCount + 128;
         sfree(buffer->list);
+        sfree(buffer->list_flag);
         buffer->list = aligned_malloc(buffer->alloc * sizeof(struct apiEntry));
-        if (!buffer->list) {
+        buffer->list_flag = aligned_malloc(buffer->alloc * sizeof(struct apiEntry));
+        if (!buffer->list || !buffer->list_flag) {
             fprintf(stderr, "apiList alloc: out of memory!\n");
             exit(1);
         }
@@ -444,6 +509,7 @@ int apiUpdate(struct craftArray *ca) {
 
     // reset api list, just in case we don't set the entries completely due to oversight
     memset(buffer->list, 0x0, buffer->alloc * sizeof(struct apiEntry));
+    memset(buffer->list_flag, 0x0, buffer->alloc * sizeof(struct apiEntry));
 
     buffer->aircraftJsonCount = 0;
 
@@ -457,9 +523,19 @@ int apiUpdate(struct craftArray *ca) {
         apiAdd(buffer, a, now);
     }
 
-    apiSort(buffer);
+    // sort api lists
+    qsort(buffer->list, buffer->len, sizeof(struct apiEntry), compareLon);
 
     apiGenerateJson(buffer, now);
+
+    for (int i = 0; i < buffer->len; i++) {
+        struct apiEntry entry = buffer->list[i];
+        if (entry.bin.dbFlags) {
+            // copy entry into flags list (only contains aircraft with at least one dbFlag set
+            buffer->list_flag[buffer->len_flag++] = entry;
+        }
+    }
+    // sort not needed as order is maintained copying from main list
 
     buffer->timestamp = now;
 
@@ -562,33 +638,109 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
 
     options.request_received = mstime();
 
-    char *mainParams = NULL;
     while ((p = strsep(&query, "&"))) {
         //fprintf(stderr, "%s\n", p);
         char *option = strsep(&p, "=");
         char *value = strsep(&p, "=");
         if (value) {
+            // handle parameters WITH associated value
             if (strcasecmp(option, "box") == 0) {
                 options.is_box = 1;
-            } else if (strcasecmp(option, "closest") == 0) {
-                options.closest = 1;
-            } else if (strcasecmp(option, "circle") == 0) {
+
+                double *box = options.box;
+                int count = parseDoubles(value, box, 4);
+                if (count < 4)
+                    return invalid;
+
+                for (int i = 0; i < 4; i++) {
+                    if (box[i] > 180 || box[i] < -180)
+                        return invalid;
+                }
+                if (box[0] > box[1])
+                    return invalid;
+
+            } else if (strcasecmp(option, "closest") == 0 || strcasecmp(option, "circle") == 0) {
                 options.is_circle = 1;
+                if (strcasecmp(option, "closest") == 0) {
+                    options.closest = 1;
+                }
+                struct apiCircle *circle = &options.circle;
+                double numbers[3];
+                int count = parseDoubles(value, numbers, 3);
+                if (count < 3)
+                    return invalid;
+
+                circle->lat = numbers[0];
+                circle->lon = numbers[1];
+                // user input in nmi, internally we use meters
+                circle->radius = numbers[2] * 1852;
+
+                if (circle->lat > 90 || circle->lat < -90)
+                    return invalid;
+                if (circle->lon > 180 || circle->lon < -180)
+                    return invalid;
+
+                circle->onlyClosest = options.closest;
             } else if (strcasecmp(option, "hexList") == 0) {
                 options.is_hexList = 1;
+
+                int hexCount = 0;
+                int maxLen = API_HEXLIST_MAX;
+                uint32_t *hexList = options.hexList;
+
+                saveptr = NULL;
+                char *endptr = NULL;
+                char *tok = strtok_r(value, ",", &saveptr);
+                while (tok && hexCount < maxLen) {
+                    hexList[hexCount] = (uint32_t) strtol(tok, &endptr, 16);
+                    if (tok != endptr)
+                        hexCount++;
+                    tok = strtok_r(NULL, ",", &saveptr);
+                }
+                if (hexCount == 0)
+                    return invalid;
+
+                options.hexCount = hexCount;
             } else if (strcasecmp(option, "find_callsign") == 0) {
                 options.find_callsign = 1;
+                strncpy(options.callsign, value, 8);
+                // strncpy pads with null bytes, replace with space padding
+                for (int i = 0; i < 8; i++) {
+                    if (options.callsign[i] == '\0')
+                        options.callsign[i] = ' ';
+                }
+            } else if (strcasecmp(option, "filter_squawk") == 0) {
+                options.filter_squawk = 1;
+                options.filter = 1;
+                //int dec = strtol(value, NULL, 10);
+                //options.squawk = (dec / 1000) * 16*16*16 + (dec / 100 % 10) * 16*16 + (dec / 10 % 10) * 16 + (dec % 10);
+                int hex = strtol(value, NULL, 16);
+                //fprintf(stderr, "%04d %04x\n", dec, hex);
+
+                options.squawk = hex;
             } else {
                 return invalid;
             }
-            mainParams = value;
         } else {
+            // handle parameters WITHOUT associated value
             if (strcasecmp(option, "jv2") == 0) {
                 options.jamesv2 = 1;
             } else if (strcasecmp(option, "all") == 0) {
                 options.all = 1;
             } else if (strcasecmp(option, "all_with_pos") == 0) {
                 options.all_with_pos = 1;
+            } else if (strcasecmp(option, "filter_mil") == 0) {
+                options.filter_dbFlag = 1;
+                options.filter_mil = 1;
+            } else if (strcasecmp(option, "filter_interesting") == 0) {
+                options.filter_dbFlag = 1;
+                options.filter_interesting = 1;
+            } else if (strcasecmp(option, "filter_pia") == 0) {
+                options.filter_dbFlag = 1;
+                options.filter_pia = 1;
+            } else if (strcasecmp(option, "filter_ladd") == 0) {
+                options.filter_dbFlag = 1;
+                options.filter_ladd = 1;
             } else {
                 return invalid;
             }
@@ -606,80 +758,8 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
         return invalid;
     }
 
-    if (options.is_box) {
-        double box[4];
-        int count = parseDoubles(mainParams, box, 4);
-        if (count < 4)
-            return invalid;
 
-        for (int i = 0; i < 4; i++) {
-            if (box[i] > 180 || box[i] < -180)
-                return invalid;
-        }
-        if (box[0] > box[1])
-            return invalid;
-
-        options.box = box;
-        return apiReq(thread, options);
-    }
-
-    if (options.is_hexList) {
-        int hexCount = 0;
-        int maxLen = 8192;
-        uint32_t hexList[maxLen];
-
-        saveptr = NULL;
-        char *endptr = NULL;
-        char *tok = strtok_r(mainParams, ",", &saveptr);
-        while (tok && hexCount < maxLen) {
-            hexList[hexCount] = (uint32_t) strtol(tok, &endptr, 16);
-            if (tok != endptr)
-                hexCount++;
-            tok = strtok_r(NULL, ",", &saveptr);
-        }
-        if (hexCount == 0)
-            return invalid;
-
-        options.hexList = hexList;
-        options.hexCount = hexCount;
-        return apiReq(thread, options);
-    }
-    if (options.is_circle || options.closest) {
-        struct apiCircle circle;
-        double numbers[3];
-        int count = parseDoubles(mainParams, numbers, 3);
-        if (count < 3)
-            return invalid;
-
-        circle.lat = numbers[0];
-        circle.lon = numbers[1];
-        // user input in nmi, internally we use meters
-        circle.radius = numbers[2] * 1852;
-
-        if (circle.lat > 90 || circle.lat < -90)
-            return invalid;
-        if (circle.lon > 180 || circle.lon < -180)
-            return invalid;
-
-        circle.onlyClosest = options.closest;
-        options.is_circle = 1;
-        options.circle = &circle;
-
-        return apiReq(thread, options);
-    }
-    if (options.find_callsign) {
-        strncpy(options.callsign, mainParams, 8);
-        // strncpy pads with null bytes, replace with space padding
-        for (int i = 0; i < 8; i++) {
-            if (options.callsign[i] == '\0')
-                options.callsign[i] = ' ';
-        }
-        return apiReq(thread, options);
-    }
-    if (options.all_with_pos || options.all) {
-        return apiReq(thread, options);
-    }
-    return invalid;
+    return apiReq(thread, options);
 }
 
 static void apiSendData(struct apiCon *con, struct apiThread *thread) {
@@ -940,7 +1020,8 @@ static void *apiUpdateEntryPoint(void *arg) {
 
 void apiBufferInit() {
     for (int i = 0; i < 2; i++) {
-        Modes.apiBuffer[i].hashList = aligned_malloc(API_BUCKETS * sizeof(struct apiEntry*));
+        struct apiBuffer *buffer = &Modes.apiBuffer[i];
+        buffer->hashList = aligned_malloc(API_BUCKETS * sizeof(struct apiEntry*));
     }
     for (int i = 0; i < API_THREADS; i++) {
         pthread_mutex_init(&Modes.apiThread[i].mutex, NULL);
@@ -955,6 +1036,7 @@ void apiBufferCleanup() {
 
     for (int i = 0; i < 2; i++) {
         sfree(Modes.apiBuffer[i].list);
+        sfree(Modes.apiBuffer[i].list_flag);
         sfree(Modes.apiBuffer[i].json);
         sfree(Modes.apiBuffer[i].hashList);
     }
@@ -1049,7 +1131,7 @@ struct char_buffer apiGenerateAircraftJson() {
         *p++ = ',';
 
         if (p >= end)
-            fprintf(stderr, "buffer overrun aircraft json\n");
+            fprintf(stderr, "apiGenerateAircraftJson buffer overrun\n");
     }
 
     if (*(p-1) == ',')
@@ -1146,7 +1228,7 @@ struct char_buffer apiGenerateGlobeJson(int globe_index) {
         *p++ = ',';
 
         if (p >= end)
-            fprintf(stderr, "buffer overrun aircraft json\n");
+            fprintf(stderr, "apiGenerateGlobeJson buffer overrun\n");
     }
 
     if (*(p - 1) == ',')

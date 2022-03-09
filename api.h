@@ -3,6 +3,8 @@
 
 #define API_REQ_PADSTART (192)
 
+#define API_HEXLIST_MAX 4096
+
 struct apiCon {
     int fd;
     int accept;
@@ -12,13 +14,18 @@ struct apiCon {
     struct char_buffer request;
 };
 
+struct apiCircle {
+    double lat;
+    double lon;
+    double radius; // in meters
+    bool onlyClosest;
+};
+
 struct apiOptions {
     int64_t request_received;
     int64_t request_processed;
-    double *box;
-    uint32_t *hexList;
-    int hexCount;
-    struct apiCircle *circle;
+    double box[4];
+    struct apiCircle circle;
     int is_box;
     int is_circle;
     int is_hexList;
@@ -28,6 +35,16 @@ struct apiOptions {
     int jamesv2;
     char callsign[9];
     int find_callsign;
+    int filter;
+    int filter_squawk;
+    unsigned squawk;
+    int filter_dbFlag;
+    int filter_mil;
+    int filter_interesting;
+    int filter_pia;
+    int filter_ladd;
+    int hexCount;
+    uint32_t hexList[API_HEXLIST_MAX];
 };
 
 struct offset {
@@ -48,17 +65,13 @@ struct apiEntry {
     unsigned aircraftJson:1;
 };
 
-struct apiCircle {
-    double lat;
-    double lon;
-    double radius; // in meters
-    bool onlyClosest;
-};
 
 struct apiBuffer {
     int len;
+    int len_flag;
     int alloc;
     struct apiEntry *list;
+    struct apiEntry *list_flag;
     uint64_t timestamp;
     char *json;
     struct apiEntry **hashList;
