@@ -116,7 +116,8 @@ This file contains readsb list of recently seen aircraft. The keys are:
 
 ## --net-api-port query formats
 
-  * opens a builtin webserver that can handle a couple query formats:
+  * opens a builtin webserver that can handle a couple query formats
+  * for more info on nginx proxy_pass and technical details, see README-api.md
 
   ```
   --net-api-port 8042
@@ -125,12 +126,45 @@ This file contains readsb list of recently seen aircraft. The keys are:
   /?circle=<lat>,<lon>,<radius in nmi>
   /?closest=<lat>,<lon>,<radius in nmi>
   /?box=<lat south>,<lat north>,<lon west>,<lon east>
+  /?all_with_pos
+  /?all
+  /?find_callsign=<callsign>
   ```
+  * hexList will return all specified aircraft if there is data on them, up to 500 hex codes an be queried at once
   * circle returns all aircraft within radius nautical miles of lat, lon
   * closest is the same as circle but only returning the closest aircraft
-  * hexList will return all specified aircraft if there is data on them
   * box is will give you all aircraft within a rectangle delimited by 2 latitudes and longitudes
   * closest and circle will supply an extra field named "dst" which will have the distance in nautical miles from the supplied location
+  * all_with_pos will return all aircraft for which we have received a position in the last minute or last 40 minutes for ADS-C
+  * all will return all aircraft returned by all_with_pos and all aircraft with ModeS messages received in the last 30 seconds
+  * find_callsign will return aircraft with an exact match on the callsign
+
+  To the above base queries you can add these filteroptions
+  ```
+  &filter_squawk=<squawk>
+  ```
+  * filter any of the base queries for a specific squawk code
+
+  ```
+  &filter_mil
+  &filter_pia
+  &filter_ladd
+  ```
+  * filter any of the base queries for these database flags
+  * filter_mil will return military aircraft
+  * filter_pia using a PIA hex code
+  * filter_ladd will return aircraft on the LADD list
+  * these three filter options can be combined in any combination and will be connected by an OR
+  * in contrast, when adding other filters they generally restrict the existing result
+
+  ```
+  &jv2
+  ```
+  * Change json syntax to be compatible with adsbexchange v2 API output
+
+
+
+
 
 Section references (2.2.xyz) refer to DO-260B.
 

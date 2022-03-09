@@ -21,3 +21,5 @@ Which can then be queried like this:
 ```
 curl --compressed -sS 'http://localhost/re-api/?box=-90,90,0,20' | jq
 ```
+
+See json readme for more details on the query syntax
