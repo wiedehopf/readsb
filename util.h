@@ -24,6 +24,8 @@
 #ifndef DUMP1090_UTIL_H
 #define DUMP1090_UTIL_H
 
+#define CHECK_APPROXIMATIONS (0)
+
 #define GZBUFFER_BIG (1 * 1024 * 1024)
 
 #include <stdint.h>
@@ -147,6 +149,9 @@ char *sprint_uuid(uint64_t id1, uint64_t id2, char *p);
 char *sprint_uuid1_partial(uint64_t id1, char *p);
 char *sprint_uuid1(uint64_t id1, char *p);
 char *sprint_uuid2(uint64_t id2, char *p);
+
+double greatcircle(double lat0, double lon0, double lat1, double lon1, int approx);
+double bearing(double lat0, double lon0, double lat1, double lon1);
 
 static inline int64_t imin(int64_t a, int64_t b) {
   if (a < b)

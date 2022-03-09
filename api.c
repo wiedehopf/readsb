@@ -250,6 +250,7 @@ static int findInCircle(struct apiEntry *haystack, int haylen, struct apiCircle 
                     if (dist < radius) {
                         matches[count] = *e;
                         matches[count].distance = (float) dist;
+                        matches[count].direction = (float) bearing(lat, lon, e->bin.lat / 1E6, e->bin.lon / 1E6);
                         *alloc += e->jsonOffset.len;
                         count++;
                     }
@@ -291,7 +292,7 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
         count = findHexList(buffer->hashList, options.hexList, options.hexCount, matches, &alloc);
     } else if (options.is_circle) {
         count = findInCircle(haystack, haylen, &options.circle, matches, &alloc);
-        alloc += count * 20; // adding 15 characters per entry: ,"dst":1000.000
+        alloc += count * 30; // adding 27 characters per entry: ,"dst":1000.000, "dir":357
     } else if (options.find_callsign) {
         count = findCall(haystack, haylen, matches, &alloc, options.callsign);
     } else if (options.all) {
@@ -384,7 +385,7 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
         p += off.len;
         if (options.is_circle) {
             p--;
-            p = safe_snprintf(p, end, ",\"dst\":%.3f}", e->distance / 1852.0);
+            p = safe_snprintf(p, end, ",\"dst\":%.3f,\"dir\":%.1f}", e->distance / 1852.0, e->direction);
         }
         *p++ = ',';
     }

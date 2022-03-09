@@ -571,7 +571,6 @@ static inline double toDeg(double radians) {
 }
 // calculate great circle distance in meters
 //
-double greatcircle(double lat0, double lon0, double lat1, double lon1, int approx);
 void to_state(struct aircraft *a, struct state *new, int64_t now, int on_ground, float track);
 void to_state_all(struct aircraft *a, struct state_all *new, int64_t now);
 void from_state_all(struct state_all *in, struct state *in2, struct aircraft *a , int64_t ts);

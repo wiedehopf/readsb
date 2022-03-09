@@ -61,6 +61,7 @@ struct apiEntry {
     struct offset jsonOffset;
 
     float distance;
+    float direction;
     int32_t globe_index;
     int aircraftJson;
 };
