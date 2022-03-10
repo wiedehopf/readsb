@@ -69,6 +69,19 @@ int64_t mstime(void) {
     return mst;
 }
 
+int64_t microtime(void) {
+    if (Modes.synthetic_now)
+        return 1000 * Modes.synthetic_now;
+
+    struct timeval tv;
+    int64_t mst;
+
+    gettimeofday(&tv, NULL);
+    mst = ((int64_t) tv.tv_sec) * 1000LL * 1000LL;
+    mst += tv.tv_usec;
+    return mst;
+}
+
 void milli_micro_seconds(int64_t *milli, int64_t *micro) {
     if (Modes.synthetic_now) {
         *milli = Modes.synthetic_now;

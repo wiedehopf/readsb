@@ -390,10 +390,12 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
 }
 
 static void lockCurrent() {
-    apiLockMutex();
+    int64_t micro = atomic_exchange(&Modes.apiWorkerCpuMicro, 0);
+    Modes.stats_current.api_worker_cpu.tv_sec = micro / (1000LL * 1000LL);
+    Modes.stats_current.api_worker_cpu.tv_nsec = 1000LL * (micro % (1000LL * 1000LL));
+    normalize_timespec(&Modes.stats_current.api_worker_cpu);
 }
 static void unlockCurrent() {
-    apiUnlockMutex();
 }
 
 void display_total_stats(void) {

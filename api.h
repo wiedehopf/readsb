@@ -24,8 +24,8 @@ struct apiCircle {
 };
 
 struct apiOptions {
-    int64_t request_received;
-    int64_t request_processed;
+    int64_t request_received; // microseconds
+    int64_t request_processed; // microseconds
     double box[4];
     struct apiCircle circle;
     int is_box;
@@ -83,7 +83,6 @@ struct apiBuffer {
 
 struct apiThread {
     pthread_t thread;
-    pthread_mutex_t mutex;
     int index;
     int epfd;
     int eventfd;
@@ -98,9 +97,6 @@ struct range {
     int from; // inclusive
     int to; // exclusive
 };
-
-void apiLockMutex();
-void apiUnlockMutex();
 
 void apiBufferInit();
 void apiBufferCleanup();

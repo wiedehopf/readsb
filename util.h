@@ -74,6 +74,8 @@ static inline void msleep(int64_t ms) {
 
 /* Returns system time in milliseconds */
 int64_t mstime (void);
+// microseconds
+int64_t microtime(void);
 
 void milli_micro_seconds(int64_t *milli, int64_t *micro);
 

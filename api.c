@@ -1,5 +1,6 @@
 #include "readsb.h"
 
+
 #define API_HASH_BITS (16)
 #define API_BUCKETS (1 << API_HASH_BITS)
 
@@ -273,9 +274,9 @@ static int findInCircle(struct apiEntry *haystack, int haylen, struct apiCircle 
 }
 
 static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions options) {
-    pthread_mutex_lock(&thread->mutex);
-    int flip = Modes.apiFlip;
-    pthread_mutex_unlock(&thread->mutex);
+
+    int flip = atomic_load(&Modes.apiFlip[thread->index]);
+
     struct apiBuffer *buffer = &Modes.apiBuffer[flip];
     struct apiEntry *haystack;
     int haylen;
@@ -405,7 +406,7 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
     if (*(p - 1) == ',')
         p--; // remove trailing comma if necessary
 
-    options.request_processed = mstime();
+    options.request_processed = microtime();
     p = safe_snprintf(p, end, "\n]");
 
     if (options.jamesv2) {
@@ -413,10 +414,10 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
         p = safe_snprintf(p, end, "\n,\"now\": %lld", (long long) buffer->timestamp);
         p = safe_snprintf(p, end, "\n,\"total\": %d", count);
         p = safe_snprintf(p, end, "\n,\"ctime\": %lld", (long long) buffer->timestamp);
-        p = safe_snprintf(p, end, "\n,\"ptime\": %lld", (long long) (options.request_processed - options.request_received));
+        p = safe_snprintf(p, end, "\n,\"ptime\": %lld", (long long) nearbyint((options.request_processed - options.request_received) / 1000.0));
     } else {
         p = safe_snprintf(p, end, "\n,\"resultCount\": %d", count);
-        p = safe_snprintf(p, end, "\n,\"ptime\": %lld", (long long) (options.request_processed - options.request_received));
+        p = safe_snprintf(p, end, "\n,\"ptime\": %.3f", (options.request_processed - options.request_received) / 1000.0);
     }
     p = safe_snprintf(p, end, "\n}\n");
 
@@ -503,7 +504,7 @@ static inline void apiGenerateJson(struct apiBuffer *buffer, int64_t now) {
 int apiUpdate(struct craftArray *ca) {
 
     // always clear and update the inactive apiBuffer
-    int flip = (Modes.apiFlip + 1) % 2;
+    int flip = (atomic_load(&Modes.apiFlip[0]) + 1) % 2;
     struct apiBuffer *buffer = &Modes.apiBuffer[flip];
 
     // reset buffer lengths
@@ -563,30 +564,14 @@ int apiUpdate(struct craftArray *ca) {
     buffer->timestamp = now;
 
     // doesn't matter which of the 2 buffers the api req will use they are both pretty current
-    apiLockMutex();
-    pthread_mutex_lock(&Modes.apiFlipMutex);
-
-    Modes.apiFlip = flip;
-
-    pthread_mutex_unlock(&Modes.apiFlipMutex);
-    apiUnlockMutex();
+    for (int i = 0; i < Modes.apiThreadCount; i++) {
+        atomic_store(&Modes.apiFlip[i], flip);
+    }
 
     pthread_cond_signal(&Threads.json.cond);
     pthread_cond_signal(&Threads.globeJson.cond);
 
     return buffer->len;
-}
-
-// lock for flipping apiFlip
-void apiLockMutex() {
-    for (int i = 0; i < API_THREADS; i++) {
-        pthread_mutex_lock(&Modes.apiThread[i].mutex);
-    }
-}
-void apiUnlockMutex() {
-    for (int i = 0; i < API_THREADS; i++) {
-        pthread_mutex_unlock(&Modes.apiThread[i].mutex);
-    }
 }
 
 static int shutClose(int fd) {
@@ -715,7 +700,7 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
 
     struct apiOptions options = { 0 };
 
-    options.request_received = mstime();
+    options.request_received = microtime();
 
     while ((p = strsep(&query, "&"))) {
         //fprintf(stderr, "%s\n", p);
@@ -1109,12 +1094,13 @@ static void *apiThreadEntryPoint(void *arg) {
         if (count == maxEvents) {
             epollAllocEvents(&events, &maxEvents);
         }
-        count = epoll_wait(thread->epfd, events, maxEvents, 1000);
+        count = epoll_wait(thread->epfd, events, maxEvents, 5 * SECONDS);
 
-        if (loop++ % 128 == 0) {
-            pthread_mutex_lock(&thread->mutex);
-            end_cpu_timing(&cpu_timer, &Modes.stats_current.api_worker_cpu);
-            pthread_mutex_unlock(&thread->mutex);
+        if (loop++ % 12 == 0) {
+            struct timespec used = { 0 };
+            end_cpu_timing(&cpu_timer, &used);
+            int64_t micro = used.tv_sec * 1000LL * 1000LL + used.tv_nsec / 1000LL;
+            atomic_fetch_add(&Modes.apiWorkerCpuMicro, micro);
             start_cpu_timing(&cpu_timer);
             //fprintf(stderr, "%2d %5d\n", thread->index, thread->openFDs);
         }
@@ -1156,10 +1142,6 @@ static void *apiThreadEntryPoint(void *arg) {
         }
     }
 
-    pthread_mutex_lock(&thread->mutex);
-    end_cpu_timing(&cpu_timer, &Modes.stats_current.api_worker_cpu);
-    pthread_mutex_unlock(&thread->mutex);
-
     close(thread->epfd);
     sfree(events);
     return NULL;
@@ -1194,12 +1176,17 @@ static void *apiUpdateEntryPoint(void *arg) {
 }
 
 void apiBufferInit() {
+    size_t size = sizeof(struct apiThread) * Modes.apiThreadCount;
+    Modes.apiThread = aligned_malloc(size);
+    memset(Modes.apiThread, 0x0, size);
+
+    size = sizeof(atomic_int) * Modes.apiThreadCount;
+    Modes.apiFlip = aligned_malloc(size);
+    memset(Modes.apiFlip, 0x0, size);
+
     for (int i = 0; i < 2; i++) {
         struct apiBuffer *buffer = &Modes.apiBuffer[i];
         buffer->hashList = aligned_malloc(API_BUCKETS * sizeof(struct apiEntry*));
-    }
-    for (int i = 0; i < API_THREADS; i++) {
-        pthread_mutex_init(&Modes.apiThread[i].mutex, NULL);
     }
     apiUpdate(&Modes.aircraftActive); // run an initial apiUpdate
     threadCreate(&Threads.apiUpdate, NULL, apiUpdateEntryPoint, NULL);
@@ -1216,9 +1203,8 @@ void apiBufferCleanup() {
         sfree(Modes.apiBuffer[i].hashList);
     }
 
-    for (int i = 0; i < API_THREADS; i++) {
-        pthread_mutex_init(&Modes.apiThread[i].mutex, NULL);
-    }
+    sfree(Modes.apiThread);
+    sfree(Modes.apiFlip);
 }
 
 void apiInit() {
@@ -1247,8 +1233,8 @@ void apiInit() {
         con->events = EPOLLIN | EPOLLEXCLUSIVE;
     }
 
-    Modes.api_fds_per_thread = Modes.max_fds * 7 / 8 / API_THREADS;
-    for (int i = 0; i < API_THREADS; i++) {
+    Modes.api_fds_per_thread = Modes.max_fds * 7 / 8 / Modes.apiThreadCount;
+    for (int i = 0; i < Modes.apiThreadCount; i++) {
         Modes.apiThread[i].cons = aligned_malloc(Modes.api_fds_per_thread * sizeof(struct apiCon));
         memset(Modes.apiThread[i].cons, 0x0, Modes.api_fds_per_thread * sizeof(struct apiCon));
         Modes.apiThread[i].index = i;
@@ -1256,7 +1242,7 @@ void apiInit() {
     }
 }
 void apiCleanup() {
-    for (int i = 0; i < API_THREADS; i++) {
+    for (int i = 0; i < Modes.apiThreadCount; i++) {
         pthread_join(Modes.apiThread[i].thread, NULL);
         sfree(Modes.apiThread[i].cons);
     }
@@ -1272,9 +1258,7 @@ void apiCleanup() {
 struct char_buffer apiGenerateAircraftJson() {
     struct char_buffer cb = { 0 };
 
-    pthread_mutex_lock(&Modes.apiFlipMutex);
-    int flip = Modes.apiFlip;
-    pthread_mutex_unlock(&Modes.apiFlipMutex);
+    int flip = atomic_load(&Modes.apiFlip[0]);
 
     struct apiBuffer *buffer = &Modes.apiBuffer[flip];
     int acCount = buffer->aircraftJsonCount;
@@ -1335,9 +1319,7 @@ struct char_buffer apiGenerateGlobeJson(int globe_index) {
 
     struct char_buffer cb;
 
-    pthread_mutex_lock(&Modes.apiFlipMutex);
-    int flip = Modes.apiFlip;
-    pthread_mutex_unlock(&Modes.apiFlipMutex);
+    int flip = atomic_load(&Modes.apiFlip[0]);
 
     struct apiBuffer *buffer = &Modes.apiBuffer[flip];
 

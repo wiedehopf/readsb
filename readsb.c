@@ -218,6 +218,9 @@ static void modesInit(void) {
     Modes.allPoolTasks = malloc(Modes.allPoolMaxTasks * sizeof(threadpool_task_t));
     Modes.allPoolRanges = malloc(Modes.allPoolMaxTasks * sizeof(struct task_info));
 
+    // 1 api thread per 2 cores as we assume nginx running on the same box, better chances not swamping the CPU under high API load scenarios
+    Modes.apiThreadCount = imax(1, Modes.num_procs / 2);
+
     for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
         ca_init(&Modes.globeLists[i]);
     }
@@ -1553,6 +1556,9 @@ static void configAfterParse() {
             Modes.preambleThreshold = PREAMBLE_THRESHOLD_PIZERO;
             Modes.fixDF = 0;
         }
+    }
+    if (Modes.num_procs < 1) {
+        Modes.num_procs = 1; // sanity check
     }
     if (!Modes.preambleThreshold) {
         Modes.preambleThreshold = PREAMBLE_THRESHOLD_DEFAULT;

@@ -102,6 +102,7 @@
 #include <sys/eventfd.h>
 #include "minilzo/minilzo.h"
 #include "threadpool.h"
+#include <stdatomic.h>
 
 
 #include "compat/compat.h"
@@ -316,7 +317,6 @@ typedef enum {
 #define STATE_BLOBS 256 // change naming scheme if increasing this
 #define LOCK_THREADS_MAX 64
 #define PERIODIC_UPDATE 200 // don't use values larger than 200 ... some hard-coded stuff
-#define API_THREADS 4
 #define TRACE_THREADS_MAX 32
 
 #define STAT_BUCKETS 90 // 90 * 10 seconds = 15 min (max interval in stats.json)
@@ -501,12 +501,14 @@ struct _Modes
 
     int8_t apiUpdate; // creates json snippets also by non api stuff
     int8_t api; // enable api output
-    int apiFlip;
+    int apiThreadCount;
+    atomic_int_fast64_t apiWorkerCpuMicro;
     struct net_service apiService;
     struct apiCon **apiListeners;
 
-    ALIGNED struct apiBuffer apiBuffer[2];
-    ALIGNED struct apiThread apiThread[API_THREADS];
+    struct apiBuffer apiBuffer[2];
+    atomic_int *apiFlip;
+    struct apiThread *apiThread;
     pthread_mutex_t apiFlipMutex; // mutex to read apiFlip
 
     // Configuration
