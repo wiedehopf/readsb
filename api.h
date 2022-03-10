@@ -91,6 +91,7 @@ struct apiThread {
     int responseBytesBuffered;
     struct apiCon *cons;
     int nextCon;
+    int64_t antiSpam;
 };
 
 struct range {

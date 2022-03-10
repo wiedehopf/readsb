@@ -915,12 +915,16 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
     // detect orderly connection shutdown
     if (nread == 0) {
         if (con->reply.len == 0 || con->bytesSent != con->reply.len) {
-            fprintf(stderr, "Connection shutdown with incomplete or no reply sent."
-                    " (reply.len: %d, bytesSent: %d, request.len: %d open: %d)\n",
-                    (int) con->reply.len,
-                    (int) con->bytesSent,
-                    (int) con->request.len,
-                    con->open);
+            int64_t now = mstime();
+            if (now > thread->antiSpam) {
+                thread->antiSpam = now + 5 * SECONDS;
+                fprintf(stderr, "Connection shutdown with incomplete or no reply sent."
+                        " (reply.len: %d, bytesSent: %d, request.len: %d open: %d)\n",
+                        (int) con->reply.len,
+                        (int) con->bytesSent,
+                        (int) con->request.len,
+                        con->open);
+            }
         }
         apiCloseConn(con, thread);
         return;
