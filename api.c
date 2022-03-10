@@ -393,14 +393,15 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
         memcpy(p, json + off.offset, off.len);
         p += off.len;
         if (options.is_circle) {
-            p--;
-            p = safe_snprintf(p, end, ",\"dst\":%.3f,\"dir\":%.1f}", e->distance / 1852.0, e->direction);
+            // json objects in cache are terminated by a comma: \n{ .... },
+            p -= 2; // remove } and , and make sure printf puts those back
+            p = safe_snprintf(p, end, ",\"dst\":%.3f,\"dir\":%.1f},", e->distance / 1852.0, e->direction);
         }
-        *p++ = ',';
     }
 
     sfree(matches);
 
+    // json objects in cache are terminated by a comma: \n{ .... },
     if (*(p - 1) == ',')
         p--; // remove trailing comma if necessary
 
@@ -468,8 +469,10 @@ static inline void apiGenerateJson(struct apiBuffer *buffer, int64_t now) {
 
         struct apiEntry *entry = &buffer->list[i];
         struct aircraft *a = aircraftGet(entry->bin.hex);
+
         if (!a) {
-            fprintf(stderr, "apiGenerateJson: aircraft missing, this shouldn't happen.");
+            fprintf(stderr, "FATAL: apiGenerateJson: aircraft missing, this shouldn't happen.");
+            setExit(2);
             entry->jsonOffset.offset = 0;
             entry->jsonOffset.len = 0;
             continue;
@@ -480,14 +483,21 @@ static inline void apiGenerateJson(struct apiBuffer *buffer, int64_t now) {
         buffer->hashList[hash] = entry;
 
         char *start = p;
+
+        *p++ = '\n';
         p = sprintAircraftObject(p, end, a, now, 0, NULL);
+        *p++ = ',';
+
 
         entry->jsonOffset.offset = start - buffer->json;
         entry->jsonOffset.len = p - start;
     }
 
+    buffer->jsonLen = p - buffer->json;
+
     if (p >= end) {
-        fprintf(stderr, "buffer full apiAdd\n");
+        fprintf(stderr, "FATAL: buffer full apiAdd\n");
+        setExit(2);
     }
 }
 
@@ -1252,9 +1262,8 @@ struct char_buffer apiGenerateAircraftJson() {
     int flip = atomic_load(&Modes.apiFlip[0]);
 
     struct apiBuffer *buffer = &Modes.apiBuffer[flip];
-    int acCount = buffer->aircraftJsonCount;
 
-    size_t alloc = acCount * 1024 + 2048;
+    size_t alloc = buffer->jsonLen + 2048;
     char *buf = (char *) aligned_malloc(alloc), *p = buf, *end = buf + alloc;
 
     if (!buf) {
@@ -1270,29 +1279,11 @@ struct char_buffer apiGenerateAircraftJson() {
     //fprintf(stderr, "%.3f\n", ((double) mstime() - (double) buffer->timestamp) / 1000.0);
 
     p = safe_snprintf(p, end, "  \"aircraft\" : [");
-    for (int j = 0; j < buffer->len; j++) {
-        struct apiEntry *entry = &buffer->list[j];
 
-        // check if we have enough space
-        if ((p + 2000) >= end) {
-            int used = p - buf;
-            alloc *= 2;
-            buf = (char *) realloc(buf, alloc);
-            p = buf + used;
-            end = buf + alloc;
-        }
+    memcpy(p, buffer->json, buffer->jsonLen);
+    p += buffer->jsonLen;
 
-        *p++ = '\n';
-
-        memcpy(p, buffer->json + entry->jsonOffset.offset, entry->jsonOffset.len);
-        p += entry->jsonOffset.len;
-
-        *p++ = ',';
-
-        if (p >= end)
-            fprintf(stderr, "apiGenerateAircraftJson buffer overrun\n");
-    }
-
+    // json objects in cache are terminated by a comma: \n{ .... },
     if (*(p-1) == ',')
         p--;
 
@@ -1377,17 +1368,14 @@ struct char_buffer apiGenerateGlobeJson(int globe_index) {
             end = buf + alloc;
         }
 
-        *p++ = '\n';
-
         memcpy(p, buffer->json + entry->jsonOffset.offset, entry->jsonOffset.len);
         p += entry->jsonOffset.len;
-
-        *p++ = ',';
 
         if (p >= end)
             fprintf(stderr, "apiGenerateGlobeJson buffer overrun\n");
     }
 
+    // json objects in cache are terminated by a comma: \n{ .... },
     if (*(p - 1) == ',')
         p--;
 

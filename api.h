@@ -75,6 +75,7 @@ struct apiBuffer {
     struct apiEntry *list_flag;
     uint64_t timestamp;
     char *json;
+    int jsonLen;
     struct apiEntry **hashList;
     uint32_t focus;
     int aircraftJsonCount;
