@@ -92,9 +92,7 @@ static int findAllSquawk(struct apiEntry *haystack, int haylen, struct apiEntry 
 
     for (int j = 0; j < haylen; j++) {
         struct apiEntry *e = &haystack[j];
-        if (e->aircraftJson
-                && e->bin.squawk == options.squawk
-                && e->bin.squawk_valid) {
+        if (e->bin.squawk == options.squawk && e->bin.squawk_valid) {
             matches[count++] = *e;
             *alloc += e->jsonOffset.len;
         }
@@ -109,8 +107,8 @@ static int findAll(struct apiEntry *haystack, int haylen, struct apiEntry *match
 
     for (int j = 0; j < haylen; j++) {
         struct apiEntry *e = &haystack[j];
-            matches[count++] = *e;
-            *alloc += e->jsonOffset.len;
+        matches[count++] = *e;
+        *alloc += e->jsonOffset.len;
     }
 
     //fprintf(stderr, "findAllPos count: %d\n", count);
@@ -130,8 +128,8 @@ static int findAllPos(struct apiEntry *haystack, int haylen, struct apiEntry *ma
     for (int k = 0; k < 2; k++) {
         for (int j = r[k].from; j < r[k].to; j++) {
             struct apiEntry *e = &haystack[j];
-                matches[count++] = *e;
-                *alloc += e->jsonOffset.len;
+            matches[count++] = *e;
+            *alloc += e->jsonOffset.len;
         }
     }
     //fprintf(stderr, "findAllPos count: %d\n", count);
@@ -430,7 +428,7 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
 }
 
 static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, int64_t now) {
-    if (!(includeGlobeJson(now, a) || includeAircraftJson(now, a)))
+    if (!(includeAircraftJson(now, a)))
         return;
 
     struct apiEntry *entry = &(buffer->list[buffer->len]);
@@ -443,16 +441,9 @@ static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, int64_t 
         entry->bin.lon = INT32_MAX;
     }
 
-    if (includeAircraftJson(now, a)) {
-        buffer->aircraftJsonCount++;
-        entry->aircraftJson = 1;
-    }
+    buffer->aircraftJsonCount++;
 
-    if (includeGlobeJson(now, a)) {
-        entry->globe_index = a->globe_index;
-    } else {
-        entry->globe_index = -2;
-    }
+    entry->globe_index = a->globe_index;
 
     buffer->len++;
 }
@@ -1281,8 +1272,6 @@ struct char_buffer apiGenerateAircraftJson() {
     p = safe_snprintf(p, end, "  \"aircraft\" : [");
     for (int j = 0; j < buffer->len; j++) {
         struct apiEntry *entry = &buffer->list[j];
-        if (!entry->aircraftJson)
-            continue;
 
         // check if we have enough space
         if ((p + 2000) >= end) {

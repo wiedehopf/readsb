@@ -929,31 +929,6 @@ char *sprintAircraftRecent(char *p, char *end, struct aircraft *a, int64_t now, 
     return p;
 }
 
-int includeGlobeJson(int64_t now, struct aircraft *a) {
-    if (a == NULL)
-        return 0;
-    if (a->messages < 2)
-        return 0;
-
-    if (a->nogpsCounter >= NOGPS_SHOW && now < a->seenAdsbReliable + NOGPS_DWELL && now > a->seenAdsbReliable + 15 * SECONDS) {
-        return 1;
-    }
-    // include all aircraft with valid position
-    if (a->position_valid.source != SOURCE_INVALID) {
-        return 1;
-    }
-    // include active aircraft
-    if (now < a->seen + TRACK_EXPIRE / 2) {
-        return 1;
-    }
-    // include aircraft with reliable position in the last 15 minutes
-    if (now < a->seenPosReliable + 15 * MINUTES) {
-        return 1;
-    }
-
-    return 0;
-}
-
 int includeAircraftJson(int64_t now, struct aircraft *a) {
     if (a == NULL)
         return 0;
@@ -962,16 +937,19 @@ int includeAircraftJson(int64_t now, struct aircraft *a) {
 
     if (a->nogpsCounter >= NOGPS_SHOW && now < a->seenAdsbReliable + NOGPS_DWELL && now > a->seenAdsbReliable + 15 * SECONDS)
         return 1;
+
     // include all aircraft with valid position
     if (a->position_valid.source != SOURCE_INVALID)
         return 1;
+
     // include active aircraft
-    if (now < a->seen + TRACK_EXPIRE / 2)
+    if (now < a->seen + TRACK_EXPIRE)
         return 1;
 
-    // include aircraft which recently had a position
-    if (now < a->seenPosReliable + TRACK_EXPIRE)
+    // include aircraft with reliable position in the last 5 minutes
+    if (now < a->seenPosReliable + 5 * MINUTES) {
         return 1;
+    }
 
     return 0;
 }
@@ -1131,7 +1109,7 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
             a = ca->list[i];
             if (a == NULL) continue;
 
-            if (!includeGlobeJson(now, a))
+            if (!includeAircraftJson(now, a))
                 continue;
 
             if (mil && !(a->dbFlags & 1))
@@ -1229,7 +1207,7 @@ struct char_buffer generateGlobeJson(int globe_index){
             a = ca->list[i];
             if (a == NULL) continue;
 
-            if (!includeGlobeJson(now, a))
+            if (!includeAircraftJson(now, a))
                 continue;
 
             // don't include aircraft with very outdated positions in globe files

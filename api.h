@@ -55,16 +55,15 @@ struct offset {
 };
 
 struct apiEntry {
-    struct apiEntry *next;
+    struct offset jsonOffset;
 
     struct binCraft bin;
 
-    struct offset jsonOffset;
+    struct apiEntry *next;
 
     float distance;
     float direction;
     int32_t globe_index;
-    int aircraftJson;
 };
 
 
