@@ -995,7 +995,7 @@ static void acceptConn(struct apiCon *con, struct apiThread *thread) {
 
     char aneterr[ANET_ERR_LEN];
     int this_cycle = 0;
-    while (this_cycle++ < Modes.api_fds_per_thread / 4) {
+    while (this_cycle++ < 16) {
         errno = 0;
         int fd = anetGenericAccept(aneterr, listen_fd, saddr, &slen, SOCK_NONBLOCK);
         if (fd < 0) {
