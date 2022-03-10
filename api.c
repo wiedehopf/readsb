@@ -719,6 +719,7 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
         char *option = strsep(&p, "=");
         char *value = strsep(&p, "=");
         if (value) {
+            //fprintf(stderr, "%s=%s\n", option, value);
             // handle parameters WITH associated value
             if (strcasecmp(option, "box") == 0) {
                 options.is_box = 1;
@@ -746,17 +747,20 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
                 if (count < 3)
                     return invalid;
 
+                circle->onlyClosest = options.closest;
+
                 circle->lat = numbers[0];
                 circle->lon = numbers[1];
                 // user input in nmi, internally we use meters
                 circle->radius = numbers[2] * 1852;
+
+                //fprintf(stderr, "%.1f, %.1f, %.1f\n", circle->lat, circle->lon, circle->radius);
 
                 if (circle->lat > 90 || circle->lat < -90)
                     return invalid;
                 if (circle->lon > 180 || circle->lon < -180)
                     return invalid;
 
-                circle->onlyClosest = options.closest;
             } else if (strcasecmp(option, "hexList") == 0) {
                 options.is_hexList = 1;
 
@@ -828,12 +832,12 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
                 + options.is_hexList
                 + options.all
                 + options.all_with_pos
-                + options.closest
                 + options.find_callsign
         ) != 1) {
         return invalid;
     }
 
+    //fprintf(stderr, "parseFetch calling apiReq\n");
 
     return apiReq(thread, options);
 }
@@ -966,6 +970,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
 
     struct char_buffer reply = parseFetch(request, thread);
     if (reply.len == 0) {
+        //fprintf(stderr, "parseFetch retunred invalid\n");
         send400(fd);
         apiCloseCon(con, thread);
         return;
