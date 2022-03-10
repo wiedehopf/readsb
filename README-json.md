@@ -97,6 +97,9 @@ This file contains readsb list of recently seen aircraft. The keys are:
    * wd, ws: wind direction and wind speed are calculated from ground track, true heading, true airspeed and ground speed
    * oat, tat: outer/static air temperature and total air temperature are calculated from mach number and true airspeed (typically somewhat inaccurate at lower altitudes / mach numbers below 0.5, calculation is inhibited for mach < 0.395)
 
+(Section references (2.2.xyz) refer to DO-260B.)
+
+
    If used with --db-file using a aircraft.csv.gz from the tar1090-db repository (csv branch), these additional flags will be available:
    * r: aircraft registration pulled from database
    * t: aircraft type pulled from database
@@ -118,6 +121,10 @@ This file contains readsb list of recently seen aircraft. The keys are:
 
   * opens a builtin webserver that can handle a couple query formats
   * for more info on nginx proxy_pass and technical details, see README-api.md
+  * now: the time the api data was cached, in seconds since Jan 1 1970 00:00:00 GMT (the Unix epoch).
+  * api caching frequency is controlled by --write-json-every
+  * resultCount: number of aircraft in the aircraft array
+  * ptime: time in milliseconds it took to parse the request and create the json output
 
   ```
   --net-api-port 8042
@@ -139,6 +146,10 @@ This file contains readsb list of recently seen aircraft. The keys are:
   * all will return all aircraft returned by all_with_pos and all aircraft with ModeS messages received in the last 30 seconds
   * find_callsign will return aircraft with an exact match on the callsign
 
+  For circle and closest the following two fields are added to each aircraft object:
+  * dst: distance from supplied center point in nmi
+  * dir: true direction of the aircraft from the supplied center point (degrees)
+
   To the above base queries you can add these filteroptions
   ```
   &filter_squawk=<squawk>
@@ -157,16 +168,14 @@ This file contains readsb list of recently seen aircraft. The keys are:
   * these three filter options can be combined in any combination and will be connected by an OR
   * in contrast, when adding other filters they generally restrict the existing result
 
+
   ```
   &jv2
   ```
   * Change json syntax to be compatible with adsbexchange v2 API output
-
-
-
-
-
-Section references (2.2.xyz) refer to DO-260B.
+  * now: same as normal BUT in milliseconds
+  * total: number of aircraft in the aircraft array
+  * ptime: time in milliseconds it took to parse the request and create the json output
 
 ## history_0.json, history_1.json, ..., history_119.json
 
