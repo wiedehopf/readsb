@@ -7,6 +7,16 @@ static inline uint32_t apiHash(uint32_t addr) {
     return addrHash(addr, API_HASH_BITS);
 }
 
+static int antiSpam(int64_t *nextPrint, int64_t interval) {
+    int64_t now = mstime();
+    if (now > *nextPrint) {
+        *nextPrint = now + interval;
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 static int compareLon(const void *p1, const void *p2) {
     struct apiEntry *a1 = (struct apiEntry*) p1;
     struct apiEntry *a2 = (struct apiEntry*) p2;
@@ -585,7 +595,7 @@ static int shutClose(int fd) {
     return close(fd);
 }
 
-static void apiCloseConn(struct apiCon *con, struct apiThread *thread) {
+static void apiCloseCon(struct apiCon *con, struct apiThread *thread) {
     if (!con->open) {
         fprintf(stderr, "apiCloseConn double close!\n");
         return;
@@ -837,7 +847,7 @@ static void apiSendData(struct apiCon *con, struct apiThread *thread) {
         if (toSend < 0)  {
             fprintf(stderr, "wat?! apiSendData() being weird\n");
         }
-        apiCloseConn(con, thread);
+        apiCloseCon(con, thread);
         return;
     }
     char *dataStart = reply->buffer + con->bytesSent;
@@ -850,14 +860,16 @@ static void apiSendData(struct apiCon *con, struct apiThread *thread) {
 
     // all data has been sent, close the connection
     if (nwritten == toSend) {
-        apiCloseConn(con, thread);
+        apiCloseCon(con, thread);
         return;
     }
 
     // non recoverable error
     if (nwritten < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
-        fprintf(stderr, "apiSendData fail: %s (was trying to send %d bytes)\n", strerror(errno), toSend);
-        apiCloseConn(con, thread);
+        if (antiSpam(&thread->antiSpam[0], 5 * SECONDS)) {
+            fprintf(stderr, "apiSendData fail: %s (was trying to send %d bytes)\n", strerror(errno), toSend);
+        }
+        apiCloseCon(con, thread);
         return;
     }
 
@@ -889,7 +901,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
 
     if (request->len > 1024 + 7 * API_HEXLIST_MAX) {
         send400(fd);
-        apiCloseConn(con, thread);
+        apiCloseCon(con, thread);
         return;
     }
     if (request->len + 2048 > request->alloc) {
@@ -908,16 +920,14 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
 
     if (nread < 0 && !(err == EAGAIN || err == EWOULDBLOCK || err == EINTR)) {
         send400(fd);
-        apiCloseConn(con, thread);
+        apiCloseCon(con, thread);
         return;
     }
 
     // detect orderly connection shutdown
     if (nread == 0) {
         if (con->reply.len == 0 || con->bytesSent != con->reply.len) {
-            int64_t now = mstime();
-            if (now > thread->antiSpam) {
-                thread->antiSpam = now + 5 * SECONDS;
+            if (antiSpam(&thread->antiSpam[1], 5 * SECONDS)) {
                 fprintf(stderr, "Connection shutdown with incomplete or no reply sent."
                         " (reply.len: %d, bytesSent: %d, request.len: %d open: %d)\n",
                         (int) con->reply.len,
@@ -926,7 +936,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
                         con->open);
             }
         }
-        apiCloseConn(con, thread);
+        apiCloseCon(con, thread);
         return;
     }
 
@@ -942,7 +952,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
             if (toSend < 0)  {
                 fprintf(stderr, "wat?! apiSendData() being weird\n");
             }
-            apiCloseConn(con, thread);
+            apiCloseCon(con, thread);
             return;
         }
     }
@@ -957,7 +967,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
     struct char_buffer reply = parseFetch(request, thread);
     if (reply.len == 0) {
         send400(fd);
-        apiCloseConn(con, thread);
+        apiCloseCon(con, thread);
         return;
     }
 
@@ -990,18 +1000,18 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
     con->reply = reply;
     apiSendData(con, thread);
 }
-static void acceptConn(struct apiCon *con, struct apiThread *thread) {
+static void acceptCon(struct apiCon *con, struct apiThread *thread) {
     int listen_fd = con->fd;
     struct sockaddr_storage storage;
     struct sockaddr *saddr = (struct sockaddr *) &storage;
     socklen_t slen = sizeof(storage);
 
 
-    char aneterr[ANET_ERR_LEN];
-    int this_cycle = 0;
-    while (this_cycle++ < 16) {
+    // accept at most 16 connections per epoll_wait wakeup and thread
+    for (int j = 0; j < 16; j++) {
         errno = 0;
-        int fd = anetGenericAccept(aneterr, listen_fd, saddr, &slen, SOCK_NONBLOCK);
+
+        int fd = accept4(listen_fd, saddr, &slen, SOCK_NONBLOCK);
         if (fd < 0) {
             break;
         }
@@ -1018,7 +1028,7 @@ static void acceptConn(struct apiCon *con, struct apiThread *thread) {
         if (con->open) {
             fprintf(stderr, "too many concurrent connections / connections unresponsive, send 503 :/\n");
             send503(con->fd);
-            apiCloseConn(con, thread);
+            apiCloseCon(con, thread);
         }
         memset(con, 0, sizeof(struct apiCon));
 
@@ -1051,13 +1061,16 @@ static void acceptConn(struct apiCon *con, struct apiThread *thread) {
         }
     }
     if (errno) {
-        if (!(errno & (EMFILE | EINTR | EAGAIN | EWOULDBLOCK))) {
-            fprintf(stderr, "<3>API: Error accepting new connection: %s\n", aneterr);
-        }
         if (errno == EMFILE) {
-            fprintf(stderr, "<3>Out of file descriptors accepting api clients, "
-                    "exiting to make sure we don't remain in a broken state!\n");
+            if (antiSpam(&thread->antiSpam[2], 5 * SECONDS)) {
+                fprintf(stderr, "<3>Out of file descriptors accepting api clients, "
+                        "exiting to make sure we don't remain in a broken state!\n");
+            }
             Modes.exit = 2;
+        } else if (!(errno & (EINTR | EAGAIN | EWOULDBLOCK))) {
+            if (antiSpam(&thread->antiSpam[2], 5 * SECONDS)) {
+                fprintf(stderr, "api acceptCon(): Error accepting new connection: errno: %d %s\n", errno, strerror(errno));
+            }
         }
     }
 }
@@ -1110,7 +1123,7 @@ static void *apiThreadEntryPoint(void *arg) {
 
             struct apiCon *con = event.data.ptr;
             if (con->accept) {
-                acceptConn(con, thread);
+                acceptCon(con, thread);
             } else {
                 if (con->open && (event.events & EPOLLOUT)) {
                     apiSendData(con, thread);
@@ -1128,7 +1141,7 @@ static void *apiThreadEntryPoint(void *arg) {
                             con->open);
 
                     send500(con->fd);
-                    apiCloseConn(con, thread);
+                    apiCloseCon(con, thread);
                     continue;
                 }
             }
