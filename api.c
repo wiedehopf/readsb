@@ -1220,7 +1220,10 @@ void apiInit() {
         Modes.apiListeners[i] = con;
         con->fd = Modes.apiService.listener_fds[i];
         con->accept = 1;
-        con->events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
+#ifndef EPOLLEXCLUSIVE
+#define EPOLLEXCLUSIVE (0)
+#endif
+        con->events = EPOLLIN | EPOLLEXCLUSIVE;
     }
 
     Modes.api_fds_per_thread = Modes.max_fds * 7 / 8 / API_THREADS;
