@@ -373,12 +373,12 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
     char *p = cb.buffer + API_REQ_PADSTART;
     char *end = cb.buffer + alloc;
 
+
     if (options.jamesv2) {
         p = safe_snprintf(p, end, "{\"ac\":[");
     } else {
-        p = safe_snprintf(p, end, "{\"now\": %.1f,\n", buffer->timestamp / 1000.0);
-        p = safe_snprintf(p, end, "\"resultCount\": %d,\n", count);
-        p = safe_snprintf(p, end, "\"aircraft\":[");
+        p = safe_snprintf(p, end, "{\"now\": %.3f", buffer->timestamp / 1000.0);
+        p = safe_snprintf(p, end, "\n,\"aircraft\":[");
     }
 
     char *json = buffer->json;
@@ -413,6 +413,9 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
         p = safe_snprintf(p, end, "\n,\"now\": %lld", (long long) buffer->timestamp);
         p = safe_snprintf(p, end, "\n,\"total\": %d", count);
         p = safe_snprintf(p, end, "\n,\"ctime\": %lld", (long long) buffer->timestamp);
+        p = safe_snprintf(p, end, "\n,\"ptime\": %lld", (long long) (options.request_processed - options.request_received));
+    } else {
+        p = safe_snprintf(p, end, "\n,\"resultCount\": %d", count);
         p = safe_snprintf(p, end, "\n,\"ptime\": %lld", (long long) (options.request_processed - options.request_received));
     }
     p = safe_snprintf(p, end, "\n}\n");
