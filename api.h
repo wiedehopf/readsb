@@ -8,8 +8,8 @@
 struct apiCon {
     int fd;
     int accept;
-    struct char_buffer cb;
-    int cbOffset;
+    struct char_buffer reply;
+    size_t bytesSent;
     uint32_t events;
     struct char_buffer request;
     int open;
