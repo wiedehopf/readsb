@@ -1015,10 +1015,8 @@ struct char_buffer generateAircraftBin() {
             end = buf + alloc;
         }
 
-        struct binCraft bin;
-        toBinCraft(a, &bin, now);
-
-        memWrite(p, bin);
+        toBinCraft(a, (struct binCraft *) p, now);
+        p += sizeof(struct binCraft);
 
         if (p >= end)
             fprintf(stderr, "buffer overrun aircraftBin\n");
@@ -1123,10 +1121,8 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
                 end = buf + alloc;
             }
 
-            struct binCraft bin;
-            toBinCraft(a, &bin, now);
-
-            memWrite(p, bin);
+            toBinCraft(a, (struct binCraft *) p, now);
+            p += sizeof(struct binCraft);
 
             if (p >= end)
                 fprintf(stderr, "buffer overrun globeBin\n");
