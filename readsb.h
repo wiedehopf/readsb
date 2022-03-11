@@ -502,7 +502,7 @@ struct _Modes
     int8_t apiUpdate; // creates json snippets also by non api stuff
     int8_t api; // enable api output
     int apiThreadCount;
-    atomic_int_fast64_t apiWorkerCpuMicro;
+    atomic_int apiWorkerCpuMicro;
     struct net_service apiService;
     struct apiCon **apiListeners;
 

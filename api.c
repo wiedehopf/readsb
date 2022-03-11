@@ -1100,7 +1100,7 @@ static void *apiThreadEntryPoint(void *arg) {
         if (loop++ % 12 == 0) {
             struct timespec used = { 0 };
             end_cpu_timing(&cpu_timer, &used);
-            int64_t micro = used.tv_sec * 1000LL * 1000LL + used.tv_nsec / 1000LL;
+            int micro = (int) (used.tv_sec * 1000LL * 1000LL + used.tv_nsec / 1000LL);
             atomic_fetch_add(&Modes.apiWorkerCpuMicro, micro);
             start_cpu_timing(&cpu_timer);
             //fprintf(stderr, "%2d %5d\n", thread->index, thread->openFDs);
