@@ -296,8 +296,8 @@ static void *handle_bladerf_samples(struct bladerf *dev,
     MODES_NOTUSED(num_samples);
 
     // record initial time for later sys timestamp calculation
-    uint64_t entryTimestamp;
-    uint64_t microSeconds;
+    int64_t entryTimestamp;
+    int64_t microSeconds;
     milli_micro_seconds(&entryTimestamp, &microSeconds);
 
     lockReader();
@@ -418,7 +418,7 @@ static void *handle_bladerf_samples(struct bladerf *dev,
         Modes.mag_buffers[next_free_buffer].length = 0; // just in case
         Modes.first_free_buffer = next_free_buffer;
 
-        wakeDecoder();
+        wakeDecode();
         unlockReader();
     }
 
