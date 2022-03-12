@@ -459,11 +459,18 @@ struct aircraft
   double prev_lon; // previous longitude
   int64_t prev_pos_time; // time the previous position was received
 
+  int32_t speedUnreliable;
+  int32_t pad2433;
+
+  int64_t nextJsonPortOutput;
+
+  float receiver_distance;
+  float receiver_direction;
+
   // keep this at the end of the aircraft struct as save / restore shouldn't matter for this:
   // recent discarded positions which led to decrementing reliability (position_bad() / speed_check())
   uint32_t disc_cache_index;
   struct discarded disc_cache[DISCARD_CACHE];
-  int32_t speedUnreliable;
 };
 
 /* Mode A/C tracking is done separately, not via the aircraft list,

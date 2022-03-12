@@ -1960,12 +1960,12 @@ void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a) {
     if (!p)
         return;
 
-    char *end = p + buflen - 1;
+    char *end = p + buflen;
 
     p = sprintAircraftObject(p, end, a, mm->sysTimestampMsg, 2, NULL);
-    *p++ = '\n';
 
-    if (p < end) {
+    if (p + 1 < end) {
+        *p++ = '\n';
         completeWrite(&Modes.json_out, p);
         if (Modes.json_out.dataUsed > 0) {
             // flush unconditionally for this output

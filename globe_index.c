@@ -755,6 +755,8 @@ static int load_aircraft(char **p, char *end, int64_t now) {
     a->trace_all = NULL;
     a->traceCache = NULL;
 
+    a->disc_cache_index = 0;
+
     if (!Modes.keep_traces) {
         a->trace_alloc = 0;
         a->trace_len = 0;

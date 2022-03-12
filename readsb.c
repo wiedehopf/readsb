@@ -1274,10 +1274,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             sfree(Modes.net_output_sbs_ports);
             Modes.net_output_sbs_ports = strdup(arg);
             break;
+        case OptNetJsonPortInterval:
+            Modes.net_output_json_interval = (int64_t)(atof(arg) * SECONDS);
+            break;
         case OptNetJsonPorts:
             sfree(Modes.net_output_json_ports);
             Modes.net_output_json_ports = strdup(arg);
-            Modes.keep_traces = imax(2 * MINUTES, Modes.keep_traces);
             break;
         case OptNetApiPorts:
             sfree(Modes.net_output_api_ports);

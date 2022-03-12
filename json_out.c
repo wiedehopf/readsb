@@ -616,8 +616,9 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
         char buf[128];
         p = safe_snprintf(p, end, ",\"flight\":\"%s\"", jsonEscapeString(a->callsign, buf, sizeof(buf)));
     }
-    if (Modes.db) {
-        if (printMode != 1) {
+    if (printMode != 1) {
+
+        if (Modes.db) {
             if (a->registration[0])
                 p = safe_snprintf(p, end, ",\"r\":\"%.*s\"", (int) sizeof(a->registration), a->registration);
             if (a->typeCode[0])
@@ -628,17 +629,16 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
             if (Modes.jsonLongtype && a->typeLong[0])
                 p = safe_snprintf(p, end, ",\"desc\":\"%.*s\"", (int) sizeof(a->typeLong), a->typeLong);
         }
-    }
-    if (printMode != 1) {
-        if (trackDataValid(&a->airground_valid) && a->airground == AG_GROUND)
-            if (printMode == 2)
+
+        if (trackDataValid(&a->airground_valid) && a->airground == AG_GROUND) {
+            if (0)
                 p = safe_snprintf(p, end, ",\"ground\":true");
             else
                 p = safe_snprintf(p, end, ",\"alt_baro\":\"ground\"");
-        else {
+        } else {
             if (altBaroReliable(a))
                 p = safe_snprintf(p, end, ",\"alt_baro\":%d", a->baro_alt);
-            if (printMode == 2)
+            if (0)
                 p = safe_snprintf(p, end, ",\"ground\":false");
         }
     }
@@ -708,6 +708,9 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
             sprint_uuid1(a->lastPosReceiverId, uuid);
             p = safe_snprintf(p, end, ",\"rId\":\"%s\"", uuid);
 #endif
+            if (Modes.userLocationValid) {
+                p = safe_snprintf(p, end, ",\"r_dst\":%.3f,\"r_dir\":%.1f", a->receiver_distance / 1852.0, a->receiver_direction);
+            }
         } else {
             if (now < a->rr_seen + 2 * MINUTES) {
                 p = safe_snprintf(p, end, ",\"rr_lat\":%.1f,\"rr_lon\":%.1f", a->rr_lat, a->rr_lon);
@@ -769,6 +772,7 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
         p = safe_snprintf(p, end, ",\"messages\":%u,\"seen\":%.1f,\"rssi\":%.1f",
                 a->messages, (now < a->seen) ? 0 : ((now - a->seen) / 1000.0),
                 getSignal(a));
+
     }
 
     if (trackDataAge(now, &a->acas_ra_valid) < 15 * SECONDS || (mm && mm->acas_ra_valid)) {

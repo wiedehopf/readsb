@@ -189,20 +189,14 @@ static int compare_validity(const data_validity *lhs, const data_validity *rhs) 
         return 0;
 }
 
-static void update_range_histogram(struct aircraft *a, struct modesMessage *mm, int64_t now) {
-    if (!Modes.userLocationValid)
-        return;
+static void update_range_histogram(struct aircraft *a, int64_t now) {
 
     double lat = a->lat;
     double lon = a->lon;
 
-    if (mm->receiver_distance == 0) {
-        mm->receiver_distance = greatcircle(Modes.fUserLat, Modes.fUserLon, lat, lon, 0);
-    }
-    double range = mm->receiver_distance;
+    double range = a->receiver_distance;
 
-    int rangeDirDirection = nearbyint(bearing(Modes.fUserLat, Modes.fUserLon, lat, lon));
-    rangeDirDirection %= RANGEDIRS_BUCKETS;
+    int rangeDirDirection = ((int) nearbyint(a->receiver_direction)) % RANGEDIRS_BUCKETS;
 
     int rangeDirIval = (now * (RANGEDIRS_IVALS - 1) / Modes.range_outline_duration) % RANGEDIRS_IVALS;
     if (rangeDirIval != Modes.lastRangeDirHour) {
@@ -906,16 +900,19 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
         if (0 && a->addr == Modes.trace_focus) {
             fprintf(stderr, "%5.1fs traceAdd: %06x\n", (now % (600 * SECONDS)) / 1000.0, a->addr);
         }
-        if (traceAdd(a, now)) {
-            mm->jsonPos = 1;
-        }
 
-        a->seenPosReliable = now; // must be after traceAdd for trace stale detection
-        a->latReliable = mm->decoded_lat;
-        a->lonReliable = mm->decoded_lon;
-        a->pos_nic_reliable = mm->decoded_nic;
-        a->pos_rc_reliable = mm->decoded_rc;
-        a->surfaceCPR_allow_ac_rel = 1; // allow ac relative CPR for ground positions
+
+        // keep this block together
+        {
+            traceAdd(a, now);
+
+            a->seenPosReliable = now; // must be after traceAdd for trace stale detection
+            a->latReliable = mm->decoded_lat;
+            a->lonReliable = mm->decoded_lon;
+            a->pos_nic_reliable = mm->decoded_nic;
+            a->pos_rc_reliable = mm->decoded_rc;
+            a->surfaceCPR_allow_ac_rel = 1; // allow ac relative CPR for ground positions
+        }
 
         if (
                 mm->source == SOURCE_ADSB
@@ -934,14 +931,30 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
             a->sda_valid.source = SOURCE_INVALID;
             a->sil_type = SIL_INVALID;
         }
+
+
+        if (Modes.userLocationValid) {
+
+            if (mm->receiver_distance == 0) {
+                mm->receiver_distance = greatcircle(Modes.fUserLat, Modes.fUserLon, a->lat, a->lon, 0);
+            }
+
+            a->receiver_distance = mm->receiver_distance;
+            a->receiver_direction = bearing(Modes.fUserLat, Modes.fUserLon, a->lat, a->lon);
+
+            if (mm->source == SOURCE_ADSB || mm->source == SOURCE_ADSR) {
+                update_range_histogram(a, now);
+            }
+
+        }
+
+        if (now > a->nextJsonPortOutput) {
+            a->nextJsonPortOutput = now + Modes.net_output_json_interval;
+            jsonPositionOutput(mm, a);
+        }
     }
 
-    if (mm->jsonPos)
-        jsonPositionOutput(mm, a);
 
-    if (posReliable(a) && (mm->source == SOURCE_ADSB || mm->source == SOURCE_ADSR)) {
-        update_range_histogram(a, mm, now);
-    }
 }
 
 static void updatePosition(struct aircraft *a, struct modesMessage *mm, int64_t now) {

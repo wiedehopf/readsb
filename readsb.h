@@ -612,6 +612,7 @@ struct _Modes
     char *garbage_ports;
     char *net_output_vrs_ports; // List of VRS output TCP ports
     int64_t net_output_vrs_interval;
+    int64_t net_output_json_interval;
     struct net_connector **net_connectors; // client connectors
     int net_connectors_count;
     int net_connectors_size;
@@ -725,7 +726,6 @@ struct modesMessage
     int8_t trackUnreliable;
     int8_t speedUnreliable;
     int8_t in_disc_cache;
-    bool jsonPos; // output a json position
     datasource_t source; // Characterizes the overall message source
     // Raw data, just extracted directly from the message
     // The names reflect the field names in Annex 4
@@ -1004,6 +1004,7 @@ enum {
     OptNetVRSPorts,
     OptNetVRSInterval,
     OptNetJsonPorts,
+    OptNetJsonPortInterval,
     OptNetApiPorts,
     OptNetRoSize,
     OptNetRoRate,
