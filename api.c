@@ -1271,7 +1271,7 @@ struct char_buffer apiGenerateAircraftJson() {
     }
 
     p = safe_snprintf(p, end,
-            "{ \"now\" : %.1f,\n"
+            "{ \"now\" : %.3f,\n"
             "  \"messages\" : %u,\n",
             buffer->timestamp / 1000.0,
             Modes.stats_current.messages_total + Modes.stats_alltime.messages_total);
@@ -1313,7 +1313,7 @@ struct char_buffer apiGenerateGlobeJson(int globe_index) {
     char *buf = (char *) aligned_malloc(alloc), *p = buf, *end = buf + alloc;
 
     p = safe_snprintf(p, end,
-            "{ \"now\" : %.1f,\n"
+            "{ \"now\" : %.3f,\n"
             "  \"messages\" : %u,\n",
             buffer->timestamp / 1000.0,
             Modes.stats_current.messages_total + Modes.stats_alltime.messages_total);

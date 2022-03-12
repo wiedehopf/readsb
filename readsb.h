@@ -613,6 +613,7 @@ struct _Modes
     char *net_output_vrs_ports; // List of VRS output TCP ports
     int64_t net_output_vrs_interval;
     int64_t net_output_json_interval;
+    int net_output_json_include_nopos;
     struct net_connector **net_connectors; // client connectors
     int net_connectors_count;
     int net_connectors_size;
@@ -1005,6 +1006,7 @@ enum {
     OptNetVRSInterval,
     OptNetJsonPorts,
     OptNetJsonPortInterval,
+    OptNetJsonPortNoPos,
     OptNetApiPorts,
     OptNetRoSize,
     OptNetRoRate,

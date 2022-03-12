@@ -947,7 +947,6 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
             }
 
         }
-
         if (now > a->nextJsonPortOutput) {
             a->nextJsonPortOutput = now + Modes.net_output_json_interval;
             jsonPositionOutput(mm, a);
@@ -2134,6 +2133,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             }
         }
     }
+
     if (mm->msgtype == 17) {
         int oldNogpsCounter = a->nogpsCounter;
         if (
@@ -2163,11 +2163,17 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         }
     }
 
-    // forward DF0/DF11 every 2 * beast_reduce_interval for beast_reduce
-    if (mm->msgtype == 11 && mm->IID == 0 && mm->correctedbits == 0
-            && now > a->next_reduce_forward_DF11 && !(Modes.doubleBeastReduceIntervalUntil > now)) {
-        a->next_reduce_forward_DF11 = now + 2 * Modes.net_output_beast_reduce_interval;
-        mm->reduce_forward = 1;
+    if (mm->msgtype == 11 && mm->IID == 0 && mm->correctedbits == 0) {
+        if (Modes.net_output_json_include_nopos && now > a->nextJsonPortOutput
+                && now - a->seenPosReliable > 10 * SECONDS && now - a->seenPosReliable > 2 * Modes.net_output_json_interval) {
+            a->nextJsonPortOutput = now + Modes.net_output_json_interval;
+            jsonPositionOutput(mm, a);
+        }
+        // forward DF0/DF11 every 2 * beast_reduce_interval for beast_reduce
+        if (now > a->next_reduce_forward_DF11 && !(Modes.doubleBeastReduceIntervalUntil > now)) {
+            a->next_reduce_forward_DF11 = now + 2 * Modes.net_output_beast_reduce_interval;
+            mm->reduce_forward = 1;
+        }
     }
     // this is all not really nececcary, remove it for the moment
     /*

@@ -608,7 +608,7 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
 
     p = safe_snprintf(p, end, "{");
     if (printMode == 2)
-        p = safe_snprintf(p, end, "\"now\" : %.1f,", now / 1000.0);
+        p = safe_snprintf(p, end, "\"now\" : %.3f,", now / 1000.0);
     if (printMode != 1)
         p = safe_snprintf(p, end, "\"hex\":\"%s%06x\",", (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
     p = safe_snprintf(p, end, "\"type\":\"%s\"", addrtype_enum_string(a->addrtype));
@@ -700,7 +700,7 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
     }
     if (printMode != 1) {
         if (now - a->seenPosReliable < TRACK_EXPIRE) {
-            p = safe_snprintf(p, end, ",\"lat\":%f,\"lon\":%f,\"nic\":%u,\"rc\":%u,\"seen_pos\":%.1f",
+            p = safe_snprintf(p, end, ",\"lat\":%f,\"lon\":%f,\"nic\":%u,\"rc\":%u,\"seen_pos\":%.3f",
                     a->latReliable, a->lonReliable, a->pos_nic_reliable, a->pos_rc_reliable,
                     (now < a->seenPosReliable) ? 0 : ((now - a->seenPosReliable) / 1000.0));
 #if defined(TRACKS_UUID)
@@ -716,7 +716,7 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
                 p = safe_snprintf(p, end, ",\"rr_lat\":%.1f,\"rr_lon\":%.1f", a->rr_lat, a->rr_lon);
             }
             if (now < a->seenPosReliable + 14 * 24 * HOURS) {
-                p = safe_snprintf(p, end, ",\"lastPosition\":{\"lat\":%f,\"lon\":%f,\"nic\":%u,\"rc\":%u,\"seen_pos\":%.1f}",
+                p = safe_snprintf(p, end, ",\"lastPosition\":{\"lat\":%f,\"lon\":%f,\"nic\":%u,\"rc\":%u,\"seen_pos\":%.3f}",
                         a->latReliable, a->lonReliable, a->pos_nic_reliable, a->pos_rc_reliable,
                         (now < a->seenPosReliable) ? 0 : ((now - a->seenPosReliable) / 1000.0));
             }
@@ -863,7 +863,7 @@ char *sprintAircraftRecent(char *p, char *end, struct aircraft *a, int64_t now, 
         p = safe_snprintf(p, end, "]");
     }
     if (recent > trackDataAge(now, &a->position_valid)) {
-        p = safe_snprintf(p, end, ",\"lat\":%f,\"lon\":%f,\"nic\":%u,\"rc\":%u,\"seen_pos\":%.1f",
+        p = safe_snprintf(p, end, ",\"lat\":%f,\"lon\":%f,\"nic\":%u,\"rc\":%u,\"seen_pos\":%.3f",
                 a->lat, a->lon, a->pos_nic, a->pos_rc,
                 (now < a->position_valid.updated) ? 0 : ((now - a->position_valid.updated) / 1000.0));
         if (a->adsb_version >= 0)
@@ -1162,7 +1162,7 @@ struct char_buffer generateGlobeJson(int globe_index){
     char *end = buf + alloc;
 
     p = safe_snprintf(p, end,
-            "{ \"now\" : %.1f,\n"
+            "{ \"now\" : %.3f,\n"
             "  \"messages\" : %u,\n",
             now / 1000.0,
             Modes.stats_current.messages_total + Modes.stats_alltime.messages_total);
@@ -1255,7 +1255,7 @@ struct char_buffer generateAircraftJson(int64_t onlyRecent){
     char *end = buf + alloc;
 
     p = safe_snprintf(p, end,
-            "{ \"now\" : %.1f,\n"
+            "{ \"now\" : %.3f,\n"
             "  \"messages\" : %u,\n",
             now / 1000.0,
             Modes.stats_current.messages_total + Modes.stats_alltime.messages_total);
@@ -2044,7 +2044,7 @@ struct char_buffer generateClientsJson() {
     size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
     char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
 
-    p = safe_snprintf(p, end, "{ \"now\" : %.1f,\n", now / 1000.0);
+    p = safe_snprintf(p, end, "{ \"now\" : %.3f,\n", now / 1000.0);
     p = safe_snprintf(p, end, "  \"format\" : "
             "[ \"receiverId\", \"host:port\", \"avg. kbit/s\", \"conn time(s)\","
             " \"messages/s\", \"positions/s\", \"reduce_signal\", \"recent_rtt(ms)\", \"positions\" ],\n");

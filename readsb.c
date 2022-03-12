@@ -1274,6 +1274,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             sfree(Modes.net_output_sbs_ports);
             Modes.net_output_sbs_ports = strdup(arg);
             break;
+        case OptNetJsonPortNoPos:
+            Modes.net_output_json_include_nopos = 1;
+            break;
         case OptNetJsonPortInterval:
             Modes.net_output_json_interval = (int64_t)(atof(arg) * SECONDS);
             break;
