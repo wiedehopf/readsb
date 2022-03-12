@@ -738,7 +738,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
     struct aircraft *a = aircraftCreate(source->addr);
 
     struct aircraft *preserveNext = a->next;
-    memcpy(a, *p, source->size_struct_aircraft);
+    memcpy(a, *p, imin(source->size_struct_aircraft, sizeof(struct aircraft)));
     a->next = preserveNext;
 
     *p += source->size_struct_aircraft;
