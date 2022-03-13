@@ -262,8 +262,10 @@ struct receiver *receiverBad(uint64_t id, uint32_t addr, int64_t now) {
         if (r->badCounter > 5.99) {
             r->timedOutCounter++;
             if (Modes.debug_garbage) {
-                fprintf(stderr, "timeout receiverId: %016"PRIx64" hex: %06x #good: %6d #bad: %5.0f #timeouts: %u\n",
-                        r->id, addr, r->goodCounter, r->badCounter, r->timedOutCounter);
+                char uuid[32]; // needs 18 chars and null byte
+                sprint_uuid1(r->id, uuid);
+                fprintf(stderr, "timeout receiverId: %s hex: %06x #good: %6d #bad: %5.0f #timeouts: %u\n",
+                        uuid, addr, r->goodCounter, r->badCounter, r->timedOutCounter);
             }
             r->timedOutUntil = now + timeout;
             r->goodCounter = 0;
