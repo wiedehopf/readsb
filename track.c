@@ -113,7 +113,7 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
     // this hopefully reduces data jitter introduced by differing receiver latencies
     int is_pos = (d == &a->position_valid || d == &a->cpr_odd_valid || d == &a->cpr_even_valid);
 
-    if (Modes.netReceiverId && !is_pos && a->position_valid.source >= SOURCE_TISB && now - d->updated < 5 * SECONDS && now - a->seenPosReliable < 700 * MS) {
+    if (Modes.netReceiverId && !is_pos && a->position_valid.source >= SOURCE_TISB && now - d->updated < 5 * SECONDS && now - a->seenPosReliable < 2200 * MS) {
         uint16_t hash = simpleHash(mm->receiverId);
         int found = 0;
         for (int i = 0; i < RECEIVERIDBUFFER; i++) {
@@ -561,8 +561,9 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     if (receiverRangeExceeded && Modes.netReceiverId) {
         mm->pos_receiver_range_exceeded = 1;
         // disable acting on exceeded receiver range for the time being
-        //inrange = 0; // far outside receiver area
-        //mm->pos_ignore = 1;
+        inrange = 0; // far outside receiver area
+        mm->pos_ignore = 1;
+        mm->pos_bad = 1;
     }
 
 
@@ -839,7 +840,8 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
     }
 
     if (Modes.netReceiverId) {
-        a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = simpleHash(mm->receiverId);
+        a->receiverIdsNext = (a->receiverIdsNext + 1) % RECEIVERIDBUFFER;
+        a->receiverIds[a->receiverIdsNext] = simpleHash(mm->receiverId);
         if (0 && a->addr == Modes.cpr_focus) {
             fprintf(stderr, "%u\n", simpleHash(mm->receiverId));
         }
@@ -3048,7 +3050,8 @@ void updateValidities(struct aircraft *a, int64_t now) {
 
     int64_t elapsed_seen_global = now - a->seenPosGlobal;
     if (Modes.json_globe_index && elapsed_seen_global < 5 * MINUTES) {
-        a->receiverIds[a->receiverIdsNext++ % RECEIVERIDBUFFER] = 0;
+        a->receiverIdsNext = (a->receiverIdsNext + 1) % RECEIVERIDBUFFER;
+        a->receiverIds[a->receiverIdsNext] = 0;
     }
 
     if (a->globe_index >= 0 && now > a->seen_pos + Modes.trackExpireMax) {
