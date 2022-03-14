@@ -1,5 +1,5 @@
 PROGNAME=readsb
-READSB_VERSION := "$(shell echo -n 'wiedehopf git: '; git describe --abbrev --dirty --always; git show -s --format=format:"(committed: %cd)" | tr -cd '[a-z],[A-Z],[0-9],:, ,\-,_,(,)')"
+READSB_VERSION := "$(shell echo -n 'wiedehopf git: '; { git describe --abbrev --dirty --always && git show -s --format=format:"(committed: %cd)" | tr -cd '[a-z],[A-Z],[0-9],:, ,\-,_,(,)';} || cat READSB_VERSION)"
 
 RTLSDR ?= no
 BLADERF ?= no
