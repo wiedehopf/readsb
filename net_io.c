@@ -2064,7 +2064,7 @@ static void handle_radarcape_position(float lat, float lon, float alt) {
  * @return Angular degree.
  */
 static double bam32ToDouble(uint32_t bam) {
-    return (double) ((int32_t) __bswap_32(bam) * 8.38190317153931E-08);
+    return (double) ((int32_t) ntohl(bam) * 8.38190317153931E-08);
 }
 
 //
@@ -2095,11 +2095,11 @@ static void decodeHulcMessage(char *p) {
         }
         /*
         // Antenna serial
-        Modes.receiver.antenna_serial = __bswap_32(hsm.status.serial);
+        Modes.receiver.antenna_serial = ntohl(hsm.status.serial);
         // Antenna status flags
-        Modes.receiver.antenna_flags = __bswap_16(hsm.status.flags);
+        Modes.receiver.antenna_flags = ntohs(hsm.status.flags);
         // Reserved for internal use
-        Modes.receiver.antenna_reserved = __bswap_16(hsm.status.reserved);
+        Modes.receiver.antenna_reserved = ntohs(hsm.status.reserved);
         // Antenna Unix epoch (not used)
         // Antenna GPS satellites used for fix
         Modes.receiver.antenna_gps_sats = hsm.status.satellites;
@@ -2112,8 +2112,8 @@ static void decodeHulcMessage(char *p) {
         // Antenna GPS longitude
         lon = bam32ToDouble(hsm.status.longitude);
         // Antenna GPS altitude
-        alt = __bswap_16(hsm.status.altitude);
-        uint32_t antenna_flags = __bswap_16(hsm.status.flags);
+        alt = ntohs(hsm.status.altitude);
+        uint32_t antenna_flags = ntohs(hsm.status.flags);
         // Use only valid GPS position
         if ((antenna_flags & 0xE000) == 0xE000) {
             if (!isfinite(lat) || lat < -90 || lat > 90 || !isfinite(lon) || lon < -180 || lon > 180) {
