@@ -66,6 +66,11 @@ struct apiEntry {
     int32_t globe_index;
 };
 
+struct range {
+    int from; // inclusive
+    int to; // exclusive
+};
+
 
 struct apiBuffer {
     int len;
@@ -73,6 +78,8 @@ struct apiBuffer {
     int alloc;
     struct apiEntry *list;
     struct apiEntry *list_flag;
+    struct range list_pos_range;
+    struct range list_flag_pos_range;
     uint64_t timestamp;
     char *json;
     int jsonLen;
@@ -91,11 +98,6 @@ struct apiThread {
     struct apiCon *cons;
     int nextCon;
     int64_t antiSpam[3];
-};
-
-struct range {
-    int from; // inclusive
-    int to; // exclusive
 };
 
 void apiBufferInit();

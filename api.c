@@ -87,55 +87,6 @@ static int findCall(struct apiEntry *haystack, int haylen, struct apiEntry *matc
     return count;
 }
 
-static int findAllSquawk(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc, struct apiOptions options) {
-    int count = 0;
-
-    for (int j = 0; j < haylen; j++) {
-        struct apiEntry *e = &haystack[j];
-        if (e->bin.squawk == options.squawk && e->bin.squawk_valid) {
-            matches[count++] = *e;
-            *alloc += e->jsonOffset.len;
-        }
-    }
-
-    //fprintf(stderr, "findAllSquawk count: %d\n", count);
-    return count;
-}
-
-static int findAll(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc) {
-    int count = 0;
-
-    for (int j = 0; j < haylen; j++) {
-        struct apiEntry *e = &haystack[j];
-        matches[count++] = *e;
-        *alloc += e->jsonOffset.len;
-    }
-
-    //fprintf(stderr, "findAllPos count: %d\n", count);
-    return count;
-}
-
-static int findAllPos(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc) {
-    struct range r[2];
-    memset(r, 0, sizeof(r));
-    int count = 0;
-
-    int32_t lon1 = (int32_t) (-180 * 1E6);
-    int32_t lon2 = (int32_t) (180 * 1E6);
-
-    r[0] = findLonRange(lon1, lon2, haystack, haylen);
-
-    for (int k = 0; k < 2; k++) {
-        for (int j = r[k].from; j < r[k].to; j++) {
-            struct apiEntry *e = &haystack[j];
-            matches[count++] = *e;
-            *alloc += e->jsonOffset.len;
-        }
-    }
-    //fprintf(stderr, "findAllPos count: %d\n", count);
-    return count;
-}
-
 static int findInBox(struct apiEntry *haystack, int haylen, double *box, struct apiEntry *matches, size_t *alloc) {
     struct range r[2];
     memset(r, 0, sizeof(r));
@@ -271,6 +222,16 @@ static int findInCircle(struct apiEntry *haystack, int haylen, struct apiCircle 
     return count;
 }
 
+
+static struct apiEntry *apiAlloc(int count) {
+    struct apiEntry *buf = aligned_malloc(count * sizeof(struct apiEntry));
+    if (!buf) {
+        fprintf(stderr, "FATAL: apiAlloc malloc fail\n");
+        setExit(2);
+    }
+    return buf;
+}
+
 static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions options) {
 
     int flip = atomic_load(&Modes.apiFlip[thread->index]);
@@ -278,43 +239,88 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
     struct apiBuffer *buffer = &Modes.apiBuffer[flip];
     struct apiEntry *haystack;
     int haylen;
+    struct range pos_range;
+    struct range all_range;
     if (options.filter_dbFlag) {
         haystack = buffer->list_flag;
         haylen = buffer->len_flag;
+
+        pos_range = buffer->list_flag_pos_range;
+
+        all_range.from = 0;
+        all_range.to = haylen;
     } else {
         haystack = buffer->list;
         haylen = buffer->len;
+
+        pos_range = buffer->list_pos_range;
+
+        all_range.from = 0;
+        all_range.to = haylen;
     }
 
     struct char_buffer cb = { 0 };
-    struct apiEntry *matches = aligned_malloc(haylen * sizeof(struct apiEntry));
+    struct apiEntry *matches = NULL;
 
     size_t alloc_base = API_REQ_PADSTART + 1024;
     size_t alloc = alloc_base;
     int count = 0;
 
-    if (options.filter_squawk && (options.all || options.all_with_pos)) {
-        count = findAllSquawk(haystack, haylen, matches, &alloc, options);
-    } else if (options.is_box) {
-        count = findInBox(haystack, haylen, options.box, matches, &alloc);
+    int doFree = 0;
+
+    if (options.is_box || options.is_circle || options.find_callsign) {
+        doFree = 1;
+        matches = apiAlloc(haylen);
+        if (!matches) {
+            return cb;
+        }
+        if (options.is_box) {
+            count = findInBox(haystack, haylen, options.box, matches, &alloc);
+        } else if (options.is_circle) {
+            count = findInCircle(haystack, haylen, &options.circle, matches, &alloc);
+            alloc += count * 30; // adding 27 characters per entry: ,"dst":1000.000, "dir":357
+        } else if (options.find_callsign) {
+            count = findCall(haystack, haylen, matches, &alloc, options.callsign);
+        } else {
+            fprintf(stderr, "FATAL: unreachable EeB4leiy\n");
+            setExit(2);
+            return cb;
+        }
     } else if (options.is_hexList) {
+        doFree = 1;
+        matches = apiAlloc(options.hexCount);
+        if (!matches) {
+            return cb;
+        }
         count = findHexList(buffer->hashList, options.hexList, options.hexCount, matches, &alloc);
-    } else if (options.is_circle) {
-        count = findInCircle(haystack, haylen, &options.circle, matches, &alloc);
-        alloc += count * 30; // adding 27 characters per entry: ,"dst":1000.000, "dir":357
-    } else if (options.find_callsign) {
-        count = findCall(haystack, haylen, matches, &alloc, options.callsign);
-    } else if (options.all) {
-        count = findAll(haystack, haylen, matches, &alloc);
-    } else if (options.all_with_pos) {
-        count = findAllPos(haystack, haylen, matches, &alloc);
+    } else if (options.all || options.all_with_pos) {
+        struct range range;
+        if (options.all) {
+            range = all_range;
+        } else if ( options.all_with_pos) {
+            range = pos_range;
+        } else {
+            fprintf(stderr, "FATAL: unreachablei ahchoh8R\n");
+            setExit(2);
+            return cb;
+        }
+        count = range.to - range.from;
+        if (count > 0) {
+            struct apiEntry *first = &haystack[range.from];
+            struct apiEntry *last = &haystack[range.to - 1];
+            // assume continuous allocation from generation of api buffer
+            alloc += last->jsonOffset.offset + last->jsonOffset.len - first->jsonOffset.offset;
+            doFree = 0;
+            matches = first;
+        } else {
+            doFree = 0;
+            matches = NULL;
+        }
     }
 
     if (options.filter_squawk) {
-        struct apiEntry *filtered = aligned_malloc(haylen * sizeof(struct apiEntry));
+        struct apiEntry *filtered = apiAlloc(count);
         if (!filtered) {
-            fprintf(stderr, "FATAL: apiReq malloc fail\n");
-            setExit(2);
             return cb;
         }
         int filtered_count = 0;
@@ -329,15 +335,16 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
             }
         }
 
-        sfree(matches);
+        if (doFree) {
+            sfree(matches);
+        }
+        doFree = 1;
         matches = filtered;
         count = filtered_count;
     }
     if (options.filter_dbFlag) {
-        struct apiEntry *filtered = aligned_malloc(haylen * sizeof(struct apiEntry));
+        struct apiEntry *filtered = apiAlloc(count);
         if (!filtered) {
-            fprintf(stderr, "FATAL: apiReq malloc fail\n");
-            setExit(2);
             return cb;
         }
         int filtered_count = 0;
@@ -357,7 +364,10 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
             }
         }
 
-        sfree(matches);
+        if (doFree) {
+            sfree(matches);
+        }
+        doFree = 1;
         matches = filtered;
         count = filtered_count;
     }
@@ -383,7 +393,6 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
     char *json = buffer->json;
 
     for (int i = 0; i < count; i++) {
-        *p++ = '\n';
         struct apiEntry *e = &matches[i];
         struct offset off = e->jsonOffset; // READ-ONLY here
         if (p + off.len + 100 >= end) {
@@ -394,12 +403,14 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
         p += off.len;
         if (options.is_circle) {
             // json objects in cache are terminated by a comma: \n{ .... },
-            p -= 2; // remove } and , and make sure printf puts those back
+            p -= 2; // remove \} and , and make sure printf puts those back
             p = safe_snprintf(p, end, ",\"dst\":%.3f,\"dir\":%.1f},", e->distance / 1852.0, e->direction);
         }
     }
 
-    sfree(matches);
+    if (doFree) {
+        sfree(matches);
+    }
 
     // json objects in cache are terminated by a comma: \n{ .... },
     if (*(p - 1) == ',')
@@ -561,6 +572,9 @@ int apiUpdate(struct craftArray *ca) {
         }
     }
     // sort not needed as order is maintained copying from main list
+
+    buffer->list_pos_range = findLonRange(-180 * 1E6, 180 * 1E6, buffer->list, buffer->len);
+    buffer->list_flag_pos_range = findLonRange(-180 * 1E6, 180 * 1E6, buffer->list_flag, buffer->len_flag);
 
     buffer->timestamp = now;
 
