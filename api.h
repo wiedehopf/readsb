@@ -35,9 +35,8 @@ struct apiOptions {
     int all;
     int all_with_pos;
     int jamesv2;
-    char callsign[9];
-    int find_callsign;
-    int filter;
+    char callsign_exact[9];
+    int filter_callsign_exact;
     int filter_squawk;
     unsigned squawk;
     int filter_dbFlag;
@@ -45,6 +44,8 @@ struct apiOptions {
     int filter_interesting;
     int filter_pia;
     int filter_ladd;
+    int filter_callsign_prefix;
+    char callsign_prefix[9];
     int hexCount;
     uint32_t hexList[API_HEXLIST_MAX];
 };

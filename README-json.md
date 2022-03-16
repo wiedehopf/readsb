@@ -135,7 +135,6 @@ This file contains readsb list of recently seen aircraft. The keys are:
   /?box=<lat south>,<lat north>,<lon west>,<lon east>
   /?all_with_pos
   /?all
-  /?find_callsign=<callsign>
   ```
   * hexList will return all specified aircraft if there is data on them, up to 500 hex codes an be queried at once
   * circle returns all aircraft within radius nautical miles of lat, lon
@@ -144,7 +143,6 @@ This file contains readsb list of recently seen aircraft. The keys are:
   * closest and circle will supply an extra field named "dst" which will have the distance in nautical miles from the supplied location
   * all_with_pos will return all aircraft for which we have received a position in the last minute or last 40 minutes for ADS-C
   * all will return all aircraft returned by all_with_pos and all aircraft with ModeS messages received in the last 30 seconds
-  * find_callsign will return aircraft with an exact match on the callsign
 
   For circle and closest the following two fields are added to each aircraft object:
   * dst: distance from supplied center point in nmi
@@ -152,21 +150,26 @@ This file contains readsb list of recently seen aircraft. The keys are:
 
   To the above base queries you can add these filteroptions
   ```
+  &filter_callsign_exact=<callsign>
+  &filter_callsign_prefix=<prefix>
   &filter_squawk=<squawk>
   ```
-  * filter any of the base queries for a specific squawk code
+  filter any of the base queries for:
+  * an exact callsign match (multiple exact matches possible)
+  * all callsigns that start with <prefix>
+  * a specific squawk code
 
   ```
   &filter_mil
   &filter_pia
   &filter_ladd
   ```
-  * filter any of the base queries for these database flags
+  filter any of the base queries for these database flags:
   * filter_mil will return military aircraft
   * filter_pia using a PIA hex code
   * filter_ladd will return aircraft on the LADD list
-  * these three filter options can be combined in any combination and will be connected by an OR
-  * in contrast, when adding other filters they generally restrict the existing result
+  these three filter options can be combined in any combination and will be connected by an OR
+  in contrast, when combining other filters they restrict an already filtered result
 
 
   ```

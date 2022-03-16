@@ -75,7 +75,57 @@ static struct range findLonRange(int32_t ref_from, int32_t ref_to, struct apiEnt
     return res;
 }
 
-static int findCall(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc, char *callsign) {
+static int filter_dbFlags(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc, struct apiOptions options) {
+    int count = 0;
+    for (int i = 0; i < haylen; i++) {
+        struct apiEntry *e = &haystack[i];
+        if (
+                (options.filter_mil && (e->bin.dbFlags & 1))
+                || (options.filter_interesting && (e->bin.dbFlags & 2))
+                || (options.filter_pia && (e->bin.dbFlags & 4))
+                || (options.filter_ladd && (e->bin.dbFlags & 8))
+           ) {
+            matches[count++] = *e;
+            alloc += e->jsonOffset.len;
+        }
+    }
+    return count;
+}
+
+static int filterSquawk(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc, unsigned squawk)  {
+    int count = 0;
+
+    for (int i = 0; i < haylen; i++) {
+        struct apiEntry *e = &haystack[i];
+        //fprintf(stderr, "%04x %04x\n", options.squawk, e->bin.squawk);
+        if (e->bin.squawk == squawk && e->bin.squawk_valid) {
+            matches[count++] = *e;
+            alloc += e->jsonOffset.len;
+        }
+    }
+    return count;
+}
+
+static int filterCallsignPrefix(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc, char *callsign_prefix) {
+    int count = 0;
+    int prefix_len = strlen(callsign_prefix);
+    for (int j = 0; j < haylen; j++) {
+        struct apiEntry *e = &haystack[j];
+        if (e->bin.callsign_valid && strncasecmp(e->bin.callsign, callsign_prefix, prefix_len) == 0) {
+            matches[count++] = *e;
+            *alloc += e->jsonOffset.len;
+        }
+    }
+    return count;
+}
+
+static int filterCallsignExact(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc, char *callsign) {
+    // replace null padding with space padding
+    for (int i = 0; i < 8; i++) {
+        if (callsign[i] == '\0') {
+            callsign[i] = ' ';
+        }
+    }
     int count = 0;
     for (int j = 0; j < haylen; j++) {
         struct apiEntry *e = &haystack[j];
@@ -268,7 +318,7 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
 
     int doFree = 0;
 
-    if (options.is_box || options.is_circle || options.find_callsign) {
+    if (options.is_box || options.is_circle) {
         doFree = 1;
         matches = apiAlloc(haylen);
         if (!matches) {
@@ -279,8 +329,6 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
         } else if (options.is_circle) {
             count = findInCircle(haystack, haylen, &options.circle, matches, &alloc);
             alloc += count * 30; // adding 27 characters per entry: ,"dst":1000.000, "dir":357
-        } else if (options.find_callsign) {
-            count = findCall(haystack, haylen, matches, &alloc, options.callsign);
         } else {
             fprintf(stderr, "FATAL: unreachable EeB4leiy\n");
             setExit(2);
@@ -319,57 +367,36 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
     }
 
     if (options.filter_squawk) {
-        struct apiEntry *filtered = apiAlloc(count);
-        if (!filtered) {
-            return cb;
-        }
-        int filtered_count = 0;
+        struct apiEntry *filtered = apiAlloc(count); if (!filtered) { return cb; }
+
         size_t alloc = alloc_base;
+        count = filterSquawk(matches, count, filtered, &alloc, options.squawk);
 
-        for (int i = 0; i < count; i++) {
-            struct apiEntry *e = &matches[i];
-            //fprintf(stderr, "%04x %04x\n", options.squawk, e->bin.squawk);
-            if (e->bin.squawk == options.squawk && e->bin.squawk_valid) {
-                filtered[filtered_count++] = *e;
-                alloc += e->jsonOffset.len;
-            }
-        }
-
-        if (doFree) {
-            sfree(matches);
-        }
-        doFree = 1;
-        matches = filtered;
-        count = filtered_count;
+        if (doFree) { sfree(matches); }; doFree = 1; matches = filtered;
     }
     if (options.filter_dbFlag) {
-        struct apiEntry *filtered = apiAlloc(count);
-        if (!filtered) {
-            return cb;
-        }
-        int filtered_count = 0;
+        struct apiEntry *filtered = apiAlloc(count); if (!filtered) { return cb; }
+
         size_t alloc = alloc_base;
+        count = filter_dbFlags(matches, count, filtered, &alloc, options);
 
-        for (int i = 0; i < count; i++) {
-            struct apiEntry *e = &matches[i];
-            //fprintf(stderr, "%04x %04x %01x\n", options.squawk, e->bin.squawk, e->bin.dbFlags);
-            if (
-                    (options.filter_mil && (e->bin.dbFlags & 1))
-                    || (options.filter_interesting && (e->bin.dbFlags & 2))
-                    || (options.filter_pia && (e->bin.dbFlags & 4))
-                    || (options.filter_ladd && (e->bin.dbFlags & 8))
-               ) {
-                filtered[filtered_count++] = *e;
-                alloc += e->jsonOffset.len;
-            }
-        }
+        if (doFree) { sfree(matches); }; doFree = 1; matches = filtered;
+    }
+    if (options.filter_callsign_prefix) {
+        struct apiEntry *filtered = apiAlloc(count); if (!filtered) { return cb; }
 
-        if (doFree) {
-            sfree(matches);
-        }
-        doFree = 1;
-        matches = filtered;
-        count = filtered_count;
+        size_t alloc = alloc_base;
+        count = filterCallsignPrefix(matches, count, filtered, &alloc, options.callsign_prefix);
+
+        if (doFree) { sfree(matches); }; doFree = 1; matches = filtered;
+    }
+    if (options.filter_callsign_exact) {
+        struct apiEntry *filtered = apiAlloc(count); if (!filtered) { return cb; }
+
+        size_t alloc = alloc_base;
+        count = filterCallsignExact(matches, count, filtered, &alloc, options.callsign_exact);
+
+        if (doFree) { sfree(matches); }; doFree = 1; matches = filtered;
     }
 
     // add for comma and new line for each entry
@@ -784,17 +811,22 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
                     return invalid;
 
                 options.hexCount = hexCount;
-            } else if (strcasecmp(option, "find_callsign") == 0) {
-                options.find_callsign = 1;
-                strncpy(options.callsign, value, 8);
-                // strncpy pads with null bytes, replace with space padding
-                for (int i = 0; i < 8; i++) {
-                    if (options.callsign[i] == '\0')
-                        options.callsign[i] = ' ';
-                }
+            } else if (strcasecmp(option, "filter_callsign_exact") == 0) {
+
+                options.filter_callsign_exact = 1;
+
+                memset(options.callsign_exact, 0x0, sizeof(options.callsign_exact));
+                strncpy(options.callsign_exact, value, 8);
+
+            } else if (strcasecmp(option, "filter_callsign_prefix") == 0) {
+
+                options.filter_callsign_prefix = 1;
+
+                memset(options.callsign_prefix, 0x0, sizeof(options.callsign_prefix));
+                strncpy(options.callsign_prefix, value, 8);
+
             } else if (strcasecmp(option, "filter_squawk") == 0) {
                 options.filter_squawk = 1;
-                options.filter = 1;
                 //int dec = strtol(value, NULL, 10);
                 //options.squawk = (dec / 1000) * 16*16*16 + (dec / 100 % 10) * 16*16 + (dec / 10 % 10) * 16 + (dec % 10);
                 int hex = strtol(value, NULL, 16);
@@ -835,7 +867,6 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
                 + options.is_hexList
                 + options.all
                 + options.all_with_pos
-                + options.find_callsign
         ) != 1) {
         return invalid;
     }
