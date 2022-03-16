@@ -60,8 +60,6 @@
 #include <netdb.h>
 #include <poll.h>
 #include <sys/sendfile.h>
-#include <sys/time.h>
-#include <sys/resource.h>
 
 
 //#include <brotli/encode.h>
@@ -702,10 +700,6 @@ void modesInitNet(void) {
     struct net_service *sbs_in_mlat;
     struct net_service *sbs_in_jaero;
     struct net_service *sbs_in_prio;
-
-    struct rlimit limits;
-    getrlimit(RLIMIT_NOFILE, &limits);
-    Modes.max_fds = limits.rlim_cur;
 
     signal(SIGPIPE, SIG_IGN);
     Modes.services = NULL;

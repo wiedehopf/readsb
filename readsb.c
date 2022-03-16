@@ -54,6 +54,9 @@
 #include "readsb.h"
 #include "help.h"
 
+#include <sys/time.h>
+#include <sys/resource.h>
+
 struct _Modes Modes;
 struct _Threads Threads;
 
@@ -178,6 +181,9 @@ static void configSetDefaults(void) {
     }
     //receiverTest();
 
+    struct rlimit limits;
+    getrlimit(RLIMIT_NOFILE, &limits);
+    Modes.max_fds = limits.rlim_cur;
 }
 //
 //=========================================================================

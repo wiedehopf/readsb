@@ -1249,6 +1249,7 @@ void apiInit() {
     }
 
     Modes.api_fds_per_thread = Modes.max_fds * 7 / 8 / Modes.apiThreadCount;
+    //fprintf(stderr, "Modes.api_fds_per_thread: %d\n", Modes.api_fds_per_thread);
     for (int i = 0; i < Modes.apiThreadCount; i++) {
         Modes.apiThread[i].cons = aligned_malloc(Modes.api_fds_per_thread * sizeof(struct apiCon));
         memset(Modes.apiThread[i].cons, 0x0, Modes.api_fds_per_thread * sizeof(struct apiCon));
