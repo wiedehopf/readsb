@@ -129,20 +129,25 @@ This file contains readsb list of recently seen aircraft. The keys are:
   ```
   --net-api-port 8042
   curl -sS 'http://localhost:8042/?hexlist=3CD6E3'  | jq
-  /?hexList=<hex1>,<hex2>,....
   /?circle=<lat>,<lon>,<radius in nmi>
   /?closest=<lat>,<lon>,<radius in nmi>
   /?box=<lat south>,<lat north>,<lon west>,<lon east>
   /?all_with_pos
   /?all
+  /?find_hex=<hex1>,<hex2>,....
+  /?find_callsign=<callsign1>,<callsign2>,.....
+  /?find_reg=<reg1>,<reg2>,.....
   ```
-  * hexList will return all specified aircraft if there is data on them, up to 500 hex codes an be queried at once
   * circle returns all aircraft within radius nautical miles of lat, lon
   * closest is the same as circle but only returning the closest aircraft
   * box is will give you all aircraft within a rectangle delimited by 2 latitudes and longitudes
   * closest and circle will supply an extra field named "dst" which will have the distance in nautical miles from the supplied location
   * all_with_pos will return all aircraft for which we have received a position in the last minute or last 40 minutes for ADS-C
   * all will return all aircraft returned by all_with_pos and all aircraft with ModeS messages received in the last 30 seconds
+  * find_hex (alias: hexList) will return all aircraft with an exact match on one of the given hex / ICAO ids (limited to 1000)
+  * find_callsign will return all aircraft with an exact match on one of the given callsigns (limited to 1000 or 8000 characters for the request)
+  * find_reg will return all aircraft with an exact match on one of the given registrations (limited to 1000 or 8000 characters for the request)
+
 
   For circle and closest the following two fields are added to each aircraft object:
   * dst: distance from supplied center point in nmi

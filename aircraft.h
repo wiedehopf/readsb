@@ -3,7 +3,8 @@
 
 static inline uint32_t addrHash(uint32_t addr, uint32_t bits) {
     const uint64_t m = 0x880355f21e6d1965ULL;
-    uint64_t h = 0x30732349f7810465ULL ^ (4 * m);
+    const uint64_t seed = 0x30732349f7810465ULL;
+    uint64_t h = seed ^ (4 * m);
 
     uint64_t v = addr;
     h ^= mix_fasthash(v);

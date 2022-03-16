@@ -4,8 +4,44 @@
 #define API_HASH_BITS (16)
 #define API_BUCKETS (1 << API_HASH_BITS)
 
-static inline uint32_t apiHash(uint32_t addr) {
+static inline uint32_t hexHash(uint32_t addr) {
     return addrHash(addr, API_HASH_BITS);
+}
+
+static inline uint32_t regHash(char *reg) {
+    const uint64_t seed = 0x30732349f7810465ULL;
+    uint64_t h = fasthash64(reg, 12, seed);
+
+    uint32_t bits = API_HASH_BITS;
+    uint64_t res = h ^ (h >> 32);
+
+    if (bits < 16)
+        res ^= (res >> 16);
+
+    res ^= (res >> bits);
+
+    // mask to fit the requested bit width
+    res &= (((uint64_t) 1) << bits) - 1;
+
+    return (uint32_t) res;
+}
+
+static inline uint32_t callsignHash(char *callsign) {
+    const uint64_t seed = 0x30732349f7810465ULL;
+    uint64_t h = fasthash64(callsign, 8, seed);
+
+    uint32_t bits = API_HASH_BITS;
+    uint64_t res = h ^ (h >> 32);
+
+    if (bits < 16)
+        res ^= (res >> 16);
+
+    res ^= (res >> bits);
+
+    // mask to fit the requested bit width
+    res &= (((uint64_t) 1) << bits) - 1;
+
+    return (uint32_t) res;
 }
 
 static int antiSpam(int64_t *nextPrint, int64_t interval) {
@@ -75,15 +111,15 @@ static struct range findLonRange(int32_t ref_from, int32_t ref_to, struct apiEnt
     return res;
 }
 
-static int filter_dbFlags(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc, struct apiOptions options) {
+static int filter_dbFlags(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc, struct apiOptions *options) {
     int count = 0;
     for (int i = 0; i < haylen; i++) {
         struct apiEntry *e = &haystack[i];
         if (
-                (options.filter_mil && (e->bin.dbFlags & 1))
-                || (options.filter_interesting && (e->bin.dbFlags & 2))
-                || (options.filter_pia && (e->bin.dbFlags & 4))
-                || (options.filter_ladd && (e->bin.dbFlags & 8))
+                (options->filter_mil && (e->bin.dbFlags & 1))
+                || (options->filter_interesting && (e->bin.dbFlags & 2))
+                || (options->filter_pia && (e->bin.dbFlags & 4))
+                || (options->filter_ladd && (e->bin.dbFlags & 8))
            ) {
             matches[count++] = *e;
             alloc += e->jsonOffset.len;
@@ -97,7 +133,7 @@ static int filterSquawk(struct apiEntry *haystack, int haylen, struct apiEntry *
 
     for (int i = 0; i < haylen; i++) {
         struct apiEntry *e = &haystack[i];
-        //fprintf(stderr, "%04x %04x\n", options.squawk, e->bin.squawk);
+        //fprintf(stderr, "%04x %04x\n", options->squawk, e->bin.squawk);
         if (e->bin.squawk == squawk && e->bin.squawk_valid) {
             matches[count++] = *e;
             alloc += e->jsonOffset.len;
@@ -167,11 +203,54 @@ static int findInBox(struct apiEntry *haystack, int haylen, double *box, struct 
     //fprintf(stderr, "box: lat %.1f to %.1f, lon %.1f to %.1f, count: %d\n", box[0], box[1], box[2], box[3], count);
     return count;
 }
+static int findRegList(struct apiEntry **hashList, char *regList, int regCount, struct apiEntry *matches, size_t *alloc) {
+    int count = 0;
+    for (int k = 0; k < regCount; k++) {
+        char *reg = &regList[k * 12];
+        //fprintf(stderr, "reg: %s\n", reg);
+        uint32_t hash = regHash(reg);
+        struct apiEntry *e = hashList[hash];
+        while (e) {
+            if (strncmp(e->bin.registration, reg, 12) == 0) {
+                matches[count++] = *e;
+                *alloc += e->jsonOffset.len;
+                break;
+            }
+            e = e->nextReg;
+        }
+    }
+    return count;
+}
+static int findCallsignList(struct apiEntry **hashList, char *callsignList, int callsignCount, struct apiEntry *matches, size_t *alloc) {
+    int count = 0;
+    for (int k = 0; k < callsignCount; k++) {
+        char *callsign = &callsignList[k * 8];
+        // replace null padding with space padding
+        for (int i = 0; i < 8; i++) {
+            if (callsign[i] == '\0') {
+                callsign[i] = ' ';
+            }
+        }
+        uint32_t hash = callsignHash(callsign);
+        //fprintf(stderr, "callsign: %8s hash: %u\n", callsign, hash);
+        struct apiEntry *e = hashList[hash];
+        while (e) {
+            //fprintf(stderr, "callsign: %8s\n", e->bin.callsign);
+            if (strncmp(e->bin.callsign, callsign, 8) == 0) {
+                matches[count++] = *e;
+                *alloc += e->jsonOffset.len;
+                break;
+            }
+            e = e->nextCallsign;
+        }
+    }
+    return count;
+}
 static int findHexList(struct apiEntry **hashList, uint32_t *hexList, int hexCount, struct apiEntry *matches, size_t *alloc) {
     int count = 0;
     for (int k = 0; k < hexCount; k++) {
         uint32_t addr = hexList[k];
-        uint32_t hash = apiHash(addr);
+        uint32_t hash = hexHash(addr);
         struct apiEntry *e = hashList[hash];
         while (e) {
             if (e->bin.hex == addr) {
@@ -179,7 +258,7 @@ static int findHexList(struct apiEntry **hashList, uint32_t *hexList, int hexCou
                 *alloc += e->jsonOffset.len;
                 break;
             }
-            e = e->next;
+            e = e->nextHex;
         }
     }
     return count;
@@ -282,7 +361,7 @@ static struct apiEntry *apiAlloc(int count) {
     return buf;
 }
 
-static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions options) {
+static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *options) {
 
     int flip = atomic_load(&Modes.apiFlip[thread->index]);
 
@@ -291,7 +370,7 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
     int haylen;
     struct range pos_range;
     struct range all_range;
-    if (options.filter_dbFlag) {
+    if (options->filter_dbFlag) {
         haystack = buffer->list_flag;
         haylen = buffer->len_flag;
 
@@ -318,34 +397,36 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
 
     int doFree = 0;
 
-    if (options.is_box || options.is_circle) {
-        doFree = 1;
-        matches = apiAlloc(haylen);
-        if (!matches) {
-            return cb;
-        }
-        if (options.is_box) {
-            count = findInBox(haystack, haylen, options.box, matches, &alloc);
-        } else if (options.is_circle) {
-            count = findInCircle(haystack, haylen, &options.circle, matches, &alloc);
+    if (options->is_box || options->is_circle) {
+        doFree = 1; matches = apiAlloc(haylen); if (!matches) { return cb; };
+
+        if (options->is_box) {
+            count = findInBox(haystack, haylen, options->box, matches, &alloc);
+        } else if (options->is_circle) {
+            count = findInCircle(haystack, haylen, &options->circle, matches, &alloc);
             alloc += count * 30; // adding 27 characters per entry: ,"dst":1000.000, "dir":357
         } else {
             fprintf(stderr, "FATAL: unreachable EeB4leiy\n");
             setExit(2);
             return cb;
         }
-    } else if (options.is_hexList) {
-        doFree = 1;
-        matches = apiAlloc(options.hexCount);
-        if (!matches) {
-            return cb;
-        }
-        count = findHexList(buffer->hashList, options.hexList, options.hexCount, matches, &alloc);
-    } else if (options.all || options.all_with_pos) {
+    } else if (options->is_hexList) {
+        doFree = 1; matches = apiAlloc(options->hexCount); if (!matches) { return cb; };
+
+        count = findHexList(buffer->hexHash, options->hexList, options->hexCount, matches, &alloc);
+    } else if (options->is_regList) {
+        doFree = 1; matches = apiAlloc(options->regCount); if (!matches) { return cb; };
+
+        count = findRegList(buffer->regHash, options->regList, options->regCount, matches, &alloc);
+    } else if (options->is_callsignList) {
+        doFree = 1; matches = apiAlloc(options->callsignCount); if (!matches) { return cb; };
+
+        count = findCallsignList(buffer->callsignHash, options->callsignList, options->callsignCount, matches, &alloc);
+    } else if (options->all || options->all_with_pos) {
         struct range range;
-        if (options.all) {
+        if (options->all) {
             range = all_range;
-        } else if ( options.all_with_pos) {
+        } else if ( options->all_with_pos) {
             range = pos_range;
         } else {
             fprintf(stderr, "FATAL: unreachablei ahchoh8R\n");
@@ -366,15 +447,15 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
         }
     }
 
-    if (options.filter_squawk) {
+    if (options->filter_squawk) {
         struct apiEntry *filtered = apiAlloc(count); if (!filtered) { return cb; }
 
         size_t alloc = alloc_base;
-        count = filterSquawk(matches, count, filtered, &alloc, options.squawk);
+        count = filterSquawk(matches, count, filtered, &alloc, options->squawk);
 
         if (doFree) { sfree(matches); }; doFree = 1; matches = filtered;
     }
-    if (options.filter_dbFlag) {
+    if (options->filter_dbFlag) {
         struct apiEntry *filtered = apiAlloc(count); if (!filtered) { return cb; }
 
         size_t alloc = alloc_base;
@@ -382,19 +463,19 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
 
         if (doFree) { sfree(matches); }; doFree = 1; matches = filtered;
     }
-    if (options.filter_callsign_prefix) {
+    if (options->filter_callsign_prefix) {
         struct apiEntry *filtered = apiAlloc(count); if (!filtered) { return cb; }
 
         size_t alloc = alloc_base;
-        count = filterCallsignPrefix(matches, count, filtered, &alloc, options.callsign_prefix);
+        count = filterCallsignPrefix(matches, count, filtered, &alloc, options->callsign_prefix);
 
         if (doFree) { sfree(matches); }; doFree = 1; matches = filtered;
     }
-    if (options.filter_callsign_exact) {
+    if (options->filter_callsign_exact) {
         struct apiEntry *filtered = apiAlloc(count); if (!filtered) { return cb; }
 
         size_t alloc = alloc_base;
-        count = filterCallsignExact(matches, count, filtered, &alloc, options.callsign_exact);
+        count = filterCallsignExact(matches, count, filtered, &alloc, options->callsign_exact);
 
         if (doFree) { sfree(matches); }; doFree = 1; matches = filtered;
     }
@@ -410,7 +491,7 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
     char *end = cb.buffer + alloc;
 
 
-    if (options.jamesv2) {
+    if (options->jamesv2) {
         p = safe_snprintf(p, end, "{\"ac\":[");
     } else {
         p = safe_snprintf(p, end, "{\"now\": %.3f", buffer->timestamp / 1000.0);
@@ -428,7 +509,7 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
         }
         memcpy(p, json + off.offset, off.len);
         p += off.len;
-        if (options.is_circle) {
+        if (options->is_circle) {
             // json objects in cache are terminated by a comma: \n{ .... },
             p -= 2; // remove \} and , and make sure printf puts those back
             p = safe_snprintf(p, end, ",\"dst\":%.3f,\"dir\":%.1f},", e->distance / 1852.0, e->direction);
@@ -443,18 +524,18 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions opt
     if (*(p - 1) == ',')
         p--; // remove trailing comma if necessary
 
-    options.request_processed = microtime();
+    options->request_processed = microtime();
     p = safe_snprintf(p, end, "\n]");
 
-    if (options.jamesv2) {
+    if (options->jamesv2) {
         p = safe_snprintf(p, end, "\n,\"msg\": \"No error\"");
         p = safe_snprintf(p, end, "\n,\"now\": %lld", (long long) buffer->timestamp);
         p = safe_snprintf(p, end, "\n,\"total\": %d", count);
         p = safe_snprintf(p, end, "\n,\"ctime\": %lld", (long long) buffer->timestamp);
-        p = safe_snprintf(p, end, "\n,\"ptime\": %lld", (long long) nearbyint((options.request_processed - options.request_received) / 1000.0));
+        p = safe_snprintf(p, end, "\n,\"ptime\": %lld", (long long) nearbyint((options->request_processed - options->request_received) / 1000.0));
     } else {
         p = safe_snprintf(p, end, "\n,\"resultCount\": %d", count);
-        p = safe_snprintf(p, end, "\n,\"ptime\": %.3f", (options.request_processed - options.request_received) / 1000.0);
+        p = safe_snprintf(p, end, "\n,\"ptime\": %.3f", (options->request_processed - options->request_received) / 1000.0);
     }
     p = safe_snprintf(p, end, "\n}\n");
 
@@ -515,10 +596,20 @@ static inline void apiGenerateJson(struct apiBuffer *buffer, int64_t now) {
             entry->jsonOffset.len = 0;
             continue;
         }
+        uint32_t hash;
 
-        uint32_t hash = apiHash(entry->bin.hex);
-        entry->next = buffer->hashList[hash];
-        buffer->hashList[hash] = entry;
+        hash = hexHash(entry->bin.hex);
+        entry->nextHex = buffer->hexHash[hash];
+        buffer->hexHash[hash] = entry;
+
+        hash = regHash(entry->bin.registration);
+        entry->nextReg = buffer->regHash[hash];
+        buffer->regHash[hash] = entry;
+
+        hash = callsignHash(entry->bin.callsign);
+        entry->nextCallsign = buffer->callsignHash[hash];
+        buffer->callsignHash[hash] = entry;
+        //fprintf(stderr, "callsign: %8s hash: %u\n", entry->bin.callsign, hash);
 
         char *start = p;
 
@@ -568,7 +659,9 @@ int apiUpdate(struct craftArray *ca) {
     }
 
     // reset hashList to NULL
-    memset(buffer->hashList, 0x0, API_BUCKETS * sizeof(struct apiEntry*));
+    memset(buffer->hexHash, 0x0, API_BUCKETS * sizeof(struct apiEntry*));
+    memset(buffer->regHash, 0x0, API_BUCKETS * sizeof(struct apiEntry*));
+    memset(buffer->callsignHash, 0x0, API_BUCKETS * sizeof(struct apiEntry*));
 
     // reset api list, just in case we don't set the entries completely due to oversight
     memset(buffer->list, 0x0, buffer->alloc * sizeof(struct apiEntry));
@@ -740,9 +833,10 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
     // we only want the URL
     *eoq = '\0';
 
-    struct apiOptions options = { 0 };
+    struct apiOptions optionsBack = { 0 };
+    struct apiOptions *options = &optionsBack;
 
-    options.request_received = microtime();
+    options->request_received = microtime();
 
     while ((p = strsep(&query, "&"))) {
         //fprintf(stderr, "%s\n", p);
@@ -752,9 +846,9 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
             //fprintf(stderr, "%s=%s\n", option, value);
             // handle parameters WITH associated value
             if (strcasecmp(option, "box") == 0) {
-                options.is_box = 1;
+                options->is_box = 1;
 
-                double *box = options.box;
+                double *box = options->box;
                 int count = parseDoubles(value, box, 4);
                 if (count < 4)
                     return invalid;
@@ -767,17 +861,17 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
                     return invalid;
 
             } else if (strcasecmp(option, "closest") == 0 || strcasecmp(option, "circle") == 0) {
-                options.is_circle = 1;
+                options->is_circle = 1;
                 if (strcasecmp(option, "closest") == 0) {
-                    options.closest = 1;
+                    options->closest = 1;
                 }
-                struct apiCircle *circle = &options.circle;
+                struct apiCircle *circle = &options->circle;
                 double numbers[3];
                 int count = parseDoubles(value, numbers, 3);
                 if (count < 3)
                     return invalid;
 
-                circle->onlyClosest = options.closest;
+                circle->onlyClosest = options->closest;
 
                 circle->lat = numbers[0];
                 circle->lon = numbers[1];
@@ -791,17 +885,17 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
                 if (circle->lon > 180 || circle->lon < -180)
                     return invalid;
 
-            } else if (strcasecmp(option, "hexList") == 0) {
-                options.is_hexList = 1;
+            } else if (strcasecmp(option, "find_hex") == 0 || strcasecmp(option, "hexList") == 0) {
+                options->is_hexList = 1;
 
                 int hexCount = 0;
-                int maxLen = API_HEXLIST_MAX;
-                uint32_t *hexList = options.hexList;
+                int maxCount = API_REQ_LIST_MAX;
+                uint32_t *hexList = options->hexList;
 
                 saveptr = NULL;
                 char *endptr = NULL;
                 char *tok = strtok_r(value, ",", &saveptr);
-                while (tok && hexCount < maxLen) {
+                while (tok && hexCount < maxCount) {
                     hexList[hexCount] = (uint32_t) strtol(tok, &endptr, 16);
                     if (tok != endptr)
                         hexCount++;
@@ -810,63 +904,105 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
                 if (hexCount == 0)
                     return invalid;
 
-                options.hexCount = hexCount;
+                options->hexCount = hexCount;
+            } else if (strcasecmp(option, "find_callsign") == 0) {
+                options->is_callsignList = 1;
+
+                int callsignCount = 0;
+                int maxCount = API_REQ_LIST_MAX;
+                char *callsignList = options->callsignList;
+
+                saveptr = NULL;
+                char *endptr = NULL;
+                char *tok = strtok_r(value, ",", &saveptr);
+                while (tok && callsignCount < maxCount) {
+                    strncpy(callsignList + callsignCount * 8, tok, 8);
+                    if (tok != endptr)
+                        callsignCount++;
+                    tok = strtok_r(NULL, ",", &saveptr);
+                }
+                if (callsignCount == 0)
+                    return invalid;
+
+                options->callsignCount = callsignCount;
+            } else if (strcasecmp(option, "find_reg") == 0) {
+                options->is_regList = 1;
+
+                int regCount = 0;
+                int maxCount = API_REQ_LIST_MAX;
+                char *regList = options->regList;
+
+                saveptr = NULL;
+                char *endptr = NULL;
+                char *tok = strtok_r(value, ",", &saveptr);
+                while (tok && regCount < maxCount) {
+                    strncpy(regList + regCount * 12, tok, 12);
+                    if (tok != endptr)
+                        regCount++;
+                    tok = strtok_r(NULL, ",", &saveptr);
+                }
+                if (regCount == 0)
+                    return invalid;
+
+                options->regCount = regCount;
             } else if (strcasecmp(option, "filter_callsign_exact") == 0) {
 
-                options.filter_callsign_exact = 1;
+                options->filter_callsign_exact = 1;
 
-                memset(options.callsign_exact, 0x0, sizeof(options.callsign_exact));
-                strncpy(options.callsign_exact, value, 8);
+                memset(options->callsign_exact, 0x0, sizeof(options->callsign_exact));
+                strncpy(options->callsign_exact, value, 8);
 
             } else if (strcasecmp(option, "filter_callsign_prefix") == 0) {
 
-                options.filter_callsign_prefix = 1;
+                options->filter_callsign_prefix = 1;
 
-                memset(options.callsign_prefix, 0x0, sizeof(options.callsign_prefix));
-                strncpy(options.callsign_prefix, value, 8);
+                memset(options->callsign_prefix, 0x0, sizeof(options->callsign_prefix));
+                strncpy(options->callsign_prefix, value, 8);
 
             } else if (strcasecmp(option, "filter_squawk") == 0) {
-                options.filter_squawk = 1;
+                options->filter_squawk = 1;
                 //int dec = strtol(value, NULL, 10);
-                //options.squawk = (dec / 1000) * 16*16*16 + (dec / 100 % 10) * 16*16 + (dec / 10 % 10) * 16 + (dec % 10);
+                //options->squawk = (dec / 1000) * 16*16*16 + (dec / 100 % 10) * 16*16 + (dec / 10 % 10) * 16 + (dec % 10);
                 int hex = strtol(value, NULL, 16);
                 //fprintf(stderr, "%04d %04x\n", dec, hex);
 
-                options.squawk = hex;
+                options->squawk = hex;
             } else {
                 return invalid;
             }
         } else {
             // handle parameters WITHOUT associated value
             if (strcasecmp(option, "jv2") == 0) {
-                options.jamesv2 = 1;
+                options->jamesv2 = 1;
             } else if (strcasecmp(option, "all") == 0) {
-                options.all = 1;
+                options->all = 1;
             } else if (strcasecmp(option, "all_with_pos") == 0) {
-                options.all_with_pos = 1;
+                options->all_with_pos = 1;
             } else if (strcasecmp(option, "filter_mil") == 0) {
-                options.filter_dbFlag = 1;
-                options.filter_mil = 1;
+                options->filter_dbFlag = 1;
+                options->filter_mil = 1;
             } else if (strcasecmp(option, "filter_interesting") == 0) {
-                options.filter_dbFlag = 1;
-                options.filter_interesting = 1;
+                options->filter_dbFlag = 1;
+                options->filter_interesting = 1;
             } else if (strcasecmp(option, "filter_pia") == 0) {
-                options.filter_dbFlag = 1;
-                options.filter_pia = 1;
+                options->filter_dbFlag = 1;
+                options->filter_pia = 1;
             } else if (strcasecmp(option, "filter_ladd") == 0) {
-                options.filter_dbFlag = 1;
-                options.filter_ladd = 1;
+                options->filter_dbFlag = 1;
+                options->filter_ladd = 1;
             } else {
                 return invalid;
             }
         }
     }
     if ((
-                options.is_box
-                + options.is_circle
-                + options.is_hexList
-                + options.all
-                + options.all_with_pos
+                options->is_box
+                + options->is_circle
+                + options->is_hexList
+                + options->is_callsignList
+                + options->is_regList
+                + options->all
+                + options->all_with_pos
         ) != 1) {
         return invalid;
     }
@@ -937,14 +1073,25 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
 
     struct char_buffer *request = &con->request;
 
-    if (request->len > 1024 + 7 * API_HEXLIST_MAX) {
+    size_t requestMax = 1024 + 13 * API_REQ_LIST_MAX;
+    if (request->len > requestMax) {
         send400(fd);
         apiCloseCon(con, thread);
         return;
     }
-    if (request->len + 2048 > request->alloc) {
-        request->alloc += 16 * 1024;
+    if (!request->alloc) {
+        request->alloc = 4096;
         request->buffer = realloc(request->buffer, request->alloc);
+    } else if (request->len + 512 > request->alloc) {
+        request->alloc = requestMax;
+        request->buffer = realloc(request->buffer, request->alloc);
+    }
+    if (!request->buffer) {
+        fprintf(stderr, "FATAL: apiReadRequest request->buffer malloc fail\n");
+        setExit(2);
+        send503(con->fd);
+        apiCloseCon(con, thread);
+        return;
     }
     toRead = request->alloc - request->len - 1; // leave an extra byte we can set \0
     nread = recv(fd, request->buffer + request->len, toRead, 0);
@@ -1232,7 +1379,9 @@ void apiBufferInit() {
 
     for (int i = 0; i < 2; i++) {
         struct apiBuffer *buffer = &Modes.apiBuffer[i];
-        buffer->hashList = aligned_malloc(API_BUCKETS * sizeof(struct apiEntry*));
+        buffer->hexHash = aligned_malloc(API_BUCKETS * sizeof(struct apiEntry*));
+        buffer->regHash = aligned_malloc(API_BUCKETS * sizeof(struct apiEntry*));
+        buffer->callsignHash = aligned_malloc(API_BUCKETS * sizeof(struct apiEntry*));
     }
     apiUpdate(&Modes.aircraftActive); // run an initial apiUpdate
     threadCreate(&Threads.apiUpdate, NULL, apiUpdateEntryPoint, NULL);
@@ -1246,7 +1395,9 @@ void apiBufferCleanup() {
         sfree(Modes.apiBuffer[i].list);
         sfree(Modes.apiBuffer[i].list_flag);
         sfree(Modes.apiBuffer[i].json);
-        sfree(Modes.apiBuffer[i].hashList);
+        sfree(Modes.apiBuffer[i].hexHash);
+        sfree(Modes.apiBuffer[i].regHash);
+        sfree(Modes.apiBuffer[i].callsignHash);
     }
 
     sfree(Modes.apiThread);

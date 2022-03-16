@@ -3,7 +3,7 @@
 
 #define API_REQ_PADSTART (192)
 
-#define API_HEXLIST_MAX 4096
+#define API_REQ_LIST_MAX 1024
 
 struct apiCon {
     int fd;
@@ -31,12 +31,12 @@ struct apiOptions {
     int is_box;
     int is_circle;
     int is_hexList;
+    int is_callsignList;
+    int is_regList;
     int closest;
     int all;
     int all_with_pos;
     int jamesv2;
-    char callsign_exact[9];
-    int filter_callsign_exact;
     int filter_squawk;
     unsigned squawk;
     int filter_dbFlag;
@@ -44,10 +44,16 @@ struct apiOptions {
     int filter_interesting;
     int filter_pia;
     int filter_ladd;
+    int filter_callsign_exact;
+    char callsign_exact[9];
     int filter_callsign_prefix;
     char callsign_prefix[9];
     int hexCount;
-    uint32_t hexList[API_HEXLIST_MAX];
+    uint32_t hexList[API_REQ_LIST_MAX];
+    int callsignCount;
+    char callsignList[API_REQ_LIST_MAX * 8 + 1];
+    int regCount;
+    char regList[API_REQ_LIST_MAX * 12 + 1];
 };
 
 struct offset {
@@ -60,7 +66,9 @@ struct apiEntry {
 
     struct binCraft bin;
 
-    struct apiEntry *next;
+    struct apiEntry *nextHex;
+    struct apiEntry *nextReg;
+    struct apiEntry *nextCallsign;
 
     float distance;
     float direction;
@@ -84,7 +92,9 @@ struct apiBuffer {
     uint64_t timestamp;
     char *json;
     int jsonLen;
-    struct apiEntry **hashList;
+    struct apiEntry **hexHash;
+    struct apiEntry **regHash;
+    struct apiEntry **callsignHash;
     uint32_t focus;
     int aircraftJsonCount;
 };
