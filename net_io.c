@@ -2169,12 +2169,12 @@ static int handleCommandSocket(struct client *c, char *p, int remote, int64_t no
     MODES_NOTUSED(c);
     MODES_NOTUSED(remote);
     MODES_NOTUSED(now);
-    char *delim = " ";
-    char *cmd = strtok(p, delim);
+    char *saveptr = NULL;
+    char *cmd = strtok_r(p, " ", &saveptr);
     if (strcmp(cmd, "deleteTrace") == 0) {
-        char *t1 = strtok(NULL, delim);
-        char *t2 = strtok(NULL, delim);
-        char *t3 = strtok(NULL, delim);
+        char *t1 = strtok_r(NULL, " ", &saveptr);
+        char *t2 = strtok_r(NULL, " ", &saveptr);
+        char *t3 = strtok_r(NULL, " ", &saveptr);
         if (!t1 || !t2 || !t3) {
             fprintf(stderr, "commandSocket deleteTrace: not enough tokens\n");
             return 0;
@@ -2459,17 +2459,18 @@ static int decodeHexMessage(struct client *c, char *hex, int remote, int64_t now
         } else {
             return 0;
         } // incomplete
-        char *token = strtok(&hex[pos + 1], ",");
+        char *saveptr = NULL;
+        char *token = strtok_r(&hex[pos + 1], ",", &saveptr);
         if (!token) return 0;
         mm.signalLevel = strtol(token, NULL, 10);
         mm.signalLevel /= 1000; // let's assume 1000 mV max .. i only have a small sample, specification isn't clear
         mm.signalLevel = mm.signalLevel * mm.signalLevel; // square it to get power
         mm.signalLevel = fmin(1.0, mm.signalLevel); // cap at 1
                                                     //
-        token = strtok(NULL, ","); // discard signal quality
+        token = strtok_r(NULL, ",", &saveptr); // discard signal quality
         if (!token) return 0;
 
-        token = strtok(NULL, ",");
+        token = strtok_r(NULL, ",", &saveptr);
         if (token) {
             int after_pps = strtol(token, NULL, 16);
             // round down to current second, go to microseconds and add after_pps, go to 12 MHz clock

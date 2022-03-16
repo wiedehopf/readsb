@@ -957,11 +957,12 @@ static int make_net_connector(char *arg) {
     memset(con, 0, sizeof(struct net_connector));
     Modes.net_connectors[Modes.net_connectors_count++] = con;
     char *connect_string = strdup(arg);
-    con->address = con->address0 = strtok(connect_string, ",");
-    con->port = con->port0 = strtok(NULL, ",");
-    con->protocol = strtok(NULL, ",");
-    con->address1 = strtok(NULL, ",");
-    con->port1 = strtok(NULL, ",");
+    char *saveptr = NULL;
+    con->address = con->address0 = strtok_r(connect_string, ",", &saveptr);
+    con->port = con->port0 = strtok_r(NULL, ",", &saveptr);
+    con->protocol = strtok_r(NULL, ",", &saveptr);
+    con->address1 = strtok_r(NULL, ",", &saveptr);
+    con->port1 = strtok_r(NULL, ",", &saveptr);
 
     if (pthread_mutex_init(&con->mutex, NULL)) {
         fprintf(stderr, "Unable to initialize connector mutex!\n");

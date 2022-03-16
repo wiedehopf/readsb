@@ -176,10 +176,12 @@ int geomag_init()
 
     wmm_lines = malloc(sizeof(char*) * 256);
     wmm_index = 0;
-    wmm_lines[wmm_index] = strtok(wmm_string, "\n");
+
+    char *saveptr = NULL;
+    wmm_lines[wmm_index] = strtok_r(wmm_string, "\n", &saveptr);
     while (wmm_lines[wmm_index]) {
         wmm_index++;
-        wmm_lines[wmm_index] = strtok(NULL, "\n");
+        wmm_lines[wmm_index] = strtok_r(NULL, "\n", &saveptr);
     }
 
 
