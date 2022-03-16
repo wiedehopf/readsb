@@ -128,6 +128,18 @@ static int filter_dbFlags(struct apiEntry *haystack, int haylen, struct apiEntry
     return count;
 }
 
+static int filterWithPos(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc)  {
+    int count = 0;
+
+    for (int i = 0; i < haylen; i++) {
+        struct apiEntry *e = &haystack[i];
+        if (e->bin.position_valid) {
+            matches[count++] = *e;
+            alloc += e->jsonOffset.len;
+        }
+    }
+    return count;
+}
 static int filterSquawk(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc, unsigned squawk)  {
     int count = 0;
 
@@ -147,7 +159,7 @@ static int filterCallsignPrefix(struct apiEntry *haystack, int haylen, struct ap
     int prefix_len = strlen(callsign_prefix);
     for (int j = 0; j < haylen; j++) {
         struct apiEntry *e = &haystack[j];
-        if (e->bin.callsign_valid && strncasecmp(e->bin.callsign, callsign_prefix, prefix_len) == 0) {
+        if (e->bin.callsign_valid && strncmp(e->bin.callsign, callsign_prefix, prefix_len) == 0) {
             matches[count++] = *e;
             *alloc += e->jsonOffset.len;
         }
@@ -165,7 +177,7 @@ static int filterCallsignExact(struct apiEntry *haystack, int haylen, struct api
     int count = 0;
     for (int j = 0; j < haylen; j++) {
         struct apiEntry *e = &haystack[j];
-        if (e->bin.callsign_valid && strncasecmp(e->bin.callsign, callsign, 8) == 0) {
+        if (e->bin.callsign_valid && strncmp(e->bin.callsign, callsign, 8) == 0) {
             matches[count++] = *e;
             *alloc += e->jsonOffset.len;
         }
@@ -173,6 +185,29 @@ static int filterCallsignExact(struct apiEntry *haystack, int haylen, struct api
     return count;
 }
 
+static int findTypeList(struct apiEntry *haystack, int haylen, char *typeList, int typeCount, struct apiEntry *matches, size_t *alloc) {
+    int count = 0;
+    for (int k = 0; k < typeCount; k++) {
+        char *typeCode = typeList + 4 * k;
+        // upper case typeCode
+        for (int i = 0; i < 4; i++) {
+            typeCode[i] = toupper(typeCode[i]);
+        }
+    }
+    for (int j = 0; j < haylen; j++) {
+        struct apiEntry *e = &haystack[j];
+        for (int k = 0; k < typeCount; k++) {
+            char *typeCode = typeList + 4 * k;
+            if (strncmp(e->bin.typeCode, typeCode, 4) == 0) {
+                //fprintf(stderr, "typeCode: %.4s %.4s\n", e->bin.typeCode, typeCode);
+                matches[count++] = *e;
+                *alloc += e->jsonOffset.len;
+                break;
+            }
+        }
+    }
+    return count;
+}
 static int findInBox(struct apiEntry *haystack, int haylen, double *box, struct apiEntry *matches, size_t *alloc) {
     struct range r[2];
     memset(r, 0, sizeof(r));
@@ -207,6 +242,10 @@ static int findRegList(struct apiEntry **hashList, char *regList, int regCount, 
     int count = 0;
     for (int k = 0; k < regCount; k++) {
         char *reg = &regList[k * 12];
+        // upper case reg
+        for (int i = 0; i < 12; i++) {
+            reg[i] = toupper(reg[i]);
+        }
         //fprintf(stderr, "reg: %s\n", reg);
         uint32_t hash = regHash(reg);
         struct apiEntry *e = hashList[hash];
@@ -225,8 +264,9 @@ static int findCallsignList(struct apiEntry **hashList, char *callsignList, int 
     int count = 0;
     for (int k = 0; k < callsignCount; k++) {
         char *callsign = &callsignList[k * 8];
-        // replace null padding with space padding
+        // replace null padding with space padding, upper case input
         for (int i = 0; i < 8; i++) {
+            callsign[i] = toupper(callsign[i]);
             if (callsign[i] == '\0') {
                 callsign[i] = ' ';
             }
@@ -422,6 +462,10 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *op
         doFree = 1; matches = apiAlloc(options->callsignCount); if (!matches) { return cb; };
 
         count = findCallsignList(buffer->callsignHash, options->callsignList, options->callsignCount, matches, &alloc);
+    } else if (options->is_typeList) {
+        doFree = 1; matches = apiAlloc(haylen); if (!matches) { return cb; };
+
+        count = findTypeList(haystack, haylen, options->typeList, options->typeCount, matches, &alloc);
     } else if (options->all || options->all_with_pos) {
         struct range range;
         if (options->all) {
@@ -452,6 +496,14 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *op
 
         size_t alloc = alloc_base;
         count = filterSquawk(matches, count, filtered, &alloc, options->squawk);
+
+        if (doFree) { sfree(matches); }; doFree = 1; matches = filtered;
+    }
+    if (options->filter_with_pos) {
+        struct apiEntry *filtered = apiAlloc(count); if (!filtered) { return cb; }
+
+        size_t alloc = alloc_base;
+        count = filterWithPos(matches, count, filtered, &alloc);
 
         if (doFree) { sfree(matches); }; doFree = 1; matches = filtered;
     }
@@ -945,6 +997,26 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
                     return invalid;
 
                 options->regCount = regCount;
+            } else if (strcasecmp(option, "find_type") == 0) {
+                options->is_typeList = 1;
+
+                int typeCount = 0;
+                int maxCount = API_REQ_LIST_MAX;
+                char *typeList = options->typeList;
+
+                saveptr = NULL;
+                char *endptr = NULL;
+                char *tok = strtok_r(value, ",", &saveptr);
+                while (tok && typeCount < maxCount) {
+                    strncpy(typeList + typeCount * 4, tok, 4);
+                    if (tok != endptr)
+                        typeCount++;
+                    tok = strtok_r(NULL, ",", &saveptr);
+                }
+                if (typeCount == 0)
+                    return invalid;
+
+                options->typeCount = typeCount;
             } else if (strcasecmp(option, "filter_callsign_exact") == 0) {
 
                 options->filter_callsign_exact = 1;
@@ -978,6 +1050,8 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
                 options->all = 1;
             } else if (strcasecmp(option, "all_with_pos") == 0) {
                 options->all_with_pos = 1;
+            } else if (strcasecmp(option, "filter_with_pos") == 0) {
+                options->filter_with_pos = 1;
             } else if (strcasecmp(option, "filter_mil") == 0) {
                 options->filter_dbFlag = 1;
                 options->filter_mil = 1;
@@ -1001,6 +1075,7 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
                 + options->is_hexList
                 + options->is_callsignList
                 + options->is_regList
+                + options->is_typeList
                 + options->all
                 + options->all_with_pos
         ) != 1) {

@@ -33,6 +33,7 @@ struct apiOptions {
     int is_hexList;
     int is_callsignList;
     int is_regList;
+    int is_typeList;
     int closest;
     int all;
     int all_with_pos;
@@ -44,6 +45,7 @@ struct apiOptions {
     int filter_interesting;
     int filter_pia;
     int filter_ladd;
+    int filter_with_pos;
     int filter_callsign_exact;
     char callsign_exact[9];
     int filter_callsign_prefix;
@@ -54,6 +56,8 @@ struct apiOptions {
     char callsignList[API_REQ_LIST_MAX * 8 + 1];
     int regCount;
     char regList[API_REQ_LIST_MAX * 12 + 1];
+    int typeCount;
+    char typeList[API_REQ_LIST_MAX * 4 + 1];
 };
 
 struct offset {

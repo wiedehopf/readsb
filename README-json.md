@@ -137,6 +137,7 @@ This file contains readsb list of recently seen aircraft. The keys are:
   /?find_hex=<hex1>,<hex2>,....
   /?find_callsign=<callsign1>,<callsign2>,.....
   /?find_reg=<reg1>,<reg2>,.....
+  /?find_type=<type1>,<type2>,.....
   ```
   * circle returns all aircraft within radius nautical miles of lat, lon
   * closest is the same as circle but only returning the closest aircraft
@@ -147,6 +148,7 @@ This file contains readsb list of recently seen aircraft. The keys are:
   * find_hex (alias: hexList) will return all aircraft with an exact match on one of the given hex / ICAO ids (limited to 1000)
   * find_callsign will return all aircraft with an exact match on one of the given callsigns (limited to 1000 or 8000 characters for the request)
   * find_reg will return all aircraft with an exact match on one of the given registrations (limited to 1000 or 8000 characters for the request)
+  * find_type will return all aircraft that have one of the specified icao type codes (A321, B738, .....)
 
 
   For circle and closest the following two fields are added to each aircraft object:
@@ -158,11 +160,13 @@ This file contains readsb list of recently seen aircraft. The keys are:
   &filter_callsign_exact=<callsign>
   &filter_callsign_prefix=<prefix>
   &filter_squawk=<squawk>
+  &filter_with_pos
   ```
   filter any of the base queries for:
   * an exact callsign match (multiple exact matches possible)
   * all callsigns that start with <prefix>
   * a specific squawk code
+  * only return aircraft that have a valid position
 
   ```
   &filter_mil
