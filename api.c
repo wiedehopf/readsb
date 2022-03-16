@@ -185,7 +185,7 @@ static int filterCallsignExact(struct apiEntry *haystack, int haylen, struct api
     return count;
 }
 
-static int findTypeList(struct apiEntry *haystack, int haylen, char *typeList, int typeCount, struct apiEntry *matches, size_t *alloc) {
+static int filterTypeList(struct apiEntry *haystack, int haylen, char *typeList, int typeCount, struct apiEntry *matches, size_t *alloc) {
     int count = 0;
     for (int k = 0; k < typeCount; k++) {
         char *typeCode = typeList + 4 * k;
@@ -199,9 +199,10 @@ static int findTypeList(struct apiEntry *haystack, int haylen, char *typeList, i
         for (int k = 0; k < typeCount; k++) {
             char *typeCode = typeList + 4 * k;
             if (strncmp(e->bin.typeCode, typeCode, 4) == 0) {
-                //fprintf(stderr, "typeCode: %.4s %.4s\n", e->bin.typeCode, typeCode);
+                //fprintf(stderr, "typeCode: %.4s %.4s alloc increase by %d\n", e->bin.typeCode, typeCode, e->jsonOffset.len);
                 matches[count++] = *e;
                 *alloc += e->jsonOffset.len;
+                // break inner loop
                 break;
             }
         }
@@ -465,7 +466,7 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *op
     } else if (options->is_typeList) {
         doFree = 1; matches = apiAlloc(haylen); if (!matches) { return cb; };
 
-        count = findTypeList(haystack, haylen, options->typeList, options->typeCount, matches, &alloc);
+        count = filterTypeList(haystack, haylen, options->typeList, options->typeCount, matches, &alloc);
     } else if (options->all || options->all_with_pos) {
         struct range range;
         if (options->all) {
@@ -531,9 +532,14 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *op
 
         if (doFree) { sfree(matches); }; doFree = 1; matches = filtered;
     }
+    if (options->filter_typeList) {
+        struct apiEntry *filtered = apiAlloc(count); if (!filtered) { return cb; }
 
-    // add for comma and new line for each entry
-    alloc += count * 2;
+        size_t alloc = alloc_base;
+        count = filterTypeList(matches, count, options->typeList, options->typeCount, filtered, &alloc);
+
+        if (doFree) { sfree(matches); }; doFree = 1; matches = filtered;
+    }
 
     cb.buffer = aligned_malloc(alloc);
     if (!cb.buffer)
@@ -556,7 +562,7 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *op
         struct apiEntry *e = &matches[i];
         struct offset off = e->jsonOffset; // READ-ONLY here
         if (p + off.len + 100 >= end) {
-            fprintf(stderr, "search code ieva2aeV: need: %d alloc: %d\n", (int) ((p + off.len + 100) - cb.buffer), (int) alloc);
+            fprintf(stderr, "search code ieva2aeV: count: %d need: %d alloc: %d\n", count, (int) ((p + off.len + 100) - cb.buffer), (int) alloc);
             break;
         }
         memcpy(p, json + off.offset, off.len);
@@ -997,8 +1003,12 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
                     return invalid;
 
                 options->regCount = regCount;
-            } else if (strcasecmp(option, "find_type") == 0) {
-                options->is_typeList = 1;
+            } else if (strcasecmp(option, "find_type") == 0 || strcasecmp(option, "filter_type") == 0) {
+                if (strcasecmp(option, "find_type") == 0) {
+                    options->is_typeList = 1;
+                } else {
+                    options->filter_typeList = 1;
+                }
 
                 int typeCount = 0;
                 int maxCount = API_REQ_LIST_MAX;
@@ -1079,6 +1089,9 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
                 + options->all
                 + options->all_with_pos
         ) != 1) {
+        return invalid;
+    }
+    if (options->is_typeList && options->filter_typeList) {
         return invalid;
     }
 

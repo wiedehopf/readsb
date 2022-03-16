@@ -34,6 +34,7 @@ struct apiOptions {
     int is_callsignList;
     int is_regList;
     int is_typeList;
+    int filter_typeList;
     int closest;
     int all;
     int all_with_pos;

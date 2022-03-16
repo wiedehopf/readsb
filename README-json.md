@@ -161,12 +161,14 @@ This file contains readsb list of recently seen aircraft. The keys are:
   &filter_callsign_prefix=<prefix>
   &filter_squawk=<squawk>
   &filter_with_pos
+  &filter_type=<type1>,<type2>,.....
   ```
   filter any of the base queries for:
   * an exact callsign match (multiple exact matches possible)
   * all callsigns that start with <prefix>
   * a specific squawk code
   * only return aircraft that have a valid position
+  * only return aircraft that match one of the icao type codes
 
   ```
   &filter_mil
