@@ -1158,9 +1158,9 @@ static void apiSendData(struct apiCon *con, struct apiThread *thread) {
 static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
 
     // delay processing requests until we have more memory
-    if (thread->responseBytesBuffered > 1024 * 1024 * 1024) {
+    if (thread->responseBytesBuffered > 512 * 1024 * 1024) {
         if (antiSpam(&thread->antiSpam[3], 5 * SECONDS)) {
-            fprintf(stderr, "Delaying request processing due per thread memory limit: 1024 MB\n");
+            fprintf(stderr, "Delaying request processing due to per thread memory limit: 512 MB\n");
         }
         return;
     }
@@ -1429,13 +1429,15 @@ static void *apiThreadEntryPoint(void *arg) {
             }
 
             if (con->wakeups++ > 512 * 1024) {
-                fprintf(stderr, "connection triggered too many events (bad webserver logic), send 500 :/ (EPOLLIN: %d, EPOLLOUT: %d) "
-                        "(reply.len: %d, bytesSent: %d, request.len: %d open: %d)\n",
-                        (event.events & EPOLLIN), (event.events & EPOLLOUT),
-                        (int) con->reply.len,
-                        (int) con->bytesSent,
-                        (int) con->request.len,
-                        con->open);
+                if (antiSpam(&thread->antiSpam[4], 5 * SECONDS)) {
+                    fprintf(stderr, "connection triggered too many events (bad webserver logic), send 500 :/ (EPOLLIN: %d, EPOLLOUT: %d) "
+                            "(reply.len: %d, bytesSent: %d, request.len: %d open: %d)\n",
+                            (event.events & EPOLLIN), (event.events & EPOLLOUT),
+                            (int) con->reply.len,
+                            (int) con->bytesSent,
+                            (int) con->request.len,
+                            con->open);
+                }
 
                 send500(con->fd);
                 apiCloseCon(con, thread);
@@ -1532,6 +1534,7 @@ void apiBufferCleanup() {
 void apiInit() {
     Modes.apiService.descr = "API output";
     serviceListen(&Modes.apiService, Modes.net_bind_address, Modes.net_output_api_ports, -1);
+    fprintf(stderr, "\n");
     if (Modes.apiService.listener_count <= 0) {
         Modes.api = 0;
         return;
