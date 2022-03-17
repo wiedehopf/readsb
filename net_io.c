@@ -601,6 +601,10 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
             p = end + 1;
         }
         if (unix) {
+            if (strstr(buf, ".sock")) {
+                // unlink files which have sock in the path ... some rudimentary protection against users shooting themselves in the foot
+                unlink(buf);
+            }
             int fd = anetUnixSocket(Modes.aneterr, buf, SOCK_NONBLOCK);
             if (fd == ANET_ERR) {
                 fprintf(stderr, "Error opening the listening port %s (%s): %s\n",
@@ -609,6 +613,9 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
             }
             sfree(service->unixSocket);
             service->unixSocket = strdup(buf);
+            if (chmod(service->unixSocket, 0666) != 0) {
+                perror("serviceListen: couldn't set permissions for unix socket due to:");
+            }
             newfds[0] = fd;
             nfds = 1;
         } else {
@@ -677,7 +684,10 @@ void serviceClose(struct net_service *s) {
     if (s->writer && s->writer->data) {
         sfree(s->writer->data);
     }
-    sfree(s->unixSocket);
+    if (s->unixSocket) {
+        unlink(s->unixSocket);
+        sfree(s->unixSocket);
+    }
     sfree(s);
 }
 

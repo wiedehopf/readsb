@@ -1532,9 +1532,6 @@ void apiBufferCleanup() {
 void apiInit() {
     Modes.apiService.descr = "API output";
     serviceListen(&Modes.apiService, Modes.net_bind_address, Modes.net_output_api_ports, -1);
-    if (strncmp(Modes.net_output_api_ports, "unix:", 5) == 0) {
-        chmod(Modes.net_output_api_ports + 5, 0666);
-    }
     if (Modes.apiService.listener_count <= 0) {
         Modes.api = 0;
         return;
@@ -1549,6 +1546,7 @@ void apiInit() {
         Modes.apiListeners[i] = con;
         con->fd = Modes.apiService.listener_fds[i];
         con->accept = 1;
+
 #ifndef EPOLLEXCLUSIVE
 #define EPOLLEXCLUSIVE (0)
 #endif
@@ -1569,13 +1567,19 @@ void apiCleanup() {
         pthread_join(Modes.apiThread[i].thread, NULL);
         sfree(Modes.apiThread[i].cons);
     }
+    struct net_service *service = &Modes.apiService;
 
-    for (int i = 0; i < Modes.apiService.listener_count; ++i) {
+    for (int i = 0; i < service->listener_count; ++i) {
         sfree(Modes.apiListeners[i]);
     }
     sfree(Modes.apiListeners);
 
-    sfree(Modes.apiService.listener_fds);
+    sfree(service->listener_fds);
+
+    if (service->unixSocket) {
+        unlink(service->unixSocket);
+        sfree(service->unixSocket);
+    }
 }
 
 struct char_buffer apiGenerateAircraftJson() {
