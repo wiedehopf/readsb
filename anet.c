@@ -383,6 +383,11 @@ int anetUnixSocket(char *err, char *path, int flags)
         return ANET_ERR;
     }
 
+    int sndsize = 512 * 1024;
+    if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, (void*)&sndsize, sizeof(sndsize)) == -1) {
+        fprintf(stderr, "anetUnixSocket: setsockopt SO_SNDBUF to %d: %s\n", sndsize, strerror(errno));
+    }
+
     // no real drawback to using a large backlog, will usually be capped to 4096 by the kernel
     if (listen(s, 65535) == -1) {
         anetSetError(err, "listen: %s", strerror(errno));
