@@ -316,10 +316,8 @@ static int anetListen(char *err, int s, struct sockaddr *sa, socklen_t len) {
         return ANET_ERR;
     }
 
-    /* Use a backlog of 512 entries. We pass 511 to the listen() call because
-     * the kernel does: backlogsize = roundup_pow_of_two(backlogsize + 1);
-     * which will thus give us a backlog of 512 entries */
-    if (listen(s, 511) == -1) {
+    // no real drawback to using a large backlog, will usually be capped to 4096 by the kernel
+    if (listen(s, 65535) == -1) {
         anetSetError(err, "listen: %s", strerror(errno));
         anetCloseSocket(s);
         return ANET_ERR;
@@ -385,7 +383,8 @@ int anetUnixSocket(char *err, char *path, int flags)
         return ANET_ERR;
     }
 
-    if (listen(s, 511) == -1) {
+    // no real drawback to using a large backlog, will usually be capped to 4096 by the kernel
+    if (listen(s, 65535) == -1) {
         anetSetError(err, "listen: %s", strerror(errno));
         anetCloseSocket(s);
         return ANET_ERR;
