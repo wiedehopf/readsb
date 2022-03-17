@@ -14,6 +14,7 @@ struct apiCon {
     struct char_buffer request;
     int open;
     int wakeups;
+    int64_t connected_since; // milliseconds
 };
 
 struct apiCircle {
@@ -113,7 +114,7 @@ struct apiThread {
     int responseBytesBuffered;
     struct apiCon *cons;
     int nextCon;
-    int64_t antiSpam[3];
+    int64_t antiSpam[8];
 };
 
 void apiBufferInit();

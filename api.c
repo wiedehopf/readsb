@@ -1156,6 +1156,15 @@ static void apiSendData(struct apiCon *con, struct apiThread *thread) {
 }
 
 static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
+
+    // delay processing requests until we have more memory
+    if (thread->responseBytesBuffered > 1024 * 1024 * 1024) {
+        if (antiSpam(&thread->antiSpam[3], 5 * SECONDS)) {
+            fprintf(stderr, "Delaying request processing due per thread memory limit: 1024 MB\n");
+        }
+        return;
+    }
+
     int nread, err, toRead;
     int fd = con->fd;
 
@@ -1281,8 +1290,8 @@ static void acceptCon(struct apiCon *con, struct apiThread *thread) {
     socklen_t slen = sizeof(storage);
 
 
-    // accept at most 16 connections per epoll_wait wakeup and thread
-    for (int j = 0; j < 16; j++) {
+    // accept at most 128 connections per epoll_wait wakeup and thread
+    for (int j = 0; j < 128; j++) {
         errno = 0;
 
         int fd = accept4(listen_fd, saddr, &slen, SOCK_NONBLOCK);
@@ -1293,31 +1302,49 @@ static void acceptCon(struct apiCon *con, struct apiThread *thread) {
 
         struct apiCon *con;
         int tryCounter = 0;
+        // search a 16th of the connections starting from current index
         do {
             con = &thread->cons[thread->nextCon];
             thread->nextCon = (thread->nextCon + 1) % Modes.api_fds_per_thread;
-        } while (con->open && tryCounter++ < Modes.api_fds_per_thread / 8);
+        } while (con->open && tryCounter++ < Modes.api_fds_per_thread / 16);
 
-        // when starving for connections, close and old connectiona and accept a new one
         if (con->open) {
-            fprintf(stderr, "too many concurrent connections / connections unresponsive, send 503 :/\n");
-            send503(con->fd);
-            apiCloseCon(con, thread);
+            // linear search all connections
+            for (int j = 0; j < Modes.api_fds_per_thread; j++) {
+                if (!thread->cons[j].open) {
+                    con = &thread->cons[j];
+                    break;
+                }
+            }
         }
-        memset(con, 0, sizeof(struct apiCon));
 
-        // when running out of memory to buffer responses, reject new connections
-        if (thread->responseBytesBuffered > 384 * 1024 * 1024) {
-            fprintf(stderr, "more than 384 MB response buffered in this thread, send 503 :/\n");
+        // when starving for connections, close old connections
+        if (con->open) {
+            fprintf(stderr, "starving for connections, send 503 and close connections connected longer than 1 second\n");
+            int64_t now = mstime();
+            for (int j = 0; j < Modes.api_fds_per_thread; j++) {
+                if (now - thread->cons[j].connected_since > 1 * SECONDS) {
+                    send503(con->fd);
+                    apiCloseCon(con, thread);
+                }
+            }
+        }
+        // reject new connection if we still don't have a free connection
+        if (con->open) {
+            fprintf(stderr, "too man concurrent connections, reject new connection, send 503 :/\n");
             send503(fd);
             if (shutClose(fd) != 0) {
-                perror("accept: out of mem: close:");
+                perror("accept: shutClose failed when rejecting a new connection:");
             }
             return;
         }
 
+        memset(con, 0, sizeof(struct apiCon));
+
         con->open = 1;
         con->fd = fd;
+
+        con->connected_since = mstime();
 
         if (Modes.debug_api)
             fprintf(stderr, "%d: new c: %d\n", thread->index, fd);
@@ -1386,39 +1413,49 @@ static void *apiThreadEntryPoint(void *arg) {
             //fprintf(stderr, "%2d %5d\n", thread->index, thread->openFDs);
         }
 
+        // first try and send out data that hasn't been sent yet
         for (int i = 0; i < count; i++) {
             struct epoll_event event = events[i];
             if (event.data.ptr == &Modes.exitEventfd)
-                break;
+                continue;
+
+            struct apiCon *con = event.data.ptr;
+            if (con->accept) {
+                continue;
+            }
+
+            if (con->open && (event.events & EPOLLOUT)) {
+                apiSendData(con, thread);
+            }
+
+            if (con->wakeups++ > 512 * 1024) {
+                fprintf(stderr, "connection triggered too many events (bad webserver logic), send 500 :/ (EPOLLIN: %d, EPOLLOUT: %d) "
+                        "(reply.len: %d, bytesSent: %d, request.len: %d open: %d)\n",
+                        (event.events & EPOLLIN), (event.events & EPOLLOUT),
+                        (int) con->reply.len,
+                        (int) con->bytesSent,
+                        (int) con->request.len,
+                        con->open);
+
+                send500(con->fd);
+                apiCloseCon(con, thread);
+                continue;
+            }
         }
+        // accept new connection and read unread http requests
         for (int i = 0; i < count; i++) {
             struct epoll_event event = events[i];
             if (event.data.ptr == &Modes.exitEventfd)
-                break;
+                continue;
 
             struct apiCon *con = event.data.ptr;
             if (con->accept) {
                 acceptCon(con, thread);
-            } else {
-                if (con->open && (event.events & EPOLLOUT)) {
-                    apiSendData(con, thread);
-                }
-                if (con->open && (event.events & (EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP))) {
-                    apiReadRequest(con, thread);
-                }
-                if (con->wakeups++ > 512 * 1024) {
-                    fprintf(stderr, "connection triggered too many events (bad webserver logic), send 500 :/ (EPOLLIN: %d, EPOLLOUT: %d) "
-                            "(reply.len: %d, bytesSent: %d, request.len: %d open: %d)\n",
-                            (event.events & EPOLLIN), (event.events & EPOLLOUT),
-                            (int) con->reply.len,
-                            (int) con->bytesSent,
-                            (int) con->request.len,
-                            con->open);
+                continue;
+            }
 
-                    send500(con->fd);
-                    apiCloseCon(con, thread);
-                    continue;
-                }
+            if (con->open && (event.events & (EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP))) {
+                apiReadRequest(con, thread);
             }
         }
     }
