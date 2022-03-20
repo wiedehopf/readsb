@@ -467,6 +467,10 @@ struct aircraft
   float receiver_distance;
   float receiver_direction;
 
+  data_validity mlat_pos_valid;
+  double mlat_lat;
+  double mlat_lon;
+
   // keep this at the end of the aircraft struct as save / restore shouldn't matter for this:
   // recent discarded positions which led to decrementing reliability (position_bad() / speed_check())
   uint32_t disc_cache_index;

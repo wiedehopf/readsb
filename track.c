@@ -101,17 +101,21 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
     if (a->position_valid.last_source != SOURCE_JAERO && source == SOURCE_JAERO && now < d->updated + 7 * MINUTES)
         return 0;
 
+    int is_pos = (d == &a->position_valid || d == &a->cpr_odd_valid || d == &a->cpr_even_valid || d == &a->mlat_pos_valid);
+
     // don't allow crappy SBS / MLAT data to add track as long as we have a valid ADS-B or similar position
     // but allow the position to be overriden normally
-    if ((source == SOURCE_MLAT || source == SOURCE_SBS)
+    if (
+            (source == SOURCE_MLAT || source == SOURCE_SBS)
             && a->position_valid.source >= SOURCE_TISB
             && now - a->seenPosReliable < TRACK_EXPIRE
-            && d != &a->position_valid)
+            && !is_pos
+       ) {
         return 0;
+    }
 
     // if we have recent data and a recent position, only accept data from the last couple receivers that contributed a position
     // this hopefully reduces data jitter introduced by differing receiver latencies
-    int is_pos = (d == &a->position_valid || d == &a->cpr_odd_valid || d == &a->cpr_even_valid);
 
     if (Modes.netReceiverId && !is_pos && a->position_valid.source >= SOURCE_TISB && now - d->updated < 5 * SECONDS && now - a->seenPosReliable < 2200 * MS) {
         uint16_t hash = simpleHash(mm->receiverId);
@@ -2074,6 +2078,19 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             // don't use less accurate MLAT positions unless some time has elapsed
             // only works with SBS input MLAT data coming from some versions of mlat-server
         } else {
+            if (mm->source == SOURCE_MLAT && accept_data(&a->mlat_pos_valid, mm->source, mm, a, 2)) {
+                if (0 && greatcircle(a->mlat_lat, a->mlat_lon, mm->decoded_lat, mm->decoded_lon, 1) > 5000) {
+                    a->mlat_pos_valid.source = SOURCE_INVALID;
+                }
+                a->mlat_lat = mm->decoded_lat;
+                a->mlat_lon = mm->decoded_lon;
+                if (mm->mlatEPU) {
+                    a->mlatEPU = mm->mlatEPU;
+                }
+                if (0 && a->position_valid.source > SOURCE_MLAT) {
+                    fprintf(stderr, "%06x: %d\n", a->addr, mm->reduce_forward);
+                }
+            }
             int usePosition = 0;
             if (mm->source == SOURCE_MLAT && now - a->seenPosReliable > TRACK_STALE) {
                 usePosition = 1;
@@ -3116,6 +3133,7 @@ void updateValidities(struct aircraft *a, int64_t now) {
     updateValidity(&a->spi_valid, now, TRACK_EXPIRE);
 
     updateValidity(&a->acas_ra_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->mlat_pos_valid, now, TRACK_EXPIRE);
 }
 
 static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, int64_t now, double bad_lat, double bad_lon) {

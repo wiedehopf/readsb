@@ -1863,7 +1863,9 @@ void displayModesMessage(struct modesMessage *mm) {
     }
 
     if (mm->signalLevel > 0)
-        printf("RSSI: %.1f dBFS\n", 10 * log10(mm->signalLevel));
+        printf("RSSI: %.1f dBFS   ", 10 * log10(mm->signalLevel));
+
+    printf("reduce_forward: %d\n", mm->reduce_forward);
 
     if (mm->score)
         printf("Score: %d\n", mm->score);
