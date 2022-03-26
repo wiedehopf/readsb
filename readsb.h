@@ -137,9 +137,8 @@
 #define MODES_OS_LONG_MSG_SIZE     (MODES_LONG_MSG_SAMPLES  * sizeof(uint16_t))
 #define MODES_OS_SHORT_MSG_SIZE    (MODES_SHORT_MSG_SAMPLES * sizeof(uint16_t))
 
-#define MODES_OUT_BUF_SIZE         (32*1024)
+#define MODES_OUT_BUF_SIZE         (48*1024)
 #define MODES_OUT_FLUSH_INTERVAL   (500) // max flush interval
-#define MODES_CLIENT_BUF_SIZE (64*1024)
 
 // needs to be larger than OUT_BUF_SIZE above
 #define MODES_NET_SNDBUF_SIZE (64*1024)

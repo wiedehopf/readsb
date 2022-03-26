@@ -174,28 +174,32 @@ static void setProxyString(struct client *c) {
     c->receiverId = fasthash64(c->proxy_string, strlen(c->proxy_string), 0x2127599bf4325c37ULL);
 }
 
+static int getSNDBUF(struct net_service *service) {
+    if (service->sendqOverrideSize) {
+        return service->sendqOverrideSize;
+    } else {
+        return (MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size);
+    }
+}
+static int getRCVBUF(struct net_service *service) {
+    if (service->recvqOverrideSize) {
+        return service->recvqOverrideSize;
+    } else {
+        return (MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size);
+    }
+}
+static void setBuffers(int fd, int sndsize, int rcvsize) {
+    if (sndsize > 0 && setsockopt(fd, SOL_SOCKET, SO_SNDBUF, (void*)&sndsize, sizeof(sndsize)) == -1) {
+        fprintf(stderr, "setsockopt SO_SNDBUF: %s", strerror(errno));
+    }
+
+    if (rcvsize > 0 && setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (void*)&rcvsize, sizeof(rcvsize)) == -1) {
+        fprintf(stderr, "setsockopt SO_RCVBUF: %s", strerror(errno));
+    }
+}
+
 // Create a client attached to the given service using the provided socket FD
 struct client *createSocketClient(struct net_service *service, int fd) {
-
-    int sndsize = -1;
-    // for connections without a writer or limited sendq size, reduce SNDBUF
-    if (!service->writer) {
-        sndsize = 1024;
-    } else if (service->sendqOverrideSize) {
-        sndsize = service->sendqOverrideSize;
-    }
-    if (sndsize > 0) {
-        if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, (void*)&sndsize, sizeof(sndsize)) == -1) {
-            fprintf(stderr, "setsockopt SO_SNDBUF: %s", strerror(errno));
-        }
-    }
-    // limit RCVBUF for ingest server, lots of connections
-    if (Modes.netIngest) {
-        int rcvsize = MODES_CLIENT_BUF_SIZE;
-        if (setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (void*)&rcvsize, sizeof(rcvsize)) == -1) {
-            fprintf(stderr, "setsockopt SO_RCVBUF: %s", strerror(errno));
-        }
-    }
     return createGenericClient(service, fd);
 }
 
@@ -222,6 +226,7 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     c->last_read = now;
     c->connectedSince = now;
 
+
     c->proxy_string[0] = '\0';
     c->host[0] = '\0';
     c->port[0] = '\0';
@@ -238,6 +243,16 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     c->recent_rtt = -1;
 
     //fprintf(stderr, "c->receiverId: %016"PRIx64"\n", c->receiverId);
+
+    c->bufmax = MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size;
+    // hard limit RCVBUF for ingest server, lots of connections
+    if (Modes.netIngest) {
+        c->bufmax = MODES_NET_SNDBUF_SIZE;
+    }
+    if (!(c->buf = aligned_malloc(c->bufmax))) {
+        fprintf(stderr, "Out of memory allocating client SendQ\n");
+        exit(1);
+    }
 
     if (service->writer) {
         c->sendq_max = MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size;
@@ -465,6 +480,7 @@ static void serviceConnect(struct net_connector *con, int64_t now) {
     }
 
     if (Modes.debug_net) {
+        //fprintf(stderr, "%s: Attempting connection to %s port %s ... (gonna set SNDBUF %d RCVBUF %d)\n", con->service->descr, con->address, con->port, getSNDBUF(con->service), getRCVBUF(con->service));
         fprintf(stderr, "%s: Attempting connection to %s port %s ...\n", con->service->descr, con->address, con->port);
     }
 
@@ -509,6 +525,11 @@ static void serviceConnect(struct net_connector *con, int64_t now) {
 
     if (epoll_ctl(Modes.net_epfd, EPOLL_CTL_ADD, c->fd, &c->epollEvent)) {
         perror("epoll_ctl fail:");
+    }
+
+    // explicitely setting tcp buffers causes failure of linux tcp window auto tuning ... it just doesn't work well without the auto tuning
+    if (0) {
+        setBuffers(fd, getSNDBUF(con->service), getRCVBUF(con->service));
     }
 
     if (connect(fd, ai->ai_addr, ai->ai_addrlen) < 0 && errno != EINPROGRESS) {
@@ -575,6 +596,10 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
     if (!bind_ports || !strcmp(bind_ports, "") || !strcmp(bind_ports, "0"))
         return;
 
+    if (0 && Modes.debug_net) {
+        fprintf(stderr, "serviceListen: %s with SNDBUF %d RCVBUF %d)\n", service->descr,  getSNDBUF(service), getRCVBUF(service));
+    }
+
     p = bind_ports;
     while (p && *p) {
         int newfds[16];
@@ -619,7 +644,9 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
             newfds[0] = fd;
             nfds = 1;
         } else {
-            nfds = anetTcpServer(Modes.aneterr, buf, bind_addr, newfds, sizeof (newfds), SOCK_NONBLOCK);
+            //nfds = anetTcpServer(Modes.aneterr, buf, bind_addr, newfds, sizeof (newfds), SOCK_NONBLOCK, getSNDBUF(service), getRCVBUF(service));
+            // explicitely setting tcp buffers causes failure of linux tcp window auto tuning ... it just doesn't work well without the auto tuning
+            nfds = anetTcpServer(Modes.aneterr, buf, bind_addr, newfds, sizeof (newfds), SOCK_NONBLOCK, -1, -1);
             if (nfds == ANET_ERR) {
                 fprintf(stderr, "Error opening the listening port %s (%s): %s\n",
                         buf, service->descr, Modes.aneterr);
@@ -817,7 +844,11 @@ void modesInitNet(void) {
 
     /* Beast input via network */
     Modes.beast_in_service = serviceInit("Beast TCP input", &Modes.beast_in, NULL, READ_MODE_BEAST, NULL, decodeBinMessage);
-    Modes.beast_in_service->sendqOverrideSize = 1024; // this is only for sending pings back, it doesn't need to use up memory
+    if (Modes.netIngest) {
+        Modes.beast_in_service->sendqOverrideSize = MODES_NET_SNDBUF_SIZE;
+        Modes.beast_in_service->recvqOverrideSize = MODES_NET_SNDBUF_SIZE;
+        // --net-buffer won't increase receive buffer for ingest server to avoid running out of memory using lots of connections
+    }
     serviceListen(Modes.beast_in_service, Modes.net_bind_address, Modes.net_input_beast_ports, Modes.net_epfd);
 
     // print newline after all the listen announcements in serviceListen
@@ -2683,14 +2714,14 @@ static void modesReadFromClient(struct client *c, int64_t start) {
         if (discard)
             c->buflen = 0;
 
-        left = MODES_CLIENT_BUF_SIZE - c->buflen - 1; // leave 1 extra byte for NUL termination in the ASCII case
+        left = c->bufmax - c->buflen - 4; // leave 4 extra byte for NUL termination in the ASCII case
 
         // If our buffer is full discard it, this is some badly formatted shit
         if (left <= 0) {
             c->garbage += c->buflen;
             Modes.stats_current.remote_malformed_beast += c->buflen;
             c->buflen = 0;
-            left = MODES_CLIENT_BUF_SIZE - c->buflen - 1; // leave 1 extra byte for NUL termination in the ASCII case
+            left = c->bufmax - c->buflen - 4; // leave 4 extra byte for NUL termination in the ASCII case
             // If there is garbage, read more to discard it ASAP
         }
         // read instead of recv for modesbeast / gns-hulc ....
@@ -2761,7 +2792,7 @@ static void modesReadFromClient(struct client *c, int64_t start) {
         //char *lastSom = som;
 
         // check for PROXY v1 header if connection is new / low bytes received
-        if (Modes.netIngest && c->bytesReceived <= 2 * MODES_CLIENT_BUF_SIZE) {
+        if (Modes.netIngest && c->bytesReceived <= 128 * 1024) {
             // disable this for the time being
             if (c->buflen > 5 && som[0] == 'P' && som[1] == 'R') {
                 char *proxy = strstr(som, "PROXY ");
@@ -3140,6 +3171,7 @@ void netFreeClients() {
                 // Recently closed, prune from list
                 *prev = c->next;
                 sfree(c->sendq);
+                sfree(c->buf);
                 sfree(c);
             } else {
                 prev = &c->next;
@@ -3350,9 +3382,8 @@ void cleanupNetwork(void) {
 
             anetCloseSocket(c->fd);
             c->sendq_len = 0;
-            if (c->sendq) {
-                sfree(c->sendq);
-            }
+            sfree(c->sendq);
+            sfree(c->buf);
             sfree(c);
 
             c = nc;

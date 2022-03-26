@@ -325,7 +325,17 @@ static int anetListen(char *err, int s, struct sockaddr *sa, socklen_t len) {
     return ANET_OK;
 }
 
-int anetTcpServer(char *err, char *service, char *bindaddr, int *fds, int nfds, int flags)
+static void anetSetBuffers(int fd, int sndsize, int rcvsize) {
+    if (sndsize > 0 && setsockopt(fd, SOL_SOCKET, SO_SNDBUF, (void*)&sndsize, sizeof(sndsize)) == -1) {
+        fprintf(stderr, "setsockopt SO_SNDBUF: %s", strerror(errno));
+    }
+
+    if (rcvsize > 0 && setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (void*)&rcvsize, sizeof(rcvsize)) == -1) {
+        fprintf(stderr, "setsockopt SO_RCVBUF: %s", strerror(errno));
+    }
+}
+
+int anetTcpServer(char *err, char *service, char *bindaddr, int *fds, int nfds, int flags, int sndsize, int rcvsize)
 {
     int s;
     int i = 0;
@@ -351,6 +361,8 @@ int anetTcpServer(char *err, char *service, char *bindaddr, int *fds, int nfds, 
     for (p = gai_result; p != NULL && i < nfds; p = p->ai_next) {
         if ((s = anetCreateSocket(err, p->ai_family, flags)) == ANET_ERR)
             continue;
+
+        anetSetBuffers(s, sndsize, rcvsize);
 
         if (anetListen(err, s, p->ai_addr, p->ai_addrlen) == ANET_ERR) {
             continue;
@@ -383,10 +395,8 @@ int anetUnixSocket(char *err, char *path, int flags)
         return ANET_ERR;
     }
 
-    int sndsize = 512 * 1024;
-    if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, (void*)&sndsize, sizeof(sndsize)) == -1) {
-        fprintf(stderr, "anetUnixSocket: setsockopt SO_SNDBUF to %d: %s\n", sndsize, strerror(errno));
-    }
+    // explicitely setting tcp buffers causes failure of linux tcp window auto tuning ... it just doesn't work well without the auto tuning
+    // anetSetBuffers(s, 512 * 1024, 64 * 1024);
 
     // no real drawback to using a large backlog, will usually be capped to 4096 by the kernel
     if (listen(s, 65535) == -1) {

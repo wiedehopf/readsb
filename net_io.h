@@ -70,7 +70,8 @@ struct net_service
     int *listener_fds; // listening FDs
     struct client *listenSockets; // dummy client structs for all open sockets for epoll commonality
     char* unixSocket; // path of unix socket
-    int sendqOverrideSize; // override size of program internal sendq for each client associated with this service
+    int sendqOverrideSize;
+    int recvqOverrideSize;
 };
 
 // Structure used to describe a networking client
@@ -80,7 +81,9 @@ struct client
     struct client* next; // Pointer to next client
     struct net_service *service; // Service this client is part of
     int fd; // File descriptor
-    int buflen; // Amount of data on buffer
+    int buflen; // Amount of data on read buffer
+    int bufmax; // size of the read buffer
+    char *buf; // read buffer
     int8_t acceptSocket; // not really a client but rather an accept Socket ... only fd and epollEvent will be valid
     int8_t net_connector_dummyClient; // dummy client used by net_connector
     int8_t pingEnabled;
@@ -116,7 +119,6 @@ struct client
     ALIGNED char proxy_string[256]; // store string received from PROXY protocol v1 (v2 not supported currently)
     ALIGNED char host[NI_MAXHOST]; // For logging
     ALIGNED char port[NI_MAXSERV];
-    ALIGNED char buf[MODES_CLIENT_BUF_SIZE + 4]; // Read buffer+padding
 };
 
 // Client connection
