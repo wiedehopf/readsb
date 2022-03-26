@@ -816,7 +816,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
     }
 
     if (bogus_lat_lon(mm->decoded_lat, mm->decoded_lon)) {
-        if (fabs(mm->decoded_lat) >= 90.0 || fabs(mm->decoded_lon) >= 180.0) {
+        if (0 && (fabs(mm->decoded_lat) >= 90.0 || fabs(mm->decoded_lon) >= 180.0)) {
             fprintf(stderr, "%06x lat,lon out of bounds: %.2f,%.2f source: %s\n", a->addr, mm->decoded_lat, mm->decoded_lon, source_enum_string(mm->source));
         }
         return;
