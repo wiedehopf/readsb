@@ -175,15 +175,9 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now) {
 
     new->messages = (uint16_t) a->messages;
 
-    new->position_valid = posReliable(a);
+    new->position_valid = trackDataValid(&a->pos_reliable_valid);
 
-    if (new->position_valid) {
-        new->seen_pos = (now - a->seen_pos) / 100.0;
-        new->lat = (int32_t) nearbyint(a->lat * 1E6);
-        new->lon = (int32_t) nearbyint(a->lon * 1E6);
-        new->pos_nic = a->pos_nic;
-        new->pos_rc = a->pos_rc;
-    } else if (now < a->seenPosReliable + 14 * 24 * HOURS) {
+    if (new->position_valid || now < a->seenPosReliable + 14 * 24 * HOURS) {
         new->seen_pos = (now - a->seenPosReliable) / 100.0;
         new->lat = (int32_t) nearbyint(a->latReliable * 1E6);
         new->lon = (int32_t) nearbyint(a->lonReliable * 1E6);
@@ -272,9 +266,9 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now) {
 #endif
 
     if (Modes.json_globe_index) {
-        if (a->position_valid.source == SOURCE_MLAT) {
+        if (a->pos_reliable_valid.source == SOURCE_MLAT) {
             new->receiverCount = a->receiverCountMlat;
-        } else if (a->position_valid.source >= SOURCE_TISB) {
+        } else if (a->pos_reliable_valid.source >= SOURCE_TISB) {
             uint16_t *set1 = a->receiverIds;
             uint16_t set2[16] = { 0 };
             int div = 0;

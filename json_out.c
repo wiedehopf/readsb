@@ -113,7 +113,7 @@ static char *append_flags(char *p, char *end, struct aircraft *a, datasource_t s
         p = safe_snprintf(p, end, "\"nav_heading\",");
     if (a->nav_modes_valid.source == source)
         p = safe_snprintf(p, end, "\"nav_modes\",");
-    if (a->position_valid.source == source)
+    if (a->pos_reliable_valid.source == source)
         p = safe_snprintf(p, end, "\"lat\",\"lon\",\"nic\",\"rc\",");
     if (a->nic_baro_valid.source == source)
         p = safe_snprintf(p, end, "\"nic_baro\",");
@@ -450,13 +450,13 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *byte
     }
     p = safe_snprintf(p, end, ",");
 
-    if (a && posReliable(a))
-        p = safe_snprintf(p, end, "%11.6f,", a->lat);
+    if (a && trackDataValid(&a->pos_reliable_valid))
+        p = safe_snprintf(p, end, "%11.6f,", a->latReliable);
     else
         p = safe_snprintf(p, end, "           ,");
 
-    if (a && posReliable(a))
-        p = safe_snprintf(p, end, "%11.6f,", a->lon);
+    if (a && trackDataValid(&a->pos_reliable_valid))
+        p = safe_snprintf(p, end, "%11.6f,", a->lonReliable);
     else
         p = safe_snprintf(p, end, "           ,");
 
@@ -661,11 +661,11 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
         p = safe_snprintf(p, end, ",\"tat\":%.0f", a->tat);
     }
 
-    if (trackDataValid(&a->track_valid))
+    if (trackDataValid(&a->track_valid)) {
         p = safe_snprintf(p, end, ",\"track\":%.2f", a->track);
-    else if (printMode != 1 && trackDataValid(&a->position_valid) &&
-        !(trackDataValid(&a->airground_valid) && a->airground == AG_GROUND))
+    } else if (printMode != 1 && trackDataValid(&a->pos_reliable_valid) && !(trackDataValid(&a->airground_valid) && a->airground == AG_GROUND)) {
         p = safe_snprintf(p, end, ",\"calc_track\":%.0f", a->calc_track);
+    }
 
     if (trackDataValid(&a->track_rate_valid))
         p = safe_snprintf(p, end, ",\"track_rate\":%.2f", a->track_rate);
@@ -699,10 +699,10 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
         p = safe_snprintf(p, end, "]");
     }
     if (printMode != 1) {
-        if (now - a->seenPosReliable < TRACK_EXPIRE) {
+        if (trackDataValid(&a->pos_reliable_valid)) {
             p = safe_snprintf(p, end, ",\"lat\":%f,\"lon\":%f,\"nic\":%u,\"rc\":%u,\"seen_pos\":%.3f",
                     a->latReliable, a->lonReliable, a->pos_nic_reliable, a->pos_rc_reliable,
-                    (now < a->seenPosReliable) ? 0 : ((now - a->seenPosReliable) / 1000.0));
+                (now < a->pos_reliable_valid.updated) ? 0 : ((now - a->pos_reliable_valid.updated) / 1000.0));
 #if defined(TRACKS_UUID)
             char uuid[32]; // needs 18 chars and null byte
             sprint_uuid1(a->lastPosReceiverId, uuid);
@@ -726,9 +726,9 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
         }
     }
 
-    if (printMode == 1 && trackDataValid(&a->position_valid)) {
+    if (printMode == 1 && trackDataValid(&a->pos_reliable_valid)) {
         p = safe_snprintf(p, end, ",\"nic\":%u,\"rc\":%u",
-                a->pos_nic, a->pos_rc);
+                a->pos_nic_reliable, a->pos_rc_reliable);
     }
     if (a->adsb_version >= 0)
         p = safe_snprintf(p, end, ",\"version\":%d", a->adsb_version);
@@ -752,9 +752,9 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
         p = safe_snprintf(p, end, ",\"spi\":%u", a->spi);
 
     /*
-    if (a->position_valid.source == SOURCE_JAERO)
+    if (a->pos_reliable_valid.source == SOURCE_JAERO)
         p = safe_snprintf(p, end, ",\"jaero\": true");
-    if (a->position_valid.source == SOURCE_SBS)
+    if (a->pos_reliable_valid.source == SOURCE_SBS)
         p = safe_snprintf(p, end, ",\"sbs_other\": true");
     */
     if (Modes.netReceiverIdPrint) {
@@ -862,10 +862,10 @@ char *sprintAircraftRecent(char *p, char *end, struct aircraft *a, int64_t now, 
         p = append_nav_modes(p, end, a->nav_modes, "\"", ",");
         p = safe_snprintf(p, end, "]");
     }
-    if (recent > trackDataAge(now, &a->position_valid)) {
+    if (recent > trackDataAge(now, &a->pos_reliable_valid)) {
         p = safe_snprintf(p, end, ",\"lat\":%f,\"lon\":%f,\"nic\":%u,\"rc\":%u,\"seen_pos\":%.3f",
-                a->lat, a->lon, a->pos_nic, a->pos_rc,
-                (now < a->position_valid.updated) ? 0 : ((now - a->position_valid.updated) / 1000.0));
+                a->latReliable, a->lonReliable, a->pos_nic_reliable, a->pos_rc_reliable,
+                (now < a->pos_reliable_valid.updated) ? 0 : ((now - a->pos_reliable_valid.updated) / 1000.0));
         if (a->adsb_version >= 0)
             p = safe_snprintf(p, end, ",\"version\":%d", a->adsb_version);
         if (a->category != 0)
@@ -934,26 +934,23 @@ char *sprintAircraftRecent(char *p, char *end, struct aircraft *a, int64_t now, 
 }
 
 int includeAircraftJson(int64_t now, struct aircraft *a) {
-    if (a == NULL)
+    if (unlikely(a == NULL)) {
+        fprintf(stderr, "includeAircraftJson: got NULL pointer\n");
         return 0;
+    }
     if (a->messages < 2)
         return 0;
 
-    if (a->nogpsCounter >= NOGPS_SHOW && now < a->seenAdsbReliable + NOGPS_DWELL && now > a->seenAdsbReliable + 15 * SECONDS)
+    if (a->nogpsCounter >= NOGPS_SHOW && now < a->seenAdsbReliable + NOGPS_DWELL)
         return 1;
 
     // include all aircraft with valid position
-    if (a->position_valid.source != SOURCE_INVALID)
+    if (a->pos_reliable_valid.source != SOURCE_INVALID)
         return 1;
 
     // include active aircraft
     if (now < a->seen + TRACK_EXPIRE)
         return 1;
-
-    // include aircraft with reliable position in the last 5 minutes
-    if (now < a->seenPosReliable + 5 * MINUTES) {
-        return 1;
-    }
 
     return 0;
 }
@@ -1209,11 +1206,6 @@ struct char_buffer generateGlobeJson(int globe_index){
 
             if (!includeAircraftJson(now, a))
                 continue;
-
-            // don't include aircraft with very outdated positions in globe files
-            if (a->position_valid.source == SOURCE_INVALID && now > a->seenPosReliable + 5 * MINUTES) {
-                continue;
-            }
 
             // check if we have enough space
             if ((p + 2000) >= end) {
@@ -1896,9 +1888,9 @@ struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {
             p = safe_snprintf(p, end, "{\"Icao\":\"%s%06X\"", (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
 
 
-            if (trackDataValid(&a->position_valid)) {
-                p = safe_snprintf(p, end, ",\"Lat\":%f,\"Long\":%f", a->lat, a->lon);
-                //p = safe_snprintf(p, end, ",\"PosTime\":%"PRIu64, a->position_valid.updated);
+            if (trackDataValid(&a->pos_reliable_valid)) {
+                p = safe_snprintf(p, end, ",\"Lat\":%f,\"Long\":%f", a->latReliable, a->lonReliable);
+                //p = safe_snprintf(p, end, ",\"PosTime\":%"PRIu64, a->pos_reliable_valid.updated);
             }
 
             if (altBaroReliable(a))
@@ -1943,20 +1935,20 @@ struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {
                 p = safe_snprintf(p, end, ",\"TAlt\":%d", a->nav_altitude_fms);
             }
 
-            if (a->position_valid.source != SOURCE_INVALID) {
-                if (a->position_valid.source == SOURCE_MLAT)
+            if (a->pos_reliable_valid.source != SOURCE_INVALID) {
+                if (a->pos_reliable_valid.source == SOURCE_MLAT)
                     p = safe_snprintf(p, end, ",\"Mlat\":true");
-                else if (a->position_valid.source == SOURCE_TISB)
+                else if (a->pos_reliable_valid.source == SOURCE_TISB)
                     p = safe_snprintf(p, end, ",\"Tisb\":true");
-                else if (a->position_valid.source == SOURCE_JAERO)
+                else if (a->pos_reliable_valid.source == SOURCE_JAERO)
                     p = safe_snprintf(p, end, ",\"Sat\":true");
             }
 
-            if (reduced_data && a->addrtype != ADDR_JAERO && a->position_valid.source != SOURCE_JAERO)
+            if (reduced_data && a->addrtype != ADDR_JAERO && a->pos_reliable_valid.source != SOURCE_JAERO)
                 goto skip_fields;
 
             if (trackDataAge(now, &a->callsign_valid) < 5 * MINUTES
-                    || (a->position_valid.source == SOURCE_JAERO && trackDataAge(now, &a->callsign_valid) < 8 * HOURS)
+                    || (a->pos_reliable_valid.source == SOURCE_JAERO && trackDataAge(now, &a->callsign_valid) < 8 * HOURS)
                ) {
                 char buf[128];
                 char buf2[16];
@@ -1994,12 +1986,12 @@ struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {
             p = safe_snprintf(p, end, ",\"AltT\":%d", 0);
 
 
-            if (a->position_valid.source != SOURCE_INVALID) {
-                if (a->position_valid.source != SOURCE_MLAT)
+            if (a->pos_reliable_valid.source != SOURCE_INVALID) {
+                if (a->pos_reliable_valid.source != SOURCE_MLAT)
                     p = safe_snprintf(p, end, ",\"Mlat\":false");
-                if (a->position_valid.source != SOURCE_TISB)
+                if (a->pos_reliable_valid.source != SOURCE_TISB)
                     p = safe_snprintf(p, end, ",\"Tisb\":false");
-                if (a->position_valid.source != SOURCE_JAERO)
+                if (a->pos_reliable_valid.source != SOURCE_JAERO)
                     p = safe_snprintf(p, end, ",\"Sat\":false");
             }
 

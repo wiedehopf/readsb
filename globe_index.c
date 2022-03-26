@@ -834,7 +834,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
         }
 
         // schedule writing all the traces into run so they are present for the webinterface
-        if (a->position_valid.source != SOURCE_INVALID) {
+        if (a->pos_reliable_valid.source != SOURCE_INVALID) {
             scheduleMemBothWrite(a, now); // write traces for aircraft with valid positions as quickly as possible
             a->trace_write = 1;
         } else {
@@ -844,7 +844,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
 
     int new_index = a->globe_index;
     a->globe_index = -5;
-    if (a->position_valid.source != SOURCE_INVALID) {
+    if (a->pos_reliable_valid.source != SOURCE_INVALID) {
         set_globe_index(a, new_index);
     }
     updateValidities(a, now);
@@ -1540,7 +1540,7 @@ void traceMaintenance(struct aircraft *a, int64_t now) {
 }
 
 
-int traceAdd(struct aircraft *a, int64_t now) {
+int traceAdd(struct aircraft *a, int64_t now, int stale) {
     if (!Modes.keep_traces)
         return 0;
 
@@ -1566,7 +1566,7 @@ int traceAdd(struct aircraft *a, int64_t now) {
         max_speed_diff *= 2;
     }
 
-    if (a->position_valid.source == SOURCE_MLAT) {
+    if (a->pos_reliable_valid.source == SOURCE_MLAT) {
         min_elapsed = 2500; // 2.5 seconds
         turn_density /= 2;
         max_elapsed *= 0.75;
@@ -1586,7 +1586,7 @@ int traceAdd(struct aircraft *a, int64_t now) {
 
     int on_ground = 0;
     float track = a->track;
-    if (!trackVState(now, &a->track_valid, &a->position_valid)) {
+    if (!trackVState(now, &a->track_valid, &a->pos_reliable_valid)) {
         track = -1;
     }
 
@@ -1595,7 +1595,7 @@ int traceAdd(struct aircraft *a, int64_t now) {
         agValid = 1;
         if (a->airground == AG_GROUND) {
             on_ground = 1;
-            if (trackVState(now, &a->true_heading_valid, &a->position_valid)) {
+            if (trackVState(now, &a->true_heading_valid, &a->pos_reliable_valid)) {
                 track = a->true_heading;
             } else {
                 track = -1;
@@ -1640,7 +1640,7 @@ int traceAdd(struct aircraft *a, int64_t now) {
     }
     if (on_ground) {
         // just do this twice so we cover the first point in a trace as well as using the last airground state
-        if (trackVState(now, &a->true_heading_valid, &a->position_valid)) {
+        if (trackVState(now, &a->true_heading_valid, &a->pos_reliable_valid)) {
             track = a->true_heading;
         } else {
             track = -1;
@@ -1754,7 +1754,7 @@ int traceAdd(struct aircraft *a, int64_t now) {
     if (a->addr == 0xa19b53 && elapsed > max_elapsed / 4)
         goto save_state;
 
-    if (now > a->seenPosReliable + TRACE_STALE) {
+    if (stale) {
         // save a point if reception is spotty so we can mark track as spotty on display
         goto save_state;
     }
@@ -1787,7 +1787,7 @@ save_state:
             if (traceDebug) fprintf(stderr, " buffer\n");
             // in some cases we want to add the current point as well
             // if not, the current point will be put in the buffer
-            traceAdd(a, now);
+            traceAdd(a, now, stale);
             // return so the point isn't used a second time or put in the buffer
             return 1;
         }

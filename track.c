@@ -93,21 +93,22 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
     if (source < d->source && now < d->updated + TRACK_STALE)
         return 0;
 
+    int is_pos = (d == &a->pos_reliable_valid || d == &a->position_valid || d == &a->cpr_odd_valid || d == &a->cpr_even_valid || d == &a->mlat_pos_valid);
+
     // if we have a jaero position, don't allow non-position data to have a lesser source
-    if (a->position_valid.source == SOURCE_JAERO && d != &a->position_valid && source < SOURCE_JAERO)
+    if (!is_pos && a->pos_reliable_valid.source == SOURCE_JAERO && source < SOURCE_JAERO)
         return 0;
 
     // prevent JAERO from disrupting other data sources too quickly
-    if (a->position_valid.last_source != SOURCE_JAERO && source == SOURCE_JAERO && now < d->updated + 7 * MINUTES)
+    if (a->pos_reliable_valid.last_source != SOURCE_JAERO && source == SOURCE_JAERO && now < d->updated + 7 * MINUTES)
         return 0;
 
-    int is_pos = (d == &a->position_valid || d == &a->cpr_odd_valid || d == &a->cpr_even_valid || d == &a->mlat_pos_valid);
 
     // don't allow crappy SBS / MLAT data to add track as long as we have a valid ADS-B or similar position
     // but allow the position to be overriden normally
     if (
             (source == SOURCE_MLAT || source == SOURCE_SBS)
-            && a->position_valid.source >= SOURCE_TISB
+            && a->pos_reliable_valid.source >= SOURCE_TISB
             && now - a->seenPosReliable < TRACK_EXPIRE
             && !is_pos
        ) {
@@ -117,7 +118,7 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
     // if we have recent data and a recent position, only accept data from the last couple receivers that contributed a position
     // this hopefully reduces data jitter introduced by differing receiver latencies
 
-    if (Modes.netReceiverId && !is_pos && a->position_valid.source >= SOURCE_TISB && now - d->updated < 5 * SECONDS && now - a->seenPosReliable < 2200 * MS) {
+    if (Modes.netReceiverId && !is_pos && a->pos_reliable_valid.source >= SOURCE_TISB && now - d->updated < 5 * SECONDS && now - a->seenPosReliable < 2200 * MS) {
         uint16_t hash = simpleHash(mm->receiverId);
         int found = 0;
         for (int i = 0; i < RECEIVERIDBUFFER; i++) {
@@ -129,7 +130,7 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
     }
 
     if (0 && is_pos && a->addr == Modes.cpr_focus) {
-        //fprintf(stderr, "%d %p %p\n", mm->duplicate, d, &a->position_valid);
+        //fprintf(stderr, "%d %p %p\n", mm->duplicate, d, &a->pos_reliable_valid);
         fprintf(stderr, "%d %s", mm->duplicate, source_string(mm->source));
     }
 
@@ -892,15 +893,11 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
     a->pos_rc = mm->decoded_rc;
     a->seen_pos = now;
 
-    a->lastPosReceiverId = mm->receiverId;
-
-    // update addrtype, we use the type from the accepted position.
-    a->addrtype = mm->addrtype;
-    a->addrtype_updated = now;
 
     a->pos_surface = trackDataValid(&a->airground_valid) && a->airground == AG_GROUND;
 
-    if (posReliable(a)) {
+    if (posReliable(a) && accept_data(&a->pos_reliable_valid, mm->source, mm, a, 2)) {
+
         set_globe_index(a, globe_index(a->lat, a->lon));
 
         if (0 && a->addr == Modes.trace_focus) {
@@ -908,17 +905,22 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
         }
 
 
-        // keep this block together
-        {
-            traceAdd(a, now);
+        a->lastPosReceiverId = mm->receiverId;
 
-            a->seenPosReliable = now; // must be after traceAdd for trace stale detection
-            a->latReliable = mm->decoded_lat;
-            a->lonReliable = mm->decoded_lon;
-            a->pos_nic_reliable = mm->decoded_nic;
-            a->pos_rc_reliable = mm->decoded_rc;
-            a->surfaceCPR_allow_ac_rel = 1; // allow ac relative CPR for ground positions
-        }
+        // update addrtype, we use the type from the accepted position.
+        a->addrtype = mm->addrtype;
+        a->addrtype_updated = now;
+
+        int stale = (now > a->seenPosReliable + TRACE_STALE);
+        a->seenPosReliable = now;
+
+        a->latReliable = mm->decoded_lat;
+        a->lonReliable = mm->decoded_lon;
+        a->pos_nic_reliable = mm->decoded_nic;
+        a->pos_rc_reliable = mm->decoded_rc;
+        a->surfaceCPR_allow_ac_rel = 1; // allow ac relative CPR for ground positions
+
+        traceAdd(a, now, stale);
 
         if (
                 mm->source == SOURCE_ADSB
@@ -1518,7 +1520,7 @@ discard_alt:
     if (a->alt_reliable <= 0) {
         //fprintf(stdout, "Altitude INVALIDATED: %06x\n", a->addr);
         a->alt_reliable = 0;
-        if (a->position_valid.source != SOURCE_JAERO)
+        if (a->pos_reliable_valid.source != SOURCE_JAERO)
             a->baro_alt_valid.source = SOURCE_INVALID;
     }
     if (Modes.garbage_ports)
@@ -2073,7 +2075,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         // avoid using already received positions
         if (old_jaero || greatcircle(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon, 1) < 1) {
         } else if (mm->source == SOURCE_MLAT && mm->mlatEPU > a->mlatEPU
-                && imin((int)(6000.0f * logf((float)mm->mlatEPU / (float)a->mlatEPU)), 36000) > (int64_t) trackDataAge(mm->sysTimestampMsg, &a->position_valid)
+                && imin((int)(6000.0f * logf((float)mm->mlatEPU / (float)a->mlatEPU)), 36000) > (int64_t) trackDataAge(mm->sysTimestampMsg, &a->pos_reliable_valid)
                 ) {
             // don't use less accurate MLAT positions unless some time has elapsed
             // only works with SBS input MLAT data coming from some versions of mlat-server
@@ -2087,7 +2089,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                 if (mm->mlatEPU) {
                     a->mlatEPU = mm->mlatEPU;
                 }
-                if (0 && a->position_valid.source > SOURCE_MLAT) {
+                if (0 && a->pos_reliable_valid.source > SOURCE_MLAT) {
                     fprintf(stderr, "%06x: %d\n", a->addr, mm->reduce_forward);
                 }
             }
@@ -2465,8 +2467,8 @@ static void activeUpdate(int64_t now) {
         }
 
         if (
-                (a->position_valid.source == SOURCE_JAERO && now > a->seen + Modes.trackExpireJaero + 2 * MINUTES)
-                || (a->position_valid.source != SOURCE_JAERO && now > a->seen + TRACK_EXPIRE_LONG + 2 * MINUTES)
+                (a->pos_reliable_valid.source == SOURCE_JAERO && now > a->seen + Modes.trackExpireJaero + 2 * MINUTES)
+                || (a->pos_reliable_valid.source != SOURCE_JAERO && now > a->seen + TRACK_EXPIRE_LONG + 2 * MINUTES)
            ) {
             a->onActiveList = 0;
 
@@ -2740,8 +2742,8 @@ void to_state(struct aircraft *a, struct state *new, int64_t now, int on_ground,
 
     new->timestamp = now;
 
-    new->lat = (int32_t) nearbyint(a->lat * 1E6);
-    new->lon = (int32_t) nearbyint(a->lon * 1E6);
+    new->lat = (int32_t) nearbyint(a->latReliable * 1E6);
+    new->lon = (int32_t) nearbyint(a->lonReliable * 1E6);
 
     if (now > a->seenPosReliable + TRACE_STALE)
         new->stale = 1;
@@ -2749,7 +2751,7 @@ void to_state(struct aircraft *a, struct state *new, int64_t now, int on_ground,
     if (on_ground)
         new->on_ground = 1;
 
-    if (trackVState(now, &a->gs_valid, &a->position_valid)) {
+    if (trackVState(now, &a->gs_valid, &a->pos_reliable_valid)) {
         new->gs_valid = 1;
         new->gs = (uint16_t) nearbyint(a->gs * _gs_factor);
     }
@@ -2762,16 +2764,16 @@ void to_state(struct aircraft *a, struct state *new, int64_t now, int on_ground,
         new->baro_alt = (int16_t) nearbyint(a->baro_alt * _alt_factor);
     }
 
-    if (trackVState(now, &a->baro_rate_valid, &a->position_valid)) {
+    if (trackVState(now, &a->baro_rate_valid, &a->pos_reliable_valid)) {
         new->baro_rate_valid = 1;
         new->baro_rate = (int16_t) nearbyint(a->baro_rate * _rate_factor);
     }
 
-    if (trackVState(now, &a->geom_alt_valid, &a->position_valid)) {
+    if (trackVState(now, &a->geom_alt_valid, &a->pos_reliable_valid)) {
         new->geom_alt_valid = 1;
         new->geom_alt = (int16_t) nearbyint(a->geom_alt * _alt_factor);
     }
-    if (trackVState(now, &a->geom_rate_valid, &a->position_valid)) {
+    if (trackVState(now, &a->geom_rate_valid, &a->pos_reliable_valid)) {
         new->geom_rate_valid = 1;
         new->geom_rate = (int16_t) nearbyint(a->geom_rate * _rate_factor);
     }
@@ -2782,11 +2784,11 @@ void to_state(struct aircraft *a, struct state *new, int64_t now, int on_ground,
     addrtype_t addrtype:5;
     */
 
-    if (trackVState(now, &a->ias_valid, &a->position_valid)) {
+    if (trackVState(now, &a->ias_valid, &a->pos_reliable_valid)) {
         new->ias = a->ias;
         new->ias_valid = 1;
     }
-    if (trackVState(now, &a->roll_valid, &a->position_valid)) {
+    if (trackVState(now, &a->roll_valid, &a->pos_reliable_valid)) {
         new->roll = (int16_t) nearbyint(a->roll * _roll_factor);
         new->roll_valid = 1;
     }
@@ -2803,8 +2805,8 @@ void to_state_all(struct aircraft *a, struct state_all *new, int64_t now) {
     for (int i = 0; i < 8; i++)
         new->callsign[i] = a->callsign[i];
 
-    new->pos_nic = a->pos_nic;
-    new->pos_rc = a->pos_rc;
+    new->pos_nic = a->pos_nic_reliable;
+    new->pos_rc = a->pos_rc_reliable;
 
     new->tas = a->tas;
 
@@ -2865,7 +2867,9 @@ void to_state_all(struct aircraft *a, struct state_all *new, int64_t now) {
     new->alert = a->alert;
     new->spi = a->spi;
 
-#define F(f) do { new->f = trackVState(now, &a->f, &a->position_valid); } while (0)
+    new->position_valid = trackDataValid(&a->pos_reliable_valid);
+
+#define F(f) do { new->f = trackVState(now, &a->f, &a->pos_reliable_valid); } while (0)
     F(callsign_valid);
     F(tas_valid);
     F(mach_valid);
@@ -2889,7 +2893,6 @@ void to_state_all(struct aircraft *a, struct state_all *new, int64_t now) {
     F(nav_altitude_src_valid);
     F(nav_heading_valid);
     F(nav_modes_valid);
-    F(position_valid);
     F(alert_valid);
     F(spi_valid);
 #undef F
@@ -2902,6 +2905,9 @@ void from_state_all(struct state_all *in, struct state *in2, struct aircraft *a 
 
     a->pos_nic = in->pos_nic;
     a->pos_rc = in->pos_rc;
+
+    a->pos_nic_reliable = in->pos_nic;
+    a->pos_rc_reliable = in->pos_rc;
 
     a->tas = in->tas;
 
@@ -2989,6 +2995,9 @@ void from_state_all(struct state_all *in, struct state *in2, struct aircraft *a 
     F(track_valid);
 #undef F
 
+    a->pos_reliable_valid.source = a->position_valid.source = in->position_valid ? SOURCE_INDIRECT : SOURCE_INVALID;
+    a->pos_reliable_valid.updated = a->position_valid.updated = ts - 5000;
+
     // giving this a timestamp is kinda hacky, do it anyway
     // we want to be able to reuse the sprintAircraft routine for printing aircraft details
 #define F(f) do { a->f.source = (in->f ? SOURCE_INDIRECT : SOURCE_INVALID); a->f.updated = ts - 5000; } while (0)
@@ -3015,7 +3024,6 @@ void from_state_all(struct state_all *in, struct state *in2, struct aircraft *a 
     F(nav_altitude_src_valid);
     F(nav_heading_valid);
     F(nav_modes_valid);
-    F(position_valid);
     F(alert_valid);
     F(spi_valid);
 #undef F
@@ -3134,6 +3142,7 @@ void updateValidities(struct aircraft *a, int64_t now) {
 
     updateValidity(&a->acas_ra_valid, now, TRACK_EXPIRE);
     updateValidity(&a->mlat_pos_valid, now, TRACK_EXPIRE);
+    updateValidity(&a->pos_reliable_valid, now, TRACK_EXPIRE);
 }
 
 static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, int64_t now, double bad_lat, double bad_lon) {

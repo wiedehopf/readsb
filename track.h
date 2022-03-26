@@ -460,7 +460,7 @@ struct aircraft
   int64_t prev_pos_time; // time the previous position was received
 
   int32_t speedUnreliable;
-  int32_t pad2433;
+  int32_t padding;
 
   int64_t nextJsonPortOutput;
 
@@ -470,6 +470,8 @@ struct aircraft
   data_validity mlat_pos_valid;
   double mlat_lat;
   double mlat_lon;
+
+  data_validity pos_reliable_valid;
 
   // keep this at the end of the aircraft struct as save / restore shouldn't matter for this:
   // recent discarded positions which led to decrementing reliability (position_bad() / speed_check())
@@ -559,7 +561,7 @@ trackVState (int64_t now, const data_validity *v, const data_validity *pos_valid
 }
 
 static inline int altBaroReliableTrace(int64_t now, struct aircraft *a) {
-    if (altBaroReliable(a) && trackVState(now, &a->baro_alt_valid, &a->position_valid))
+    if (altBaroReliable(a) && trackVState(now, &a->baro_alt_valid, &a->pos_reliable_valid))
         return 1;
     else
         return 0;
