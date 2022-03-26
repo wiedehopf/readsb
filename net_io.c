@@ -569,11 +569,11 @@ static void serviceReconnectCallback(int64_t now) {
             // or a heartbeat, otherwise it will force a reconnect
             struct client *c = con->c;
             if (Modes.net_heartbeat_interval && c
+                    && now - c->last_read > 2 * Modes.net_heartbeat_interval
                     && c->service->read_mode != READ_MODE_IGNORE && c->service->read_mode != READ_MODE_BEAST_COMMAND
-                    && c->last_read + Modes.net_heartbeat_interval + 5 * SECONDS <= now
                ) {
                 fprintf(stderr, "%s: No data or heartbeat received for %.0f seconds, reconnecting: %s port %s\n",
-                        c->service->descr, (Modes.net_heartbeat_interval + 5 * SECONDS) / 1000.0, c->host, c->port);
+                        c->service->descr, (2 * Modes.net_heartbeat_interval) / 1000.0, c->host, c->port);
                 modesCloseClient(c);
             }
         }
@@ -3148,18 +3148,6 @@ const char *airground_enum_string(airground_t ag) {
     }
 }
 
-static void modesNetSecondWork(int64_t now) {
-    struct net_service *s;
-    for (s = Modes.services; s; s = s->next) {
-        if (Modes.net_heartbeat_interval && s->writer
-                && s->connections && s->writer->send_heartbeat
-                && (s->writer->lastWrite + Modes.net_heartbeat_interval) <= now) {
-            // If we have generated no messages for a while, send a heartbeat
-            s->writer->send_heartbeat(s);
-        }
-    }
-}
-
 // Unlink and free closed clients
 void netFreeClients() {
     struct client *c, **prev;
@@ -3218,7 +3206,6 @@ static void handleEpoll(int count) {
 //
 void modesNetPeriodicWork(void) {
     static int64_t next_tcp_json;
-    static int64_t next_second;
     static struct timespec watch;
 
     if (!Modes.net_events) {
@@ -3253,11 +3240,6 @@ void modesNetPeriodicWork(void) {
 
     int64_t now = mstime();
 
-    if (now > next_second) {
-        next_second = now + 1000;
-        modesNetSecondWork(now);
-    }
-
     pingSenders(Modes.beast_in_service, now);
 
     int64_t elapsed2 = lapWatch(&watch);
@@ -3270,7 +3252,17 @@ void modesNetPeriodicWork(void) {
         // If we have data that has been waiting to be written for a while,
         // write it now.
         for (struct net_service *s = Modes.services; s; s = s->next) {
-            if (s->writer && s->writer->dataUsed && now > s->writer->lastWrite + Modes.net_output_flush_interval) {
+            if (!s->writer) {
+                continue;
+            }
+            int force_flush = 0;
+            if (Modes.net_heartbeat_interval && s->writer->send_heartbeat
+                    && now - s->writer->lastWrite >= Modes.net_heartbeat_interval) {
+                // If we have generated no messages for a while, send a heartbeat
+                s->writer->send_heartbeat(s);
+                force_flush = 1;
+            }
+            if (s->writer->dataUsed && (force_flush || now > s->writer->lastWrite + Modes.net_output_flush_interval)) {
                 flushWrites(s->writer);
                 //fprintf(stderr, "%s: interval flush\n", s->descr);
             }
