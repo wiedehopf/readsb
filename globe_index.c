@@ -1566,10 +1566,6 @@ int traceAdd(struct aircraft *a, int64_t now) {
         max_speed_diff *= 2;
     }
 
-    if (alt_valid && a->baro_alt < 19750) {
-        max_elapsed /= 2;
-    }
-
     if (a->position_valid.source == SOURCE_MLAT) {
         min_elapsed = 2500; // 2.5 seconds
         turn_density /= 2;
