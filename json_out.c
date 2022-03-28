@@ -1411,7 +1411,7 @@ static void checkTraceCache(struct aircraft *a, int64_t now) {
         if (Modes.trace_hist_only & 8) {
             return; // no cache in this special case ... please ignore :)
         }
-        if (now > a->seen_pos + TRACE_CACHE_LIFETIME / 2 || !a->trace) {
+        if (now - a->seen_pos > TRACE_CACHE_LIFETIME / 2 || !a->trace) {
             return;
         }
         a->traceCache = aligned_malloc(sizeof(struct traceCache));

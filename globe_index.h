@@ -28,7 +28,7 @@
 #endif
 #define TRACE_CACHE_EXTRA (16)
 #define TRACE_CACHE_POINTS (TRACE_RECENT_POINTS + TRACE_CACHE_EXTRA)
-#define TRACE_CACHE_LIFETIME (30 * MINUTES)
+#define TRACE_CACHE_LIFETIME (1 * MINUTES)
 struct traceCacheEntry {
     int32_t stateIndex;
     int32_t offset;
