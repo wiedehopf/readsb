@@ -94,7 +94,7 @@ void receiverPositionChanged(float lat, float lon, float alt) {
     log_with_timestamp("Autodetected receiver location: %.5f, %.5f at %.0fm AMSL", lat, lon, alt);
 
     if (Modes.json_dir) {
-        writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson()); // location changed
+        free(writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson()).buffer); // location changed
     }
 }
 
@@ -389,15 +389,15 @@ static void trackPeriodicUpdate() {
         Modes.updateStats = 0;
 
         if (Modes.json_dir) {
-            writeJsonToFile(Modes.json_dir, "status.json", generateStatusJson(now));
-            writeJsonToFile(Modes.json_dir, "status.prom", generateStatusProm(now));
+            free(writeJsonToFile(Modes.json_dir, "status.json", generateStatusJson(now)).buffer);
+            free(writeJsonToFile(Modes.json_dir, "status.prom", generateStatusProm(now)).buffer);
         }
     }
     if (Modes.outline_json) {
         Modes.currentTask = "outlineJson";
         static int64_t nextOutlineWrite;
         if (now > nextOutlineWrite) {
-            writeJsonToFile(Modes.json_dir, "outline.json", generateOutlineJson());
+            free(writeJsonToFile(Modes.json_dir, "outline.json", generateOutlineJson()).buffer);
             nextOutlineWrite = now + 30 * SECONDS;
         }
     }
@@ -472,11 +472,13 @@ static void *jsonEntryPoint(void *arg) {
             if (Modes.json_gzip)
                 writeJsonToGzip(Modes.json_dir, "aircraft.json.gz", cb, 3);
             writeJsonToFile(Modes.json_dir, "aircraft.json", cb);
+            sfree(cb.buffer);
         }
 
         if (Modes.debug_recent) {
             struct char_buffer cb = generateAircraftJson(1 * SECONDS);
             writeJsonToFile(Modes.json_dir, "aircraft_recent.json", cb);
+            sfree(cb.buffer);
         }
 
         struct char_buffer cb3 = generateAircraftBin();
@@ -493,10 +495,10 @@ static void *jsonEntryPoint(void *arg) {
             char filebuf[PATH_MAX];
 
             snprintf(filebuf, PATH_MAX, "history_%d.json", Modes.json_aircraft_history_next);
-            writeJsonToFile(Modes.json_dir, filebuf, apiGenerateAircraftJson());
+            free(writeJsonToFile(Modes.json_dir, filebuf, apiGenerateAircraftJson()).buffer);
 
             if (!Modes.json_aircraft_history_full) {
-                writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson()); // number of history entries changed
+                free(writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson()).buffer); // number of history entries changed
                 if (Modes.json_aircraft_history_next == HISTORY_SIZE - 1)
                     Modes.json_aircraft_history_full = 1;
             }
@@ -1218,8 +1220,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.trace_hist_only = (int8_t) atoi(arg);
             break;
         case OptJsonTraceInt:
-            if (atof(arg) > 0)
-                Modes.json_trace_interval = (int64_t)(1000 * atof(arg));
+            Modes.json_trace_interval = (int64_t)(1000 * atof(arg));
             break;
         case OptJsonGlobeIndex:
             Modes.json_globe_index = 1;
@@ -1553,6 +1554,9 @@ static void configAfterParse() {
 
     Modes.traceReserve = 48;
     Modes.traceMax = 512 * 1024;
+    if (Modes.json_trace_interval < 1) {
+        Modes.json_trace_interval = 1; // 1 ms
+    }
     if (Modes.json_trace_interval < 4 * SECONDS) {
         double oversize = 4.0 / fmax(0.4, (double) Modes.json_trace_interval / 1000.0);
         Modes.traceReserve = (int) (Modes.traceReserve * oversize);
@@ -1720,9 +1724,9 @@ static void miscStuff() {
         enough = 1;
         next_clients_json = now + 10 * SECONDS;
         if (Modes.netIngest)
-            writeJsonToFile(Modes.json_dir, "clients.json", generateClientsJson());
+            free(writeJsonToFile(Modes.json_dir, "clients.json", generateClientsJson()).buffer);
         if (Modes.netReceiverIdJson)
-            writeJsonToFile(Modes.json_dir, "receivers.json", generateReceiversJson());
+            free(writeJsonToFile(Modes.json_dir, "receivers.json", generateReceiversJson()).buffer);
     }
 
     if (!enough) {
@@ -1898,7 +1902,7 @@ int main(int argc, char **argv) {
             threadCreate(&Threads.globeJson, NULL, globeJsonEntryPoint, NULL);
         }
 
-        writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
+        free(writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson()).buffer);
     }
 
     struct timespec ts;

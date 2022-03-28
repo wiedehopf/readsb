@@ -1043,9 +1043,18 @@ static void statsCalc() {
 void statsWrite(int64_t now) {
         statsCalc(); // calculate statistics stuff
 
-        if (Modes.json_dir)
-            writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson(now));
+        struct char_buffer prom = { 0 };
+        if (Modes.json_dir || Modes.prom_file) {
+            prom = generatePromFile(now);
+        }
+        if (Modes.json_dir) {
+            free(writeJsonToFile(Modes.json_dir, "stats.json", generateStatsJson(now)).buffer);
+            writeJsonToFile(Modes.json_dir, "stats.prom", prom);
+        }
 
-        if (Modes.prom_file)
-            writeJsonToFile(NULL, Modes.prom_file, generatePromFile(now));
+        if (Modes.prom_file) {
+            writeJsonToFile(NULL, Modes.prom_file, prom);
+        }
+
+        sfree(prom.buffer);
 }

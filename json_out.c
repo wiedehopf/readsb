@@ -1753,7 +1753,7 @@ struct char_buffer generateOutlineJson() {
 }
 
 // Write JSON to file
-static inline __attribute__((always_inline)) int writeJsonTo (const char* dir, const char *file, struct char_buffer cb, int gzip, int gzip_level) {
+static inline __attribute__((always_inline)) struct char_buffer writeJsonTo (const char* dir, const char *file, struct char_buffer cb, int gzip, int gzip_level) {
 
     char pathbuf[PATH_MAX];
     char tmppath[PATH_MAX];
@@ -1779,9 +1779,7 @@ open:
         }
         fprintf(stderr, "writeJsonTo open(): ");
         perror(tmppath);
-        if (!gzip)
-            free(content);
-        return -1;
+        goto error_2;
     }
 
 
@@ -1822,24 +1820,23 @@ open:
         perror("");
         goto error_2;
     }
-    if (!gzip)
-        free(content);
-    return 0;
+
+    goto out;
 
 error_1:
     close(fd);
 error_2:
     unlink(tmppath);
-    if (!gzip)
-        free(content);
-    return -1;
+
+out:
+    return cb;
 }
 
-int writeJsonToFile (const char* dir, const char *file, struct char_buffer cb) {
+struct char_buffer writeJsonToFile (const char* dir, const char *file, struct char_buffer cb) {
     return writeJsonTo(dir, file, cb, 0, 0);
 }
 
-int writeJsonToGzip (const char* dir, const char *file, struct char_buffer cb, int gzip) {
+struct char_buffer writeJsonToGzip (const char* dir, const char *file, struct char_buffer cb, int gzip) {
     return writeJsonTo(dir, file, cb, 1, gzip);
 }
 

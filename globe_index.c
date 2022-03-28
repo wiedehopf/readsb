@@ -597,15 +597,12 @@ void traceWrite(struct aircraft *a, int64_t now, int init) {
                     snprintf(filename, PATH_MAX, "%s/traces/%02x/trace_full_%s%06x.json", tstring, a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
                     filename[PATH_MAX - 101] = 0;
 
-                    if (writeJsonToGzip(Modes.globe_history_dir, filename, hist, 9) == 0) {
-                        // no errors, note what we have written to disk
-                        a->trace_perm_last_timestamp = endStamp;
-                    } else {
-                        // some error, schedule another try in 10 minutes
-                        a->trace_next_perm = now + 10 * MINUTES;
-                    }
-
+                    writeJsonToGzip(Modes.globe_history_dir, filename, hist, 9);
                     free(hist.buffer);
+
+                    // note what we have written to disk
+                    a->trace_perm_last_timestamp = endStamp;
+
 
                     //if (Modes.debug_traceCount && ++count4 % 100 == 0)
                     //    fprintf(stderr, "perm trace writes: %u\n", count4);

@@ -396,6 +396,7 @@ static void dbToJson() {
     cb2.len = p - buf;
     cb2.buffer = buf;
     writeJsonToFile(Modes.json_dir, "db.json", cb2); // location changed
+    free(buf);
 }
 
 // get next CSV token based on the assumption eot points to the previous delimiter
@@ -533,7 +534,7 @@ int dbUpdate() {
     free(cb.buffer);
     Modes.dbModificationTime = modTime;
     if (Modes.json_dir) {
-        writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson());
+        free(writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson()).buffer);
     }
     return 1;
 DBU0:
