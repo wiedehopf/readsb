@@ -941,7 +941,7 @@ int includeAircraftJson(int64_t now, struct aircraft *a) {
     if (a->messages < 2)
         return 0;
 
-    if (a->nogpsCounter >= NOGPS_SHOW && now < a->seenAdsbReliable + NOGPS_DWELL)
+    if (a->nogpsCounter >= NOGPS_SHOW && now - a->seenAdsbReliable < NOGPS_DWELL)
         return 1;
 
     // include all aircraft with valid position

@@ -614,7 +614,10 @@ static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, int64_t 
 
     toBinCraft(a, &entry->bin, now);
 
-    if (!trackDataValid(&a->position_valid)) {
+    if (trackDataValid(&a->pos_reliable_valid)) {
+        // position valid
+    } else {
+        // position invalid, change lat / lon for sorting purposes
         entry->bin.lat = INT32_MAX;
         entry->bin.lon = INT32_MAX;
     }
