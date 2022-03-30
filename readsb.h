@@ -540,6 +540,7 @@ struct _Modes
     int8_t debug_maxRange;
     int8_t debug_removeStaleDuration;
     int8_t debug_receiverRangeLimit;
+    int8_t verbose;
 
     int8_t net_verbatim; // if true, send the original message, not the CRC-corrected one
     int8_t netReceiverId;
@@ -635,6 +636,9 @@ struct _Modes
     int64_t json_trace_interval; // max time ignoring new positions for trace
     int32_t traceMax; // max trace length
     int32_t traceReserve; // grow trace allocation if we have less than traceReserve free spots
+    int32_t traceRecentPoints;
+    int32_t traceCachePoints;
+    int32_t traceChunkPoints;
     int json_globe_index; // Enable extra globe indexed json files.
     int acasFD1; // file descriptor to write acasFDs to
     int acasFD2;

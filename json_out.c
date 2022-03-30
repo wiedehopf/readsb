@@ -1303,9 +1303,7 @@ struct char_buffer generateAircraftJson(int64_t onlyRecent){
     return cb;
 }
 
-static char *sprintTracePoint(char *p, char *end, struct aircraft *a, int i, int64_t startStamp) {
-    struct state *state = &a->trace[i];
-
+static char *sprintTracePoint(char *p, char *end, struct state *state, struct state_all *state_all, int64_t startStamp) {
     int baro_alt = state->baro_alt / _alt_factor;
     int baro_rate = state->baro_rate / _rate_factor;
 
@@ -1361,9 +1359,8 @@ static char *sprintTracePoint(char *p, char *end, struct aircraft *a, int i, int
     else
         p = safe_snprintf(p, end, ",null");
 
-    if (i % 4 == 0) {
+    if (state_all) {
         int64_t now = state->timestamp;
-        struct state_all *state_all = &(a->trace_all[i/4]);
         struct aircraft b;
         memset(&b, 0, sizeof(struct aircraft));
         struct aircraft *ac = &b;
@@ -1406,32 +1403,35 @@ static char *sprintTracePoint(char *p, char *end, struct aircraft *a, int i, int
 
     return p;
 }
-static void checkTraceCache(struct aircraft *a, int64_t now) {
-    if (!a->traceCache) {
+static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
+    struct traceCache *cache = &a->traceCache;
+    if (!cache->entries) {
         if (Modes.trace_hist_only & 8) {
             return; // no cache in this special case ... please ignore :)
         }
-        if (now - a->seen_pos > TRACE_CACHE_LIFETIME / 2 || !a->trace) {
+        if (now - a->seen_pos > TRACE_CACHE_LIFETIME / 2 || tb.len == 0) {
             return;
         }
-        a->traceCache = aligned_malloc(sizeof(struct traceCache));
-        if (!a->traceCache) {
+        ssize_t size_entries = Modes.traceCachePoints * sizeof(struct traceCacheEntry);
+        cache->json_max = Modes.traceCachePoints * 256; // 256 per entry
+        cache->entries = aligned_malloc(size_entries + cache->json_max);
+        if (!cache->entries)  {
             fprintf(stderr, "malloc error code point ohB6yeeg\n");
             return;
         }
-        memset(a->traceCache, 0x0, sizeof(struct traceCache));
+        cache->json = (char *) (cache->entries + Modes.traceCachePoints);
+        memset(cache->entries, 0x0, size_entries + cache->json_max);
     }
-    struct traceCache *c = a->traceCache;
     char *p;
-    char *end = c->json + sizeof(c->json);
-    int firstRecent = imax(0, a->trace_len - TRACE_RECENT_POINTS);
+    char *end = cache->json + cache->json_max;
+    int firstRecent = imax(0, tb.len - Modes.traceRecentPoints);
 
-    struct traceCacheEntry *e = c->entries;
+    struct traceCacheEntry *entries = cache->entries;
     int k = 0;
     int stateIndex = firstRecent;
     int found = 0;
-    while (k < c->entriesLen) {
-        if (e[k].stateIndex == firstRecent) {
+    while (k < cache->entriesLen) {
+        if (entries[k].stateIndex == firstRecent) {
             found = 1;
             break;
         }
@@ -1441,10 +1441,10 @@ static void checkTraceCache(struct aircraft *a, int64_t now) {
 
 
     if (!found && a->addr == TRACE_FOCUS)
-        fprintf(stderr, "%06x firstRecent not found, entriesLen: %d\n", a->addr, c->entriesLen);
+        fprintf(stderr, "%06x firstRecent not found, entriesLen: %d\n", a->addr, cache->entriesLen);
 
     if (found) {
-        int newEntryCount = a->trace_len - 1 - e[c->entriesLen - 1].stateIndex;
+        int newEntryCount = tb.len - 1 - entries[cache->entriesLen - 1].stateIndex;
         if (newEntryCount > TRACE_CACHE_EXTRA) {
             // make it a bit simpler, just rebuild the cache in this case
             updateCache = 0;
@@ -1452,20 +1452,20 @@ static void checkTraceCache(struct aircraft *a, int64_t now) {
                 fprintf(stderr, "%06x newEntryCount: %d\n", a->addr, newEntryCount);
             if (Modes.debug_traceCount)
                 fprintf(stderr, "%06x ", a->addr);
-        } else if (newEntryCount + c->entriesLen > TRACE_CACHE_POINTS) {
+        } else if (newEntryCount + cache->entriesLen > Modes.traceCachePoints) {
             // if the cache would get full, do memmove fun!
             int moveIndexes = imin(k, TRACE_CACHE_EXTRA);
-            c->entriesLen -= moveIndexes;
+            cache->entriesLen -= moveIndexes;
             k -= moveIndexes;
-            memmove(e, e + TRACE_CACHE_EXTRA, c->entriesLen * sizeof(struct traceCacheEntry));
+            memmove(entries, entries + TRACE_CACHE_EXTRA, cache->entriesLen * sizeof(struct traceCacheEntry));
 
-            int moveDist = e[0].offset;
-            struct traceCacheEntry *last = &e[c->entriesLen - 1];
+            int moveDist = entries[0].offset;
+            struct traceCacheEntry *last = &entries[cache->entriesLen - 1];
             int jsonLen = last->offset + last->len;
 
-            memmove(c->json, c->json + moveDist, jsonLen - moveDist);
-            for (int x = 0; x < c->entriesLen; x++) {
-                e[x].offset -= moveDist;
+            memmove(cache->json, cache->json + moveDist, jsonLen - moveDist);
+            for (int x = 0; x < cache->entriesLen; x++) {
+                entries[x].offset -= moveDist;
             }
             updateCache = 1;
             //if (a->addr == TRACE_FOCUS)
@@ -1475,38 +1475,40 @@ static void checkTraceCache(struct aircraft *a, int64_t now) {
         }
     }
 
-    if (c->startStamp && a->trace[firstRecent].timestamp > c->startStamp + 8 * HOURS) {
+    if (cache->startStamp && getState(tb.trace, firstRecent)->timestamp > cache->startStamp + 8 * HOURS) {
         if (a->addr == TRACE_FOCUS)
-            fprintf(stderr, "%06x startStamp diff: %.1f h\n", a->addr, (a->trace[firstRecent].timestamp - c->startStamp) / (double) (1 * HOURS));
+            fprintf(stderr, "%06x startStamp diff: %.1f h\n", a->addr, (getState(tb.trace, firstRecent)->timestamp - cache->startStamp) / (double) (1 * HOURS));
         // rebuild cache if startStamp is too old to avoid very large numbers for the relative time
         updateCache = 0;
     }
 
     if (updateCache) {
         // step to last cached entry
-        k = c->entriesLen - 1;
+        k = cache->entriesLen - 1;
         // set p to write after json corresponding to last entry
-        p = c->json + e[k].offset + e[k].len;
+        p = cache->json + entries[k].offset + entries[k].len;
         // set stateIndex to the correct trace index to get data for the next cache entry
-        stateIndex = e[k].stateIndex + 1;
+        stateIndex = entries[k].stateIndex + 1;
         // set k to the index we will write to in the cache
         k++;
     } else {
         // reset / initialize stuff / rebuild cache
-        c->startStamp = a->trace[firstRecent].timestamp;
+        cache->startStamp = getState(tb.trace, firstRecent)->timestamp;
         k = 0;
-        c->entriesLen = 0;
-        p = c->json;
+        cache->entriesLen = 0;
+        p = cache->json;
         if (a->addr == TRACE_FOCUS)
             fprintf(stderr, "%06x resetting traceCache\n", a->addr);
     }
 
     int sprintCount = 0;
-    for (int i = stateIndex; i < a->trace_len && k < TRACE_CACHE_POINTS; i++) {
-        e[k].stateIndex = i;
-        e[k].offset = p - c->json;
+    for (int i = stateIndex; i < tb.len && k < Modes.traceCachePoints; i++) {
+        entries[k].stateIndex = i;
+        entries[k].offset = p - cache->json;
 
-        p = sprintTracePoint(p, end, a, i, c->startStamp);
+        struct state *state = getState(tb.trace, i);
+        struct state_all *state_all = getStateAll(tb.trace, i);
+        p = sprintTracePoint(p, end, state, state_all, cache->startStamp);
         if (p >= end) {
             fprintf(stderr, "traceCache full, not an issue but fix it!\n");
             // not enough space to safely write another cache
@@ -1514,28 +1516,27 @@ static void checkTraceCache(struct aircraft *a, int64_t now) {
         }
         sprintCount++;
 
-        e[k].len = p - c->json - e[k].offset;
-        e[k].leg_marker = a->trace[i].leg_marker;
+        entries[k].len = p - cache->json - entries[k].offset;
+        entries[k].leg_marker = getState(tb.trace, i)->leg_marker;
 
         k++;
-        c->entriesLen++;
+        cache->entriesLen++;
     }
     if (a->addr == TRACE_FOCUS && sprintCount > 3) {
         fprintf(stderr, "%06x sprintCount: %d\n", a->addr, sprintCount);
     }
 }
 
-struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
+struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int start, int last) {
     struct char_buffer cb = { 0 };
     if (!Modes.json_globe_index) {
         return cb;
     }
     int64_t now = mstime();
 
-    int limit = a->trace_len + (a->tracePosBuffered ? 1 : 0);
     int recent = (last == -2) ? 1 : 0;
     if (last < 0) {
-        last = limit - 1;
+        last = tb.len - 1;
     }
 
     int traceCount = imax(last - start + 1, 0);
@@ -1571,16 +1572,16 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
             p = safe_snprintf(p, end, ",\n\"noRegData\":true");
     }
 
-    int64_t startStamp = a->trace[start].timestamp;
+    int64_t startStamp = getState(tb.trace, start)->timestamp;
 
     if (recent) {
-        checkTraceCache(a, now);
+        checkTraceCache(a, tb, now);
     }
     struct traceCache *tCache = NULL;
     struct traceCacheEntry *entries = NULL;
     int k = 0;
-    if (a->traceCache && recent) {
-        tCache = a->traceCache;
+    if (a->traceCache.entries && recent) {
+        tCache = &a->traceCache;
         startStamp = tCache->startStamp;
         entries = tCache->entries;
         int found = 0;
@@ -1601,13 +1602,15 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
 
     if (tCache) {
         int sprintCount = 0;
-        for (int i = start; i <= last && i < limit; i++) {
+        for (int i = start; i <= last && i < tb.len; i++) {
             if (k < tCache->entriesLen && entries[k].stateIndex == i
-                    && a->trace[i].leg_marker == entries[k].leg_marker) {
+                    && getState(tb.trace, i)->leg_marker == entries[k].leg_marker) {
                 memcpy(p, tCache->json + entries[k].offset, entries[k].len);
                 p += entries[k].len;
             } else {
-                p = sprintTracePoint(p, end, a, i, startStamp);
+                struct state *state = getState(tb.trace, i);
+                struct state_all *state_all = getStateAll(tb.trace, i);
+                p = sprintTracePoint(p, end, state, state_all, startStamp);
                 sprintCount++;
             }
             if (p < end)
@@ -1618,8 +1621,10 @@ struct char_buffer generateTraceJson(struct aircraft *a, int start, int last) {
             fprintf(stderr, "%06x sprintCount2: %d\n", a->addr, sprintCount);
         }
     } else {
-        for (int i = start; i <= last && i < limit; i++) {
-            p = sprintTracePoint(p, end, a, i, startStamp);
+        for (int i = start; i <= last && i < tb.len; i++) {
+            struct state *state = getState(tb.trace, i);
+            struct state_all *state_all = getStateAll(tb.trace, i);
+            p = sprintTracePoint(p, end, state, state_all, startStamp);
             if (p < end)
                 *p++ = ',';
         }

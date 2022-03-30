@@ -1427,6 +1427,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         break;
                     case 'X': Modes.debug_receiverRangeLimit = 1;
                         break;
+                    case 'v': Modes.verbose = 1;
+                        break;
 
                     default:
                         fprintf(stderr, "Unknown debugging flag: %c\n", *arg);
@@ -1552,15 +1554,31 @@ int parseCommandLine(int argc, char **argv) {
 static void configAfterParse() {
     Modes.trackExpireMax = Modes.trackExpireJaero + TRACK_EXPIRE_LONG + 1 * MINUTES;
 
-    Modes.traceReserve = 48;
-    Modes.traceMax = 512 * 1024;
+    if (Modes.json_globe_index) {
+        Modes.keep_traces = 24 * HOURS + 60 * MINUTES; // include 60 minutes overlap
+    } else if (Modes.heatmap || Modes.trace_focus != BADDR) {
+        Modes.keep_traces = 35 * MINUTES; // heatmap is written every 30 minutes
+    }
+
+    Modes.traceMax = ((Modes.keep_traces + 1 * HOURS) / 1000 * 3) / SFOUR * SFOUR; // 3 position per second, usually 2 per second is max
+
+    Modes.traceReserve = 11 * SFOUR;
+
     if (Modes.json_trace_interval < 1) {
         Modes.json_trace_interval = 1; // 1 ms
     }
     if (Modes.json_trace_interval < 4 * SECONDS) {
         double oversize = 4.0 / fmax(0.4, (double) Modes.json_trace_interval / 1000.0);
-        Modes.traceReserve = (int) (Modes.traceReserve * oversize);
-        Modes.traceMax = (int) (Modes.traceMax * oversize);
+        Modes.traceReserve = ((int) (Modes.traceReserve * oversize)) / SFOUR * SFOUR;
+        Modes.traceMax = ((int) (Modes.traceMax * oversize)) / SFOUR * SFOUR;
+    }
+
+    Modes.traceRecentPoints = (2 * Modes.traceReserve) * SFOUR / SFOUR;
+    Modes.traceCachePoints = (Modes.traceRecentPoints + TRACE_CACHE_EXTRA) / SFOUR * SFOUR;
+    Modes.traceChunkPoints = Modes.traceCachePoints * SFOUR / SFOUR;
+
+    if (Modes.verbose) {
+        fprintf(stderr, "traceChunkPoints: %d size: %ld\n", Modes.traceChunkPoints, (long) stateBytes(Modes.traceChunkPoints));
     }
 
     Modes.num_procs = 1; // default this value to 1
@@ -1595,12 +1613,6 @@ static void configAfterParse() {
             fprintf(stderr, "Heatmap requires globe history dir or heatmap dir to be set, disabling heatmap!\n");
             Modes.heatmap = 0;
         }
-    }
-
-    if (Modes.json_globe_index) {
-        Modes.keep_traces = 24 * HOURS + 60 * MINUTES; // include 60 minutes overlap
-    } else if (Modes.heatmap || Modes.trace_focus != BADDR) {
-        Modes.keep_traces = 35 * MINUTES; // heatmap is written every 30 minutes
     }
 
     // Validate the users Lat/Lon home location inputs
@@ -1806,6 +1818,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "struct validity: %zu\n", sizeof(data_validity));
         fprintf(stderr, "state: %zu\n", sizeof(struct state));
         fprintf(stderr, "state_all: %zu\n", sizeof(struct state_all));
+        fprintf(stderr, "fourState: %zu\n", sizeof(fourState));
         fprintf(stderr, "binCraft: %zu\n", sizeof(struct binCraft));
         fprintf(stderr, "apiEntry: %zu\n", sizeof(struct apiEntry));
         //fprintf(stderr, "%zu\n", sizeof(struct state_flags));

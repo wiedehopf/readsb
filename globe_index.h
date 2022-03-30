@@ -23,25 +23,10 @@
 #define TRACE_STALE (15 * SECONDS)
 #define TRACE_MIN_ELAPSED (742) // milliseconds
 
-#ifndef TRACE_RECENT_POINTS
-#define TRACE_RECENT_POINTS (84)
-#endif
-#define TRACE_CACHE_EXTRA (16)
-#define TRACE_CACHE_POINTS (TRACE_RECENT_POINTS + TRACE_CACHE_EXTRA)
 #define TRACE_CACHE_LIFETIME (1 * MINUTES)
-struct traceCacheEntry {
-    int32_t stateIndex;
-    int32_t offset;
-    int32_t len;
-    int32_t leg_marker;
-} __attribute__ ((__packed__));
+#define TRACE_CACHE_EXTRA (16)
 
-struct traceCache {
-    int32_t entriesLen;
-    int64_t startStamp;
-    struct traceCacheEntry entries[TRACE_CACHE_POINTS];
-    char json[TRACE_CACHE_POINTS * 256];
-};
+#define REASSEMBLE_STACK_BUFFER (512 * 1024)
 
 struct tile {
     int south;
@@ -60,9 +45,7 @@ void save_blob(int blob);
 void writeInternalState();
 void readInternalState();
 void traceWrite(struct aircraft *a, int64_t now, int init);
-ssize_t stateBytes(int len);
-ssize_t stateAllBytes(int len);
-void traceRealloc(struct aircraft *a, int len);
+void traceAlloc(struct aircraft *a);
 void traceCleanup(struct aircraft *a);
 int traceAdd(struct aircraft *a, int64_t now, int stale);
 int traceUsePosBuffered();

@@ -2068,9 +2068,9 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (mm->sbs_in && mm->sbs_pos_valid) {
         int old_jaero = 0;
         if (mm->source == SOURCE_JAERO && a->trace_len > 0) {
-            for (int i = imax(0, a->trace_len - 10); i < a->trace_len; i++) {
-                if ( (int32_t) (mm->decoded_lat * 1E6) == a->trace[i].lat
-                        && (int32_t) (mm->decoded_lon * 1E6) == a->trace[i].lon )
+            for (int i = imax(0, a->trace_current_len - 10); i < a->trace_current_len; i++) {
+                if ( (int32_t) (mm->decoded_lat * 1E6) == getState(a->trace_current, i)->lat
+                        && (int32_t) (mm->decoded_lon * 1E6) == getState(a->trace_current, i)->lon )
                     old_jaero = 1;
             }
         }

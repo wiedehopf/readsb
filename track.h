@@ -227,12 +227,66 @@ struct state_all
 
 } __attribute__ ((__packed__));
 
+#define SFOUR (4)
+
+typedef struct fourState {
+    struct state no[SFOUR];
+    struct state_all zeroAll;
+} fourState;
+
+typedef struct traceBuffer {
+    int len;
+    int free; // 1 if trace needs to be freed, 0 if trace is on the stack / static
+    fourState *trace;
+} traceBuffer;
+
+static inline int getFourStates(int points) {
+    return ((points + SFOUR - 1) / SFOUR);
+}
+static inline ssize_t stateBytes(int points) {
+    return getFourStates(points) * sizeof(fourState);
+}
+
+static inline struct state *getState(fourState *buffer, int position) {
+    return &buffer[position / SFOUR].no[position % SFOUR];
+}
+
+static inline struct state_all *getStateAll(fourState *buffer, int position) {
+    if (position % SFOUR == 0)
+        return &buffer[position / SFOUR].zeroAll;
+    else
+        return NULL;
+}
+typedef struct stateChunk {
+    unsigned char *compressed;
+    int compressed_size;
+    int numStates;
+    int64_t firstTimestamp;
+    int64_t lastTimestamp;
+} stateChunk;
+
 struct discarded {
   unsigned cpr_lat;
   unsigned cpr_lon;
   int64_t ts;
   uint64_t receiverId;
 };
+
+struct traceCacheEntry {
+    int32_t stateIndex;
+    int32_t offset;
+    int32_t len;
+    int32_t leg_marker;
+};
+
+struct traceCache {
+    int32_t entriesLen;
+    int json_max;
+    int64_t startStamp;
+    struct traceCacheEntry *entries;
+    char *json;
+};
+
 
 /* Structure used to describe the state of one tracked aircraft */
 struct aircraft
@@ -245,26 +299,37 @@ struct aircraft
 
   uint32_t size_struct_aircraft; // size of this struct
   uint32_t messages; // Number of Mode S messages received
-  int trace_len; // current number of points in the trace
-  int trace_write; // signal for writing the trace
-  int trace_writeCounter; // how many points where added since the complete trace was written to memory
-  int trace_alloc; // current number of allocated points
-  int destroy; // aircraft is being deleted
-  uint32_t signalNext; // next index of signalLevel to use
+                       //
+  uint8_t onActiveList;
+  uint8_t paddingabc;
+  uint16_t receiverCountMlat;
+  unsigned category; // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
+
+  int64_t category_updated;
 
   // ----
-
-  struct state *trace; // array of positions representing the aircrafts trace/trail
-  struct state_all *trace_all;
-  int baro_alt; // Altitude (Baro)
-  int alt_reliable;
-  int geom_alt; // Altitude (Geometric)
-  int geom_delta; // Difference between Geometric and Baro altitudes
 
   int64_t trace_next_mw; // timestamp for next full trace write to /run (tmpfs)
   int64_t trace_next_perm; // timestamp for next trace write to history_dir (disk)
   int64_t lastSignalTimestamp; // timestamp the last message with RSSI was received
   int64_t trace_perm_last_timestamp; // timestamp for last trace point written to disk
+
+  fourState *trace_current; // uncompressed most recent points in the trace
+  stateChunk *trace_chunks; // compressed chunks of trace
+
+  int trace_current_max;
+  int trace_current_len; // number of points in our uncompressed most recent trace portion
+  int trace_len; // total number of points in the trace
+  int trace_chunk_len; // how many stateChunks are saved for this aircraft
+  int trace_write; // signal for writing the trace
+
+  int trace_writeCounter; // how many points where added since the complete trace was written to memory
+  int baro_alt; // Altitude (Baro)
+  int alt_reliable;
+  int geom_alt; // Altitude (Geometric)
+
+  int geom_delta; // Difference between Geometric and Baro altitudes
+  uint32_t signalNext; // next index of signalLevel to use
 
   // ----
 
@@ -275,11 +340,6 @@ struct aircraft
   float rr_lat; // very rough receiver latitude
   float rr_lon; // very rough receiver longitude
   int64_t rr_seen; // when we noted this rough position
-  int64_t category_updated;
-  unsigned category; // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
-  uint16_t receiverCountMlat;
-  uint8_t onActiveList;
-  uint8_t paddingabc;
 
 
   int64_t seenAdsbReliable; // last time we saw a reliable SOURCE_ADSB positions from this aircraft
@@ -444,7 +504,6 @@ struct aircraft
   int64_t next_reduce_forward_DF16;
   int64_t next_reduce_forward_DF20;
   int64_t next_reduce_forward_DF21;
-  struct traceCache *traceCache;
   double magneticDeclination;
   int64_t updatedDeclination;
 
@@ -477,6 +536,8 @@ struct aircraft
   // recent discarded positions which led to decrementing reliability (position_bad() / speed_check())
   uint32_t disc_cache_index;
   struct discarded disc_cache[DISCARD_CACHE];
+
+  struct traceCache traceCache;
 };
 
 /* Mode A/C tracking is done separately, not via the aircraft list,

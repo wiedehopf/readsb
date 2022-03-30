@@ -1,11 +1,12 @@
 #include "readsb.h"
-#define STATE_SAVE_MAGIC (0x7ba09e63757913eeULL)
-#define STATE_SAVE_MAGIC_END (0x7ba09e63757913edULL)
+#define STATE_SAVE_MAGIC (0x7ba09e63757913ceULL * (uint64_t) SFOUR)
+#define STATE_SAVE_MAGIC_END (0x7ba09e63757913cdULL)
 #define LZO_MAGIC (0xf7413cc6eaf227dbULL)
 
-static void mark_legs(struct aircraft *a, int start);
+static void mark_legs(traceBuffer tb, struct aircraft *a, int start);
 static void load_blob(int blob);
-static int getTraceGrow(int len);
+static void traceCleanupNoUnlink(struct aircraft *a);
+static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t after_timestamp, unsigned char *stackBuffer, ssize_t stackBufferSize);
 
 void init_globe_index() {
     struct tile *s_tiles = Modes.json_globe_special_tiles = aligned_malloc(GLOBE_SPECIAL_INDEX * sizeof(struct tile));
@@ -445,19 +446,11 @@ void traceWrite(struct aircraft *a, int64_t now, int init) {
     int trace_write = a->trace_write;
     a->trace_write = 0;
 
-    if (!a->trace_alloc) {
+    if (a->trace_len == 0) {
         return;
     }
 
-    int startFull = 0;
-    for (int i = 0; i < a->trace_len; i++) {
-        if (a->trace[i].timestamp > now - Modes.keep_traces) {
-            startFull = i;
-            break;
-        }
-    }
-
-    int recent_points = TRACE_RECENT_POINTS;
+    int recent_points = Modes.traceRecentPoints;
     if (a->trace_writeCounter >= recent_points - 2) {
         trace_write |= WMEM;
         trace_write |= WRECENT;
@@ -477,29 +470,49 @@ void traceWrite(struct aircraft *a, int64_t now, int init) {
             }
             if (now > a->trace_next_mw) {
                 hist_only_mask |= WMEM;
-                for (int i = 0; i < a->trace_len; i++) {
-                    if (a->trace[i].timestamp > now - GLOBE_MEM_IVAL) {
-                        startFull = i;
-                        break;
-                    }
-                }
             }
         }
 
         trace_write &= hist_only_mask;
     }
+    traceBuffer tb = { 0 };
+    unsigned char stackBuffer[REASSEMBLE_STACK_BUFFER];
+
+    if ((trace_write & (WPERM | WMEM))) {
+        tb = reassembleTrace(a, -1, -1, stackBuffer, sizeof(stackBuffer));
+    } else {
+        tb = reassembleTrace(a, recent_points, -1, stackBuffer, sizeof(stackBuffer));
+    }
+
+    int startFull = 0;
+    for (int i = 0; i < tb.len; i++) {
+        if (getState(tb.trace, i)->timestamp > now - Modes.keep_traces) {
+            startFull = i;
+            break;
+        }
+    }
+
+    if ((Modes.trace_hist_only & 8) && (trace_write & WMEM)) {
+        for (int i = 0; i < tb.len; i++) {
+            if (getState(tb.trace, i)->timestamp > now - GLOBE_MEM_IVAL) {
+                startFull = i;
+                break;
+            }
+        }
+    }
+
 
     if ((trace_write & WRECENT)) {
-        int start_recent = a->trace_len - recent_points;
+        int start_recent = tb.len - recent_points;
         if (start_recent < startFull)
             start_recent = startFull;
 
-        if (!init && a->trace_len % 4 == 0) {
-            mark_legs(a, imax(0, start_recent - 256 - recent_points));
+        if (!init) {
+            mark_legs(tb, a, imax(0, tb.len - 4 * recent_points));
         }
 
         // prepare the data for the trace_recent file in /run
-        recent = generateTraceJson(a, start_recent, -2);
+        recent = generateTraceJson(a, tb, start_recent, -2);
 
         //if (Modes.debug_traceCount && ++count2 % 1000 == 0)
         //    fprintf(stderr, "recent trace write: %u\n", count2);
@@ -521,9 +534,9 @@ void traceWrite(struct aircraft *a, int64_t now, int init) {
             if (a->addr == TRACE_FOCUS)
                 fprintf(stderr, "full\n");
 
-            mark_legs(a, 0);
+            mark_legs(tb, a, 0);
 
-            full = generateTraceJson(a, startFull, -1);
+            full = generateTraceJson(a, tb, startFull, -1);
         }
 
         if (a->trace_writeCounter >= 0xc0ffee) {
@@ -570,25 +583,25 @@ void traceWrite(struct aircraft *a, int64_t now, int init) {
 
             int start = -1;
             int end = -1;
-            for (int i = 0; i < a->trace_len; i++) {
-                if (start == -1 && a->trace[i].timestamp > start_of_day) {
+            for (int i = 0; i < tb.len; i++) {
+                if (start == -1 && getState(tb.trace, i)->timestamp > start_of_day) {
                     start = i;
                     break;
                 }
             }
             for (int i = a->trace_len - 1; i >= 0; i--) {
-                if (a->trace[i].timestamp < end_of_day) {
+                if (getState(tb.trace, i)->timestamp < end_of_day) {
                     end = i;
                     break;
                 }
             }
-            int64_t endStamp = a->trace[end].timestamp;
+            int64_t endStamp = getState(tb.trace, end)->timestamp;
             if (start >= 0 && end >= 0 && end >= start
                     // only write permanent trace if we haven't already written it
                     && a->trace_perm_last_timestamp != endStamp
                ) {
-                mark_legs(a, 0);
-                hist = generateTraceJson(a, start, end);
+                mark_legs(tb, a, 0);
+                hist = generateTraceJson(a, tb, start, end);
                 if (hist.len > 0) {
                     permWritten = 1;
                     char tstring[100];
@@ -679,6 +692,10 @@ void traceWrite(struct aircraft *a, int64_t now, int init) {
                 ((int64_t) a->trace_next_mw - (int64_t) now) / 1000.0,
                 ((int64_t) a->trace_next_perm - (int64_t) now) / 1000.0,
                 a->trace_writeCounter);
+
+    // free reassembled trace
+    if (tb.free)
+        sfree(tb.trace);
 }
 
 static void free_aircraft_range(int start, int end) {
@@ -688,10 +705,8 @@ static void free_aircraft_range(int start, int end) {
         while (a) {
             na = a->next;
             if (a) {
-                if (a->trace) {
-                    free(a->trace);
-                    free(a->trace_all);
-                    free(a->traceCache);
+                if (a->trace_len) {
+                    traceCleanupNoUnlink(a);
                 }
                 free(a);
             }
@@ -714,6 +729,14 @@ static void save_blobs(void *arg) {
             free_aircraft_range(start, end);
         }
     }
+}
+
+static size_t memcpySize(void *dest, const void *src, size_t n) {
+    memcpy(dest, src, n);
+    return n;
+}
+static int roundUp8(int value) {
+    return ((value + 7) / 8) * 8;
 }
 
 static int load_aircraft(char **p, char *end, int64_t now) {
@@ -748,15 +771,15 @@ static int load_aircraft(char **p, char *end, int64_t now) {
     }
     a->size_struct_aircraft = sizeof(struct aircraft);
 
-    a->trace = NULL;
-    a->trace_all = NULL;
-    a->traceCache = NULL;
+    // make sure we set anything allocated to null pointers
+    a->trace_current = NULL;
+    a->trace_chunks = NULL;
+    memset(&a->traceCache, 0x0, sizeof(struct traceCache));
 
     a->disc_cache_index = 0;
 
     if (!Modes.keep_traces) {
-        a->trace_alloc = 0;
-        a->trace_len = 0;
+        traceCleanupNoUnlink(a);
     }
 
     // just in case we have bogus values saved, make sure they time out
@@ -768,44 +791,35 @@ static int load_aircraft(char **p, char *end, int64_t now) {
     // make sure we don't think an extra position is still buffered in the trace memory
     a->tracePosBuffered = 0;
 
-    // read trace
-    int size_state = stateBytes(a->trace_len);
-    int size_all = stateAllBytes(a->trace_len);
-
-    if (a->trace_alloc <= a->trace_len) {
-        a->trace_alloc = getTraceGrow(a->trace_len);
-    }
-
     // check that the trace meta data make sense before loading it
     if (a->trace_len > 0
             // let's allow for loading traces larger than we normally allow by a factor of 32
             && a->trace_len <= 32 * Modes.traceMax
-            && a->trace_alloc <= 32 * Modes.traceMax
        ) {
+        traceAlloc(a);
+        a->trace_chunks = calloc(a->trace_chunk_len, sizeof(stateChunk));
 
+        int checkNo = 0;
 
-        if (end - *p < (long) (size_state + size_all)) {
-            // TRACE FAIL
-            fprintf(stderr, "read trace fail 1\n");
-            a->trace_alloc = 0;
-            a->trace_len = 0;
-        } else {
-            // TRACE SUCCESS
-            traceRealloc(a, a->trace_alloc);
+#define checkSize(size) if (++checkNo && end - *p < (ssize_t) size) { fprintf(stderr, "loadAircraft: checkSize failed for hex %06x checkNo %d\n", a->addr, checkNo); traceCleanupNoUnlink(a); return -1; }
 
-            memcpy(a->trace, *p, size_state);
-            *p += size_state;
-            memcpy(a->trace_all, *p, size_all);
-            *p += size_all;
+        for (int k = 0; k < a->trace_chunk_len; k++) {
+            stateChunk *chunk = &a->trace_chunks[k];
+            checkSize(sizeof(stateChunk));
+            *p += memcpySize(chunk, *p, sizeof(stateChunk));
+
+            checkSize(chunk->compressed_size);
+            chunk->compressed = malloc(chunk->compressed_size);
+            *p += memcpySize(chunk->compressed, *p, chunk->compressed_size);
+
+            ssize_t padBytes = roundUp8(chunk->compressed_size) - chunk->compressed_size;
+            *p += padBytes;
         }
+        checkSize(stateBytes(a->trace_current_len));
+        *p += memcpySize(a->trace_current, *p, stateBytes(a->trace_current_len));
+#undef checkSize
     } else {
-        // no or bad trace
-        if (a->trace_len > 0) {
-            fprintf(stderr, "read trace fail 2\n");
-            *p += a->trace_len * (size_state + size_all); // increment pointer not to invalidate state file
-        }
-        a->trace_len = 0;
-        a->trace_alloc = 0;
+        traceCleanupNoUnlink(a);
     }
 
     if (a->globe_index > GLOBE_MAX_INDEX)
@@ -823,7 +837,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
         a->trace_next_perm = now + 10 * MINUTES + random() % GLOBE_PERM_IVAL;
     }
 
-    if (a->trace) {
+    if (a->trace_len > 0) {
         if (a->addr == Modes.leg_focus) {
             scheduleMemBothWrite(a, now);
             fprintf(stderr, "leg_focus: %06x trace len: %d\n", a->addr, a->trace_len);
@@ -854,8 +868,8 @@ static int load_aircraft(char **p, char *end, int64_t now) {
     return 0;
 }
 
-static void mark_legs(struct aircraft *a, int start) {
-    if (a->trace_len < 20)
+static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
+    if (tb.len < 20)
         return;
     if (start < 1)
         start = 1;
@@ -873,20 +887,20 @@ static void mark_legs(struct aircraft *a, int start) {
     struct state *last_leg = NULL;
     struct state *new_leg = NULL;
 
-    for (int i = start; i < a->trace_len; i++) {
-        int on_ground = a->trace[i].on_ground;
-        int altitude_valid = a->trace[i].baro_alt_valid;
-        int altitude = a->trace[i].baro_alt / _alt_factor;
+    for (int i = start; i < tb.len; i++) {
+        int on_ground = getState(tb.trace, i)->on_ground;
+        int altitude_valid = getState(tb.trace, i)->baro_alt_valid;
+        int altitude = getState(tb.trace, i)->baro_alt / _alt_factor;
 
-        if (!altitude_valid && a->trace[i].geom_alt_valid) {
+        if (!altitude_valid && getState(tb.trace, i)->geom_alt_valid) {
             altitude_valid = 1;
-            altitude = a->trace[i].geom_alt / _alt_factor;
+            altitude = getState(tb.trace, i)->geom_alt / _alt_factor;
         }
 
-        if (a->trace[i].leg_marker) {
-            a->trace[i].leg_marker = 0;
+        if (getState(tb.trace, i)->leg_marker) {
+            getState(tb.trace, i)->leg_marker = 0;
             // reset leg marker
-            last_leg = &a->trace[i];
+            last_leg = getState(tb.trace, i);
         }
 
         if (!altitude_valid)
@@ -916,7 +930,7 @@ static void mark_legs(struct aircraft *a, int start) {
     if (a->addr == Modes.leg_focus) {
         fprintf(stderr, "--------------------------\n");
         fprintf(stderr, "start: %d\n", start);
-        fprintf(stderr, "trace_len: %d\n", a->trace_len);
+        fprintf(stderr, "trace_len: %d\n", tb.len);
         fprintf(stderr, "threshold: %d\n", threshold);
     }
 
@@ -951,10 +965,10 @@ static void mark_legs(struct aircraft *a, int start) {
     five_pos = 0;
 
     int prev_tmp = start - 1;
-    for (int i = start; i < a->trace_len; i++) {
-        struct state *state = &a->trace[i];
+    for (int i = start; i < tb.len; i++) {
+        struct state *state = getState(tb.trace, i);
         int prev_index = prev_tmp;
-        struct state *prev = &a->trace[prev_index];
+        struct state *prev = getState(tb.trace, prev_index);
 
         int64_t elapsed = state->timestamp - prev->timestamp;
 
@@ -1053,8 +1067,8 @@ static void mark_legs(struct aircraft *a, int start) {
                 // then keep that time associated with the climb
                 // still report continuation of thta climb
                 if (major_climb <= major_descent) {
-                    int bla = imin(a->trace_len - 1, last_low_index + 3);
-                    major_climb = a->trace[bla].timestamp;
+                    int bla = imin(tb.len - 1, last_low_index + 3);
+                    major_climb = getState(tb.trace, bla)->timestamp;
                     major_climb_index = bla;
                 }
                 if (a->addr == Modes.leg_focus) {
@@ -1070,19 +1084,19 @@ static void mark_legs(struct aircraft *a, int start) {
                 int bla = imax(0, last_low_index - 3);
                 while(bla > 0) {
                     if (0 && a->addr == Modes.leg_focus) {
-                        fprintf(stderr, "bla: %d %d %d %d\n", bla, (int) (a->trace[bla].baro_alt / _alt_factor),
-                                a->trace[bla].baro_alt_valid,
-                                a->trace[bla].on_ground
+                        fprintf(stderr, "bla: %d %d %d %d\n", bla, (int) (getState(tb.trace, bla)->baro_alt / _alt_factor),
+                                getState(tb.trace, bla)->baro_alt_valid,
+                                getState(tb.trace, bla)->on_ground
                                );
                     }
-                    if (a->trace[bla].baro_alt_valid && !a->trace[bla].on_ground) {
+                    if (getState(tb.trace, bla)->baro_alt_valid && !getState(tb.trace, bla)->on_ground) {
                         break;
                     }
                     bla--;
                 }
                 if (bla < 0)
                     fprintf(stderr, "wat asdf bla? %d\n", bla);
-                major_descent = a->trace[bla].timestamp;
+                major_descent = getState(tb.trace, bla)->timestamp;
                 major_descent_index = bla;
                 if (a->addr == Modes.leg_focus) {
                     time_t nowish = major_descent/1000;
@@ -1123,8 +1137,8 @@ static void mark_legs(struct aircraft *a, int start) {
         int leg_float = 0;
         if (major_climb && major_descent && major_climb > major_descent + 12 * MINUTES) {
             for (int i = major_descent_index + 1; i <= major_climb_index; i++) {
-                struct state *st = &a->trace[i];
-                if (st->timestamp > a->trace[i - 1].timestamp + 5 * MINUTES
+                struct state *st = getState(tb.trace, i);
+                if (st->timestamp > getState(tb.trace, i - 1)->timestamp + 5 * MINUTES
                         && (st->on_ground || (st->baro_alt_valid && st->baro_alt / _alt_factor < max_leg_alt))) {
                     leg_float = 1;
                     if (a->addr == Modes.leg_focus)
@@ -1148,10 +1162,10 @@ static void mark_legs(struct aircraft *a, int start) {
             int64_t leg_ts = 0;
 
             if (leg_now) {
-                new_leg = &a->trace[prev_index + 1];
+                new_leg = getState(tb.trace, prev_index + 1);
                 for (int k = prev_index + 1; k < i; k++) {
-                    struct state *state = &a->trace[i];
-                    struct state *last = &a->trace[i - 1];
+                    struct state *state = getState(tb.trace, i);
+                    struct state *last = getState(tb.trace, i - 1);
 
                     if (state->timestamp > last->timestamp + 5 * 60 * 1000) {
                         new_leg = state;
@@ -1159,11 +1173,11 @@ static void mark_legs(struct aircraft *a, int start) {
                     }
                 }
             } else if (major_descent_index + 1 == major_climb_index) {
-                new_leg = &a->trace[major_climb_index];
+                new_leg = getState(tb.trace, major_climb_index);
             } else {
                 for (int i = major_climb_index; i > major_descent_index; i--) {
-                    struct state *state = &a->trace[i];
-                    struct state *last = &a->trace[i - 1];
+                    struct state *state = getState(tb.trace, i);
+                    struct state *last = getState(tb.trace, i - 1);
 
                     if (state->timestamp > last->timestamp + 5 * 60 * 1000) {
                         new_leg = state;
@@ -1173,7 +1187,7 @@ static void mark_legs(struct aircraft *a, int start) {
                 if (last_ground > major_descent) {
                     int64_t half = first_ground + (last_ground - first_ground) / 2;
                     for (int i = first_ground_index + 1; i <= last_ground_index; i++) {
-                        struct state *state = &a->trace[i];
+                        struct state *state = getState(tb.trace, i);
 
                         if (state->timestamp > half) {
                             new_leg = state;
@@ -1183,7 +1197,7 @@ static void mark_legs(struct aircraft *a, int start) {
                 } else {
                     int64_t half = major_descent + (major_climb - major_descent) / 2;
                     for (int i = major_descent_index + 1; i < major_climb_index; i++) {
-                        struct state *state = &a->trace[i];
+                        struct state *state = getState(tb.trace, i);
 
                         if (state->timestamp > half) {
                             new_leg = state;
@@ -1341,89 +1355,77 @@ static void traceUnlink(struct aircraft *a) {
     //fprintf(stderr, "unlink %06x: %s\n", a->addr, filename);
 }
 
-ssize_t stateBytes(int len) {
-    return len * sizeof(struct state);
-}
-ssize_t stateAllBytes(int len) {
-    return (len + 3) / 4 * sizeof(struct state_all);
-}
-
-void traceRealloc(struct aircraft *a, int len) {
-    if (len == 0) {
-        traceCleanup(a);
+void traceAlloc(struct aircraft *a) {
+    if (a->trace_current) {
         return;
     }
-    if (len > Modes.traceMax) {
-        len = Modes.traceMax;
-        fprintf(stderr, "Maximum trace alloc reached: %06x (%d).\n", a->addr, a->trace_alloc);
+    a->trace_current_max = imax(a->trace_current_max, (Modes.traceChunkPoints + Modes.traceReserve));
+    int alloc = stateBytes(a->trace_current_max);
+    a->trace_current = aligned_malloc(alloc);
+    if (!a->trace_current) {
+        fprintf(stderr, "FATAL: malloc fail oceiFa7d\n");
+        exit(1);
+    }
+    memset(a->trace_current, 0x0, alloc);
+}
+
+static void resizeTraceChunks(struct aircraft *a, int newLen) {
+    if (newLen == 0) {
+        sfree(a->trace_chunks);
+        a->trace_chunk_len = 0;
+        return;
     }
 
-    a->trace = realloc(a->trace, stateBytes(len));
-    a->trace_all = realloc(a->trace_all, stateAllBytes(len));
+    int oldLen = a->trace_chunk_len;
 
-    a->trace_alloc = len;
+    int newBytes = newLen* sizeof(stateChunk);
+    int oldBytes = oldLen* sizeof(stateChunk);
 
-    if (!a->trace || !a->trace_all) {
-        fprintf(stderr, "FATAL: Could not allocate memory: %06x (trace_alloc %d).\n", a->addr, a->trace_alloc);
+    stateChunk *new = malloc(newBytes);
+    if (!new) {
+        fprintf(stderr, "malloc fail: yeiPho0va\n");
         exit(1);
+    } else {
+        if (newBytes < oldBytes) {
+            memcpy(new, a->trace_chunks + (oldBytes - newBytes), newBytes);
+        } else {
+            memcpy(new, a->trace_chunks, oldBytes);
+        }
+        sfree(a->trace_chunks);
+        a->trace_chunks = new;
+        a->trace_chunk_len = newLen;
     }
 }
 
 static void tracePrune(struct aircraft *a, int64_t now) {
-    if (a->trace_alloc == 0) {
-        return;
-    }
-    if (a->trace_len == 0) { // this shouldn't ever trigger
+    if (a->trace_len == 0) {
         traceCleanup(a);
         return;
     }
 
     int64_t keep_after = now - Modes.keep_traces;
 
-    int new_start = -1;
-    // throw out oldest values if approaching max trace size
-    if (a->trace_len + Modes.traceReserve >= Modes.traceMax) {
-        fprintf(stderr, "<3>%06x: Truncating oldest data due to insufficient Modes.traceMax: trace_len %d Modes.traceMax %d\n",
-                a->addr, a->trace_len, Modes.traceMax);
-        new_start = Modes.traceMax / 64 + 2 * Modes.traceReserve;
-    } else if (a->trace->timestamp < keep_after - imin(Modes.keep_traces, 30 * MINUTES))  {
-        new_start = a->trace_len;
-        for (int i = 0; i < a->trace_len; i++) {
-            struct state *state = &a->trace[i];
-            if (state->timestamp > keep_after) {
-                new_start = i;
-                break;
-            }
+    int deletedChunks = 0;
+
+    for (int k = 0; k < a->trace_chunk_len; k++) {
+        stateChunk *chunk = &a->trace_chunks[k];
+        if (chunk->lastTimestamp >= keep_after) {
+            break;
         }
+
+        deletedChunks++;
+        a->trace_len -= chunk->numStates;
+
+        sfree(chunk->compressed);
     }
 
-    if (new_start != -1) {
+    if (deletedChunks > 0) {
+        fprintf(stderr, "%06x deleting %d chunks\n", a->addr, deletedChunks);
+        resizeTraceChunks(a, a->trace_chunk_len - deletedChunks);
+    }
 
-        if (new_start >= a->trace_len) {
-            traceCleanup(a);
-            // if the trace length was reduced to zero, the trace is deleted from run
-            // it is not written again until a new position is received
-            return;
-        }
-
-        // make sure we keep state and state_all together
-        new_start -= (new_start % 4);
-
-        if (new_start % 4 != 0)
-            fprintf(stderr, "not divisible by 4: %d %d\n", new_start, a->trace_len);
-
-
-        a->trace_len -= new_start;
-
-        // carry over buffered position as well if present
-        int len = a->trace_len + (a->tracePosBuffered ? 1 : 0);
-
-        memmove(a->trace, a->trace + new_start, stateBytes(len));
-        memmove(a->trace_all, a->trace_all + stateAllBytes(new_start) / sizeof(struct state_all), stateAllBytes(len));
-
-        // invalidate traceCache
-        free(a->traceCache);
-        a->traceCache = NULL;
+    if (getState(a->trace_current, a->trace_current_len - 1)->timestamp < keep_after) {
+        traceCleanup(a);
     }
 }
 
@@ -1432,6 +1434,7 @@ int traceUsePosBuffered(struct aircraft *a) {
         a->tracePosBuffered = 0;
         // bookkeeping:
         a->trace_len++;
+        a->trace_current_len++;
         a->trace_write |= WRECENT;
         a->trace_writeCounter++;
         return 1;
@@ -1440,56 +1443,210 @@ int traceUsePosBuffered(struct aircraft *a) {
     }
 }
 
-void traceCleanup(struct aircraft *a) {
-    free(a->trace);
-    free(a->trace_all);
+static void destroyTraceCache(struct traceCache *cache) {
+    sfree(cache->entries);
+    memset(cache, 0x0, sizeof(struct traceCache));
+}
+
+static void traceCleanupNoUnlink(struct aircraft *a) {
+    if (a->trace_chunks) {
+        for (int k = 0; k < a->trace_chunk_len; k++) {
+            sfree(a->trace_chunks[k].compressed);
+        }
+    }
+    sfree(a->trace_current);
+    sfree(a->trace_chunks);
 
     a->tracePosBuffered = 0;
     a->trace_len = 0;
-    a->trace_alloc = 0;
-    a->trace = NULL;
-    a->trace_all = NULL;
+    a->trace_current_len = 0;
+    a->trace_current_max = 0;
 
-    free(a->traceCache);
-    a->traceCache = NULL;
-
-    traceUnlink(a);
+    destroyTraceCache(&a->traceCache);
 }
 
-static int getTraceGrow(int len) {
-    int growTo = len * 8 / 6 + Modes.traceReserve;
-    int limit = len + 32 * Modes.traceReserve;
-    if (growTo > limit) {
-        growTo = limit;
+void traceCleanup(struct aircraft *a) {
+    if (a->trace_current || a->trace_len) {
+        traceUnlink(a);
     }
-    return growTo;
+    traceCleanupNoUnlink(a);
 }
+
+// reconstruct at least the last numPoints points from trace chunks / current_trace
+// numPoints < 0 => all data / whole trace
+static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t after_timestamp, unsigned char *stackBuffer, ssize_t stackBufferSize) {
+    int firstChunk = 0;
+
+    int currentLen = a->trace_current_len;
+    int allocLen = currentLen;
+
+    if (numPoints >= 0) {
+        firstChunk = a->trace_chunk_len;
+        for (int k = a->trace_chunk_len - 1; k >= 0 && allocLen < numPoints; k--) {
+            stateChunk *chunk = &a->trace_chunks[k];
+            allocLen += chunk->numStates;
+            firstChunk = k;
+        }
+    } else if (after_timestamp > 0) {
+        firstChunk = a->trace_chunk_len;
+        for (int k = a->trace_chunk_len - 1; k >= 0; k--) {
+            stateChunk *chunk = &a->trace_chunks[k];
+            if (after_timestamp > chunk->lastTimestamp) {
+                break;
+            }
+            allocLen += chunk->numStates;
+            firstChunk = k;
+        }
+    } else {
+        for (int k = 0; k < a->trace_chunk_len; k++) {
+            stateChunk *chunk = &a->trace_chunks[k];
+            allocLen += chunk->numStates;
+        }
+    }
+
+    traceBuffer tb = { 0 };
+
+    ssize_t allocBytes = stateBytes(allocLen);
+    if (stackBufferSize >= allocBytes) {
+        tb.free = 1;
+        tb.trace = malloc(stateBytes(allocLen));
+        if (!tb.trace) { fprintf(stderr, "malloc fail: meehee7I\n"); exit(1); }
+    } else {
+        tb.free = 0;
+        tb.trace = (fourState *) stackBuffer;
+    }
+
+    fourState *tp = tb.trace;
+
+
+    int actual_len = 0;
+    for (int k = firstChunk; k < a->trace_chunk_len; k++) {
+        stateChunk *chunk = &a->trace_chunks[k];
+        actual_len += chunk->numStates;
+        if (actual_len > allocLen) { fprintf(stderr, "remakeTrace buffer overflow, bailing eex5ioBu\n"); exit(1); }
+
+        lzo_uint uncompressed_len = stateBytes(chunk->numStates);
+
+        //fprintf(stderr, "reassembleTrace(%06x %d %ld): chunk %d trace_chunk_len %d compressed_size %d uncompressed_size %d outAlloc %d allocLen %d numStates %d trace_current_len %d\n",
+        //        a->addr, numPoints, (long) after_timestamp, k, a->trace_chunk_len,
+        //        chunk->compressed_size, (int) uncompressed_len, (int) stateBytes(allocLen), allocLen, (int) chunk->numStates, currentLen);
+
+        int res = lzo1x_decompress_safe(chunk->compressed, chunk->compressed_size, (unsigned char*) tp, &uncompressed_len, NULL);
+
+        //fprintf(stderr, "reassembleTrace(%06x %d %ld): chunk %d trace_chunk_len %d compressed_size %d uncompressed_size %d outAlloc %d allocLen %d numStates %d trace_current_len %d\n",
+        //        a->addr, numPoints, (long) after_timestamp, k, a->trace_chunk_len,
+        //        chunk->compressed_size, (int) uncompressed_len, (int) stateBytes(allocLen), allocLen, (int) chunk->numStates, currentLen);
+
+        if (res != LZO_E_OK) {
+            fprintf(stderr, "reassembleTrace(%06x %d %ld): decompress failure chunk %d trace_chunk_len %d compressed_size %d uncompressed_size %d\n",
+                    a->addr, numPoints, (long) after_timestamp, k, a->trace_chunk_len,
+                    chunk->compressed_size, (int) uncompressed_len);
+            if (tb.free)
+                sfree(tb.trace);
+            tb.len = 0;
+            traceCleanup(a);
+            return tb;
+        }
+
+        tp += getFourStates(chunk->numStates);
+    }
+
+    actual_len += currentLen;
+
+    if (actual_len > allocLen) { fprintf(stderr, "remakeTrace buffer overflow, bailing eex5ioBu with actual_len %d allocLen %d\n", actual_len, allocLen); exit(1); }
+
+    memcpy(tp, a->trace_current, stateBytes(currentLen));
+    // tp is not incremented here as it's not used anymore after this.
+    tb.len = actual_len;
+    return tb;
+}
+
+static void compressChunk(stateChunk *target, fourState *source, int pointCount) {
+    target->numStates = pointCount;
+    int chunkBytes = stateBytes(pointCount);
+    int lzo_out_alloc = chunkBytes + chunkBytes / 16 + 64 + 3; // from mini lzo example
+    unsigned char *lzo_work = malloc(LZO1X_1_MEM_COMPRESS);
+    unsigned char *lzo_out = malloc(lzo_out_alloc);
+    if (!lzo_out) { fprintf(stderr, "malloc fail: ieshee7G\n"); exit(1); }
+
+    lzo_uint compressed_len = 0;
+    //lzo1x_1_compress        ( const lzo_bytep src, lzo_uint  src_len, lzo_bytep dst, lzo_uintp dst_len, lzo_voidp wrkmem );
+    int res = lzo1x_1_compress((unsigned char *) source, chunkBytes, lzo_out, &compressed_len, lzo_work);
+
+    if (res != LZO_E_OK) { fprintf(stderr, "lzo1x_1_compress error Theij8ah\n"); exit(1); }
+
+    target->compressed_size = compressed_len;
+
+    target->compressed = malloc(target->compressed_size);
+    if (!target->compressed) { fprintf(stderr, "malloc fail: ieshee7G\n"); exit(1); }
+
+    memcpy(target->compressed, lzo_out, target->compressed_size);
+    sfree(lzo_out);
+    sfree(lzo_work);
+}
+
+
+static void setTrace(struct aircraft *a, fourState *source, int len) {
+    if (len == 0) {
+        traceCleanup(a);
+        return;
+    }
+
+    fprintf(stderr, "%06x setTrace\n", a->addr);
+
+    traceCleanupNoUnlink(a);
+
+
+    traceAlloc(a);
+
+    fourState *p = source;
+    int chunkSize = Modes.traceChunkPoints;
+    while (len > chunkSize) {
+        resizeTraceChunks(a, a->trace_chunk_len + 1);
+        stateChunk *new = &a->trace_chunks[a->trace_chunk_len - 1];
+
+        new->numStates = chunkSize;
+        new->firstTimestamp = getState(p, 0)->timestamp;
+        new->lastTimestamp = getState(p, chunkSize - 1)->timestamp;
+
+        compressChunk(new, p, chunkSize);
+
+        len -= new->numStates;
+    }
+
+    a->trace_current_len = len;
+    memcpy(a->trace_current, p, stateBytes(len));
+
+    int64_t now = mstime();
+    traceMaintenance(a, now);
+    scheduleMemBothWrite(a, now);
+}
+
 
 void traceMaintenance(struct aircraft *a, int64_t now) {
-    if (!a->trace_alloc)
-        return;
+    // free trace cache for inactive aircraft
+    if (a->traceCache.entries && now - a->seen_pos > TRACE_CACHE_LIFETIME) {
+        //fprintf(stderr, "%06x free traceCache\n", a->addr);
+        destroyTraceCache(&a->traceCache);
+    }
 
     //fprintf(stderr, "%06x\n", a->addr);
 
+    if (!a->trace_current) {
+        return;
+    }
     // throw out old data if older than keep_trace or trace is getting full
     tracePrune(a, now);
 
-    // if tracePrune deletes a trace, alloc becomes zero and we don't need to do any more
-    if (!a->trace_alloc)
+    if (!a->trace_current) {
         return;
+    }
 
     if (Modes.json_globe_index) {
         if (now > a->trace_next_perm)
             a->trace_write |= WPERM;
         if (now > a->trace_next_mw)
             a->trace_write |= WMEM;
-    }
-
-    // free trace cache for inactive aircraft
-    if (a->traceCache && now - a->seen_pos > TRACE_CACHE_LIFETIME) {
-        //fprintf(stderr, "%06x free traceCache\n", a->addr);
-        free(a->traceCache);
-        a->traceCache = NULL;
     }
 
     // on day change write out the traces for yesterday
@@ -1502,38 +1659,26 @@ void traceMaintenance(struct aircraft *a, int64_t now) {
         a->trace_next_perm = now + random() % (5 * MINUTES);
     }
 
-    int oldAlloc = a->trace_alloc;
+    int chunkPoints = Modes.traceChunkPoints;
 
-    int newAlloc = -1;
+    if (a->trace_current_len >= chunkPoints + Modes.traceReserve / 4) {
+        resizeTraceChunks(a, a->trace_chunk_len + 1);
 
-    // shrink allocation if necessary
-    int shrink = 0;
-    int shrinkTo = a->trace_len + 2 * Modes.traceReserve;
-    if (a->trace_len && getTraceGrow(shrinkTo) + Modes.traceReserve < a->trace_alloc) {
-        newAlloc = shrinkTo;
-        shrink = 1;
+        stateChunk *new = &a->trace_chunks[a->trace_chunk_len - 1];
+
+        new->numStates = chunkPoints;
+        new->firstTimestamp = getState(a->trace_current, 0)->timestamp;
+        new->lastTimestamp = getState(a->trace_current, chunkPoints - 1)->timestamp;
+
+        compressChunk(new, a->trace_current, chunkPoints);
+        if (Modes.verbose) {
+            fprintf(stderr, "%06x compressChunk: compressed_size: %d trace_chunk_len %d compression ratio %.2f\n",
+                    a->addr, new->compressed_size, a->trace_chunk_len, stateBytes(chunkPoints) / (double) new->compressed_size);
+        }
+
+        a->trace_current_len -= chunkPoints;
+        memmove(a->trace_current, a->trace_current + getFourStates(chunkPoints), stateBytes(a->trace_current_max) - stateBytes(chunkPoints));
     }
-
-    // grow allocation if necessary
-    int grow = 0;
-    if (a->trace_len + Modes.traceReserve >= a->trace_alloc) {
-        newAlloc = getTraceGrow(a->trace_alloc);
-        grow = 1;
-    }
-    if (Modes.debug_traceAlloc && newAlloc >= 0) {
-        char *grow = "  grow";
-        if (newAlloc < oldAlloc)
-            grow = "shrink";
-
-        fprintTime(stderr, now);
-        fprintf(stderr, " %s%06x %s: trace_len: %8d traceRealloc: %8d -> %8d\n",
-                nonIcaoSpace(a), a->addr, grow, a->trace_len, oldAlloc, newAlloc);
-    }
-
-    if (newAlloc >= 0 && !(shrink && grow)) {
-        traceRealloc(a, newAlloc);
-    }
-
 }
 
 
@@ -1574,13 +1719,6 @@ int traceAdd(struct aircraft *a, int64_t now, int stale) {
         min_elapsed += 60 * SECONDS;
     }
 
-    for (int i = imax(0, a->trace_len - 6); i < a->trace_len; i++) {
-        if ( (int32_t) (a->lat * 1E6) == a->trace[i].lat
-                && (int32_t) (a->lon * 1E6) == a->trace[i].lon ) {
-            return 0;
-        }
-    }
-
     int on_ground = 0;
     float track = a->track;
     if (!trackVState(now, &a->track_valid, &a->pos_reliable_valid)) {
@@ -1600,10 +1738,10 @@ int traceAdd(struct aircraft *a, int64_t now, int stale) {
         }
     }
 
-    if (a->trace_len == 0 )
+    if (a->trace_current_len == 0 )
         goto save_state;
 
-    struct state *last = &(a->trace[a->trace_len-1]);
+    struct state *last = getState(a->trace_current, a->trace_current_len - 1);
 
     if (now >= last->timestamp)
         elapsed = now - last->timestamp;
@@ -1611,7 +1749,7 @@ int traceAdd(struct aircraft *a, int64_t now, int stale) {
     struct state *buffered = NULL;
 
     if (a->tracePosBuffered) {
-        buffered = &(a->trace[a->trace_len]);
+        buffered = getState(a->trace_current, a->trace_current_len);
         elapsed_buffered = (int64_t) buffered->timestamp - (int64_t) last->timestamp;
     }
 
@@ -1802,33 +1940,29 @@ no_save_state:
         return 0;
     }
 
-    if (!a->trace || !a->trace_len) {
-        // allocate trace memory
-        traceRealloc(a, 2 * Modes.traceReserve);
-        a->trace->timestamp = now;
+    if (!a->trace_current) {
+        traceAlloc(a);
         scheduleMemBothWrite(a, now); // rewrite full history file
         a->trace_next_perm = now + GLOBE_PERM_IVAL / 2; // schedule perm write
 
         //fprintf(stderr, "%06x: new trace\n", a->addr);
     }
-    if (a->trace_len + 2 >= a->trace_alloc) {
+    if (a->trace_current_len + 2 >= a->trace_current_max) {
         static int64_t antiSpam;
         if (Modes.debug_traceAlloc || now > antiSpam + 5 * SECONDS) {
-            fprintf(stderr, "<3>%06x: trace_alloc insufficient: trace_len %d trace_alloc %d\n",
-                    a->addr, a->trace_len, a->trace_alloc);
+            fprintf(stderr, "<3>%06x: trace_current insufficient\n", a->addr);
             antiSpam = now;
         }
         return 0;
     }
 
-    struct state *new = &(a->trace[a->trace_len]);
+    struct state *new = getState(a->trace_current, a->trace_current_len);
 
     to_state(a, new, now, on_ground, track);
 
     // trace_all stuff:
-    if (a->trace_len % 4 == 0) {
-        struct state_all *new_all = &(a->trace_all[a->trace_len/4]);
-
+    struct state_all *new_all = getStateAll(a->trace_current, a->trace_current_len);
+    if (new_all) {
         to_state_all(a, new_all, now);
     }
 
@@ -1837,6 +1971,7 @@ no_save_state:
         a->tracePosBuffered = 0;
         // bookkeeping:
         a->trace_len++;
+        a->trace_current_len++;
         a->trace_write |= WRECENT;
         a->trace_writeCounter++;
     } else {
@@ -1849,7 +1984,7 @@ no_save_state:
 }
 
 static int state_chunk_size() {
-    return imax(16 * 1024 * 1024, (stateBytes(Modes.traceMax) + stateAllBytes(Modes.traceMax)));
+    return 8 * 1024 * 1024;
 }
 
 void save_blob(int blob) {
@@ -1918,18 +2053,19 @@ void save_blob(int blob) {
 
     for (int j = start; j < end; j++) {
         for (struct aircraft *a = Modes.aircraft[j]; a || (j == end - 1); a = a->next) {
-            int trace_len = 0;
             int size_state = 0;
-            int size_all = 0;
             if (a) {
                 traceUsePosBuffered(a); // use buffered position for saving state
-
-                trace_len = a->trace_len;
-                size_state = stateBytes(trace_len);
-                size_all = stateAllBytes(trace_len);
+                size_state += sizeof(struct aircraft);
+                for (int k = 0; k < a->trace_chunk_len; k++) {
+                    stateChunk *chunk = &a->trace_chunks[k];
+                    size_state += sizeof(stateChunk);
+                    size_state += roundUp8(chunk->compressed_size);
+                }
+                size_state += stateBytes(a->trace_current_len);
             }
 
-            if (!a || (p + 2 * sizeof(uint64_t) + size_state + size_all + sizeof(struct aircraft) >= buf + alloc)) {
+            if (!a || (p + 2 * sizeof(uint64_t) + size_state >= buf + alloc)) {
                 //fprintf(stderr, "save_blob writing %d KB (buffer)\n", (int) ((p - buf) / 1024));
 
                 uint64_t magic_end = STATE_SAVE_MAGIC_END;
@@ -1964,22 +2100,23 @@ void save_blob(int blob) {
                 break;
             }
 
-            memcpy(p, &magic, sizeof(magic));
-            p += sizeof(magic);
+            p += memcpySize(p, &magic, sizeof(magic));
 
-            if (p + size_state + size_all + sizeof(struct aircraft) >= buf + alloc) {
+            if (p + size_state >= buf + alloc) {
                 fprintf(stderr, "%06x: Couldn't write internal state, check save_blob code!\n", a->addr);
             } else {
-                memcpy(p, a, sizeof(struct aircraft));
-                struct aircraft *b = (struct aircraft *) p;
-                b->trace_len = trace_len; // correct trace_len for buffered position
-                b->tracePosBuffered = 0;
-                p += sizeof(struct aircraft);
-                if (trace_len > 0) {
-                    memcpy(p, a->trace, size_state);
-                    p += size_state;
-                    memcpy(p, a->trace_all, size_all);
-                    p += size_all;
+                p += memcpySize(p, a, sizeof(struct aircraft));
+                if (a->trace_len > 0) {
+                    for (int k = 0; k < a->trace_chunk_len; k++) {
+                        stateChunk *chunk = &a->trace_chunks[k];
+                        p += memcpySize(p, chunk, sizeof(stateChunk));
+
+                        p += memcpySize(p, chunk->compressed, chunk->compressed_size);
+                        ssize_t padBytes = roundUp8(chunk->compressed_size) - chunk->compressed_size;
+                        memset(p, 0x0, padBytes);
+                        p += padBytes;
+                    }
+                    p += memcpySize(p, a->trace_current, stateBytes(a->trace_current_len));
                 }
             }
         }
@@ -2019,7 +2156,6 @@ static void load_blobs(void *arg) {
 }
 
 static int load_aircrafts(char *p, char *end, char *filename, int64_t now) {
-    uint64_t magic = STATE_SAVE_MAGIC;
     int count = 0;
     while (end - p > 0) {
         uint64_t value = 0;
@@ -2028,8 +2164,8 @@ static int load_aircrafts(char *p, char *end, char *filename, int64_t now) {
             p += sizeof(value);
         }
 
-        if (value != magic) {
-            if (value != magic - 1) {
+        if (value != STATE_SAVE_MAGIC) {
+            if (value != STATE_SAVE_MAGIC_END) {
                 fprintf(stderr, "Incomplete state file: %s\n", filename);
                 return -1;
             }
@@ -2199,25 +2335,27 @@ int handleHeatmap(int64_t now) {
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
             if ((a->addr & MODES_NON_ICAO_ADDRESS) && a->airground == AG_GROUND) continue;
             if (a->trace_len == 0) continue;
+            unsigned char stackBuffer[REASSEMBLE_STACK_BUFFER];
 
-            struct state *trace = a->trace;
+            traceBuffer tb = reassembleTrace(a, -1, start, stackBuffer, sizeof(stackBuffer));
             int64_t next = start;
             int64_t slice = 0;
             uint32_t squawk = 0x8888; // impossible squawk
             uint64_t callsign = 0; // quackery
 
             int64_t callsign_interval = imax(Modes.heatmap_interval, 1 * MINUTES);
-            int64_t next_callsign = start - callsign_interval;
+            int64_t next_callsign = start;
 
-            for (int i = 0; i < a->trace_len; i++) {
-                if (trace[i].timestamp > end)
+            for (int i = 0; i < tb.len; i++) {
+                struct state *state = getState(tb.trace, i);
+                if (state->timestamp > end)
                     break;
-                if (trace[i].timestamp >= start - callsign_interval && i % 4 == 0) {
-                    struct state_all *all = &(a->trace_all[i/4]);
+                struct state_all *all = getStateAll(tb.trace, i);
+                if (state->timestamp >= start && all) {
                     uint64_t *cs = (uint64_t *) &(all->callsign);
-                    if (trace[i].timestamp >= next_callsign || *cs != callsign || squawk != all->squawk) {
+                    if (state->timestamp >= next_callsign || *cs != callsign || squawk != all->squawk) {
 
-                        next_callsign = trace[i].timestamp + callsign_interval;
+                        next_callsign = state->timestamp + callsign_interval;
                         callsign = *cs;
                         squawk = all->squawk;
 
@@ -2237,35 +2375,35 @@ int handleHeatmap(int64_t now) {
                         heatmapCheckAlloc(&buffer, &slices, &alloc, len);
                     }
                 }
-                if (trace[i].timestamp < next)
+                if (state->timestamp < next)
                     continue;
 
-                if (!trace[i].baro_alt_valid && !trace[i].geom_alt_valid)
+                if (!state->baro_alt_valid && !state->geom_alt_valid)
                     continue;
 
-                while (trace[i].timestamp > next + Modes.heatmap_interval) {
+                while (state->timestamp > next + Modes.heatmap_interval) {
                     next += Modes.heatmap_interval;
                     slice++;
                 }
 
-                uint32_t addrtype_5bits = ((uint32_t) trace[i].addrtype) & 0x1F;
+                uint32_t addrtype_5bits = ((uint32_t) state->addrtype) & 0x1F;
 
                 buffer[len].hex = a->addr | (addrtype_5bits << 27);
-                buffer[len].lat = trace[i].lat;
-                buffer[len].lon = trace[i].lon;
+                buffer[len].lat = state->lat;
+                buffer[len].lon = state->lon;
 
                 // altitude encoded in steps of 25 ft ... file convention
-                if (trace[i].on_ground)
+                if (state->on_ground)
                     buffer[len].alt = -123; // on ground
-                else if (trace[i].baro_alt_valid)
-                    buffer[len].alt = nearbyint(trace[i].baro_alt / (_alt_factor * 25.0f));
-                else if (trace[i].geom_alt_valid)
-                    buffer[len].alt = nearbyint(trace[i].geom_alt / (_alt_factor * 25.0f));
+                else if (state->baro_alt_valid)
+                    buffer[len].alt = nearbyint(state->baro_alt / (_alt_factor * 25.0f));
+                else if (state->geom_alt_valid)
+                    buffer[len].alt = nearbyint(state->geom_alt / (_alt_factor * 25.0f));
                 else
                     buffer[len].alt = 0;
 
-                if (trace[i].gs_valid)
-                    buffer[len].gs = nearbyint(trace[i].gs / _gs_factor * 10.0f);
+                if (state->gs_valid)
+                    buffer[len].gs = nearbyint(state->gs / _gs_factor * 10.0f);
                 else
                     buffer[len].gs = -1; // invalid
 
@@ -2278,6 +2416,9 @@ int handleHeatmap(int64_t now) {
                 slice++;
 
             }
+            // free reassembled trace
+            if (tb.free)
+                sfree(tb.trace);
         }
     }
 
@@ -2654,43 +2795,57 @@ void readInternalState() {
 }
 
 void traceDelete() {
+
     struct hexInterval* entry = Modes.deleteTrace;
     while (entry) {
         struct hexInterval* curr = entry;
-
         struct aircraft *a = aircraftGet(curr->hex);
-        if (!a || !a->trace)
+        if (!a || a->trace_len == 0)
             continue;
 
         traceUsePosBuffered(a);
 
-        int i = 0;
+        unsigned char stackBuffer[REASSEMBLE_STACK_BUFFER];
+
+        traceBuffer tb = reassembleTrace(a, -1, -1, stackBuffer, sizeof(stackBuffer));
+        fourState *trace = tb.trace;
+        int trace_len = tb.len;
+
         int start = 0;
-        int end = a->trace_len;
-        for (; i < a->trace_len; i++) {
-            if (a->trace[i].timestamp <= curr->from * 1000) {
+        int end = trace_len; // exclusive
+
+        int64_t from = curr->from * 1000;
+        int64_t to = curr->to * 1000;
+
+        for (int i = 0; i < trace_len; i++) {
+            int64_t timestamp = getState(trace, i)->timestamp;
+            if (timestamp <= from) {
                 start = i;
-            } else {
-                break;
             }
-        }
-        for (; i < a->trace_len; i++) {
-            if (a->trace[i].timestamp >= curr->to * 1000) {
+            if (timestamp > to) {
                 end = i;
                 break;
             }
         }
-        // align to a multiple of 4
-        start = start / 4 * 4;
-        end = imin(a->trace_len, ((end / 4) + 1) * 4);
-        if (end >= a->trace_len) {
-            a->trace_len = start;
+
+        // align to fourState, delete whole fourState tuple if stuff we want to delete is contained
+        start = start / SFOUR; // round down
+        end = (end + SFOUR - 1) / SFOUR;
+
+        // end points past the last point to be deleted
+        if (end >= (int)(stateBytes(trace_len) / sizeof(fourState))) {
+            end = stateBytes(trace_len) / sizeof(fourState);
         } else {
-            memmove(a->trace + start, a->trace + end, stateBytes(end - start));
+            memmove(trace + start, trace + end, (end - start) * sizeof(fourState));
         }
-        int64_t now = mstime();
-        traceMaintenance(a, now);
-        scheduleMemBothWrite(a, now);
+
+        trace_len -= (end - start) * SFOUR;
+
+        setTrace(a, trace + start, trace_len);
+        // free reassembled trace
+        if (tb.free)
+            sfree(tb.trace);
+
         entry = entry->next;
         fprintf(stderr, "Deleted %06x from %lld to %lld\n", curr->hex, (long long) curr->from, (long long) curr->to);
         sfree(curr);

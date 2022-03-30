@@ -24,6 +24,8 @@
 #ifndef JSON_OUT_H
 #define JSON_OUT_H
 
+typedef struct traceBuffer traceBuffer;
+
 int includeAircraftJson(int64_t now, struct aircraft *a);
 
 void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, int64_t now);
@@ -36,7 +38,7 @@ struct char_buffer generateAircraftJson(int64_t onlyRecent);
 struct char_buffer generateAircraftBin();
 struct char_buffer generateGlobeBin(int globe_index, int mil);
 struct char_buffer generateGlobeJson(int globe_index);
-struct char_buffer generateTraceJson(struct aircraft *a, int start, int last);
+struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int start, int last);
 struct char_buffer generateReceiverJson ();
 struct char_buffer generateHistoryJson ();
 struct char_buffer generateClientsJson();
