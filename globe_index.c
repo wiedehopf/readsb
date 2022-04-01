@@ -1573,7 +1573,7 @@ static void compressChunk(stateChunk *target, fourState *source, int pointCount)
     target->numStates = pointCount;
     int chunkBytes = stateBytes(pointCount);
     int lzo_out_alloc = chunkBytes + chunkBytes / 16 + 64 + 3; // from mini lzo example
-    unsigned char *lzo_work = malloc(LZO1X_1_MEM_COMPRESS);
+    unsigned char lzo_work[LZO1X_1_MEM_COMPRESS];
     unsigned char *lzo_out = malloc(lzo_out_alloc);
     if (!lzo_out) { fprintf(stderr, "malloc fail: ieshee7G\n"); exit(1); }
 
@@ -1590,7 +1590,6 @@ static void compressChunk(stateChunk *target, fourState *source, int pointCount)
 
     memcpy(target->compressed, lzo_out, target->compressed_size);
     sfree(lzo_out);
-    sfree(lzo_work);
 }
 
 
@@ -2060,10 +2059,9 @@ void save_blob(int blob) {
     int lzo_out_alloc = alloc + alloc / 16 + 64 + 3; // from mini lzo example
     lzo_uint compressed_len = 0;
     unsigned char *lzo_out = NULL;
-    unsigned char *lzo_work = NULL;
+    unsigned char lzo_work[LZO1X_1_MEM_COMPRESS];
     if (lzo) {
         lzo_out = aligned_malloc(lzo_out_alloc);
-        lzo_work = aligned_malloc(LZO1X_1_MEM_COMPRESS);
     }
 
     for (int j = start; j < end; j++) {
@@ -2158,7 +2156,6 @@ out:
 
     if (lzo) {
         free(lzo_out);
-        free(lzo_work);
     }
     free(buf);
 }
