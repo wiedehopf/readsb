@@ -6,7 +6,7 @@
 static void mark_legs(traceBuffer tb, struct aircraft *a, int start);
 static void load_blob(int blob);
 static void traceCleanupNoUnlink(struct aircraft *a);
-static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t after_timestamp, unsigned char *stackBuffer, ssize_t stackBufferSize);
+static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t after_timestamp, fourState *stackBuffer, ssize_t stackBufferSize);
 
 void init_globe_index() {
     struct tile *s_tiles = Modes.json_globe_special_tiles = aligned_malloc(GLOBE_SPECIAL_INDEX * sizeof(struct tile));
@@ -476,7 +476,7 @@ void traceWrite(struct aircraft *a, int64_t now, int init) {
         trace_write &= hist_only_mask;
     }
     traceBuffer tb = { 0 };
-    unsigned char stackBuffer[REASSEMBLE_STACK_BUFFER];
+    fourState stackBuffer[QUARTER_STACK / sizeof(fourState)];
 
     if ((trace_write & (WPERM | WMEM))) {
         tb = reassembleTrace(a, -1, -1, stackBuffer, sizeof(stackBuffer));
@@ -501,6 +501,7 @@ void traceWrite(struct aircraft *a, int64_t now, int init) {
         }
     }
 
+    ALIGNED char stackBuffer2[QUARTER_STACK];
 
     if ((trace_write & WRECENT)) {
         int start_recent = tb.len - recent_points;
@@ -511,8 +512,9 @@ void traceWrite(struct aircraft *a, int64_t now, int init) {
             mark_legs(tb, a, imax(0, tb.len - 4 * recent_points));
         }
 
+
         // prepare the data for the trace_recent file in /run
-        recent = generateTraceJson(a, tb, start_recent, -2);
+        recent = generateTraceJson(a, tb, start_recent, -2, stackBuffer2, sizeof(stackBuffer2));
 
         //if (Modes.debug_traceCount && ++count2 % 1000 == 0)
         //    fprintf(stderr, "recent trace write: %u\n", count2);
@@ -536,7 +538,7 @@ void traceWrite(struct aircraft *a, int64_t now, int init) {
 
             mark_legs(tb, a, 0);
 
-            full = generateTraceJson(a, tb, startFull, -1);
+            full = generateTraceJson(a, tb, startFull, -1, NULL, 0);
         }
 
         if (a->trace_writeCounter >= 0xc0ffee) {
@@ -601,7 +603,7 @@ void traceWrite(struct aircraft *a, int64_t now, int init) {
                     && a->trace_perm_last_timestamp != endStamp
                ) {
                 mark_legs(tb, a, 0);
-                hist = generateTraceJson(a, tb, start, end);
+                hist = generateTraceJson(a, tb, start, end, NULL, 0);
                 if (hist.len > 0) {
                     permWritten = 1;
                     char tstring[100];
@@ -611,7 +613,8 @@ void traceWrite(struct aircraft *a, int64_t now, int init) {
                     filename[PATH_MAX - 101] = 0;
 
                     writeJsonToGzip(Modes.globe_history_dir, filename, hist, 9);
-                    free(hist.buffer);
+                    if (hist.free)
+                        free(hist.buffer);
 
                     // note what we have written to disk
                     a->trace_perm_last_timestamp = endStamp;
@@ -628,14 +631,16 @@ void traceWrite(struct aircraft *a, int64_t now, int init) {
         snprintf(filename, 256, "traces/%02x/trace_recent_%s%06x.json", a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
 
         writeJsonToGzip(Modes.json_dir, filename, recent, 1);
-        free(recent.buffer);
+        if (recent.free)
+            free(recent.buffer);
     }
 
     if (full.len > 0) {
         snprintf(filename, 256, "traces/%02x/trace_full_%s%06x.json", a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
 
         writeJsonToGzip(Modes.json_dir, filename, full, 7);
-        free(full.buffer);
+        if (full.free)
+            free(full.buffer);
     }
 
     if (Modes.debug_traceCount) {
@@ -863,6 +868,9 @@ static int load_aircraft(char **p, char *end, int64_t now) {
     if (a->onActiveList) {
         a->onActiveList = 1;
         ca_add(&Modes.aircraftActive, a);
+    }
+    if (a->trace_current) {
+        traceMaintenance(a, now);
     }
 
     return 0;
@@ -1474,7 +1482,7 @@ void traceCleanup(struct aircraft *a) {
 
 // reconstruct at least the last numPoints points from trace chunks / current_trace
 // numPoints < 0 => all data / whole trace
-static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t after_timestamp, unsigned char *stackBuffer, ssize_t stackBufferSize) {
+static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t after_timestamp, fourState *stackBuffer, ssize_t stackBufferSize) {
     int firstChunk = 0;
 
     int currentLen = a->trace_current_len;
@@ -1507,13 +1515,13 @@ static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t af
     traceBuffer tb = { 0 };
 
     ssize_t allocBytes = stateBytes(allocLen);
-    if (stackBufferSize >= allocBytes) {
-        tb.free = 1;
-        tb.trace = malloc(stateBytes(allocLen));
-        if (!tb.trace) { fprintf(stderr, "malloc fail: meehee7I\n"); exit(1); }
-    } else {
+    if (allocBytes <= stackBufferSize) {
         tb.free = 0;
-        tb.trace = (fourState *) stackBuffer;
+        tb.trace = stackBuffer;
+    } else {
+        tb.free = 1;
+        tb.trace = aligned_malloc(stateBytes(allocLen));
+        if (!tb.trace) { fprintf(stderr, "malloc fail: meehee7I\n"); exit(1); }
     }
 
     fourState *tp = tb.trace;
@@ -1678,6 +1686,13 @@ void traceMaintenance(struct aircraft *a, int64_t now) {
 
         a->trace_current_len -= chunkPoints;
         memmove(a->trace_current, a->trace_current + getFourStates(chunkPoints), stateBytes(a->trace_current_max) - stateBytes(chunkPoints));
+
+        // shrink trace_current
+        int nominal = (Modes.traceChunkPoints + Modes.traceReserve);
+        if (a->trace_current_max > nominal && a->trace_current_len < nominal) {
+            a->trace_current_max = nominal;
+            a->trace_current = realloc(a->trace_current, stateBytes(a->trace_current_max));
+        }
     }
 }
 
@@ -2335,7 +2350,7 @@ int handleHeatmap(int64_t now) {
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
             if ((a->addr & MODES_NON_ICAO_ADDRESS) && a->airground == AG_GROUND) continue;
             if (a->trace_len == 0) continue;
-            unsigned char stackBuffer[REASSEMBLE_STACK_BUFFER];
+            fourState stackBuffer[QUARTER_STACK / sizeof(fourState)];
 
             traceBuffer tb = reassembleTrace(a, -1, start, stackBuffer, sizeof(stackBuffer));
             int64_t next = start;
@@ -2805,7 +2820,7 @@ void traceDelete() {
 
         traceUsePosBuffered(a);
 
-        unsigned char stackBuffer[REASSEMBLE_STACK_BUFFER];
+        fourState stackBuffer[QUARTER_STACK / sizeof(fourState)];
 
         traceBuffer tb = reassembleTrace(a, -1, -1, stackBuffer, sizeof(stackBuffer));
         fourState *trace = tb.trace;

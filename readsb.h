@@ -150,6 +150,11 @@
 
 #define INVALID_ALTITUDE (-9999)
 
+
+// size of various on stack buffers used across the code, let's just be conservative and assume 1 MB of stack
+// without heavy recursion 3 of those stack buffers can be in use at the same time, at most we expect to to be in use
+#define QUARTER_STACK (256 * 1024)
+
 /* Where did a bit of data arrive from? In order of increasing priority */
 typedef enum
 {

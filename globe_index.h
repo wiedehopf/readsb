@@ -23,10 +23,14 @@
 #define TRACE_STALE (15 * SECONDS)
 #define TRACE_MIN_ELAPSED (742) // milliseconds
 
+
+#ifndef TRACE_RECENT_POINTS
+#define TRACE_RECENT_POINTS (84)
+#endif
+
+
 #define TRACE_CACHE_LIFETIME (1 * MINUTES)
 #define TRACE_CACHE_EXTRA (16)
-
-#define REASSEMBLE_STACK_BUFFER (512 * 1024)
 
 struct tile {
     int south;

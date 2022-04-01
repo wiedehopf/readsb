@@ -1562,20 +1562,21 @@ static void configAfterParse() {
 
     Modes.traceMax = ((Modes.keep_traces + 1 * HOURS) / 1000 * 3) / SFOUR * SFOUR; // 3 position per second, usually 2 per second is max
 
-    Modes.traceReserve = 11 * SFOUR;
+    Modes.traceReserve = 4 * SFOUR;
 
     if (Modes.json_trace_interval < 1) {
         Modes.json_trace_interval = 1; // 1 ms
     }
     if (Modes.json_trace_interval < 4 * SECONDS) {
-        double oversize = 4.0 / fmax(0.4, (double) Modes.json_trace_interval / 1000.0);
+        double oversize = 4.0 / fmax(0.5, (double) Modes.json_trace_interval / 1000.0);
         Modes.traceReserve = ((int) (Modes.traceReserve * oversize)) / SFOUR * SFOUR;
         Modes.traceMax = ((int) (Modes.traceMax * oversize)) / SFOUR * SFOUR;
     }
 
-    Modes.traceRecentPoints = (2 * Modes.traceReserve) * SFOUR / SFOUR;
+    Modes.traceChunkPoints = imin(1024, 8 * Modes.traceReserve) * SFOUR / SFOUR;
+
+    Modes.traceRecentPoints = TRACE_RECENT_POINTS * SFOUR / SFOUR;
     Modes.traceCachePoints = (Modes.traceRecentPoints + TRACE_CACHE_EXTRA) / SFOUR * SFOUR;
-    Modes.traceChunkPoints = Modes.traceCachePoints * SFOUR / SFOUR;
 
     if (Modes.verbose) {
         fprintf(stderr, "traceChunkPoints: %d size: %ld\n", Modes.traceChunkPoints, (long) stateBytes(Modes.traceChunkPoints));

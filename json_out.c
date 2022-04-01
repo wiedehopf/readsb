@@ -1527,7 +1527,7 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
     }
 }
 
-struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int start, int last) {
+struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int start, int last, char *stackBuffer, ssize_t stackBufferSize) {
     struct char_buffer cb = { 0 };
     if (!Modes.json_globe_index) {
         return cb;
@@ -1540,14 +1540,24 @@ struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int sta
     }
 
     int traceCount = imax(last - start + 1, 0);
-    size_t alloc = traceCount * 300 + 1024;
+    ssize_t alloc = traceCount * 300 + 1024;
 
-    char *buf = (char *) aligned_malloc(alloc), *p = buf, *end = buf + alloc;
+    char *buf;
+    if (alloc <= stackBufferSize) {
+        cb.free = 0;
+        buf = stackBuffer;
+    } else {
+        cb.free = 1;
+        buf = aligned_malloc(alloc);
+    }
 
     if (!buf) {
         fprintf(stderr, "malloc error code point Loi1ahwe\n");
         return cb;
     }
+
+    char *p = buf;
+    char *end = buf + alloc;
 
     p = safe_snprintf(p, end, "{\"icao\":\"%s%06x\"", (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
 

@@ -62,6 +62,7 @@ struct char_buffer {
     char *buffer;
     size_t len;
     size_t alloc;
+    int free;
 };
 struct char_buffer readWholeFile(int fd, char *errorContext);
 struct char_buffer readWholeGz(gzFile gzfp, char *errorContext);
