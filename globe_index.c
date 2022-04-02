@@ -1385,16 +1385,16 @@ static void resizeTraceChunks(struct aircraft *a, int newLen) {
 
     int oldLen = a->trace_chunk_len;
 
-    int newBytes = newLen* sizeof(stateChunk);
-    int oldBytes = oldLen* sizeof(stateChunk);
+    int newBytes = newLen * sizeof(stateChunk);
+    int oldBytes = oldLen * sizeof(stateChunk);
 
     stateChunk *new = malloc(newBytes);
     if (!new) {
         fprintf(stderr, "malloc fail: yeiPho0va\n");
         exit(1);
     } else {
-        if (newBytes < oldBytes) {
-            memcpy(new, a->trace_chunks + (oldBytes - newBytes), newBytes);
+        if (newLen < oldLen) {
+            memcpy(new, a->trace_chunks + (oldLen - newLen), newBytes);
         } else {
             memcpy(new, a->trace_chunks, oldBytes);
         }
@@ -1426,7 +1426,9 @@ static void tracePrune(struct aircraft *a, int64_t now) {
     }
 
     if (deletedChunks > 0) {
-        fprintf(stderr, "%06x deleting %d chunks\n", a->addr, deletedChunks);
+        if (Modes.verbose) {
+            fprintf(stderr, "%06x deleting %d chunks\n", a->addr, deletedChunks);
+        }
         int newLen = a->trace_chunk_len - deletedChunks;
         resizeTraceChunks(a, newLen);
         a->trace_chunk_len = newLen;;
