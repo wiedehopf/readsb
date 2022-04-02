@@ -1,5 +1,5 @@
 #include "readsb.h"
-#define STATE_SAVE_MAGIC (0x7ba09e63757913ceULL * (uint64_t) SFOUR)
+#define STATE_SAVE_MAGIC ((uint64_t) (0x7ba09e63757913ceULL * (uint64_t) SFOUR))
 #define STATE_SAVE_MAGIC_END (0x7ba09e63757913cdULL)
 #define LZO_MAGIC (0xf7413cc6eaf227dbULL)
 
