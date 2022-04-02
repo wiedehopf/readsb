@@ -1380,7 +1380,6 @@ void traceAlloc(struct aircraft *a) {
 static void resizeTraceChunks(struct aircraft *a, int newLen) {
     if (newLen == 0) {
         sfree(a->trace_chunks);
-        a->trace_chunk_len = 0;
         return;
     }
 
@@ -1401,7 +1400,6 @@ static void resizeTraceChunks(struct aircraft *a, int newLen) {
         }
         sfree(a->trace_chunks);
         a->trace_chunks = new;
-        a->trace_chunk_len = newLen;
     }
 }
 
@@ -1429,7 +1427,9 @@ static void tracePrune(struct aircraft *a, int64_t now) {
 
     if (deletedChunks > 0) {
         fprintf(stderr, "%06x deleting %d chunks\n", a->addr, deletedChunks);
-        resizeTraceChunks(a, a->trace_chunk_len - deletedChunks);
+        int newLen = a->trace_chunk_len - deletedChunks;
+        resizeTraceChunks(a, newLen);
+        a->trace_chunk_len = newLen;;
     }
 
     if (getState(a->trace_current, a->trace_current_len - 1)->timestamp < keep_after) {
@@ -1464,6 +1464,8 @@ static void traceCleanupNoUnlink(struct aircraft *a) {
     }
     sfree(a->trace_current);
     sfree(a->trace_chunks);
+
+    a->trace_chunk_len = 0;
 
     a->tracePosBuffered = 0;
     a->trace_len = 0;
@@ -1609,8 +1611,9 @@ static void setTrace(struct aircraft *a, fourState *source, int len) {
     fourState *p = source;
     int chunkSize = Modes.traceChunkPoints;
     while (len > chunkSize) {
-        resizeTraceChunks(a, a->trace_chunk_len + 1);
-        stateChunk *new = &a->trace_chunks[a->trace_chunk_len - 1];
+        int newLen = a->trace_chunk_len + 1;
+        resizeTraceChunks(a, newLen);
+        stateChunk *new = &a->trace_chunks[newLen - 1];
 
         new->numStates = chunkSize;
         new->firstTimestamp = getState(p, 0)->timestamp;
@@ -1619,6 +1622,7 @@ static void setTrace(struct aircraft *a, fourState *source, int len) {
         compressChunk(new, p, chunkSize);
 
         len -= new->numStates;
+        a->trace_chunk_len = newLen;
     }
 
     a->trace_current_len = len;
@@ -1669,9 +1673,10 @@ void traceMaintenance(struct aircraft *a, int64_t now) {
     int chunkPoints = Modes.traceChunkPoints;
 
     if (a->trace_current_len >= chunkPoints + Modes.traceReserve / 4) {
-        resizeTraceChunks(a, a->trace_chunk_len + 1);
+        int newLen = a->trace_chunk_len + 1;
+        resizeTraceChunks(a, newLen);
 
-        stateChunk *new = &a->trace_chunks[a->trace_chunk_len - 1];
+        stateChunk *new = &a->trace_chunks[newLen - 1];
 
         new->numStates = chunkPoints;
         new->firstTimestamp = getState(a->trace_current, 0)->timestamp;
@@ -1685,6 +1690,8 @@ void traceMaintenance(struct aircraft *a, int64_t now) {
 
         a->trace_current_len -= chunkPoints;
         memmove(a->trace_current, a->trace_current + getFourStates(chunkPoints), stateBytes(a->trace_current_max) - stateBytes(chunkPoints));
+
+        a->trace_chunk_len = newLen;
 
         // shrink trace_current
         int nominal = (Modes.traceChunkPoints + Modes.traceReserve);
@@ -2070,6 +2077,11 @@ void save_blob(int blob) {
             if (a) {
                 traceUsePosBuffered(a); // use buffered position for saving state
                 size_state += sizeof(struct aircraft);
+                if (a->trace_chunk_len > 0 && a->trace_chunks == NULL) {
+                    fprintf(stderr, "<3> %06x trace corrupted, a->trace_chunks is NULL but a->trace_chunk_len > 0, resetting a->trace_chunk_len to 0\n", a->addr);
+                    a->trace_chunk_len = 0;
+                    break;
+                }
                 for (int k = 0; k < a->trace_chunk_len; k++) {
                     stateChunk *chunk = &a->trace_chunks[k];
                     size_state += sizeof(stateChunk);
