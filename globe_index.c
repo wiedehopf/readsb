@@ -1816,7 +1816,8 @@ int traceAdd(struct aircraft *a, int64_t now, int stale) {
         traceDebug = 0;
 
     if (traceDebug) {
-        fprintf(stderr, "%5.1fs d:%5.0f a:%6d D%4d s:%4.0f D%3.0f t: %5.1f D%5.1f ",
+        fprintf(stderr, "%11.6f,%11.6f %5.1fs d:%5.0f a:%6d D%4d s:%4.0f D%3.0f t: %5.1f D%5.1f ",
+                a->lat, a->lon,
                 elapsed / 1000.0,
                 distance, alt, alt_diff, a->gs, speed_diff, a->track, track_diff);
     }

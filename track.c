@@ -1495,7 +1495,7 @@ accept_alt:
         if (mm->source == SOURCE_MODE_S && a->baro_alt_valid.last_source != mm->source) {
             a->alt_reliable = 0;
         }
-        if (0 && a->addr == 0x4b2917 && abs(delta) > -1 && delta != alt) {
+        if (a->addr == Modes.trace_focus && abs(delta) > -1) {
             fprintf(stdout, "Alt check S: %06x: %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
                     a->addr, a->alt_reliable, a->baro_alt, alt,
                     source_string(a->baro_alt_valid.source),
