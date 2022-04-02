@@ -93,7 +93,8 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
     if (source < d->source && now < d->updated + TRACK_STALE)
         return 0;
 
-    int is_pos = (d == &a->pos_reliable_valid || d == &a->position_valid || d == &a->cpr_odd_valid || d == &a->cpr_even_valid || d == &a->mlat_pos_valid);
+    // this is a position and will be wholly reverted if it's not accepted
+    int is_pos = (mm->sbs_pos_valid || mm->cpr_valid || d == &a->pos_reliable_valid || d == &a->position_valid || d == &a->cpr_odd_valid || d == &a->cpr_even_valid || d == &a->mlat_pos_valid);
 
     // if we have a jaero position, don't allow non-position data to have a lesser source
     if (!is_pos && a->pos_reliable_valid.source == SOURCE_JAERO && source < SOURCE_JAERO)
@@ -104,19 +105,20 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
         return 0;
 
 
-    // don't allow crappy SBS / MLAT data to add track as long as we have a valid ADS-B or similar position
+    // don't allow crappy SBS / MLAT data to add non position details (track from SBS mostly) as long as we have a valid ADS-B or similar position
     // but allow the position to be overriden normally
     if (
             (source == SOURCE_MLAT || source == SOURCE_SBS)
             && a->pos_reliable_valid.source >= SOURCE_TISB
             && now - a->seenPosReliable < TRACK_EXPIRE
-            && !is_pos
+            && d != &a->position_valid
        ) {
         return 0;
     }
 
     // if we have recent data and a recent position, only accept data from the last couple receivers that contributed a position
     // this hopefully reduces data jitter introduced by differing receiver latencies
+    // it's important to excluded data coming in alongside positions, that extra data if accepted is discarded via the scratch mechanism
 
     if (Modes.netReceiverId && !is_pos && a->pos_reliable_valid.source >= SOURCE_TISB && now - d->updated < 5 * SECONDS && now - a->seenPosReliable < 2200 * MS) {
         uint16_t hash = simpleHash(mm->receiverId);
