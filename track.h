@@ -302,14 +302,11 @@ struct aircraft
   int64_t seen; // Time (millis) at which the last packet with reliable address was received
   int64_t seen_pos; // Time (millis) at which the last position was received
 
-  uint32_t size_struct_aircraft; // size of this struct
   uint32_t messages; // Number of Mode S messages received
-                       //
-  uint8_t onActiveList;
-  uint8_t paddingabc;
-  uint16_t receiverCountMlat;
-  unsigned category; // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
-
+  int32_t onActiveList;
+  uint32_t receiverCountMlat;
+  uint32_t category; // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
+                     //
   int64_t category_updated;
 
   // ----
@@ -322,18 +319,18 @@ struct aircraft
   fourState *trace_current; // uncompressed most recent points in the trace
   stateChunk *trace_chunks; // compressed chunks of trace
 
-  int trace_current_max;
-  int trace_current_len; // number of points in our uncompressed most recent trace portion
-  int trace_len; // total number of points in the trace
-  int trace_chunk_len; // how many stateChunks are saved for this aircraft
-  int trace_write; // signal for writing the trace
+  int32_t trace_current_max;
+  int32_t trace_current_len; // number of points in our uncompressed most recent trace portion
+  int32_t trace_len; // total number of points in the trace
+  int32_t trace_chunk_len; // how many stateChunks are saved for this aircraft
+  int32_t trace_write; // signal for writing the trace
 
-  int trace_writeCounter; // how many points where added since the complete trace was written to memory
-  int baro_alt; // Altitude (Baro)
-  int alt_reliable;
-  int geom_alt; // Altitude (Geometric)
+  int32_t trace_writeCounter; // how many points where added since the complete trace was written to memory
+  int32_t baro_alt; // Altitude (Baro)
+  int32_t alt_reliable;
+  int32_t geom_alt; // Altitude (Geometric)
 
-  int geom_delta; // Difference between Geometric and Baro altitudes
+  int32_t geom_delta; // Difference between Geometric and Baro altitudes
   uint32_t signalNext; // next index of signalLevel to use
 
   // ----
@@ -357,8 +354,8 @@ struct aircraft
 
   // ---- the following section has 9 instead of 8 times 8 bytes. but that's not critical as long as the 8 byte alignment is ok
 
-  unsigned pos_nic; // NIC of last computed position
-  unsigned pos_rc; // Rc of last computed position
+  uint32_t pos_nic; // NIC of last computed position
+  uint32_t pos_rc; // Rc of last computed position
   double lat; // Coordinates obtained from CPR encoded data
   double lon; // Coordinates obtained from CPR encoded data
   float pos_reliable_odd; // Number of good global CPRs, indicates position reliability
@@ -369,29 +366,29 @@ struct aircraft
 
   float wind_speed;
   float wind_direction;
-  int wind_altitude;
+  int32_t wind_altitude;
   float oat;
   int64_t wind_updated;
   int64_t oat_updated;
 
   // ----
 
-  int baro_rate; // Vertical rate (barometric)
-  int geom_rate; // Vertical rate (geometric)
-  unsigned ias;
-  unsigned tas;
-  unsigned squawk; // Squawk
-  unsigned squawkTentative; // require the same squawk code twice to accept it
-  unsigned nav_altitude_mcp; // FCU/MCP selected altitude
-  unsigned nav_altitude_fms; // FMS selected altitude
-  unsigned cpr_odd_lat;
-  unsigned cpr_odd_lon;
-  unsigned cpr_odd_nic;
-  unsigned cpr_odd_rc;
-  unsigned cpr_even_lat;
-  unsigned cpr_even_lon;
-  unsigned cpr_even_nic;
-  unsigned cpr_even_rc;
+  int32_t baro_rate; // Vertical rate (barometric)
+  int32_t geom_rate; // Vertical rate (geometric)
+  uint32_t ias;
+  uint32_t tas;
+  uint32_t squawk; // Squawk
+  uint32_t squawkTentative; // require the same squawk code twice to accept it
+  uint32_t nav_altitude_mcp; // FCU/MCP selected altitude
+  uint32_t nav_altitude_fms; // FMS selected altitude
+  uint32_t cpr_odd_lat;
+  uint32_t cpr_odd_lon;
+  uint32_t cpr_odd_nic;
+  uint32_t cpr_odd_rc;
+  uint32_t cpr_even_lat;
+  uint32_t cpr_even_lon;
+  uint32_t cpr_even_nic;
+  uint32_t cpr_even_rc;
 
   // ----
 
@@ -417,36 +414,36 @@ struct aircraft
   cpr_type_t cpr_odd_type;
   cpr_type_t cpr_even_type;
   nav_altitude_source_t nav_altitude_src;  // source of altitude used by automation
-  int modeA_hit; // did our squawk match a possible mode A reply in the last check period?
-  int modeC_hit; // did our altitude match a possible mode C reply in the last check period?
+  int32_t modeA_hit; // did our squawk match a possible mode A reply in the last check period?
+  int32_t modeC_hit; // did our altitude match a possible mode C reply in the last check period?
 
   // data extracted from opstatus etc
-  int adsb_version; // ADS-B version (from ADS-B operational status); -1 means no ADS-B messages seen
-  int adsr_version; // As above, for ADS-R messages
-  int tisb_version; // As above, for TIS-B messages
+  int32_t adsb_version; // ADS-B version (from ADS-B operational status); -1 means no ADS-B messages seen
+  int32_t adsr_version; // As above, for ADS-R messages
+  int32_t tisb_version; // As above, for TIS-B messages
   heading_type_t adsb_hrd; // Heading Reference Direction setting (from ADS-B operational status)
   heading_type_t adsb_tah; // Track Angle / Heading setting (from ADS-B operational status)
-  int globe_index; // custom index of the planes area on the globe
+  int32_t globe_index; // custom index of the planes area on the globe
   sil_type_t sil_type; // SIL supplement from TSS or opstatus
 
-  unsigned nic_a : 1; // NIC supplement A from opstatus
-  unsigned nic_c : 1; // NIC supplement C from opstatus
-  unsigned nic_baro : 1; // NIC baro supplement from TSS or opstatus
-  unsigned nac_p : 4; // NACp from TSS or opstatus
-  unsigned nac_v : 3; // NACv from airborne velocity or opstatus
-  unsigned sil : 2; // SIL from TSS or opstatus
-  unsigned gva : 2; // GVA from opstatus
-  unsigned sda : 2; // SDA from opstatus
+  uint32_t nic_a : 1; // nic supplement a from opstatus
+  uint32_t nic_c : 1; // nic supplement c from opstatus
+  uint32_t nic_baro : 1; // nic baro supplement from tss or opstatus
+  uint32_t nac_p : 4; // nacp from tss or opstatus
+  uint32_t nac_v : 3; // nacv from airborne velocity or opstatus
+  uint32_t sil : 2; // sil from tss or opstatus
+  uint32_t gva : 2; // gva from opstatus
+  uint32_t sda : 2; // sda from opstatus
   // 16 bit
-  unsigned alert : 1; // FS Flight status alert bit
-  unsigned spi : 1; // FS Flight status SPI (Special Position Identification) bit
-  unsigned pos_surface : 1; // (a->airground == AG_GROUND) associated with current position
-  unsigned last_cpr_type : 2; // mm->cpr_type associated with current position
-  unsigned tracePosBuffered : 1; // denotes if a->trace[a->trace_len] has a valid state buffered in it
-  unsigned surfaceCPR_allow_ac_rel : 1; // allow surface cpr relative to last known aircraft location
-  unsigned localCPR_allow_ac_rel : 1; // allow local cpr relative to last known aircraft location
+  uint32_t alert : 1; // fs flight status alert bit
+  uint32_t spi : 1; // fs flight status spi (special position identification) bit
+  uint32_t pos_surface : 1; // (a->airground == ag_ground) associated with current position
+  uint32_t last_cpr_type : 2; // mm->cpr_type associated with current position
+  uint32_t tracePosBuffered : 1; // denotes if a->trace[a->trace_len] has a valid state buffered in it
+  uint32_t surfaceCPR_allow_ac_rel : 1; // allow surface cpr relative to last known aircraft location
+  uint32_t localCPR_allow_ac_rel : 1; // allow local cpr relative to last known aircraft location
   // 24 bit
-  unsigned padding_b : 8;
+  uint32_t padding_b : 8;
   // 32 bit !!
 
   // ----

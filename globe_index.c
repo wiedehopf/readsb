@@ -1,6 +1,6 @@
 #include "readsb.h"
-#define STATE_SAVE_MAGIC ((uint64_t) (0x7ba09e63757913ceULL * (uint64_t) SFOUR))
-#define STATE_SAVE_MAGIC_END (0x7ba09e63757913cdULL)
+#define STATE_SAVE_MAGIC (0x7ba09e63757314ceULL)
+#define STATE_SAVE_MAGIC_END (STATE_SAVE_MAGIC + 1)
 #define LZO_MAGIC (0xf7413cc6eaf227dbULL)
 
 static void mark_legs(traceBuffer tb, struct aircraft *a, int start);
@@ -748,34 +748,43 @@ static int roundUp8(int value) {
 static int load_aircraft(char **p, char *end, int64_t now) {
     static int size_changed;
 
-    if (end - *p < 1000)
+    ssize_t newSize = sizeof(struct aircraft);
+
+    if (end - *p < newSize / 2) {
         return -1;
+    }
+
+
+    ssize_t oldSize = *((uint64_t *) *p);
+    *p += sizeof(uint64_t);
+
+    if (end - *p < oldSize) {
+        return -1;
+    }
 
     struct aircraft *source = (struct aircraft *) *p;
 
-    if (end - *p < (int) source->size_struct_aircraft)
-        return -1;
-
-    if (aircraftGet(source->addr)) {
-        fprintf(stderr, "%06x aircraft already exists, can't be loaded!\n", source->addr);
-        return 0;
+    struct aircraft *a = aircraftGet(source->addr);
+    if (a) {
+        fprintf(stderr, "%06x aircraft already exists, overwriting old data\n", source->addr);
+        freeAircraft(a);
     }
 
-    struct aircraft *a = aircraftCreate(source->addr);
+    a = aircraftCreate(source->addr);
 
     struct aircraft *preserveNext = a->next;
-    memcpy(a, *p, imin(source->size_struct_aircraft, sizeof(struct aircraft)));
+
+    memcpy(a, *p, imin(oldSize, newSize));
+    *p += oldSize;
+
     a->next = preserveNext;
 
-    *p += source->size_struct_aircraft;
-
-    if (!size_changed && source->size_struct_aircraft != sizeof(struct aircraft)) {
+    if (!size_changed && oldSize != newSize) {
         size_changed = 1;
         fprintf(stderr, "sizeof(struct aircraft) has changed from %ld to %ld bytes, this means the code changed and if the coder didn't think properly might result in bad aircraft data. If your map doesn't have weird stuff ... probably all good and just an upgrade.\n",
-                (long) source->size_struct_aircraft, (long) sizeof(struct aircraft));
+                (long) oldSize, (long) newSize);
         Modes.writeInternalState = 1; // immediately write in the new format
     }
-    a->size_struct_aircraft = sizeof(struct aircraft);
 
     // make sure we set anything allocated to null pointers
     a->trace_current = NULL;
@@ -783,10 +792,6 @@ static int load_aircraft(char **p, char *end, int64_t now) {
     memset(&a->traceCache, 0x0, sizeof(struct traceCache));
 
     a->disc_cache_index = 0;
-
-    if (!Modes.keep_traces) {
-        traceCleanupNoUnlink(a);
-    }
 
     // just in case we have bogus values saved, make sure they time out
     if (a->seen_pos > now + 1 * MINUTES)
@@ -828,12 +833,20 @@ static int load_aircraft(char **p, char *end, int64_t now) {
             // let's allow for loading traces larger than we normally allow by a factor of 32
             && a->trace_len <= 32 * Modes.traceMax
        ) {
-        a->trace_chunks = calloc(a->trace_chunk_len, sizeof(stateChunk));
+
+        ssize_t oldFourStateSize = *((uint64_t *) *p);
+        *p += sizeof(uint64_t);
+        if (oldFourStateSize != sizeof(fourState)) {
+            fprintf(stderr, "%06x sizeof(fourState) / SFOUR definition has changed, aborting state loading!\n", a->addr);
+            return -1;
+        }
 
         int checkNo = 0;
-
 #define checkSize(size) if (++checkNo && end - *p < (ssize_t) size) { fprintf(stderr, "loadAircraft: checkSize failed for hex %06x checkNo %d\n", a->addr, checkNo); traceCleanupNoUnlink(a); return -1; }
 
+        if (a->trace_chunk_len > 0) {
+            a->trace_chunks = malloc(a->trace_chunk_len * sizeof(stateChunk));
+        }
         for (int k = 0; k < a->trace_chunk_len; k++) {
             stateChunk *chunk = &a->trace_chunks[k];
             checkSize(sizeof(stateChunk));
@@ -847,7 +860,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
             *p += padBytes;
 
             if (chunk->numStates % SFOUR != 0) {
-                fprintf(stderr, "<3> %06x load_aircraft: (chunk->numStates %% SFOUR != 0) ..... this would cause issues, throwing away trace data for this plane (needs of the many)!\n", a->addr);
+                fprintf(stderr, "<3> %06x load_aircraft: (chunk->numStates %% SFOUR != 0) ..... this would cause issues, throwing away trace data!\n", a->addr);
                 discard_trace = 1;
             }
         }
@@ -862,6 +875,11 @@ static int load_aircraft(char **p, char *end, int64_t now) {
             }
         }
 #undef checkSize
+
+        if (!Modes.keep_traces) {
+            traceCleanupNoUnlink(a);
+            return 0;
+        }
 
         traceMaintenance(a, now);
 
@@ -2118,8 +2136,6 @@ void save_blob(int blob) {
     int start = stride * blob;
     int end = start + stride;
 
-    uint64_t magic = STATE_SAVE_MAGIC;
-
     int alloc = state_chunk_size();
     unsigned char *buf = aligned_malloc(alloc);
     unsigned char *p = buf;
@@ -2151,7 +2167,8 @@ void save_blob(int blob) {
                 size_state += stateBytes(a->trace_current_len);
             }
 
-            if (!a || (p + 2 * sizeof(uint64_t) + size_state >= buf + alloc)) {
+            // 3 * sizeof(uint64_t) for state_save_magic, size_aircraft and state_save_magic_end
+            if (!a || (p + 3 * sizeof(uint64_t) + size_state > buf + alloc)) {
                 //fprintf(stderr, "save_blob writing %d KB (buffer)\n", (int) ((p - buf) / 1024));
 
                 uint64_t magic_end = STATE_SAVE_MAGIC_END;
@@ -2186,13 +2203,20 @@ void save_blob(int blob) {
                 break;
             }
 
+            uint64_t magic = STATE_SAVE_MAGIC;
             p += memcpySize(p, &magic, sizeof(magic));
+            uint64_t size_aircraft = sizeof(struct aircraft);
+            p += memcpySize(p, &size_aircraft, sizeof(size_aircraft));
 
-            if (p + size_state >= buf + alloc) {
+            if (p + size_state > buf + alloc) {
                 fprintf(stderr, "%06x: Couldn't write internal state, check save_blob code!\n", a->addr);
             } else {
                 p += memcpySize(p, a, sizeof(struct aircraft));
                 if (a->trace_len > 0) {
+
+                    uint64_t fourState_size = sizeof(fourState);
+                    p += memcpySize(p, &fourState_size, sizeof(fourState_size));
+
                     for (int k = 0; k < a->trace_chunk_len; k++) {
                         stateChunk *chunk = &a->trace_chunks[k];
                         p += memcpySize(p, chunk, sizeof(stateChunk));
@@ -2251,7 +2275,7 @@ static int load_aircrafts(char *p, char *end, char *filename, int64_t now) {
 
         if (value != STATE_SAVE_MAGIC) {
             if (value != STATE_SAVE_MAGIC_END) {
-                fprintf(stderr, "Incomplete state file: %s\n", filename);
+                fprintf(stderr, "Incomplete state file (or state format was changed and is incompatible with new format): %s\n", filename);
                 return -1;
             }
             break;

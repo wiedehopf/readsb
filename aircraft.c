@@ -128,8 +128,6 @@ struct aircraft *aircraftCreate(uint32_t addr) {
     // Default everything to zero/NULL
     memset(a, 0, sizeof (struct aircraft));
 
-    a->size_struct_aircraft = sizeof(struct aircraft);
-
     // Now initialise things that should not be 0/NULL to their defaults
     a->addr = addr;
     a->addrtype = ADDR_UNKNOWN;
