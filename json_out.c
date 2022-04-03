@@ -1030,11 +1030,11 @@ struct char_buffer generateAircraftBin() {
 #undef memWrite
 }
 
-struct char_buffer generateGlobeBin(int globe_index, int mil) {
+struct char_buffer generateGlobeBin(int globe_index, int mil, buffer_t *buffer) {
     struct char_buffer cb;
     int64_t now = mstime();
     struct aircraft *a;
-    size_t alloc = 4096; // The initial buffer is resized as needed
+    ssize_t alloc = 4096;
 
     struct craftArray *ca = NULL;
     int good;
@@ -1051,7 +1051,14 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
     if (good && ca)
         alloc += ca->len * sizeof(struct binCraft);
 
-    char *buf = aligned_malloc(alloc);
+    if (alloc > buffer->bufSize) {
+        // increase buffer size
+        sfree(buffer->buf);
+        buffer->buf = aligned_malloc(alloc);
+        buffer->bufSize = alloc;
+        if (!buffer->buf) { fprintf(stderr, "malloc fail: Woo1aiph\n"); exit(1); }
+    }
+    char *buf = buffer->buf;
     char *p = buf;
     char *end = buf + alloc;
 
@@ -1137,11 +1144,11 @@ struct char_buffer generateGlobeBin(int globe_index, int mil) {
 #undef memWrite
 }
 
-struct char_buffer generateGlobeJson(int globe_index){
+struct char_buffer generateGlobeJson(int globe_index, buffer_t *buffer) {
     struct char_buffer cb;
     int64_t now = mstime();
     struct aircraft *a;
-    size_t alloc = 4096; // The initial buffer is resized as needed
+    ssize_t alloc = 4096; // The initial buffer is resized as needed
 
     struct craftArray *ca = NULL;
     int good;
@@ -1154,7 +1161,14 @@ struct char_buffer generateGlobeJson(int globe_index){
         good = 0;
     }
 
-    char *buf = aligned_malloc(alloc);
+    if (alloc > buffer->bufSize) {
+        // increase buffer size
+        sfree(buffer->buf);
+        buffer->buf = aligned_malloc(alloc);
+        buffer->bufSize = alloc;
+        if (!buffer->buf) { fprintf(stderr, "malloc fail: Oinool9l\n"); exit(1); }
+    }
+    char *buf = buffer->buf;
     char *p = buf;
     char *end = buf + alloc;
 

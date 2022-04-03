@@ -1626,7 +1626,7 @@ struct char_buffer apiGenerateAircraftJson() {
     return cb;
 }
 
-struct char_buffer apiGenerateGlobeJson(int globe_index) {
+struct char_buffer apiGenerateGlobeJson(int globe_index, buffer_t *pbuffer) {
     assert (globe_index <= GLOBE_MAX_INDEX);
 
     struct char_buffer cb;
@@ -1636,13 +1636,22 @@ struct char_buffer apiGenerateGlobeJson(int globe_index) {
     struct apiBuffer *buffer = &Modes.apiBuffer[flip];
 
 
-    size_t alloc = 4096;
+    ssize_t alloc = 4096;
     // only used to estimate allocation size
     struct craftArray *ca = &Modes.globeLists[globe_index];
     if (ca)
         alloc += ca->len * 1024;
 
-    char *buf = (char *) aligned_malloc(alloc), *p = buf, *end = buf + alloc;
+    if (alloc > pbuffer->bufSize) {
+        // increase pbuffer size
+        sfree(pbuffer->buf);
+        pbuffer->buf = aligned_malloc(alloc);
+        pbuffer->bufSize = alloc;
+        if (!pbuffer->buf) { fprintf(stderr, "malloc fail: Woo1aiph\n"); exit(1); }
+    }
+    char *buf = pbuffer->buf;
+    char *p = buf;
+    char *end = buf + alloc;
 
     p = safe_snprintf(p, end,
             "{ \"now\" : %.3f,\n"

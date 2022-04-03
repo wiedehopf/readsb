@@ -452,6 +452,8 @@ static void *jsonEntryPoint(void *arg) {
 
     pthread_mutex_lock(&Threads.json.mutex);
 
+    buffer_t pass_buffer = { 0 };
+
     while (!Modes.exit) {
 
         struct timespec start_time;
@@ -482,9 +484,8 @@ static void *jsonEntryPoint(void *arg) {
         sfree(cb3.buffer);
 
         if (Modes.json_globe_index) {
-            struct char_buffer cb2 = generateGlobeBin(-1, 1);
+            struct char_buffer cb2 = generateGlobeBin(-1, 1, &pass_buffer);
             writeJsonToGzip(Modes.json_dir, "globeMil_42777.binCraft", cb2, 5);
-            sfree(cb2.buffer);
         }
 
         if ((ALL_JSON) && Modes.onlyBin < 2 && now >= next_history) {
@@ -509,6 +510,8 @@ static void *jsonEntryPoint(void *arg) {
         threadTimedWait(&Threads.json, &ts, Modes.json_interval * 3);
     }
 
+    sfree(pass_buffer.buf);
+
     pthread_mutex_unlock(&Threads.json.mutex);
 
     return NULL;
@@ -523,6 +526,8 @@ static void *globeJsonEntryPoint(void *arg) {
 
     pthread_mutex_lock(&Threads.globeJson.mutex);
 
+    buffer_t pass_buffer = { 0 };
+
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
     while (!Modes.exit) {
@@ -534,9 +539,8 @@ static void *globeJsonEntryPoint(void *arg) {
 
             char filename[32];
             snprintf(filename, 31, "globe_%04d.json", index);
-            struct char_buffer cb = apiGenerateGlobeJson(index);
+            struct char_buffer cb = apiGenerateGlobeJson(index, &pass_buffer);
             writeJsonToGzip(Modes.json_dir, filename, cb, 2);
-            sfree(cb.buffer);
         }
 
         end_cpu_timing(&start_time, &Modes.stats_current.globe_json_cpu);
@@ -544,6 +548,8 @@ static void *globeJsonEntryPoint(void *arg) {
         // we should exit this wait early due to a cond_signal from api.c
         threadTimedWait(&Threads.globeJson, &ts, Modes.json_interval * 3);
     }
+
+    sfree(pass_buffer.buf);
 
     pthread_mutex_unlock(&Threads.globeJson.mutex);
     return NULL;
@@ -561,6 +567,8 @@ static void *globeBinEntryPoint(void *arg) {
 
     pthread_mutex_lock(&Threads.globeBin.mutex);
 
+    buffer_t pass_buffer = { 0 };
+
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
 
@@ -576,14 +584,12 @@ static void *globeBinEntryPoint(void *arg) {
             int index = Modes.json_globe_indexes[j];
 
             snprintf(filename, 31, "globe_%04d.binCraft", index);
-            struct char_buffer cb2 = generateGlobeBin(index, 0);
+            struct char_buffer cb2 = generateGlobeBin(index, 0, &pass_buffer);
             writeJsonToGzip(Modes.json_dir, filename, cb2, 5);
-            sfree(cb2.buffer);
 
             snprintf(filename, 31, "globeMil_%04d.binCraft", index);
-            struct char_buffer cb3 = generateGlobeBin(index, 1);
+            struct char_buffer cb3 = generateGlobeBin(index, 1, &pass_buffer);
             writeJsonToGzip(Modes.json_dir, filename, cb3, 2);
-            sfree(cb3.buffer);
         }
 
         part++;
@@ -592,6 +598,8 @@ static void *globeBinEntryPoint(void *arg) {
 
         threadTimedWait(&Threads.globeBin, &ts, sleep_ms);
     }
+
+    sfree(pass_buffer.buf);
 
     pthread_mutex_unlock(&Threads.globeBin.mutex);
 
