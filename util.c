@@ -520,7 +520,7 @@ char *sprint_uuid(uint64_t id1, uint64_t id2, char *p) {
 // (but we don't use it in situations where that matters)
 
 // define for testing some approximations:
-#define DEGR (0.01745329251f) // 1 degree in radian
+#define DEGR (0.017453292519943295) // 1 degree in radian
 double greatcircle(double lat0, double lon0, double lat1, double lon1, int approx) {
     if (lat0 == lat1 && lon0 == lon1) {
         return 0;
@@ -638,4 +638,39 @@ double bearing(double lat0, double lon0, double lat1, double lon1) {
         res -= 360;
     return res;
 }
+
 #undef DEGR
+
+
+
+// allocate a group of task_info
+task_group_t *allocate_group(uint32_t count, uint32_t buffer_count) {
+    task_group_t *group = malloc(sizeof(task_group_t));
+    group->task_count = count;
+    group->task_info = malloc(count * sizeof(task_info_t));
+    memset(group->task_info, 0x0, count * sizeof(task_info_t));
+    for (uint32_t k = 0; k < count; k++) {
+        task_info_t *task = &group->task_info[k];
+        task->buffer_count = buffer_count;
+        task->buffers = malloc(buffer_count * sizeof(buffer_t));
+        memset(task->buffers, 0x0, buffer_count * sizeof(buffer_t));
+    }
+
+    return group;
+}
+
+// destroy a group of task_info
+void destroy_group(task_group_t *group) {
+    for (uint32_t k = 0; k < group->task_count; k++) {
+        task_info_t *task = &group->task_info[k];
+        for (uint32_t j = 0; j < task->buffer_count; j++) {
+            free(task->buffers[j].buf);
+        }
+        free(task->buffers);
+    }
+
+    free(group->task_info);
+
+    memset(group, 0x0, sizeof(task_group_t));
+    free(group);
+}

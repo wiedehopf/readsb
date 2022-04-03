@@ -30,17 +30,17 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVE
 
 typedef struct threadpool_t threadpool_t;
 
-typedef struct
-{
-    void (* function)(void *);
-    void *argument;
-} threadpool_task_t;
-
 // create a thread pool
 threadpool_t *threadpool_create(uint32_t thread_count);
 
 // destroy the thread pool
 void threadpool_destroy(threadpool_t *pool);
+
+typedef struct
+{
+    void (* function)(void *);
+    void *argument;
+} threadpool_task_t;
 
 // run count tasks defined in tasks using a function pointer and and argument each
 // the count is not constrained by thread_count in any way
@@ -56,4 +56,3 @@ struct timespec threadpool_get_cumulative_thread_time(threadpool_t* threadpool);
 
 
 #endif /* _THREADPOOL_H_ */
-

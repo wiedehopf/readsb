@@ -52,12 +52,6 @@ void threadCreate(threadT *thread, const pthread_attr_t *attr, void *(*start_rou
 void threadTimedWait(threadT *thread, struct timespec *ts, int64_t increment);
 void threadSignalJoin(threadT *thread);
 
-struct task_info {
-    int64_t now;
-    int32_t from;
-    int32_t to;
-};
-
 struct char_buffer {
     char *buffer;
     size_t len;
@@ -197,6 +191,39 @@ static inline void fprintTime(FILE *stream, int64_t now) {
             (int) ((now / (60 * SECONDS)) % 60),
             (now % (60 * SECONDS)) / 1000.0);
 }
+
+struct task_info {
+    int64_t now;
+    int32_t from;
+    int32_t to;
+};
+
+
+typedef struct {
+    void *buf;
+    ssize_t bufSize;
+} buffer_t;
+
+typedef struct {
+    int64_t now;
+    int32_t from;
+    int32_t to;
+
+    uint32_t buffer_count;
+    buffer_t *buffers;
+} task_info_t;
+
+
+typedef struct {
+    uint32_t task_count;
+    task_info_t *task_info;
+    threadpool_task_t *tasks;
+} task_group_t;
+
+// allocate a group of tasks
+task_group_t *allocate_group(uint32_t count, uint32_t buffer_count);
+// destroy a group of tasks
+void destroy_group(task_group_t *group);
 
 
 #endif

@@ -28,6 +28,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVE
 //#include <stdio.h>
 //#include <sys/types.h>
 #include <unistd.h>
+#include <string.h>
 
 
 #define ATOMIC_WORKER_LOCK (-1)
