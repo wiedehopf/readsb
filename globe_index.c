@@ -722,7 +722,7 @@ static void free_aircraft_range(int start, int end) {
 }
 
 static void save_blobs(void *arg) {
-    struct task_info *info = (struct task_info *) arg;
+    task_info_t *info = (task_info_t *) arg;
     for (int j = info->from; j < info->to; j++) {
         //fprintf(stderr, "save_blob(%d)\n", j);
 
@@ -2257,7 +2257,7 @@ out:
     free(buf);
 }
 static void load_blobs(void *arg) {
-    struct task_info *info = (struct task_info *) arg;
+    task_info_t *info = (task_info_t *) arg;
 
     for (int j = info->from; j < info->to; j++) {
         load_blob(j);
@@ -2773,17 +2773,17 @@ void writeInternalState() {
 
     int64_t now = mstime();
 
-    threadpool_task_t *tasks = Modes.allPoolTasks;
-    struct task_info *ranges = Modes.allPoolRanges;
+    threadpool_task_t *tasks = Modes.allTasks->tasks;
+    task_info_t *infos = Modes.allTasks->infos;
 
-    //int taskCount = imin(STATE_BLOBS, Modes.allPoolMaxTasks);
-    int taskCount = imin(Modes.allPoolSize * 3, Modes.allPoolMaxTasks);
+    int taskCount = imin(Modes.allPoolSize * 3, Modes.allTasks->task_count);
+
     int stride = STATE_BLOBS / taskCount + 1;
 
     // assign tasks
     for (int i = 0; i < taskCount; i++) {
         threadpool_task_t *task = &tasks[i];
-        struct task_info *range = &ranges[i];
+        task_info_t *range = &infos[i];
 
         range->now = now;
         range->from = i * stride;
@@ -2856,11 +2856,11 @@ void readInternalState() {
 
     int64_t now = mstime();
 
-    threadpool_task_t *tasks = Modes.allPoolTasks;
-    struct task_info *ranges = Modes.allPoolRanges;
+    threadpool_task_t *tasks = Modes.allTasks->tasks;
+    task_info_t *infos = Modes.allTasks->infos;
 
-    //int parts = imin(STATE_BLOBS, Modes.allPoolMaxTasks - 1);
-    int parts = imin(Modes.allPoolSize * 3, Modes.allPoolMaxTasks - 1);
+
+    int parts = imin(Modes.allPoolSize * 3, Modes.allTasks->task_count - 1);
 
     // assign tasks
     int taskCount = 0;
@@ -2874,7 +2874,7 @@ void readInternalState() {
     int stride = STATE_BLOBS / parts + 1;
     for (int i = 0; i < parts; i++) {
         threadpool_task_t *task = &tasks[taskCount];
-        struct task_info *range = &ranges[taskCount];
+        task_info_t *range = &infos[taskCount];
 
         //fprintf(stderr, "%d\n", i);
 

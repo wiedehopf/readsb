@@ -192,13 +192,6 @@ static inline void fprintTime(FILE *stream, int64_t now) {
             (now % (60 * SECONDS)) / 1000.0);
 }
 
-struct task_info {
-    int64_t now;
-    int32_t from;
-    int32_t to;
-};
-
-
 typedef struct {
     void *buf;
     ssize_t bufSize;
@@ -216,14 +209,14 @@ typedef struct {
 
 typedef struct {
     uint32_t task_count;
-    task_info_t *task_info;
+    task_info_t *infos;
     threadpool_task_t *tasks;
 } task_group_t;
 
 // allocate a group of tasks
-task_group_t *allocate_group(uint32_t count, uint32_t buffer_count);
+task_group_t *allocate_task_group(uint32_t count, uint32_t buffer_count);
 // destroy a group of tasks
-void destroy_group(task_group_t *group);
+void destroy_task_group(task_group_t *group);
 
 
 #endif

@@ -429,15 +429,13 @@ struct _Modes
 
     int num_procs;
     int allPoolSize;
-    int allPoolMaxTasks;
     threadpool_t *allPool;
-    threadpool_task_t *allPoolTasks;
-    struct task_info *allPoolRanges;
+    task_group_t *allTasks;
+
     int tracePoolSize;
-    int tracePoolMaxTasks;
     threadpool_t *tracePool;
-    threadpool_task_t *tracePoolTasks;
-    struct task_info *tracePoolRanges;
+    task_group_t *traceTasks;
+
     int lockThreadsCount;
     ALIGNED threadT *lockThreads[LOCK_THREADS_MAX];
 

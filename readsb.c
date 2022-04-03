@@ -215,14 +215,10 @@ static void modesInit(void) {
         Modes.allPoolSize = 1;
     }
     Modes.tracePool = threadpool_create(Modes.tracePoolSize);
-    Modes.tracePoolMaxTasks = 16 * Modes.tracePoolSize;
-    Modes.tracePoolTasks = malloc(Modes.tracePoolMaxTasks * sizeof(threadpool_task_t));
-    Modes.tracePoolRanges = malloc(Modes.tracePoolMaxTasks * sizeof(struct task_info));
+    Modes.traceTasks = allocate_task_group(4 * Modes.tracePoolSize, 4);
 
     Modes.allPool = threadpool_create(Modes.allPoolSize);
-    Modes.allPoolMaxTasks = imax(Modes.allPoolSize * 16, STATE_BLOBS + 1);
-    Modes.allPoolTasks = malloc(Modes.allPoolMaxTasks * sizeof(threadpool_task_t));
-    Modes.allPoolRanges = malloc(Modes.allPoolMaxTasks * sizeof(struct task_info));
+    Modes.allTasks = allocate_task_group(imax(Modes.allPoolSize * 16, STATE_BLOBS + 1), 4);
 
     // 1 api thread per 2 cores as we assume nginx running on the same box, better chances not swamping the CPU under high API load scenarios
     Modes.apiThreadCount = imax(1, Modes.num_procs / 2);
@@ -747,7 +743,7 @@ static void *decodeEntryPoint(void *arg) {
 }
 
 static void traceWriteTask(void *arg) {
-    struct task_info *info = (struct task_info *) arg;
+    task_info_t *info = (task_info_t *) arg;
 
     int64_t now = mstime();
 
@@ -762,9 +758,9 @@ static void traceWriteTask(void *arg) {
 }
 
 static void writeTraces() {
-    int taskCount = imin(Modes.tracePoolMaxTasks, 4 * Modes.tracePoolSize);
-    threadpool_task_t *tasks = Modes.tracePoolTasks;
-    struct task_info *ranges = Modes.tracePoolRanges;
+    int taskCount = Modes.traceTasks->task_count;
+    threadpool_task_t *tasks = Modes.traceTasks->tasks;
+    task_info_t *infos = Modes.traceTasks->infos;
 
     // how long until we want to have checked every aircraft if a trace needs to be written
     int completeTime = 3 * SECONDS;
@@ -778,7 +774,7 @@ static void writeTraces() {
 
     for (int i = 0; i < taskCount; i++) {
         threadpool_task_t *task = &tasks[i];
-        struct task_info *range = &ranges[i];
+        task_info_t *range = &infos[i];
 
         int thread_start = part * thread_section_len;
         int thread_end = thread_start + thread_section_len;
@@ -2026,11 +2022,8 @@ int main(int argc, char **argv) {
     threadpool_destroy(Modes.tracePool);
     threadpool_destroy(Modes.allPool);
 
-    sfree(Modes.tracePoolTasks);
-    sfree(Modes.tracePoolRanges);
-    sfree(Modes.allPoolTasks);
-    sfree(Modes.allPoolRanges);
-
+    destroy_task_group(Modes.traceTasks);
+    destroy_task_group(Modes.allTasks);
 
     if (Modes.exit != 1) {
         log_with_timestamp("Abnormal exit.");
