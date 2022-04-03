@@ -1027,7 +1027,7 @@ struct char_buffer generateAircraftBin(buffer_t *pbuffer) {
 #undef memWrite
 }
 
-struct char_buffer generateGlobeBin(int globe_index, int mil, buffer_t *buffer) {
+struct char_buffer generateGlobeBin(int globe_index, int mil, buffer_t *pbuffer) {
     struct char_buffer cb;
     int64_t now = mstime();
     struct aircraft *a;
@@ -1048,14 +1048,9 @@ struct char_buffer generateGlobeBin(int globe_index, int mil, buffer_t *buffer) 
     if (good && ca)
         alloc += ca->len * sizeof(struct binCraft);
 
-    if (alloc > buffer->bufSize) {
-        // increase buffer size
-        sfree(buffer->buf);
-        buffer->buf = aligned_malloc(alloc);
-        buffer->bufSize = alloc;
-        if (!buffer->buf) { fprintf(stderr, "malloc fail: Woo1aiph\n"); exit(1); }
-    }
-    char *buf = buffer->buf;
+    check_grow_buffer_t(pbuffer, alloc);
+    if (!pbuffer->buf) { fprintf(stderr, "malloc fail: Woo3aiph\n"); exit(1); }
+    char *buf = pbuffer->buf;
     char *p = buf;
     char *end = buf + alloc;
 
@@ -1141,7 +1136,7 @@ struct char_buffer generateGlobeBin(int globe_index, int mil, buffer_t *buffer) 
 #undef memWrite
 }
 
-struct char_buffer generateGlobeJson(int globe_index, buffer_t *buffer) {
+struct char_buffer generateGlobeJson(int globe_index, buffer_t *pbuffer) {
     struct char_buffer cb;
     int64_t now = mstime();
     struct aircraft *a;
@@ -1158,14 +1153,9 @@ struct char_buffer generateGlobeJson(int globe_index, buffer_t *buffer) {
         good = 0;
     }
 
-    if (alloc > buffer->bufSize) {
-        // increase buffer size
-        sfree(buffer->buf);
-        buffer->buf = aligned_malloc(alloc);
-        buffer->bufSize = alloc;
-        if (!buffer->buf) { fprintf(stderr, "malloc fail: Oinool9l\n"); exit(1); }
-    }
-    char *buf = buffer->buf;
+    check_grow_buffer_t(pbuffer, alloc);
+    if (!pbuffer->buf) { fprintf(stderr, "malloc fail: Oinool9l\n"); exit(1); }
+    char *buf = pbuffer->buf;
     char *p = buf;
     char *end = buf + alloc;
 
@@ -1810,7 +1800,11 @@ open:
         if (!gzfp)
             goto error_1;
 
-        gzbuffer(gzfp, 1024 * 1024);
+        int gBufSize = imin(len, 1024 * 1024);
+        gBufSize = imax(gBufSize, 8 * 1024);
+
+        gzbuffer(gzfp, gBufSize);
+
         int name_len = strlen(file);
         if (name_len > 8 && strcmp("binCraft", file + (name_len - 8)) == 0) {
             gzsetparams(gzfp, gzip_level, Z_FILTERED);
