@@ -1527,7 +1527,7 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
     }
 }
 
-struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int start, int last, char *stackBuffer, ssize_t stackBufferSize) {
+struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int start, int last, buffer_t *buffer) {
     struct char_buffer cb = { 0 };
     if (!Modes.json_globe_index) {
         return cb;
@@ -1543,18 +1543,14 @@ struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int sta
     ssize_t alloc = traceCount * 300 + 1024;
 
     char *buf;
-    if (alloc <= stackBufferSize) {
-        cb.free = 0;
-        buf = stackBuffer;
-    } else {
-        cb.free = 1;
-        buf = aligned_malloc(alloc);
+    if (alloc > buffer->bufSize) {
+        // increase buffer size
+        sfree(buffer->buf);
+        buffer->buf = aligned_malloc(alloc);
+        buffer->bufSize = alloc;
+        if (!buffer->buf) { fprintf(stderr, "malloc fail: shooG3ee\n"); exit(1); }
     }
-
-    if (!buf) {
-        fprintf(stderr, "malloc error code point Loi1ahwe\n");
-        return cb;
-    }
+    buf = buffer->buf;
 
     char *p = buf;
     char *end = buf + alloc;

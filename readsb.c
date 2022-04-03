@@ -751,7 +751,7 @@ static void traceWriteTask(void *arg) {
     for (int j = info->from; j < info->to; j++) {
         for (a = Modes.aircraft[j]; a; a = a->next) {
             if (a->trace_write) {
-                traceWrite(a, now, 0);
+                traceWrite(a, now, 0, info);
             }
         }
     }

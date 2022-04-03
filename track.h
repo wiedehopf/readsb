@@ -236,7 +236,6 @@ typedef struct fourState {
 
 typedef struct traceBuffer {
     int len;
-    int free; // 1 if trace needs to be freed, 0 if trace is on the stack / static
     fourState *trace;
 } traceBuffer;
 
