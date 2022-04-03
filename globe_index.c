@@ -4,7 +4,7 @@
 #define LZO_MAGIC (0xf7413cc6eaf227dbULL)
 
 static void mark_legs(traceBuffer tb, struct aircraft *a, int start);
-static void load_blob(int blob);
+static void load_blob(int blob, task_info_t *info);
 static void traceCleanupNoUnlink(struct aircraft *a);
 static void allocCurrent(struct aircraft *a);
 static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t after_timestamp, buffer_t *buffer);
@@ -721,7 +721,7 @@ static void save_blobs(void *arg) {
     for (int j = info->from; j < info->to; j++) {
         //fprintf(stderr, "save_blob(%d)\n", j);
 
-        save_blob(j);
+        save_blob(j, &info->buffers[0], &info->buffers[1]);
 
         if (Modes.free_aircraft) {
             int stride = AIRCRAFT_BUCKETS / STATE_BLOBS;
@@ -2081,7 +2081,7 @@ static int state_chunk_size() {
     return 8 * 1024 * 1024;
 }
 
-void save_blob(int blob) {
+void save_blob(int blob, buffer_t *pbuffer1, buffer_t *pbuffer2) {
     if (!Modes.state_dir)
         return;
     //static int count;
@@ -2131,7 +2131,8 @@ void save_blob(int blob) {
     int end = start + stride;
 
     int alloc = state_chunk_size();
-    unsigned char *buf = aligned_malloc(alloc);
+    check_grow_buffer_t(pbuffer1, alloc);
+    unsigned char *buf = pbuffer1->buf;
     unsigned char *p = buf;
 
     int lzo_out_alloc = alloc + alloc / 16 + 64 + 3; // from mini lzo example
@@ -2139,7 +2140,8 @@ void save_blob(int blob) {
     unsigned char *lzo_out = NULL;
     unsigned char lzo_work[LZO1X_1_MEM_COMPRESS];
     if (lzo) {
-        lzo_out = aligned_malloc(lzo_out_alloc);
+        check_grow_buffer_t(pbuffer2, lzo_out_alloc);
+        lzo_out = pbuffer2->buf;
     }
 
     for (int j = start; j < end; j++) {
@@ -2244,17 +2246,13 @@ error:
         close(fd);
     unlink(tmppath);
 out:
-
-    if (lzo) {
-        free(lzo_out);
-    }
-    free(buf);
+    ;
 }
 static void load_blobs(void *arg) {
     task_info_t *info = (task_info_t *) arg;
 
     for (int j = info->from; j < info->to; j++) {
-        load_blob(j);
+        load_blob(j, info);
     }
 }
 
@@ -2280,7 +2278,7 @@ static int load_aircrafts(char *p, char *end, char *filename, int64_t now) {
     return count;
 }
 
-static void load_blob(int blob) {
+static void load_blob(int blob, task_info_t *info) {
     //fprintf(stderr, "load blob %d\n", blob);
     if (blob < 0 || blob >= STATE_BLOBS)
         fprintf(stderr, "load_blob: invalid argument: %d", blob);
@@ -2326,8 +2324,12 @@ static void load_blob(int blob) {
     end = p + cb.len;
 
     if (lzo) {
+        buffer_t *passbuffer = &info->buffers[0];
         int lzo_out_alloc = state_chunk_size() * 8 / 7;
-        char *lzo_out = aligned_malloc(lzo_out_alloc);
+
+        check_grow_buffer_t(passbuffer, lzo_out_alloc);
+        char *lzo_out = passbuffer->buf;
+
         lzo_uint uncompressed_len = 0;
         int res = 0;
         while (end - p > 0) {
@@ -2357,8 +2359,9 @@ decompress:
                     fprintf(stderr, "Corrupt state file (decompression failure): %s\n", filename);
                     break;
                 }
-                sfree(lzo_out);
-                lzo_out = aligned_malloc(lzo_out_alloc);
+
+                check_grow_buffer_t(passbuffer, lzo_out_alloc);
+                lzo_out = passbuffer->buf;
                 goto decompress;
             }
 
@@ -2367,8 +2370,6 @@ decompress:
             }
             p += compressed_len;
         }
-
-        sfree(lzo_out);
     } else {
         load_aircrafts(p, end, filename, now);
     }
@@ -2767,10 +2768,13 @@ void writeInternalState() {
 
     int64_t now = mstime();
 
-    threadpool_task_t *tasks = Modes.allTasks->tasks;
-    task_info_t *infos = Modes.allTasks->infos;
+    int poolSize = Modes.allPoolSize;
+    threadpool_t *pool = threadpool_create(poolSize);
+    task_group_t *group = allocate_task_group(imax(poolSize, STATE_BLOBS + 1), 4);
+    threadpool_task_t *tasks = group->tasks;
+    task_info_t *infos = group->infos;
 
-    int taskCount = imin(Modes.allPoolSize * 3, Modes.allTasks->task_count);
+    int taskCount = imin(poolSize * 3, group->task_count);
 
     int stride = STATE_BLOBS / taskCount + 1;
 
@@ -2787,7 +2791,10 @@ void writeInternalState() {
         task->argument = range;
     }
     // run tasks
-    threadpool_run(Modes.allPool, tasks, taskCount);
+    threadpool_run(pool, tasks, taskCount);
+
+    threadpool_destroy(pool);
+    destroy_task_group(group);
 
     if (Modes.outline_json) {
         char pathbuf[PATH_MAX];
@@ -2850,11 +2857,13 @@ void readInternalState() {
 
     int64_t now = mstime();
 
-    threadpool_task_t *tasks = Modes.allTasks->tasks;
-    task_info_t *infos = Modes.allTasks->infos;
+    int poolSize = Modes.allPoolSize;
+    threadpool_t *pool = threadpool_create(poolSize);
+    task_group_t *group = allocate_task_group(imax(poolSize, STATE_BLOBS + 1), 4);
+    threadpool_task_t *tasks = group->tasks;
+    task_info_t *infos = group->infos;
 
-
-    int parts = imin(Modes.allPoolSize * 3, Modes.allTasks->task_count - 1);
+    int parts = imin(poolSize * 3, group->task_count - 1);
 
     // assign tasks
     int taskCount = 0;
@@ -2882,7 +2891,10 @@ void readInternalState() {
         taskCount++;
     }
     // run tasks
-    threadpool_run(Modes.allPool, tasks, taskCount);
+    threadpool_run(pool, tasks, taskCount);
+
+    threadpool_destroy(pool);
+    destroy_task_group(group);
 
     int64_t aircraftCount = 0; // includes quite old aircraft, just for checking hash table fill
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {

@@ -217,5 +217,11 @@ task_group_t *allocate_task_group(uint32_t count, uint32_t buffer_count);
 // destroy a group of tasks
 void destroy_task_group(task_group_t *group);
 
+static inline void check_grow_buffer_t(buffer_t *buffer, ssize_t newSize) {
+    if (buffer->bufSize < newSize) {
+        sfree(buffer->buf);
+        buffer->buf = aligned_malloc(newSize);
+    }
+}
 
 #endif

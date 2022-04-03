@@ -45,7 +45,7 @@ int globe_index(double lat_in, double lon_in);
 int globe_index_index(int index);
 void init_globe_index();
 void cleanup_globe_index();
-void save_blob(int blob);
+void save_blob(int blob, buffer_t *pbuffer1, buffer_t *pbuffer2);
 void writeInternalState();
 void readInternalState();
 void traceWrite(struct aircraft *a, int64_t now, int init, task_info_t *info);

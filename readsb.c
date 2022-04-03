@@ -1731,7 +1731,11 @@ static void miscStuff() {
         // only continuously write state if we keep permanent trace
         if (!Modes.state_only_on_exit && !enough && now > next_blob) {
             enough = 1;
-            save_blob(blob++ % STATE_BLOBS);
+            buffer_t pbuffer1 = { 0 };
+            buffer_t pbuffer2 = { 0 };
+            save_blob(blob++ % STATE_BLOBS, &pbuffer1, &pbuffer2);
+            sfree(pbuffer1.buf);
+            sfree(pbuffer2.buf);
             next_blob = now + 60 * MINUTES / STATE_BLOBS;
         }
     }
