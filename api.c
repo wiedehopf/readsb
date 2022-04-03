@@ -1588,15 +1588,20 @@ void apiCleanup() {
     }
 }
 
-struct char_buffer apiGenerateAircraftJson() {
+struct char_buffer apiGenerateAircraftJson(buffer_t *pbuffer) {
     struct char_buffer cb = { 0 };
 
     int flip = atomic_load(&Modes.apiFlip[0]);
 
     struct apiBuffer *buffer = &Modes.apiBuffer[flip];
 
-    size_t alloc = buffer->jsonLen + 2048;
-    char *buf = (char *) aligned_malloc(alloc), *p = buf, *end = buf + alloc;
+    ssize_t alloc = buffer->jsonLen + 2048;
+
+    check_grow_buffer_t(pbuffer, alloc);
+    if (!pbuffer->buf) { fprintf(stderr, "malloc fail: Woo7aiph\n"); exit(1); }
+    char *buf = pbuffer->buf;
+    char *p = buf;
+    char *end = buf + alloc;
 
     if (!buf) {
         return cb;
@@ -1640,15 +1645,10 @@ struct char_buffer apiGenerateGlobeJson(int globe_index, buffer_t *pbuffer) {
     // only used to estimate allocation size
     struct craftArray *ca = &Modes.globeLists[globe_index];
     if (ca)
-        alloc += ca->len * 1024;
+        alloc += ca->len * 1200;
 
-    if (alloc > pbuffer->bufSize) {
-        // increase pbuffer size
-        sfree(pbuffer->buf);
-        pbuffer->buf = aligned_malloc(alloc);
-        pbuffer->bufSize = alloc;
-        if (!pbuffer->buf) { fprintf(stderr, "malloc fail: Woo1aiph\n"); exit(1); }
-    }
+    check_grow_buffer_t(pbuffer, alloc);
+    if (!pbuffer->buf) { fprintf(stderr, "malloc fail: Woo1aiph\n"); exit(1); }
     char *buf = pbuffer->buf;
     char *p = buf;
     char *end = buf + alloc;
@@ -1701,19 +1701,14 @@ struct char_buffer apiGenerateGlobeJson(int globe_index, buffer_t *pbuffer) {
             continue;
 
         // check if we have enough space
-        if ((p + 2000) >= end) {
-            int used = p - buf;
-            alloc *= 2;
-            buf = (char *) realloc(buf, alloc);
-            p = buf + used;
-            end = buf + alloc;
+        if (p + entry->jsonOffset.len >= end) {
+            fprintf(stderr, "apiGenerateGlobeJson buffer overrun\n");
+            break;
         }
 
         memcpy(p, buffer->json + entry->jsonOffset.offset, entry->jsonOffset.len);
         p += entry->jsonOffset.len;
 
-        if (p >= end)
-            fprintf(stderr, "apiGenerateGlobeJson buffer overrun\n");
     }
 
     // json objects in cache are terminated by a comma: \n{ .... },

@@ -955,15 +955,17 @@ int includeAircraftJson(int64_t now, struct aircraft *a) {
     return 0;
 }
 
-struct char_buffer generateAircraftBin() {
+struct char_buffer generateAircraftBin(buffer_t *pbuffer) {
     struct char_buffer cb;
     int64_t now = mstime();
     struct aircraft *a;
 
     struct craftArray *ca = &Modes.aircraftActive;
-    size_t alloc = 4096 + ca->len * sizeof(struct binCraft); // The initial buffer is resized as needed
+    size_t alloc = 4096 + ca->len * sizeof(struct binCraft);
 
-    char *buf = aligned_malloc(alloc);
+    check_grow_buffer_t(pbuffer, alloc);
+    if (!pbuffer->buf) { fprintf(stderr, "malloc fail: Woo7aiph\n"); exit(1); }
+    char *buf = pbuffer->buf;
     char *p = buf;
     char *end = buf + alloc;
 
@@ -1009,18 +1011,13 @@ struct char_buffer generateAircraftBin() {
         }
         // check if we have enough space
         if ((p + 2 * sizeof(struct binCraft)) >= end) {
-            int used = p - buf;
-            alloc *= 2;
-            buf = (char *) realloc(buf, alloc);
-            p = buf + used;
-            end = buf + alloc;
+            fprintf(stderr, "buffer overrun aircraftBin\n");
+            break;
         }
 
         toBinCraft(a, (struct binCraft *) p, now);
         p += sizeof(struct binCraft);
 
-        if (p >= end)
-            fprintf(stderr, "buffer overrun aircraftBin\n");
     }
 
     cb.len = p - buf;

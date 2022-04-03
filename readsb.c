@@ -466,11 +466,26 @@ static void *jsonEntryPoint(void *arg) {
 
         if (Modes.onlyBin < 2) {
             // new way: use the apiBuffer of json fragments
-            struct char_buffer cb = apiGenerateAircraftJson();
+            struct char_buffer cb = apiGenerateAircraftJson(&pass_buffer);
             if (Modes.json_gzip)
                 writeJsonToGzip(Modes.json_dir, "aircraft.json.gz", cb, 3);
             writeJsonToFile(Modes.json_dir, "aircraft.json", cb);
-            sfree(cb.buffer);
+
+            if ((ALL_JSON) && Modes.onlyBin < 2 && now >= next_history) {
+                char filebuf[PATH_MAX];
+
+                snprintf(filebuf, PATH_MAX, "history_%d.json", Modes.json_aircraft_history_next);
+                writeJsonToFile(Modes.json_dir, filebuf, cb);
+
+                if (!Modes.json_aircraft_history_full) {
+                    free(writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson()).buffer); // number of history entries changed
+                    if (Modes.json_aircraft_history_next == HISTORY_SIZE - 1)
+                        Modes.json_aircraft_history_full = 1;
+                }
+
+                Modes.json_aircraft_history_next = (Modes.json_aircraft_history_next + 1) % HISTORY_SIZE;
+                next_history = now + HISTORY_INTERVAL;
+            }
         }
 
         if (Modes.debug_recent) {
@@ -479,29 +494,12 @@ static void *jsonEntryPoint(void *arg) {
             sfree(cb.buffer);
         }
 
-        struct char_buffer cb3 = generateAircraftBin();
+        struct char_buffer cb3 = generateAircraftBin(&pass_buffer);
         writeJsonToGzip(Modes.json_dir, "aircraft.binCraft", cb3, 1);
-        sfree(cb3.buffer);
 
         if (Modes.json_globe_index) {
             struct char_buffer cb2 = generateGlobeBin(-1, 1, &pass_buffer);
             writeJsonToGzip(Modes.json_dir, "globeMil_42777.binCraft", cb2, 5);
-        }
-
-        if ((ALL_JSON) && Modes.onlyBin < 2 && now >= next_history) {
-            char filebuf[PATH_MAX];
-
-            snprintf(filebuf, PATH_MAX, "history_%d.json", Modes.json_aircraft_history_next);
-            free(writeJsonToFile(Modes.json_dir, filebuf, apiGenerateAircraftJson()).buffer);
-
-            if (!Modes.json_aircraft_history_full) {
-                free(writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson()).buffer); // number of history entries changed
-                if (Modes.json_aircraft_history_next == HISTORY_SIZE - 1)
-                    Modes.json_aircraft_history_full = 1;
-            }
-
-            Modes.json_aircraft_history_next = (Modes.json_aircraft_history_next + 1) % HISTORY_SIZE;
-            next_history = now + HISTORY_INTERVAL;
         }
 
         end_cpu_timing(&start_time, &Modes.stats_current.aircraft_json_cpu);

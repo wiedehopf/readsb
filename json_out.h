@@ -35,7 +35,7 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, 
 char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, int printMode, struct modesMessage *mm);
 char *sprintAircraftRecent(char *p, char *end, struct aircraft *a, int64_t now, int printMode, struct modesMessage *mm, int64_t recent);
 struct char_buffer generateAircraftJson(int64_t onlyRecent);
-struct char_buffer generateAircraftBin();
+struct char_buffer generateAircraftBin(buffer_t *pbuffer);
 struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int start, int last, buffer_t *buffer);
 struct char_buffer generateGlobeBin(int globe_index, int mil, buffer_t *buffer);
 struct char_buffer generateGlobeJson(int globe_index, buffer_t *buffer);
