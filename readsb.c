@@ -1560,23 +1560,23 @@ static void configAfterParse() {
         Modes.keep_traces = 35 * MINUTES; // heatmap is written every 30 minutes
     }
 
-    Modes.traceMax = ((Modes.keep_traces + 1 * HOURS) / 1000 * 3) / SFOUR * SFOUR; // 3 position per second, usually 2 per second is max
+    Modes.traceMax = alignSFOUR((Modes.keep_traces + 1 * HOURS) / 1000 * 3); // 3 position per second, usually 2 per second is max
 
-    Modes.traceReserve = 24 * SFOUR / SFOUR;
+    Modes.traceReserve = alignSFOUR(24);
 
-    Modes.traceChunkPoints = 128 * SFOUR / SFOUR;
+    Modes.traceChunkPoints = alignSFOUR(128);
 
     if (Modes.json_trace_interval < 1) {
         Modes.json_trace_interval = 1; // 1 ms
     }
     if (Modes.json_trace_interval < 4 * SECONDS) {
         double oversize = 4.0 / fmax(0.5, (double) Modes.json_trace_interval / 1000.0);
-        Modes.traceMax = ((int) (Modes.traceMax * oversize)) / SFOUR * SFOUR;
-        Modes.traceChunkPoints = (int) (Modes.traceChunkPoints * oversize) * SFOUR / SFOUR;
+        Modes.traceMax = alignSFOUR(Modes.traceMax * oversize);
+        Modes.traceChunkPoints = alignSFOUR(Modes.traceChunkPoints * oversize);
     }
 
-    Modes.traceRecentPoints = TRACE_RECENT_POINTS * SFOUR / SFOUR;
-    Modes.traceCachePoints = (Modes.traceRecentPoints + TRACE_CACHE_EXTRA) / SFOUR * SFOUR;
+    Modes.traceRecentPoints = alignSFOUR(TRACE_RECENT_POINTS);
+    Modes.traceCachePoints = alignSFOUR(Modes.traceRecentPoints + TRACE_CACHE_EXTRA);
 
     if (Modes.verbose) {
         fprintf(stderr, "traceChunkPoints: %d size: %ld\n", Modes.traceChunkPoints, (long) stateBytes(Modes.traceChunkPoints));

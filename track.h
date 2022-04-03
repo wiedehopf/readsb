@@ -243,6 +243,11 @@ typedef struct traceBuffer {
 static inline int getFourStates(int points) {
     return ((points + SFOUR - 1) / SFOUR);
 }
+
+static inline int alignSFOUR(int value) {
+    return ((value + SFOUR - 1) / SFOUR) * SFOUR;
+}
+
 static inline ssize_t stateBytes(int points) {
     return getFourStates(points) * sizeof(fourState);
 }

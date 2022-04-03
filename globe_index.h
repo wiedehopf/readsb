@@ -49,7 +49,6 @@ void save_blob(int blob);
 void writeInternalState();
 void readInternalState();
 void traceWrite(struct aircraft *a, int64_t now, int init);
-void traceAlloc(struct aircraft *a);
 void traceCleanup(struct aircraft *a);
 int traceAdd(struct aircraft *a, int64_t now, int stale);
 int traceUsePosBuffered();

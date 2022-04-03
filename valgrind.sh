@@ -7,8 +7,8 @@ source /etc/default/test
 cp -f readsb /tmp/test123
 
 MEM="--track-origins=yes"
-MEM="--show-leak-kinds=all --track-origins=yes --leak-check=full"
 MEM="--show-leak-kinds=all --leak-check=full"
+MEM="--show-leak-kinds=all --track-origins=yes --leak-check=full"
 MEM=""
 
 FIRST=""
