@@ -1710,7 +1710,7 @@ static void allocCurrent(struct aircraft *a) {
 
 void traceMaintenance(struct aircraft *a, int64_t now) {
     // free trace cache for inactive aircraft
-    if (a->traceCache.entries && now - a->seen_pos > TRACE_CACHE_LIFETIME) {
+    if (a->traceCache.entries && now - a->seenPosReliable > TRACE_CACHE_LIFETIME) {
         //fprintf(stderr, "%06x free traceCache\n", a->addr);
         destroyTraceCache(&a->traceCache);
     }

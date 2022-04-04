@@ -30,7 +30,7 @@
 
 
 #define TRACE_CACHE_LIFETIME (1 * MINUTES)
-#define TRACE_CACHE_EXTRA (16)
+#define TRACE_CACHE_EXTRA (8)
 
 struct tile {
     int south;

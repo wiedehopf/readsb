@@ -1408,9 +1408,9 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
     struct traceCache *cache = &a->traceCache;
     if (!cache->entries) {
         if (Modes.trace_hist_only & 8) {
-            return; // no cache in this special case ... please ignore :)
+            return; // no cache in this special case
         }
-        if (now - a->seen_pos > TRACE_CACHE_LIFETIME / 2 || tb.len == 0) {
+        if (now - a->seenPosReliable > TRACE_CACHE_LIFETIME / 2 || tb.len == 0) {
             return;
         }
         ssize_t size_entries = Modes.traceCachePoints * sizeof(struct traceCacheEntry);
@@ -1585,26 +1585,28 @@ struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int sta
 
     int64_t startStamp = getState(tb.trace, start)->timestamp;
 
-    if (recent) {
-        checkTraceCache(a, tb, now);
-    }
     struct traceCache *tCache = NULL;
     struct traceCacheEntry *entries = NULL;
     int k = 0;
-    if (a->traceCache.entries && recent) {
-        tCache = &a->traceCache;
-        startStamp = tCache->startStamp;
-        entries = tCache->entries;
-        int found = 0;
-        while (k < tCache->entriesLen) {
-            if (entries[k].stateIndex == start) {
-                found = 1;
-                break;
+    // due to timestamping, only use trace cache for recent trace jsons
+    if (recent) {
+        checkTraceCache(a, tb, now);
+        if (a->traceCache.entries) {
+            tCache = &a->traceCache;
+            startStamp = tCache->startStamp;
+            entries = tCache->entries;
+            int found = 0;
+            while (k < tCache->entriesLen) {
+                if (entries[k].stateIndex == start) {
+                    found = 1;
+                    break;
+                }
+                k++;
             }
-            k++;
+            if (!found) {
+                tCache = NULL;
+            }
         }
-        if (!found)
-            tCache = NULL;
     }
 
     p = safe_snprintf(p, end, ",\n\"timestamp\": %.3f", startStamp / 1000.0);
