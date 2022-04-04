@@ -1560,14 +1560,18 @@ struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int sta
 
     if (Modes.db) {
         char *regInfo = p;
-        if (a->registration[0])
+        if (a->registration[0]) {
             p = safe_snprintf(p, end, ",\n\"r\":\"%.*s\"", (int) sizeof(a->registration), a->registration);
-        if (a->typeCode[0])
+        }
+        if (a->typeCode[0]) {
             p = safe_snprintf(p, end, ",\n\"t\":\"%.*s\"", (int) sizeof(a->typeCode), a->typeCode);
-        if (a->typeLong[0])
+        }
+        if (a->typeLong[0]) {
             p = safe_snprintf(p, end, ",\n\"desc\":\"%.*s\"", (int) sizeof(a->typeLong), a->typeLong);
-        if (a->dbFlags)
+        }
+        if (a->typeCode[0] || a->registration[0] || a->dbFlags) {
             p = safe_snprintf(p, end, ",\n\"dbFlags\":%u", a->dbFlags);
+        }
         dbEntry *e = dbGet(a->addr, Modes.dbIndex);
         if (e) {
             if (e->ownOp[0])

@@ -1158,6 +1158,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.prom_file = strdup(arg);
             break;
         case OptJsonDir:
+            sfree(Modes.json_dir);
             Modes.json_dir = strdup(arg);
             break;
         case OptHeatmap:

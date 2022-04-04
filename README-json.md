@@ -28,9 +28,10 @@ The keys are:
  * lat: the latitude of the receiver in decimal degrees. Optional, may not be present.
  * lon: the longitude of the receiver in decimal degrees. Optional, may not be present.
 
-## aircraft.json
+## aircraft.json and --json-port
 
-This file contains readsb list of recently seen aircraft. The keys are:
+- --json-port will supply one aircraft object per line, each aircraft object has it's own now as a timestamp
+- aircraft.json contains recently seen aircraft. The keys are:
 
  * now: the time this file was generated, in seconds since Jan 1 1970 00:00:00 GMT (the Unix epoch).
  * messages: the total number of Mode S messages processed since readsb started.
@@ -100,7 +101,7 @@ This file contains readsb list of recently seen aircraft. The keys are:
 (Section references (2.2.xyz) refer to DO-260B.)
 
 
-   If used with --db-file using a aircraft.csv.gz from the tar1090-db repository (csv branch), these additional flags will be available:
+   If used with --db-file using a aircraft.csv.gz from the tar1090-db repository (csv branch), these additional fields will be available if the aircraft is in the database:
    * r: aircraft registration pulled from database
    * t: aircraft type pulled from database
    * (optional with --db-file-lt: desc: long type name)
