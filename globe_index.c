@@ -489,7 +489,7 @@ void traceWrite(struct aircraft *a, int64_t now, int init, task_info_t *info) {
     if ((trace_write & (WPERM | WMEM))) {
         tb = reassembleTrace(a, -1, -1, reassemble_buffer);
     } else {
-        tb = reassembleTrace(a, recent_points, -1, reassemble_buffer);
+        tb = reassembleTrace(a, 2 * recent_points, -1, reassemble_buffer);
     }
 
     int startFull = 0;
