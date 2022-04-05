@@ -142,6 +142,14 @@ void threadpool_destroy(threadpool_t *pool)
 
 void threadpool_run(threadpool_t *pool, threadpool_task_t* tasks, uint32_t count)
 {
+    if (!pool) {
+        for (uint32_t i = 0; i < count; i++) {
+            threadpool_task_t *task = &tasks[i];
+            task->function(task->argument);
+        }
+        return;
+    }
+
     atomic_store(&pool->pending_count, count);
     atomic_store(&pool->tasks, (intptr_t) tasks);
     // incrementing task count means a thread could start doing work already

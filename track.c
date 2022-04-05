@@ -2504,18 +2504,19 @@ void trackRemoveStale(int64_t now) {
     //fprintf(stderr, "activeUpdate\n");
     activeUpdate(now);
 
-    threadpool_task_t *tasks = Modes.allTasks->tasks;
-    task_info_t *infos = Modes.allTasks->infos;
+    int taskCount;
+    threadpool_task_t *tasks;
+    task_info_t *infos;
 
-    int taskCount = Modes.allPoolSize;
-    int section_len;
-
+    taskCount = imin(Modes.allPoolSize, Modes.allTasks->task_count);
+    tasks = Modes.allTasks->tasks;
+    infos = Modes.allTasks->infos;
 
     // tasks to maintain validities / traces in active list
     struct craftArray *ca = &Modes.aircraftActive;
     // we must not lock ca here as aircraft freeing locks it
 
-    section_len = ca->len / taskCount + 1;
+    int section_len = ca->len / taskCount + 1;
     // assign tasks
     for (int i = 0; i < taskCount; i++) {
         threadpool_task_t *task = &tasks[i];
@@ -2531,6 +2532,12 @@ void trackRemoveStale(int64_t now) {
         //fprintf(stderr, "%d %d\n", thread_start, thread_end);
     }
     threadpool_run(Modes.allPool, tasks, taskCount);
+
+
+    // don't mix tasks above and below
+    // don't mix tasks above and below
+    // don't mix tasks above and below
+
 
     // tasks to maintain aircraft in list of all aircraft
 

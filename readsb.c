@@ -208,20 +208,12 @@ static void modesInit(void) {
 
     if (Modes.json_globe_index || Modes.netReceiverId) {
         // to keep decoding and the other threads working well, don't use all available processors
-        Modes.tracePoolSize = imax(1, Modes.num_procs - 2);
         Modes.allPoolSize = imax(1, Modes.num_procs);
     } else {
-        Modes.tracePoolSize = 1;
         Modes.allPoolSize = 1;
     }
-    Modes.tracePool = threadpool_create(Modes.tracePoolSize);
-    Modes.traceTasks = allocate_task_group(4 * Modes.tracePoolSize, 4);
-
+    Modes.allTasks = allocate_task_group(Modes.allPoolSize, 4);
     Modes.allPool = threadpool_create(Modes.allPoolSize);
-    Modes.allTasks = allocate_task_group(imax(Modes.allPoolSize * 16, STATE_BLOBS + 1), 4);
-
-    // 1 api thread per 2 cores as we assume nginx running on the same box, better chances not swamping the CPU under high API load scenarios
-    Modes.apiThreadCount = imax(1, Modes.num_procs / 2);
 
     for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
         ca_init(&Modes.globeLists[i]);
@@ -300,6 +292,7 @@ static void trackPeriodicUpdate() {
     Modes.currentTask = "locked";
 
     int64_t now = mstime();
+    int removed_stale = 0;
 
     if (now > Modes.next_stats_update)
         Modes.updateStats = 1;
@@ -317,10 +310,18 @@ static void trackPeriodicUpdate() {
         pthread_mutex_unlock(&Modes.hungTimerMutex);
 
         Modes.currentTask = "trackRemoveStale";
+
         trackRemoveStale(now);
-        Modes.next_remove_stale = now + 1 * SECONDS;
         traceDelete();
+
+        int64_t interval = now - Modes.next_remove_stale;
+        if (interval > 5 * REMOVE_STALE_INTERVAL && interval < 1 * HOURS) {
+            fprintf(stderr, "<3> removeStale didn't run for %.1f seconds!\n", interval / 1000.0);
+        }
+
+        Modes.next_remove_stale = now + REMOVE_STALE_INTERVAL;
         pthread_mutex_unlock(&Threads.misc.mutex);
+        removed_stale = 1;
     }
 
     int64_t elapsed1 = lapWatch(&watch);
@@ -329,7 +330,6 @@ static void trackPeriodicUpdate() {
         Modes.currentTask = "trackMatchAC";
         trackMatchAC(now);
     }
-
 
     if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 4) {
         Modes.currentTask = "netFreeClients";
@@ -398,8 +398,10 @@ static void trackPeriodicUpdate() {
         }
     }
     end_monotonic_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
-    struct timespec after = threadpool_get_cumulative_thread_time(Modes.allPool);
-    timespec_add_elapsed(&before, &after, &Modes.stats_current.remove_stale_cpu);
+    if (removed_stale) {
+        struct timespec after = threadpool_get_cumulative_thread_time(Modes.allPool);
+        timespec_add_elapsed(&before, &after, &Modes.stats_current.remove_stale_cpu);
+    }
     Modes.currentTask = "trackPeriodic_end";
 }
 
@@ -764,6 +766,13 @@ static void traceWriteTask(void *arg) {
 }
 
 static void writeTraces() {
+
+    if (!Modes.tracePool) {
+        Modes.tracePoolSize = imax(1, Modes.num_procs - 2);
+        Modes.tracePool = threadpool_create(Modes.tracePoolSize);
+        Modes.traceTasks = allocate_task_group(4 * Modes.tracePoolSize, 4);
+    }
+
     int taskCount = Modes.traceTasks->task_count;
     threadpool_task_t *tasks = Modes.traceTasks->tasks;
     task_info_t *infos = Modes.traceTasks->infos;
@@ -829,8 +838,9 @@ static void *upkeepEntryPoint(void *arg) {
     while (!Modes.exit) {
         trackPeriodicUpdate();
         int64_t wait = PERIODIC_UPDATE;
-        if (Modes.synthetic_now)
+        if (Modes.synthetic_now) {
             wait = 20;
+        }
         if (Modes.json_globe_index) {
             Modes.currentTask = "writeTraces_start";
             writeTraces();
@@ -1905,10 +1915,10 @@ int main(int argc, char **argv) {
         // provide a json buffer
         Modes.apiUpdate = 1;
         apiBufferInit();
-    }
-    if (Modes.api) {
-        // after apiBufferInit()
-        apiInit();
+        if (Modes.api) {
+            // after apiBufferInit()
+            apiInit();
+        }
     }
 
     if (Modes.json_globe_index) {
@@ -2030,11 +2040,15 @@ int main(int argc, char **argv) {
     Modes.free_aircraft = 1;
     writeInternalState();
 
-    threadpool_destroy(Modes.tracePool);
-    threadpool_destroy(Modes.allPool);
+    if (Modes.allPool) {
+        threadpool_destroy(Modes.allPool);
+        destroy_task_group(Modes.allTasks);
+    }
 
-    destroy_task_group(Modes.traceTasks);
-    destroy_task_group(Modes.allTasks);
+    if (Modes.tracePool) {
+        threadpool_destroy(Modes.tracePool);
+        destroy_task_group(Modes.traceTasks);
+    }
 
     if (Modes.exit != 1) {
         log_with_timestamp("Abnormal exit.");

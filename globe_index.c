@@ -2399,6 +2399,18 @@ static inline void heatmapCheckAlloc(struct heatEntry **buffer, int64_t **slices
     }
 }
 
+static void checkMiscBreak() {
+    static int64_t last_break;
+    // take a break now and then and let maintenance functions run
+    if (mstime() - last_break > REMOVE_STALE_INTERVAL) {
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        threadTimedWait(&Threads.misc, &ts, 2 * PERIODIC_UPDATE);
+        last_break = mstime();
+    }
+}
+
+
 int handleHeatmap(int64_t now) {
     if (!Modes.heatmap)
         return 0;
@@ -2446,6 +2458,7 @@ int handleHeatmap(int64_t now) {
     buffer_t pass_buffer = { 0 };
 
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+        checkMiscBreak();
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
             if ((a->addr & MODES_NON_ICAO_ADDRESS) && a->airground == AG_GROUND) continue;
             if (a->trace_len == 0) continue;
@@ -2545,6 +2558,8 @@ int handleHeatmap(int64_t now) {
     memset(index, 0, indexSize); // avoid having to set zero individually
 
     for (int i = 0; i < num_slices; i++) {
+        checkMiscBreak();
+
         struct heatEntry specialSauce = (struct heatEntry) {0};
         int64_t slice_stamp = start + i * Modes.heatmap_interval;
         specialSauce.hex = 0xe7f7c9d;

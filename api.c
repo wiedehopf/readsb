@@ -1499,6 +1499,9 @@ static void *apiUpdateEntryPoint(void *arg) {
 }
 
 void apiBufferInit() {
+    // 1 api thread per 2 cores as we assume nginx running on the same box, better chances not swamping the CPU under high API load scenarios
+    Modes.apiThreadCount = imax(1, Modes.num_procs / 2);
+
     size_t size = sizeof(struct apiThread) * Modes.apiThreadCount;
     Modes.apiThread = aligned_malloc(size);
     memset(Modes.apiThread, 0x0, size);
