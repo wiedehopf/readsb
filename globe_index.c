@@ -784,6 +784,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
     // make sure we set anything allocated to null pointers
     a->trace_current = NULL;
     a->trace_chunks = NULL;
+    a->trace_chunk_overall_bytes = 0;
     memset(&a->traceCache, 0x0, sizeof(struct traceCache));
 
     a->disc_cache_index = 0;
@@ -849,6 +850,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
 
             checkSize(chunk->compressed_size);
             chunk->compressed = malloc(chunk->compressed_size);
+            a->trace_chunk_overall_bytes += chunk->compressed_size;
             *p += memcpySize(chunk->compressed, *p, chunk->compressed_size);
 
             ssize_t padBytes = roundUp8(chunk->compressed_size) - chunk->compressed_size;
@@ -1432,6 +1434,7 @@ static void tracePrune(struct aircraft *a, int64_t now) {
 
         deletedChunks++;
         a->trace_len -= chunk->numStates;
+        a->trace_chunk_overall_bytes -= chunk->compressed_size;
 
         sfree(chunk->compressed);
     }
@@ -1477,6 +1480,7 @@ static void traceCleanupNoUnlink(struct aircraft *a) {
     }
     sfree(a->trace_chunks);
     a->trace_chunk_len = 0;
+    a->trace_chunk_overall_bytes = 0;
 
     sfree(a->trace_current);
     a->trace_current_max = 0;
@@ -1486,6 +1490,7 @@ static void traceCleanupNoUnlink(struct aircraft *a) {
     a->trace_len = 0;
 
     destroyTraceCache(&a->traceCache);
+
 }
 
 void traceCleanup(struct aircraft *a) {
@@ -1633,6 +1638,8 @@ static void setTrace(struct aircraft *a, fourState *source, int len) {
 
         compressChunk(new, p, chunkSize);
 
+        a->trace_chunk_overall_bytes += new->compressed_size;
+
         len -= new->numStates;
         a->trace_chunk_len = newLen;
     }
@@ -1668,6 +1675,7 @@ static void compressCurrent(struct aircraft *a, int chunkPoints) {
     new->lastTimestamp = getState(a->trace_current, chunkPoints - 1)->timestamp;
 
     compressChunk(new, a->trace_current, chunkPoints);
+    a->trace_chunk_overall_bytes += new->compressed_size;
     if (Modes.verbose) {
         fprintf(stderr, "%06x compressChunk: compressed_size: %d trace_chunk_len %d compression ratio %.2f\n",
                 a->addr, new->compressed_size, a->trace_chunk_len, stateBytes(chunkPoints) / (double) new->compressed_size);

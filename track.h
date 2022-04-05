@@ -539,6 +539,7 @@ struct aircraft
   struct discarded disc_cache[DISCARD_CACHE];
 
   struct traceCache traceCache;
+  uint32_t trace_chunk_overall_bytes;
 };
 
 /* Mode A/C tracking is done separately, not via the aircraft list,

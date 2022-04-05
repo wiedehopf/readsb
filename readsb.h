@@ -470,6 +470,9 @@ struct _Modes
     int api_fds_per_thread;
     int total_aircraft_count;
     float estimated_ppm;
+    uint64_t trace_chunk_size;
+    uint64_t trace_cache_size;
+    uint64_t trace_current_size;
 
     ALIGNED struct aircraft * aircraft[AIRCRAFT_BUCKETS];
     ALIGNED struct craftArray globeLists[GLOBE_MAX_INDEX+1];

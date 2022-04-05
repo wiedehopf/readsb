@@ -888,6 +888,11 @@ struct char_buffer generatePromFile(int64_t now) {
 
         p = safe_snprintf(p, end, "readsb_demod_preambles %"PRIu32"\n", st->demod_preambles);
     }
+    if (Modes.json_globe_index) {
+        p = safe_snprintf(p, end, "readsb_trace_current_memory %"PRIu64"\n", Modes.trace_current_size);
+        p = safe_snprintf(p, end, "readsb_trace_chunk_memory %"PRIu64"\n", Modes.trace_chunk_size);
+        p = safe_snprintf(p, end, "readsb_trace_cache_memory %"PRIu64"\n", Modes.trace_cache_size);
+    }
     int64_t uptime = now - Modes.startup_time;
     if (now < Modes.startup_time)
         uptime = 0;
@@ -925,9 +930,22 @@ void statsResetCount() {
 void statsCountAircraft(int64_t now) {
     struct statsCount *s = &(Modes.globalStatsCount);
     uint32_t total_aircraft_count = 0;
+    uint64_t trace_chunk_size = 0;
+    uint64_t trace_cache_size = 0;
+    uint64_t trace_current_size = 0;
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
         for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
             total_aircraft_count++;
+
+            if (Modes.json_globe_index) {
+                trace_current_size += stateBytes(a->trace_current_len);
+                trace_chunk_size += a->trace_chunk_overall_bytes;
+                if (a->traceCache.entries) {
+                    trace_cache_size += Modes.traceCachePoints * sizeof(struct traceCacheEntry);
+                    trace_cache_size += a->traceCache.json_max;
+                }
+            }
+
             if (!(a->messages >= 2 && (now < a->seen + TRACK_EXPIRE || trackDataValid(&a->position_valid))))
                 continue;
 
@@ -975,6 +993,9 @@ void statsCountAircraft(int64_t now) {
     }
 
     Modes.total_aircraft_count = total_aircraft_count;
+    Modes.trace_chunk_size = trace_chunk_size;
+    Modes.trace_cache_size = trace_cache_size;
+    Modes.trace_current_size = trace_current_size;
 
     static int64_t antiSpam2;
     if (total_aircraft_count > 2 * AIRCRAFT_BUCKETS && now > antiSpam2 + 12 * HOURS) {
