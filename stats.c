@@ -938,7 +938,7 @@ void statsCountAircraft(int64_t now) {
             total_aircraft_count++;
 
             if (Modes.json_globe_index) {
-                trace_current_size += stateBytes(a->trace_current_len);
+                trace_current_size += stateBytes(a->trace_current_max);
                 trace_chunk_size += a->trace_chunk_overall_bytes;
                 if (a->traceCache.entries) {
                     trace_cache_size += Modes.traceCachePoints * sizeof(struct traceCacheEntry);

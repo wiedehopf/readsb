@@ -433,6 +433,7 @@ struct _Modes
     threadpool_t *allPool;
     task_group_t *allTasks;
 
+    int64_t traceWriteTimelimit;
     int tracePoolSize;
     threadpool_t *tracePool;
     task_group_t *traceTasks;

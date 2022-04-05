@@ -755,10 +755,18 @@ static void traceWriteTask(void *arg) {
 
     int64_t now = mstime();
 
+    if (now > Modes.traceWriteTimelimit) {
+        return;
+    }
+
     struct aircraft *a;
     for (int j = info->from; j < info->to; j++) {
         for (a = Modes.aircraft[j]; a; a = a->next) {
             if (a->trace_write) {
+                now = mstime();
+                if (now > Modes.traceWriteTimelimit) {
+                    return;
+                }
                 traceWrite(a, now, 0, info);
             }
         }
@@ -786,6 +794,8 @@ static void writeTraces() {
     int thread_section_len = AIRCRAFT_BUCKETS / n_parts + 1;
 
     static int part = 0;
+
+    Modes.traceWriteTimelimit = mstime() + PERIODIC_UPDATE;
 
     for (int i = 0; i < taskCount; i++) {
         threadpool_task_t *task = &tasks[i];
@@ -1575,15 +1585,16 @@ static void configAfterParse() {
 
     Modes.traceMax = alignSFOUR((Modes.keep_traces + 1 * HOURS) / 1000 * 3); // 3 position per second, usually 2 per second is max
 
-    Modes.traceReserve = alignSFOUR(36);
+    Modes.traceReserve = alignSFOUR(16);
 
-    Modes.traceChunkPoints = alignSFOUR(3 * 128);
+    Modes.traceChunkPoints = alignSFOUR(3 * 64);
 
     if (Modes.json_trace_interval < 1) {
         Modes.json_trace_interval = 1; // 1 ms
     }
+
     if (Modes.json_trace_interval < 4 * SECONDS) {
-        double oversize = 4.0 / fmax(0.5, (double) Modes.json_trace_interval / 1000.0);
+        double oversize = 4.0 / fmax(1, (double) Modes.json_trace_interval / 1000.0);
         Modes.traceChunkPoints = alignSFOUR(Modes.traceChunkPoints * oversize);
     }
 
@@ -1895,6 +1906,10 @@ int main(int argc, char **argv) {
 
     if (Modes.state_dir) {
         readInternalState();
+        if (Modes.writeInternalState) {
+            Modes.writeInternalState = 0;
+            writeInternalState();
+        }
     }
     // db update on startup
     if (!Modes.exit)

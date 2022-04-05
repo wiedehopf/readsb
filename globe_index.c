@@ -2050,10 +2050,11 @@ no_save_state:
         //fprintf(stderr, "%06x: new trace\n", a->addr);
     }
     if (a->trace_current_len + 2 >= a->trace_current_max) {
-        static int64_t antiSpam;
-        if (Modes.debug_traceAlloc || now > antiSpam + 5 * SECONDS) {
+        //static int64_t antiSpam;
+        //if (Modes.debug_traceAlloc || now > antiSpam + 5 * SECONDS) {
+        if (Modes.debug_traceAlloc || 1) {
             fprintf(stderr, "<3>%06x: trace_current insufficient\n", a->addr);
-            antiSpam = now;
+            //antiSpam = now;
         }
         return 0;
     }
