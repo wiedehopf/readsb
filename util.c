@@ -156,7 +156,7 @@ void startWatch(struct timespec *start_time) {
     clock_gettime(CLOCK_MONOTONIC, start_time);
 }
 
-// return elapsed time and set start_time to current time
+// return elapsed time
 int64_t stopWatch(struct timespec *start_time) {
     struct timespec end_time;
     clock_gettime(CLOCK_MONOTONIC, &end_time);
@@ -166,6 +166,8 @@ int64_t stopWatch(struct timespec *start_time) {
 
     return res;
 }
+
+// return elapsed time and set start_time to current time
 int64_t lapWatch(struct timespec *start_time) {
     struct timespec end_time;
     clock_gettime(CLOCK_MONOTONIC, &end_time);

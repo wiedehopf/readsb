@@ -1965,30 +1965,36 @@ int main(int argc, char **argv) {
     startWatch(&Modes.hungTimer1);
     startWatch(&Modes.hungTimer2);
     pthread_mutex_unlock(&Modes.hungTimerMutex);
+
+    struct timespec mainloopTimer;
+    startWatch(&mainloopTimer);
     while (!Modes.exit) {
         if (epoll_wait(mainEpfd, events, maxEvents, 5 * SECONDS) > 0) {
             continue;
         }
+
+        int64_t elapsed0 = lapWatch(&mainloopTimer);
 
         pthread_mutex_lock(&Modes.hungTimerMutex);
         int64_t elapsed1 = stopWatch(&Modes.hungTimer1);
         int64_t elapsed2 = stopWatch(&Modes.hungTimer2);
         pthread_mutex_unlock(&Modes.hungTimerMutex);
 
-        //fprintf(stderr, "lockThreads() took %.1f seconds!\n", (double) elapsed / SECONDS);
-        if (elapsed1 > 90 * SECONDS && !Modes.synthetic_now) {
-            fprintf(stderr, "<3>FATAL: trackPeriodicUpdate() interval %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed1 / SECONDS);
-            fprintf(stderr, "<3>lockThreads() probably hung on %s\n", Modes.currentTask);
 
-            Modes.joinTimeout = 2 * SECONDS;
-            setExit(2);
-            break;
-        }
-        if (elapsed2 > 90 * SECONDS && !Modes.synthetic_now) {
-            fprintf(stderr, "<3>FATAL: removeStale() interval %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed2 / SECONDS);
-            Modes.joinTimeout = 5 * SECONDS;
-            setExit(2);
-            break;
+        if (elapsed0 > 10 * SECONDS) {
+            fprintf(stderr, "<3> readsb was suspended for more than 5 seconds, this isn't healthy you know!\n");
+        } else {
+            if (elapsed1 > 60 * SECONDS && !Modes.synthetic_now) {
+                fprintf(stderr, "<3>FATAL: trackPeriodicUpdate() interval %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed1 / SECONDS);
+                fprintf(stderr, "<3>lockThreads() probably hung on %s\n", Modes.currentTask);
+                setExit(2);
+                break;
+            }
+            if (elapsed2 > 60 * SECONDS && !Modes.synthetic_now) {
+                fprintf(stderr, "<3>FATAL: removeStale() interval %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed2 / SECONDS);
+                setExit(2);
+                break;
+            }
         }
     }
 
