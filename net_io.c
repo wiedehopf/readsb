@@ -2937,8 +2937,14 @@ static void modesReadFromClient(struct client *c, int64_t start) {
                         if (Modes.debug_ping)
                             fprintf(stderr, "Initial Ping: %d\n", newPing);
                         pingClient(c, newPing);
+                        if (!c->service) {
+                            fprintf(stderr, "c->service null Ieseey5s\n");
+                        }
                         if (flushClient(c, now) < 0) {
                             return;
+                        }
+                        if (!c->service) {
+                            fprintf(stderr, "c->service null EshaeC7n\n");
                         }
                     }
                     som += 2;
@@ -3007,6 +3013,10 @@ static void modesReadFromClient(struct client *c, int64_t start) {
                     continue;
                 }
 
+                if (!c->service) {
+                    fprintf(stderr, "c->service null hahGh1Sh\n");
+                    return;
+                }
                 // Have a 0x1a followed by 1/2/3/4/5 - pass message to handler.
                 if (c->service->read_handler(c, noEscape, remote, now)) {
                     modesCloseClient(c);
