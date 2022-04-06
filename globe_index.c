@@ -2792,18 +2792,16 @@ void writeInternalState() {
 
     int64_t now = mstime();
 
-    int poolSize = Modes.allPoolSize;
-    threadpool_t *pool = threadpool_create(poolSize);
-    task_group_t *group = allocate_task_group(imax(poolSize, STATE_BLOBS + 1), 4);
+    threadpool_t *pool = threadpool_create(Modes.allPoolSize);
+    task_group_t *group = allocate_task_group(STATE_BLOBS + 1, 4);
     threadpool_task_t *tasks = group->tasks;
     task_info_t *infos = group->infos;
 
-    int taskCount = imin(poolSize * 3, group->task_count);
-
-    int stride = STATE_BLOBS / taskCount + 1;
+    int parts = group->task_count - 1;
+    int stride = STATE_BLOBS / parts + 1;
 
     // assign tasks
-    for (int i = 0; i < taskCount; i++) {
+    for (int i = 0; i < parts; i++) {
         threadpool_task_t *task = &tasks[i];
         task_info_t *range = &infos[i];
 
@@ -2815,7 +2813,7 @@ void writeInternalState() {
         task->argument = range;
     }
     // run tasks
-    threadpool_run(pool, tasks, taskCount);
+    threadpool_run(pool, tasks, parts);
 
     threadpool_destroy(pool);
     destroy_task_group(group);
@@ -2881,13 +2879,10 @@ void readInternalState() {
 
     int64_t now = mstime();
 
-    int poolSize = Modes.allPoolSize;
-    threadpool_t *pool = threadpool_create(poolSize);
-    task_group_t *group = allocate_task_group(imax(poolSize, STATE_BLOBS + 1), 4);
+    threadpool_t *pool = threadpool_create(Modes.allPoolSize);
+    task_group_t *group = allocate_task_group(STATE_BLOBS + 1, 4);
     threadpool_task_t *tasks = group->tasks;
     task_info_t *infos = group->infos;
-
-    int parts = imin(poolSize * 3, group->task_count - 1);
 
     // assign tasks
     int taskCount = 0;
@@ -2898,7 +2893,9 @@ void readInternalState() {
         taskCount++;
     }
 
+    int parts = group->task_count - 1;
     int stride = STATE_BLOBS / parts + 1;
+
     for (int i = 0; i < parts; i++) {
         threadpool_task_t *task = &tasks[taskCount];
         task_info_t *range = &infos[taskCount];

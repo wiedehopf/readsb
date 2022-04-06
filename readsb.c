@@ -778,7 +778,7 @@ static void writeTraces() {
     if (!Modes.tracePool) {
         Modes.tracePoolSize = imax(1, Modes.num_procs - 2);
         Modes.tracePool = threadpool_create(Modes.tracePoolSize);
-        Modes.traceTasks = allocate_task_group(4 * Modes.tracePoolSize, 4);
+        Modes.traceTasks = allocate_task_group(3 * Modes.tracePoolSize, 4);
     }
 
     int taskCount = Modes.traceTasks->task_count;
