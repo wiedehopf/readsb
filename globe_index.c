@@ -2795,7 +2795,7 @@ void writeInternalState() {
     int64_t now = mstime();
 
     threadpool_t *pool = threadpool_create(Modes.allPoolSize, 4);
-    task_group_t *group = allocate_task_group(STATE_BLOBS + 1, 4);
+    task_group_t *group = allocate_task_group(STATE_BLOBS + 1);
     threadpool_task_t *tasks = group->tasks;
     task_info_t *infos = group->infos;
 
@@ -2883,7 +2883,7 @@ void readInternalState() {
     int64_t now = mstime();
 
     threadpool_t *pool = threadpool_create(Modes.allPoolSize, 4);
-    task_group_t *group = allocate_task_group(STATE_BLOBS + 1, 4);
+    task_group_t *group = allocate_task_group(STATE_BLOBS + 1);
     threadpool_task_t *tasks = group->tasks;
     task_info_t *infos = group->infos;
 

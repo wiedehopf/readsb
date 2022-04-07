@@ -212,7 +212,7 @@ static void modesInit(void) {
     } else {
         Modes.allPoolSize = 1;
     }
-    Modes.allTasks = allocate_task_group(Modes.allPoolSize, 4);
+    Modes.allTasks = allocate_task_group(Modes.allPoolSize);
     Modes.allPool = threadpool_create(Modes.allPoolSize, 4);
 
     for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
@@ -778,7 +778,7 @@ static void writeTraces() {
     if (!Modes.tracePool) {
         Modes.tracePoolSize = imax(1, Modes.num_procs - 2);
         Modes.tracePool = threadpool_create(Modes.tracePoolSize, 4);
-        Modes.traceTasks = allocate_task_group(3 * Modes.tracePoolSize, 4);
+        Modes.traceTasks = allocate_task_group(4 * Modes.tracePoolSize);
     }
 
     int taskCount = Modes.traceTasks->task_count;

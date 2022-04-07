@@ -202,8 +202,8 @@ typedef struct {
     int32_t from;
     int32_t to;
 
-    uint32_t buffer_count;
-    buffer_t *buffers;
+    //uint32_t buffer_count;
+    //buffer_t *buffers;
 } task_info_t;
 
 
@@ -214,7 +214,7 @@ typedef struct {
 } task_group_t;
 
 // allocate a group of tasks
-task_group_t *allocate_task_group(uint32_t count, uint32_t buffer_count);
+task_group_t *allocate_task_group(uint32_t count);
 // destroy a group of tasks
 void destroy_task_group(task_group_t *group);
 
