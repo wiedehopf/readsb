@@ -2237,7 +2237,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         a->trackUnreliable = imax(0, imin(16, a->trackUnreliable));
     }
 
-    if (!a->onActiveList) {
+    if (!a->onActiveList && includeAircraftJson(now, a)) {
+        updateValidities(a, now);
         ca_add(&Modes.aircraftActive, a);
         a->onActiveList = 1;
         //fprintf(stderr, "active len %d\n", Modes.aircraftActive.len);
@@ -2379,14 +2380,10 @@ static void removeStaleRange(void *arg) {
     int64_t now = info->now;
     //fprintf(stderr, "%9d %9d %9d\n", info->from, info->to, AIRCRAFT_BUCKETS);
 
-    // non-icao timeout
-    int64_t nonicaoTimeout = now - 1 * HOURS;
-
     // timeout for aircraft with position
     int64_t posTimeout = now - 1 * HOURS;
     if (Modes.json_globe_index) {
         posTimeout = now - 26 * HOURS;
-        nonicaoTimeout = now - 26 * HOURS;
     }
     if (Modes.state_dir && !Modes.userLocationValid) {
         posTimeout = now - 14 * 24 * HOURS;
@@ -2395,20 +2392,14 @@ static void removeStaleRange(void *arg) {
         posTimeout = now - 2 * 24 * HOURS;
     }
 
-    // timeout for aircraft with position
+    // timeout for aircraft without position
     int64_t noposTimeout = now - 5 * MINUTES;
 
     for (int j = info->from; j < info->to; j++) {
         struct aircraft **nextPointer = &(Modes.aircraft[j]);
         while (*nextPointer) {
             struct aircraft *a = *nextPointer;
-            if (
-                    (!a->seen_pos && a->seen < noposTimeout)
-                    || (a->seen_pos
-                        && ((a->seen_pos < posTimeout)
-                            || ((a->addr & MODES_NON_ICAO_ADDRESS) && (a->seen_pos < nonicaoTimeout))
-                           ))
-               ) {
+            if ((!a->seenPosReliable && a->seen < noposTimeout) || (a->seenPosReliable && a->seenPosReliable < posTimeout)) {
                 // Count aircraft where we saw only one message before reaping them.
                 // These are likely to be due to messages with bad addresses.
                 if (a->messages == 1)
@@ -2456,7 +2447,6 @@ static void activeUpdateRange(void *arg) {
     //fprintf(stderr, "%9d %9d %9d\n", info->from, info->to, ca->len);
 }
 
-
 // update active Aircraft
 static void activeUpdate(int64_t now) {
     struct craftArray *ca = &Modes.aircraftActive;
@@ -2468,10 +2458,7 @@ static void activeUpdate(int64_t now) {
             continue;
         }
 
-        if (
-                (a->pos_reliable_valid.source == SOURCE_JAERO && now > a->seen + Modes.trackExpireJaero + 2 * MINUTES)
-                || (a->pos_reliable_valid.source != SOURCE_JAERO && now > a->seen + TRACK_EXPIRE_LONG + 2 * MINUTES)
-           ) {
+        if (!includeAircraftJson(now, a) && now - a->seen > TRACK_EXPIRE_LONG + 1 * MINUTES) {
             a->onActiveList = 0;
 
             if (a->globe_index >= 0) {

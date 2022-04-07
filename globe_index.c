@@ -1759,8 +1759,9 @@ void traceMaintenance(struct aircraft *a, int64_t now) {
 
     int nominal = (Modes.traceChunkPoints + Modes.traceReserve);
 
-    int longTimeNoSee = (now - a->seenPosReliable > Modes.trackExpireMax + 15 * MINUTES);
-    //longTimeNoSee = now - a->seenPosReliable > 30 * SECONDS;
+    int longTimeNoSee = !a->onActiveList;
+    //longTimeNoSee = (now - a->seen > Modes.trackExpireMax + 15 * MINUTES);
+    //longTimeNoSee = now - a->seen > 30 * SECONDS;
 
     // reset trace_current allocation to minimal size if aircraft has been inactive for some time
     if (a->trace_current && longTimeNoSee && a->trace_current_max == nominal) {
