@@ -2246,7 +2246,7 @@ void displayModesMessage(struct modesMessage *mm) {
 
 void useModesMessage(struct modesMessage *mm) {
 
-    if (Modes.debug_yeet && mm->addr % 0x80 != 0xd) {
+    if (Modes.debug_yeet && mm->addr % 0x100 != 0xd) {
         return;
     }
 

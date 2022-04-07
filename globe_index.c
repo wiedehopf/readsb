@@ -2053,7 +2053,7 @@ no_save_state:
                     elapsed / 1000.0,
                     distance, alt, alt_diff, a->gs, speed_diff, a->track, track_diff);
             //antiSpam = now;
-            displayModesMessage(mm);
+            //displayModesMessage(mm);
         }
         return 0;
     }
