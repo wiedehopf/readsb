@@ -716,7 +716,8 @@ static void free_aircraft_range(int start, int end) {
     }
 }
 
-static void save_blobs(void *arg) {
+static void save_blobs(void *arg, threadpool_threadbuffers_t * buffers) {
+    buffers = buffers;
     task_info_t *info = (task_info_t *) arg;
     for (int j = info->from; j < info->to; j++) {
         //fprintf(stderr, "save_blob(%d)\n", j);
@@ -2265,7 +2266,8 @@ error:
 out:
     ;
 }
-static void load_blobs(void *arg) {
+static void load_blobs(void *arg, threadpool_threadbuffers_t * buffers) {
+    buffers = buffers;
     task_info_t *info = (task_info_t *) arg;
 
     for (int j = info->from; j < info->to; j++) {
@@ -2806,7 +2808,7 @@ void writeInternalState() {
 
     int64_t now = mstime();
 
-    threadpool_t *pool = threadpool_create(Modes.allPoolSize);
+    threadpool_t *pool = threadpool_create(Modes.allPoolSize, 4);
     task_group_t *group = allocate_task_group(STATE_BLOBS + 1, 4);
     threadpool_task_t *tasks = group->tasks;
     task_info_t *infos = group->infos;
@@ -2849,7 +2851,8 @@ void writeInternalState() {
     }
 }
 
-static void readInternalMiscTask(void *arg) {
+static void readInternalMiscTask(void *arg, threadpool_threadbuffers_t * buffers) {
+    buffers = buffers; // unused
     arg = arg; // unused
     char pathbuf[PATH_MAX];
 
@@ -2893,7 +2896,7 @@ void readInternalState() {
 
     int64_t now = mstime();
 
-    threadpool_t *pool = threadpool_create(Modes.allPoolSize);
+    threadpool_t *pool = threadpool_create(Modes.allPoolSize, 4);
     task_group_t *group = allocate_task_group(STATE_BLOBS + 1, 4);
     threadpool_task_t *tasks = group->tasks;
     task_info_t *infos = group->infos;

@@ -225,4 +225,11 @@ static inline void check_grow_buffer_t(buffer_t *buffer, ssize_t newSize) {
     }
 }
 
+static inline void check_grow_threadpool_buffer_t(threadpool_buffer_t *buffer, ssize_t newSize) {
+    if (buffer->bufSize < newSize) {
+        sfree(buffer->buf);
+        buffer->buf = aligned_malloc(newSize);
+    }
+}
+
 #endif

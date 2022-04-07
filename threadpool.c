@@ -38,6 +38,8 @@ typedef struct {
     threadpool_t* pool;
     pthread_t pthread;
     struct timespec thread_time;
+
+    threadpool_threadbuffers_t user_buffers;
 } thread_t;
 
 struct threadpool_t
@@ -80,7 +82,7 @@ struct timespec threadpool_get_cumulative_thread_time(threadpool_t* pool) {
     return sum;
 }
 
-threadpool_t *threadpool_create(uint32_t thread_count)
+threadpool_t *threadpool_create(uint32_t thread_count, uint32_t buffer_count)
 {
     threadpool_t *pool = (threadpool_t *) malloc(sizeof(threadpool_t));
 
@@ -104,6 +106,11 @@ threadpool_t *threadpool_create(uint32_t thread_count)
         thread->pool = pool;
         thread->thread_time.tv_sec = 0;
         thread->thread_time.tv_nsec = 0;
+
+        thread->user_buffers.buffer_count = buffer_count;
+        thread->user_buffers.buffers = malloc(buffer_count * sizeof(threadpool_buffer_t));
+        memset(thread->user_buffers.buffers, 0x0, buffer_count * sizeof(threadpool_buffer_t));
+
         pthread_create(&thread->pthread, NULL, threadpool_threadproc, thread);
     }
 
@@ -127,7 +134,13 @@ void threadpool_destroy(threadpool_t *pool)
 
     for (uint32_t i = 0; i < pool->thread_count; i++)
     {
-        pthread_join(pool->threads[i].pthread, NULL);
+        thread_t *thread = &pool->threads[i];
+        pthread_join(thread->pthread, NULL);
+
+        for (uint32_t k = 0; k < thread->user_buffers.buffer_count; k++) {
+            free(thread->user_buffers.buffers[k].buf);
+        }
+        free(thread->user_buffers.buffers);
     }
 
     pthread_mutex_destroy(&pool->worker_lock);
@@ -142,13 +155,6 @@ void threadpool_destroy(threadpool_t *pool)
 
 void threadpool_run(threadpool_t *pool, threadpool_task_t* tasks, uint32_t count)
 {
-    if (!pool) {
-        for (uint32_t i = 0; i < count; i++) {
-            threadpool_task_t *task = &tasks[i];
-            task->function(task->argument);
-        }
-        return;
-    }
 
     atomic_store(&pool->pending_count, count);
     atomic_store(&pool->tasks, (intptr_t) tasks);
@@ -223,7 +229,7 @@ static void *threadpool_threadproc(void *arg)
 
         threadpool_task_t* task = (threadpool_task_t*) atomic_load(&pool->tasks) + task_count;
 
-        task->function(task->argument);
+        task->function(task->argument, &thread->user_buffers);
 
         int pending_count = atomic_fetch_sub(&pool->pending_count, 1) - 1;
 

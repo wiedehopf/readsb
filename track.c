@@ -2374,7 +2374,8 @@ static void updateAircraft() {
 // we remove the aircraft from the list.
 //
 
-static void removeStaleRange(void *arg) {
+static void removeStaleRange(void *arg, threadpool_threadbuffers_t * buffers) {
+    buffers = buffers;
 
     task_info_t *info = (task_info_t *) arg;
     int64_t now = info->now;
@@ -2431,7 +2432,8 @@ static void removeStaleRange(void *arg) {
     }
 }
 
-static void activeUpdateRange(void *arg) {
+static void activeUpdateRange(void *arg, threadpool_threadbuffers_t * buffers) {
+    buffers = buffers;
     task_info_t *info = (task_info_t *) arg;
     int64_t now = info->now;
     struct craftArray *ca = &Modes.aircraftActive;

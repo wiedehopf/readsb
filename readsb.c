@@ -213,7 +213,7 @@ static void modesInit(void) {
         Modes.allPoolSize = 1;
     }
     Modes.allTasks = allocate_task_group(Modes.allPoolSize, 4);
-    Modes.allPool = threadpool_create(Modes.allPoolSize);
+    Modes.allPool = threadpool_create(Modes.allPoolSize, 4);
 
     for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
         ca_init(&Modes.globeLists[i]);
@@ -750,7 +750,8 @@ static void *decodeEntryPoint(void *arg) {
     return NULL;
 }
 
-static void traceWriteTask(void *arg) {
+static void traceWriteTask(void *arg, threadpool_threadbuffers_t * buffers) {
+    buffers = buffers;
     task_info_t *info = (task_info_t *) arg;
 
     int64_t now = mstime();
@@ -777,7 +778,7 @@ static void writeTraces() {
 
     if (!Modes.tracePool) {
         Modes.tracePoolSize = imax(1, Modes.num_procs - 2);
-        Modes.tracePool = threadpool_create(Modes.tracePoolSize);
+        Modes.tracePool = threadpool_create(Modes.tracePoolSize, 4);
         Modes.traceTasks = allocate_task_group(3 * Modes.tracePoolSize, 4);
     }
 

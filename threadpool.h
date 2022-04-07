@@ -27,18 +27,29 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVE
 #include <stdint.h>
 
 // Minimal thread pool implementation using pthread.h and stdatomic.h
+// with option per thread pointers (for readsb used for per thread buffers)
+
+typedef struct {
+    void *buf;
+    ssize_t bufSize;
+} threadpool_buffer_t;
+
+typedef struct {
+    uint32_t buffer_count;
+    threadpool_buffer_t *buffers;
+} threadpool_threadbuffers_t;
 
 typedef struct threadpool_t threadpool_t;
 
-// create a thread pool
-threadpool_t *threadpool_create(uint32_t thread_count);
+// create a thread pool (number of threads, number of usable buffer_t structs in threadpool_threadbuffers_t)
+threadpool_t *threadpool_create(uint32_t thread_count, uint32_t buffer_count);
 
 // destroy the thread pool
 void threadpool_destroy(threadpool_t *pool);
 
 typedef struct
 {
-    void (* function)(void *);
+    void (* function)(void *, threadpool_threadbuffers_t *);
     void *argument;
 } threadpool_task_t;
 
