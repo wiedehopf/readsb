@@ -50,7 +50,7 @@ void writeInternalState();
 void readInternalState();
 void traceWrite(struct aircraft *a, int64_t now, int init, task_info_t *info);
 void traceCleanup(struct aircraft *a);
-int traceAdd(struct aircraft *a, int64_t now, int stale);
+int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale);
 int traceUsePosBuffered();
 void traceMaintenance(struct aircraft *a, int64_t now);
 

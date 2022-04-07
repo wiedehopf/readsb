@@ -922,7 +922,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
         a->pos_rc_reliable = mm->decoded_rc;
         a->surfaceCPR_allow_ac_rel = 1; // allow ac relative CPR for ground positions
 
-        traceAdd(a, now, stale);
+        traceAdd(a, mm, now, stale);
 
         if (
                 mm->source == SOURCE_ADSB

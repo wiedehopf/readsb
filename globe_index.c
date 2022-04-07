@@ -1779,7 +1779,7 @@ void traceMaintenance(struct aircraft *a, int64_t now) {
 }
 
 
-int traceAdd(struct aircraft *a, int64_t now, int stale) {
+int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale) {
     if (!Modes.keep_traces)
         return 0;
 
@@ -1791,6 +1791,8 @@ int traceAdd(struct aircraft *a, int64_t now, int stale) {
     int64_t elapsed = 0;
     int64_t elapsed_buffered = 0;
     int duplicate = 0;
+    float speed_diff = 0;
+    float track_diff = 0;
 
     int64_t max_elapsed = Modes.json_trace_interval;
     // default is now 250 ms, so this usually doesn't affect anything
@@ -1866,7 +1868,6 @@ int traceAdd(struct aircraft *a, int64_t now, int stale) {
         alt_diff = abs(a->baro_alt - last_alt);
     }
 
-    float speed_diff = 0;
     if (trackDataValid(&a->gs_valid) && last->gs_valid)
         speed_diff = fabs(last->gs / _gs_factor - a->gs);
 
@@ -1883,7 +1884,6 @@ int traceAdd(struct aircraft *a, int64_t now, int stale) {
         }
     }
 
-    float track_diff = 0;
     float last_track = last->track / _track_factor;
     if (last->track_valid && track > -1) {
         track_diff = fabs(norm_diff(track - last_track, 180));
@@ -2024,7 +2024,7 @@ save_state:
             if (traceDebug) fprintf(stderr, " buffer\n");
             // in some cases we want to add the current point as well
             // if not, the current point will be put in the buffer
-            traceAdd(a, now, stale);
+            traceAdd(a, mm, now, stale);
             // return so the point isn't used a second time or put in the buffer
             return 1;
         }
@@ -2053,8 +2053,14 @@ no_save_state:
         //static int64_t antiSpam;
         //if (Modes.debug_traceAlloc || now > antiSpam + 5 * SECONDS) {
         if (Modes.debug_traceAlloc || 1) {
-            fprintf(stderr, "<3>%06x: trace_current insufficient\n", a->addr);
+            fprintf(stderr, "<3> %06x trace_current_max insufficient (%d/%d) %11.6f,%11.6f %5.1fs d:%5.0f a:%6d D%4d s:%4.0f D%3.0f t: %5.1f D%5.1f ",
+                    a->addr,
+                    a->trace_current_len, a->trace_current_max,
+                    a->lat, a->lon,
+                    elapsed / 1000.0,
+                    distance, alt, alt_diff, a->gs, speed_diff, a->track, track_diff);
             //antiSpam = now;
+            displayModesMessage(mm);
         }
         return 0;
     }
