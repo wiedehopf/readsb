@@ -2554,6 +2554,10 @@ int handleHeatmap(int64_t now) {
         }
     }
 
+    //////////// UNLOCK MISC
+    pthread_mutex_unlock(&Threads.misc.mutex);
+    //////////// UNLOCK MISC
+
     sfree(pass_buffer.buf);
 
     struct heatEntry *buffer2 = malloc(alloc * sizeof(struct heatEntry));
@@ -2567,8 +2571,6 @@ int handleHeatmap(int64_t now) {
     memset(index, 0, indexSize); // avoid having to set zero individually
 
     for (int i = 0; i < num_slices; i++) {
-        checkMiscBreak();
-
         struct heatEntry specialSauce = (struct heatEntry) {0};
         int64_t slice_stamp = start + i * Modes.heatmap_interval;
         specialSauce.hex = 0xe7f7c9d;
@@ -2634,6 +2636,10 @@ int handleHeatmap(int64_t now) {
     free(buffer);
     free(buffer2);
     free(slices);
+
+    //////////// LOCK MISC
+    pthread_mutex_lock(&Threads.misc.mutex);
+    //////////// LOCK MISC
 
     return 1;
 }

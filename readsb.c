@@ -1725,6 +1725,7 @@ static void miscStuff() {
     // don't do everything at once ... this stuff isn't that time critical it'll get its turn
     int enough = 0;
 
+    // function can unlock / lock misc mutex
     if (handleHeatmap(now)) {
         enough = 1;
     }
@@ -1806,6 +1807,7 @@ static void *miscEntryPoint(void *arg) {
     while (!Modes.exit) {
 
         if (mstime() < Modes.next_remove_stale) {
+            // function can unlock / lock misc mutex
             miscStuff();
         }
 
