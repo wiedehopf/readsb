@@ -1263,9 +1263,10 @@ static inline int flushClient(struct client *c, int64_t now) {
             perror("epoll_ctl fail:");
     }
 
-    // If writing has failed for longer than 8 * flush_interval, disconnect.
-    int64_t flushTimeout = imax(800, 8 * Modes.net_output_flush_interval);
-    if (c->last_flush + flushTimeout < now) {
+    // If we haven't been able to empty the buffer for longer than 8 * flush_interval, disconnect.
+    // give the connection 10 seconds to ramp up --> automatic TCP window scaling in Linux ...
+    int64_t flushTimeout = imax(1 * SECONDS, 8 * Modes.net_output_flush_interval);
+    if (now - c->last_flush > flushTimeout && now - c->connectedSince > 10 * SECONDS) {
         fprintf(stderr, "%s: Couldn't flush data for %.2fs (Insufficient bandwidth?): disconnecting: %s port %s (fd %d, SendQ %d)\n", c->service->descr, flushTimeout / 1000.0, c->host, c->port, c->fd, c->sendq_len);
         modesCloseClient(c);
         return -1;
