@@ -609,7 +609,7 @@ void traceWrite(struct aircraft *a, int64_t now, int init, task_info_t *info) {
                     break;
                 }
             }
-            for (int i = a->trace_len - 1; i >= 0; i--) {
+            for (int i = tb.len - 1; i >= 0; i--) {
                 if (getState(tb.trace, i)->timestamp < end_of_day) {
                     end = i;
                     break;
