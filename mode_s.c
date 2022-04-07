@@ -2245,12 +2245,15 @@ void displayModesMessage(struct modesMessage *mm) {
 //
 
 void useModesMessage(struct modesMessage *mm) {
-    struct aircraft *a;
+
+    if (Modes.debug_yeet && mm->addr % 0x10 != 0xd) {
+        return;
+    }
 
     ++Modes.stats_current.messages_total;
 
     // Track aircraft state
-    a = trackUpdateFromMessage(mm);
+    struct aircraft *a = trackUpdateFromMessage(mm);
 
     // In non-interactive non-quiet mode, display messages on standard output
     if (!Modes.quiet || mm->addr == Modes.show_only || mm->maybe_addr == Modes.show_only) {
