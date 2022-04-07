@@ -1591,7 +1591,7 @@ void apiCleanup() {
     }
 }
 
-struct char_buffer apiGenerateAircraftJson(buffer_t *pbuffer) {
+struct char_buffer apiGenerateAircraftJson(threadpool_buffer_t *pbuffer) {
     struct char_buffer cb = { 0 };
 
     int flip = atomic_load(&Modes.apiFlip[0]);
@@ -1600,9 +1600,7 @@ struct char_buffer apiGenerateAircraftJson(buffer_t *pbuffer) {
 
     ssize_t alloc = buffer->jsonLen + 2048;
 
-    check_grow_buffer_t(pbuffer, alloc);
-    if (!pbuffer->buf) { fprintf(stderr, "malloc fail: Woo7aiph\n"); exit(1); }
-    char *buf = pbuffer->buf;
+    char *buf = check_grow_threadpool_buffer_t(pbuffer, alloc);
     char *p = buf;
     char *end = buf + alloc;
 
@@ -1634,7 +1632,7 @@ struct char_buffer apiGenerateAircraftJson(buffer_t *pbuffer) {
     return cb;
 }
 
-struct char_buffer apiGenerateGlobeJson(int globe_index, buffer_t *pbuffer) {
+struct char_buffer apiGenerateGlobeJson(int globe_index, threadpool_buffer_t *pbuffer) {
     assert (globe_index <= GLOBE_MAX_INDEX);
 
     struct char_buffer cb;
@@ -1650,9 +1648,7 @@ struct char_buffer apiGenerateGlobeJson(int globe_index, buffer_t *pbuffer) {
     if (ca)
         alloc += ca->len * 1200;
 
-    check_grow_buffer_t(pbuffer, alloc);
-    if (!pbuffer->buf) { fprintf(stderr, "malloc fail: Woo1aiph\n"); exit(1); }
-    char *buf = pbuffer->buf;
+    char *buf = check_grow_threadpool_buffer_t(pbuffer, alloc);
     char *p = buf;
     char *end = buf + alloc;
 

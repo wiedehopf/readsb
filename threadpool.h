@@ -31,7 +31,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVE
 
 typedef struct {
     void *buf;
-    ssize_t bufSize;
+    ssize_t size;
 } threadpool_buffer_t;
 
 typedef struct {

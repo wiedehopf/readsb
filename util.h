@@ -225,11 +225,16 @@ static inline void check_grow_buffer_t(buffer_t *buffer, ssize_t newSize) {
     }
 }
 
-static inline void check_grow_threadpool_buffer_t(threadpool_buffer_t *buffer, ssize_t newSize) {
-    if (buffer->bufSize < newSize) {
+static inline void *check_grow_threadpool_buffer_t(threadpool_buffer_t *buffer, ssize_t newSize) {
+    if (buffer->size < newSize) {
         sfree(buffer->buf);
         buffer->buf = aligned_malloc(newSize);
+        if (!buffer->buf) {
+            fprintf(stderr, "<3>FATAL: check_grow_threadpool_buffer_t no enough memory allocating %ld bytes!\n", (long) newSize);
+            abort();
+        }
     }
+    return buffer->buf;
 }
 
 #endif

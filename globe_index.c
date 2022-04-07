@@ -4,10 +4,10 @@
 #define LZO_MAGIC (0xf7413cc6eaf227dbULL)
 
 static void mark_legs(traceBuffer tb, struct aircraft *a, int start);
-static void load_blob(int blob, task_info_t *info);
+static void load_blob(int blob, threadpool_threadbuffers_t *buffers);
 static void traceCleanupNoUnlink(struct aircraft *a);
 static void allocCurrent(struct aircraft *a);
-static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t after_timestamp, buffer_t *buffer);
+static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t after_timestamp, threadpool_buffer_t *buffer);
 
 void init_globe_index() {
     struct tile *s_tiles = Modes.json_globe_special_tiles = aligned_malloc(GLOBE_SPECIAL_INDEX * sizeof(struct tile));
@@ -433,7 +433,7 @@ static void scheduleMemBothWrite(struct aircraft *a, int64_t schedTime) {
     a->trace_writeCounter = 0xc0ffee;
 }
 
-void traceWrite(struct aircraft *a, int64_t now, int init, task_info_t *info) {
+void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuffers_t *buffer_group) {
     struct char_buffer recent;
     struct char_buffer full;
     struct char_buffer hist;
@@ -478,13 +478,13 @@ void traceWrite(struct aircraft *a, int64_t now, int init, task_info_t *info) {
     }
     traceBuffer tb = { 0 };
 
-    if (info->buffer_count < 2) {
+    if (buffer_group->buffer_count < 2) {
         fprintf(stderr, "<3> FATAL: traceWrite: insufficient buffer_count\n");
         exit(1);
     }
 
-    buffer_t *reassemble_buffer = &info->buffers[0];
-    buffer_t *generate_buffer = &info->buffers[1];
+    threadpool_buffer_t *reassemble_buffer = &buffer_group->buffers[0];
+    threadpool_buffer_t *generate_buffer = &buffer_group->buffers[1];
 
     if ((trace_write & (WPERM | WMEM))) {
         tb = reassembleTrace(a, -1, -1, reassemble_buffer);
@@ -716,13 +716,12 @@ static void free_aircraft_range(int start, int end) {
     }
 }
 
-static void save_blobs(void *arg, threadpool_threadbuffers_t * buffers) {
-    buffers = buffers;
+static void save_blobs(void *arg, threadpool_threadbuffers_t *threadbuffers) {
     task_info_t *info = (task_info_t *) arg;
     for (int j = info->from; j < info->to; j++) {
         //fprintf(stderr, "save_blob(%d)\n", j);
 
-        save_blob(j, &info->buffers[0], &info->buffers[1]);
+        save_blob(j, &threadbuffers->buffers[0], &threadbuffers->buffers[1]);
 
         if (Modes.free_aircraft) {
             int stride = AIRCRAFT_BUCKETS / STATE_BLOBS;
@@ -1504,7 +1503,7 @@ void traceCleanup(struct aircraft *a) {
 
 // reconstruct at least the last numPoints points from trace chunks / current_trace
 // numPoints < 0 => all data / whole trace
-static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t after_timestamp, buffer_t *buffer) {
+static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t after_timestamp, threadpool_buffer_t *buffer) {
     int firstChunk = 0;
 
     int currentLen = a->trace_current_len;
@@ -1536,16 +1535,7 @@ static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t af
 
     traceBuffer tb = { 0 };
 
-    ssize_t allocBytes = stateBytes(allocLen);
-    if (allocBytes > buffer->bufSize) {
-        // increase buffer size
-        sfree(buffer->buf);
-        buffer->buf = aligned_malloc(allocBytes);
-        buffer->bufSize = allocBytes;
-        if (!buffer->buf) { fprintf(stderr, "malloc fail: meehee7I\n"); exit(1); }
-    }
-
-    tb.trace = buffer->buf;
+    tb.trace = check_grow_threadpool_buffer_t(buffer, stateBytes(allocLen));
 
     fourState *tp = tb.trace;
 
@@ -2099,7 +2089,7 @@ static int state_chunk_size() {
     return 8 * 1024 * 1024;
 }
 
-void save_blob(int blob, buffer_t *pbuffer1, buffer_t *pbuffer2) {
+void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbuffer2) {
     if (!Modes.state_dir)
         return;
     //static int count;
@@ -2149,8 +2139,8 @@ void save_blob(int blob, buffer_t *pbuffer1, buffer_t *pbuffer2) {
     int end = start + stride;
 
     int alloc = state_chunk_size();
-    check_grow_buffer_t(pbuffer1, alloc);
-    unsigned char *buf = pbuffer1->buf;
+
+    unsigned char *buf = check_grow_threadpool_buffer_t(pbuffer1, alloc);
     unsigned char *p = buf;
 
     int lzo_out_alloc = alloc + alloc / 16 + 64 + 3; // from mini lzo example
@@ -2158,8 +2148,7 @@ void save_blob(int blob, buffer_t *pbuffer1, buffer_t *pbuffer2) {
     unsigned char *lzo_out = NULL;
     unsigned char lzo_work[LZO1X_1_MEM_COMPRESS];
     if (lzo) {
-        check_grow_buffer_t(pbuffer2, lzo_out_alloc);
-        lzo_out = pbuffer2->buf;
+        lzo_out = check_grow_threadpool_buffer_t(pbuffer2, lzo_out_alloc);
     }
 
     for (int j = start; j < end; j++) {
@@ -2266,12 +2255,11 @@ error:
 out:
     ;
 }
-static void load_blobs(void *arg, threadpool_threadbuffers_t * buffers) {
-    buffers = buffers;
+static void load_blobs(void *arg, threadpool_threadbuffers_t * buffer_group) {
     task_info_t *info = (task_info_t *) arg;
 
     for (int j = info->from; j < info->to; j++) {
-        load_blob(j, info);
+        load_blob(j, buffer_group);
     }
 }
 
@@ -2297,7 +2285,7 @@ static int load_aircrafts(char *p, char *end, char *filename, int64_t now) {
     return count;
 }
 
-static void load_blob(int blob, task_info_t *info) {
+static void load_blob(int blob, threadpool_threadbuffers_t *threadbuffers) {
     //fprintf(stderr, "load blob %d\n", blob);
     if (blob < 0 || blob >= STATE_BLOBS)
         fprintf(stderr, "load_blob: invalid argument: %d", blob);
@@ -2343,11 +2331,10 @@ static void load_blob(int blob, task_info_t *info) {
     end = p + cb.len;
 
     if (lzo) {
-        buffer_t *passbuffer = &info->buffers[0];
+        threadpool_buffer_t *passbuffer = &threadbuffers->buffers[0];
         int lzo_out_alloc = state_chunk_size() * 8 / 7;
 
-        check_grow_buffer_t(passbuffer, lzo_out_alloc);
-        char *lzo_out = passbuffer->buf;
+        char *lzo_out = check_grow_threadpool_buffer_t(passbuffer, lzo_out_alloc);
 
         lzo_uint uncompressed_len = 0;
         int res = 0;
@@ -2379,8 +2366,7 @@ decompress:
                     break;
                 }
 
-                check_grow_buffer_t(passbuffer, lzo_out_alloc);
-                lzo_out = passbuffer->buf;
+                lzo_out = check_grow_threadpool_buffer_t(passbuffer, lzo_out_alloc);
                 goto decompress;
             }
 
@@ -2466,7 +2452,7 @@ int handleHeatmap(int64_t now) {
 
     heatmapCheckAlloc(&buffer, &slices, &alloc, len);
 
-    buffer_t pass_buffer = { 0 };
+    threadpool_buffer_t passbuffer = { 0 };
 
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
         checkMiscBreak();
@@ -2474,7 +2460,7 @@ int handleHeatmap(int64_t now) {
             if ((a->addr & MODES_NON_ICAO_ADDRESS) && a->airground == AG_GROUND) continue;
             if (a->trace_len == 0) continue;
 
-            traceBuffer tb = reassembleTrace(a, -1, start, &pass_buffer);
+            traceBuffer tb = reassembleTrace(a, -1, start, &passbuffer);
             int64_t next = start;
             int64_t slice = 0;
             uint32_t squawk = 0x8888; // impossible squawk
@@ -2560,7 +2546,7 @@ int handleHeatmap(int64_t now) {
     pthread_mutex_unlock(&Threads.misc.mutex);
     //////////// UNLOCK MISC
 
-    sfree(pass_buffer.buf);
+    sfree(passbuffer.buf);
 
     struct heatEntry *buffer2 = malloc(alloc * sizeof(struct heatEntry));
     if (!buffer2) {
@@ -2949,7 +2935,7 @@ void readInternalState() {
 
 void traceDelete() {
 
-    buffer_t pass_buffer = { 0 };
+    threadpool_buffer_t passbuffer = { 0 };
 
     struct hexInterval* entry = Modes.deleteTrace;
     while (entry) {
@@ -2961,7 +2947,7 @@ void traceDelete() {
         traceUsePosBuffered(a);
 
 
-        traceBuffer tb = reassembleTrace(a, -1, -1, &pass_buffer);
+        traceBuffer tb = reassembleTrace(a, -1, -1, &passbuffer);
         fourState *trace = tb.trace;
         int trace_len = tb.len;
 
@@ -3002,7 +2988,7 @@ void traceDelete() {
         sfree(curr);
     }
     Modes.deleteTrace = NULL;
-    sfree(pass_buffer.buf);
+    sfree(passbuffer.buf);
 }
 
 /*

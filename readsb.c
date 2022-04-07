@@ -454,7 +454,7 @@ static void *jsonEntryPoint(void *arg) {
 
     pthread_mutex_lock(&Threads.json.mutex);
 
-    buffer_t pass_buffer = { 0 };
+    threadpool_buffer_t pass_buffer = { 0 };
 
     while (!Modes.exit) {
 
@@ -526,7 +526,7 @@ static void *globeJsonEntryPoint(void *arg) {
 
     pthread_mutex_lock(&Threads.globeJson.mutex);
 
-    buffer_t pass_buffer = { 0 };
+    threadpool_buffer_t pass_buffer = { 0 };
 
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
@@ -567,7 +567,7 @@ static void *globeBinEntryPoint(void *arg) {
 
     pthread_mutex_lock(&Threads.globeBin.mutex);
 
-    buffer_t pass_buffer = { 0 };
+    threadpool_buffer_t pass_buffer = { 0 };
 
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
@@ -750,8 +750,7 @@ static void *decodeEntryPoint(void *arg) {
     return NULL;
 }
 
-static void traceWriteTask(void *arg, threadpool_threadbuffers_t * buffers) {
-    buffers = buffers;
+static void traceWriteTask(void *arg, threadpool_threadbuffers_t *buffer_group) {
     task_info_t *info = (task_info_t *) arg;
 
     int64_t now = mstime();
@@ -768,7 +767,7 @@ static void traceWriteTask(void *arg, threadpool_threadbuffers_t * buffers) {
                 if (now > Modes.traceWriteTimelimit) {
                     return;
                 }
-                traceWrite(a, now, 0, info);
+                traceWrite(a, now, 0, buffer_group);
             }
         }
     }
@@ -1754,8 +1753,8 @@ static void miscStuff() {
         // only continuously write state if we keep permanent trace
         if (!Modes.state_only_on_exit && !enough && now > next_blob) {
             enough = 1;
-            buffer_t pbuffer1 = { 0 };
-            buffer_t pbuffer2 = { 0 };
+            threadpool_buffer_t pbuffer1 = { 0 };
+            threadpool_buffer_t pbuffer2 = { 0 };
             save_blob(blob++ % STATE_BLOBS, &pbuffer1, &pbuffer2);
             sfree(pbuffer1.buf);
             sfree(pbuffer2.buf);

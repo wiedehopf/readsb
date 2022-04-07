@@ -955,7 +955,7 @@ int includeAircraftJson(int64_t now, struct aircraft *a) {
     return 0;
 }
 
-struct char_buffer generateAircraftBin(buffer_t *pbuffer) {
+struct char_buffer generateAircraftBin(threadpool_buffer_t *pbuffer) {
     struct char_buffer cb;
     int64_t now = mstime();
     struct aircraft *a;
@@ -963,9 +963,7 @@ struct char_buffer generateAircraftBin(buffer_t *pbuffer) {
     struct craftArray *ca = &Modes.aircraftActive;
     size_t alloc = 4096 + ca->len * sizeof(struct binCraft);
 
-    check_grow_buffer_t(pbuffer, alloc);
-    if (!pbuffer->buf) { fprintf(stderr, "malloc fail: Woo7aiph\n"); exit(1); }
-    char *buf = pbuffer->buf;
+    char *buf = check_grow_threadpool_buffer_t(pbuffer, alloc);
     char *p = buf;
     char *end = buf + alloc;
 
@@ -1027,7 +1025,7 @@ struct char_buffer generateAircraftBin(buffer_t *pbuffer) {
 #undef memWrite
 }
 
-struct char_buffer generateGlobeBin(int globe_index, int mil, buffer_t *pbuffer) {
+struct char_buffer generateGlobeBin(int globe_index, int mil, threadpool_buffer_t *pbuffer) {
     struct char_buffer cb;
     int64_t now = mstime();
     struct aircraft *a;
@@ -1048,9 +1046,7 @@ struct char_buffer generateGlobeBin(int globe_index, int mil, buffer_t *pbuffer)
     if (good && ca)
         alloc += ca->len * sizeof(struct binCraft);
 
-    check_grow_buffer_t(pbuffer, alloc);
-    if (!pbuffer->buf) { fprintf(stderr, "malloc fail: Woo3aiph\n"); exit(1); }
-    char *buf = pbuffer->buf;
+    char *buf = check_grow_threadpool_buffer_t(pbuffer, alloc);
     char *p = buf;
     char *end = buf + alloc;
 
@@ -1136,7 +1132,7 @@ struct char_buffer generateGlobeBin(int globe_index, int mil, buffer_t *pbuffer)
 #undef memWrite
 }
 
-struct char_buffer generateGlobeJson(int globe_index, buffer_t *pbuffer) {
+struct char_buffer generateGlobeJson(int globe_index, threadpool_buffer_t *pbuffer) {
     struct char_buffer cb;
     int64_t now = mstime();
     struct aircraft *a;
@@ -1153,9 +1149,8 @@ struct char_buffer generateGlobeJson(int globe_index, buffer_t *pbuffer) {
         good = 0;
     }
 
-    check_grow_buffer_t(pbuffer, alloc);
-    if (!pbuffer->buf) { fprintf(stderr, "malloc fail: Oinool9l\n"); exit(1); }
-    char *buf = pbuffer->buf;
+    char *buf = check_grow_threadpool_buffer_t(pbuffer, alloc);
+
     char *p = buf;
     char *end = buf + alloc;
 
@@ -1528,7 +1523,7 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
     }
 }
 
-struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int start, int last, buffer_t *buffer) {
+struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int start, int last, threadpool_buffer_t *buffer) {
     struct char_buffer cb = { 0 };
     if (!Modes.json_globe_index) {
         return cb;
@@ -1543,16 +1538,7 @@ struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int sta
     int traceCount = imax(last - start + 1, 0);
     ssize_t alloc = traceCount * 300 + 1024;
 
-    char *buf;
-    if (alloc > buffer->bufSize) {
-        // increase buffer size
-        sfree(buffer->buf);
-        buffer->buf = aligned_malloc(alloc);
-        buffer->bufSize = alloc;
-        if (!buffer->buf) { fprintf(stderr, "malloc fail: shooG3ee\n"); exit(1); }
-    }
-    buf = buffer->buf;
-
+    char *buf = check_grow_threadpool_buffer_t(buffer, alloc);
     char *p = buf;
     char *end = buf + alloc;
 
