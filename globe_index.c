@@ -834,6 +834,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
         *p += sizeof(uint64_t);
         if (oldFourStateSize != sizeof(fourState)) {
             fprintf(stderr, "%06x sizeof(fourState) / SFOUR definition has changed, aborting state loading!\n", a->addr);
+            traceCleanupNoUnlink(a);
             return -1;
         }
 
