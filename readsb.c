@@ -311,6 +311,13 @@ static void trackPeriodicUpdate() {
 
         Modes.currentTask = "trackRemoveStale";
 
+        if (Modes.writeInternalState == 1) {
+            // signal actual state writing that trackRemoveStale has run
+            // removeStale will do activeUpdateRange which calls traceMaintenance
+            // which for writeInternalState will save any buffered trace position
+            Modes.writeInternalState = 2;
+        }
+
         trackRemoveStale(now);
         traceDelete();
 
@@ -1738,15 +1745,19 @@ static void miscStuff() {
         int fd = open(filename, O_RDONLY);
         if (fd > -1) {
             close(fd);
-            Modes.writeInternalState = 1;
+            if (!Modes.writeInternalState) {
+                Modes.writeInternalState = 1;
+                fprintf(stderr, "Writing of internal state requested (file exists: %s)\n", filename);
+            }
         }
-        if (Modes.writeInternalState) {
+        if (Modes.writeInternalState == 2) {
             Modes.writeInternalState = 0;
             writeInternalState();
             next_blob = now + 45 * SECONDS;
 
             // unlink only after writing state, if the file doesn't exist that's fine as well
             // this is a hack to detect from a shell script when the task is done
+            fprintf(stderr, "Writing of internal state completed (deleting file: %s)\n", filename);
             unlink(filename);
         }
 

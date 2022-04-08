@@ -2488,7 +2488,6 @@ static void activeUpdate(int64_t now) {
 
 // run activeUpdate and remove stale aircraft for a fraction of the entire hashtable
 void trackRemoveStale(int64_t now) {
-
     // update the active aircraft list
     //fprintf(stderr, "activeUpdate\n");
     activeUpdate(now);

@@ -1727,6 +1727,10 @@ void traceMaintenance(struct aircraft *a, int64_t now) {
         return;
     }
 
+    if (Modes.writeInternalState) {
+        traceUsePosBuffered(a);
+    }
+
     if (Modes.json_globe_index) {
         if (now > a->trace_next_perm)
             a->trace_write |= WPERM;
@@ -2157,7 +2161,10 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
         for (struct aircraft *a = Modes.aircraft[j]; a || (j == end - 1); a = a->next) {
             int size_state = 0;
             if (a) {
-                traceUsePosBuffered(a); // use buffered position for saving state
+                // this flag means we have exclusive access to the state, if we don't using the buffered position can introduce race conditions
+                if (Modes.free_aircraft) {
+                    traceUsePosBuffered(a); // use buffered position for saving state
+                }
                 size_state += sizeof(struct aircraft);
                 if (a->trace_chunk_len > 0 && a->trace_chunks == NULL) {
                     fprintf(stderr, "<3> %06x trace corrupted, a->trace_chunks is NULL but a->trace_chunk_len > 0, resetting a->trace_chunk_len to 0\n", a->addr);
@@ -2334,7 +2341,7 @@ static void load_blob(int blob, threadpool_threadbuffers_t *threadbuffers) {
 
     if (lzo) {
         threadpool_buffer_t *passbuffer = &threadbuffers->buffers[0];
-        int lzo_out_alloc = state_chunk_size() * 8 / 7;
+        int lzo_out_alloc = state_chunk_size() * 17 / 16;
 
         char *lzo_out = check_grow_threadpool_buffer_t(passbuffer, lzo_out_alloc);
 
