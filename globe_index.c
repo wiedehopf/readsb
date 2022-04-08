@@ -2042,16 +2042,18 @@ no_save_state:
 
         //fprintf(stderr, "%06x: new trace\n", a->addr);
     }
+
     if (a->trace_current_len + 2 >= a->trace_current_max) {
         //static int64_t antiSpam;
         //if (Modes.debug_traceAlloc || now > antiSpam + 5 * SECONDS) {
         if (Modes.debug_traceAlloc || 1) {
+            double elapsed_seconds = elapsed * 0.001;
             fprintf(stderr, "%06x trace_current_max insufficient (%d/%d) %11.6f,%11.6f %5.1fs d:%5.0f s: %4.0f sc: %4.0f\n",
                     a->addr,
                     a->trace_current_len, a->trace_current_max,
                     a->lat, a->lon,
-                    elapsed / 1000.0,
-                    distance, a->gs, (distance / elapsed) * (3600.0f/1852.0f));
+                    elapsed_seconds,
+                    distance, a->gs, (distance / elapsed_seconds) * (3600.0f/1852.0f));
             //antiSpam = now;
             //displayModesMessage(mm);
         }
