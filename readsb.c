@@ -1739,8 +1739,8 @@ static void miscStuff() {
     if (Modes.state_dir) {
         static uint32_t blob; // current blob
         static int64_t next_blob;
-
         char filename[PATH_MAX];
+
         snprintf(filename, PATH_MAX, "%s/writeState", Modes.state_dir);
         int fd = open(filename, O_RDONLY);
         if (fd > -1) {

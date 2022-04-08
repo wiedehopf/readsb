@@ -4,7 +4,7 @@
 #define LZO_MAGIC (0xf7413cc6eaf227dbULL)
 
 static void mark_legs(traceBuffer tb, struct aircraft *a, int start);
-static void load_blob(int blob, threadpool_threadbuffers_t *buffers);
+static void load_blob(char *blob, threadpool_threadbuffers_t *buffers);
 static void traceCleanupNoUnlink(struct aircraft *a);
 static void allocCurrent(struct aircraft *a);
 static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t after_timestamp, threadpool_buffer_t *buffer);
@@ -2268,7 +2268,9 @@ static void load_blobs(void *arg, threadpool_threadbuffers_t * buffer_group) {
     task_info_t *info = (task_info_t *) arg;
 
     for (int j = info->from; j < info->to; j++) {
-        load_blob(j, buffer_group);
+        char blob[1024];
+        snprintf(blob, 1024, "%s/blob_%02x", Modes.state_dir, j);
+        load_blob(blob, buffer_group);
     }
 }
 
@@ -2294,19 +2296,16 @@ static int load_aircrafts(char *p, char *end, char *filename, int64_t now) {
     return count;
 }
 
-static void load_blob(int blob, threadpool_threadbuffers_t *threadbuffers) {
-    //fprintf(stderr, "load blob %d\n", blob);
-    if (blob < 0 || blob >= STATE_BLOBS)
-        fprintf(stderr, "load_blob: invalid argument: %d", blob);
-    char filename[1024];
+static void load_blob(char *blob, threadpool_threadbuffers_t *threadbuffers) {
     int64_t now = mstime();
     int fd = -1;
     struct char_buffer cb;
     char *p;
     char *end;
     int lzo = 0;
+    char filename[1024];
 
-    snprintf(filename, 1024, "%s/blob_%02x.lzol", Modes.state_dir, blob);
+    snprintf(filename, 1024, "%s.lzol", blob);
     fd = open(filename, O_RDONLY);
     if (fd != -1) {
         lzo = 1;
@@ -2314,18 +2313,17 @@ static void load_blob(int blob, threadpool_threadbuffers_t *threadbuffers) {
         close(fd);
     } else {
         Modes.writeInternalState = 1; // not the primary load method, immediately write state
-        snprintf(filename, 1024, "%s/blob_%02x.gz", Modes.state_dir, blob);
+        snprintf(filename, 1024, "%s.gz", blob);
         gzFile gzfp = gzopen(filename, "r");
         if (gzfp) {
             cb = readWholeGz(gzfp, filename);
             gzclose(gzfp);
             unlink(filename); // moving to lzo
         } else {
-            snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
-            fd = open(filename, O_RDONLY);
+            fd = open(blob, O_RDONLY);
             if (fd == -1) {
                 fprintf(stderr, "missing state blob:");
-                snprintf(filename, 1024, "%s/blob_%02x[.gz/.lzol]", Modes.state_dir, blob);
+                snprintf(filename, 1024, "%s[.gz/.lzol]", blob);
                 perror(filename);
                 return;
             }
