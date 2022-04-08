@@ -1704,7 +1704,7 @@ static void allocCurrent(struct aircraft *a) {
         fprintf(stderr, "FATAL: allocCurrent: a->trace_current is not NULL");
         exit(1);
     }
-    resizeTraceCurrent(a, imax(a->trace_current_max, alignSFOUR(Modes.traceReserve + SFOUR)));
+    resizeTraceCurrent(a, imax(a->trace_current_max, alignSFOUR(Modes.traceReserve)));
 }
 
 
@@ -1745,7 +1745,7 @@ void traceMaintenance(struct aircraft *a, int64_t now) {
     }
 
     int chunkPoints = Modes.traceChunkPoints;
-    if (a->trace_current_len >= chunkPoints + Modes.traceReserve / 4) {
+    if (a->trace_current_len >= chunkPoints + alignSFOUR(Modes.traceReserve / 4)) {
         compressCurrent(a, chunkPoints);
     }
 
@@ -2046,12 +2046,12 @@ no_save_state:
         //static int64_t antiSpam;
         //if (Modes.debug_traceAlloc || now > antiSpam + 5 * SECONDS) {
         if (Modes.debug_traceAlloc || 1) {
-            fprintf(stderr, "<3> %06x trace_current_max insufficient (%d/%d) %11.6f,%11.6f %5.1fs d:%5.0f a:%6d D%4d s:%4.0f D%3.0f t: %5.1f D%5.1f ",
+            fprintf(stderr, "%06x trace_current_max insufficient (%d/%d) %11.6f,%11.6f %5.1fs d:%5.0f s: %4.0f sc: %4.0f\n",
                     a->addr,
                     a->trace_current_len, a->trace_current_max,
                     a->lat, a->lon,
                     elapsed / 1000.0,
-                    distance, alt, alt_diff, a->gs, speed_diff, a->track, track_diff);
+                    distance, a->gs, (distance / elapsed) * (3600.0f/1852.0f));
             //antiSpam = now;
             //displayModesMessage(mm);
         }

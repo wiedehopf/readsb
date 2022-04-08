@@ -1587,7 +1587,7 @@ static void configAfterParse() {
 
     Modes.traceMax = alignSFOUR((Modes.keep_traces + 1 * HOURS) / 1000 * 3); // 3 position per second, usually 2 per second is max
 
-    Modes.traceReserve = alignSFOUR(16);
+    Modes.traceReserve = alignSFOUR(32);
 
     Modes.traceChunkPoints = alignSFOUR(3 * 64);
 
