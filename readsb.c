@@ -60,6 +60,7 @@
 struct _Modes Modes;
 struct _Threads Threads;
 
+static void checkReplaceState();
 static void backgroundTasks(int64_t now);
 static error_t parse_opt(int key, char *arg, struct argp_state *state);
 
@@ -281,6 +282,8 @@ static void trackPeriodicUpdate() {
     if (upcount < 0) {
         upcount = 0;
     }
+
+    checkReplaceState();
 
     // stop all threads so we can remove aircraft from the list.
     // also serves as memory barrier so json threads get new aircraft in the list
@@ -1740,6 +1743,24 @@ static void notask_save_blob(uint32_t blob) {
     sfree(pbuffer2.buf);
 }
 
+static void checkReplaceState() {
+    char filename[PATH_MAX];
+
+    snprintf(filename, PATH_MAX, "%s/replaceState", Modes.state_dir);
+    if (!Modes.replace_state_blob && access(filename, R_OK) == 0) {
+        for (int j = 0; j < STATE_BLOBS; j++) {
+            char blob[1024];
+            snprintf(blob, 1024, "%s/blob_%02x.lzol", filename, j);
+            if (access(blob, R_OK) == 0) {
+                fprintf(stderr, "overriding current state with this blob: %s\n", blob);
+                snprintf(blob, 1024, "%s/blob_%02x", filename, j);
+                Modes.replace_state_blob = strdup(blob);
+                break;
+            }
+        }
+    }
+}
+
 static void miscStuff() {
     int64_t now = mstime();
 
@@ -1754,26 +1775,16 @@ static void miscStuff() {
     // don't do everything at once ... this stuff isn't that time critical it'll get its turn
     int enough = 0;
 
+    // if we're trying to load a state blob it takes priority
+    if (Modes.replace_state_blob) {
+        enough = 1;
+    }
+
     if (Modes.state_dir) {
         static uint32_t blob; // current blob
         static int64_t next_blob;
+
         char filename[PATH_MAX];
-
-        snprintf(filename, PATH_MAX, "%s/replaceState", Modes.state_dir);
-        if (!Modes.replace_state_blob && access(filename, R_OK) == 0) {
-            for (int j = 0; j < STATE_BLOBS; j++) {
-                char blob[1024];
-                snprintf(blob, 1024, "%s/blob_%02x.lzol", filename, j);
-                if (access(blob, R_OK) == 0) {
-                    fprintf(stderr, "overriding current state with this blob: %s\n", blob);
-                    snprintf(blob, 1024, "%s/blob_%02x", filename, j);
-                    Modes.replace_state_blob = strdup(blob);
-                    enough = 1;
-                    break;
-                }
-            }
-        }
-
         snprintf(filename, PATH_MAX, "%s/writeState", Modes.state_dir);
         int fd = open(filename, O_RDONLY);
         if (fd > -1) {
