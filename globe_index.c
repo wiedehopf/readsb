@@ -4,7 +4,6 @@
 #define LZO_MAGIC (0xf7413cc6eaf227dbULL)
 
 static void mark_legs(traceBuffer tb, struct aircraft *a, int start);
-static void load_blob(char *blob, threadpool_threadbuffers_t *buffers);
 static void traceCleanupNoUnlink(struct aircraft *a);
 static void allocCurrent(struct aircraft *a);
 static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t after_timestamp, threadpool_buffer_t *buffer);
@@ -761,11 +760,24 @@ static int load_aircraft(char **p, char *end, int64_t now) {
 
     struct aircraft *a = aircraftGet(source->addr);
     if (a) {
-        fprintf(stderr, "%06x aircraft already exists, overwriting old data\n", source->addr);
-        freeAircraft(a);
-    }
+        if (oldSize != newSize) {
+            fprintf(stderr, "%06x size mismatch when replacing aircraft data, aborting!\n", source->addr);
+        }
+        //fprintf(stderr, "%06x aircraft already exists, overwriting old data\n", source->addr);
+        //freeAircraft(a);
+        quickRemove(a);
 
-    a = aircraftCreate(source->addr);
+        // remove from active list if on it
+        if (a->onActiveList) {
+            ca_remove(&Modes.aircraftActive, a);
+        }
+        // remove from the globeList
+        set_globe_index(a, -5);
+
+        traceCleanupNoUnlink(a);
+    } else {
+        a = aircraftCreate(source->addr);
+    }
 
     struct aircraft *preserveNext = a->next;
 
@@ -812,12 +824,11 @@ static int load_aircraft(char **p, char *end, int64_t now) {
     if (a->pos_reliable_valid.source != SOURCE_INVALID) {
         set_globe_index(a, new_index);
     }
-    updateValidities(a, now);
-
     if (a->onActiveList) {
         a->onActiveList = 1;
         ca_add(&Modes.aircraftActive, a);
     }
+    updateValidities(a, now);
 
     // make sure we don't think an extra position is still buffered in the trace memory
     a->tracePosBuffered = 0;
@@ -1310,20 +1321,13 @@ void ca_add (struct craftArray *ca, struct aircraft *a) {
         fprintf(stderr, "ca_add(): out of memory!\n");
         exit(1);
     }
-    /*
     for (int i = 0; i < ca->len; i++) {
         if (a == ca->list[i]) {
-            pthread_mutex_lock(&ca->mutex);
-            // re-check under mutex
-            if (a == ca->list[i]) {
-                fprintf(stderr, "ca_add(): double add!\n");
-                pthread_mutex_unlock(&ca->mutex);
-                return;
-            }
+            fprintf(stderr, "<3>hex: %06x, ca_add(): double add!\n", a->addr);
             pthread_mutex_unlock(&ca->mutex);
+            return;
         }
     }
-    */
 
     ca->list[ca->len] = a;  // add at the end
     ca->len++;
@@ -1727,10 +1731,6 @@ void traceMaintenance(struct aircraft *a, int64_t now) {
         return;
     }
 
-    if (Modes.writeInternalState) {
-        traceUsePosBuffered(a);
-    }
-
     if (Modes.json_globe_index) {
         if (now > a->trace_next_perm)
             a->trace_write |= WPERM;
@@ -2100,8 +2100,10 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
         return;
     //static int count;
     //fprintf(stderr, "Save blob: %02x, count: %d\n", blob, ++count);
-    if (blob < 0 || blob > STATE_BLOBS)
+    if (blob < 0 || blob > STATE_BLOBS) {
         fprintf(stderr, "save_blob: invalid argument: %02x", blob);
+        return;
+    }
 
     int gzip = 0;
     int lzo = 1;
@@ -2157,14 +2159,17 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
         lzo_out = check_grow_threadpool_buffer_t(pbuffer2, lzo_out_alloc);
     }
 
+    struct aircraft copy;
     for (int j = start; j < end; j++) {
         for (struct aircraft *a = Modes.aircraft[j]; a || (j == end - 1); a = a->next) {
             int size_state = 0;
             if (a) {
-                // this flag means we have exclusive access to the state, if we don't using the buffered position can introduce race conditions
-                if (Modes.free_aircraft) {
-                    traceUsePosBuffered(a); // use buffered position for saving state
-                }
+                // work on local copy of aircraft for traceUsePosBuffered
+                copy = *a;
+                a = &copy;
+
+                traceUsePosBuffered(a);
+
                 size_state += sizeof(struct aircraft);
                 if (a->trace_chunk_len > 0 && a->trace_chunks == NULL) {
                     fprintf(stderr, "<3> %06x trace corrupted, a->trace_chunks is NULL but a->trace_chunk_len > 0, resetting a->trace_chunk_len to 0\n", a->addr);
@@ -2264,15 +2269,6 @@ error:
 out:
     ;
 }
-static void load_blobs(void *arg, threadpool_threadbuffers_t * buffer_group) {
-    task_info_t *info = (task_info_t *) arg;
-
-    for (int j = info->from; j < info->to; j++) {
-        char blob[1024];
-        snprintf(blob, 1024, "%s/blob_%02x", Modes.state_dir, j);
-        load_blob(blob, buffer_group);
-    }
-}
 
 static int load_aircrafts(char *p, char *end, char *filename, int64_t now) {
     int count = 0;
@@ -2296,7 +2292,7 @@ static int load_aircrafts(char *p, char *end, char *filename, int64_t now) {
     return count;
 }
 
-static void load_blob(char *blob, threadpool_threadbuffers_t *threadbuffers) {
+void load_blob(char *blob, threadpool_buffer_t *passbuffer) {
     int64_t now = mstime();
     int fd = -1;
     struct char_buffer cb;
@@ -2338,7 +2334,6 @@ static void load_blob(char *blob, threadpool_threadbuffers_t *threadbuffers) {
     end = p + cb.len;
 
     if (lzo) {
-        threadpool_buffer_t *passbuffer = &threadbuffers->buffers[0];
         int lzo_out_alloc = state_chunk_size() * 17 / 16;
 
         char *lzo_out = check_grow_threadpool_buffer_t(passbuffer, lzo_out_alloc);
@@ -2387,6 +2382,16 @@ decompress:
     }
 
     free(cb.buffer);
+}
+
+static void load_blobs(void *arg, threadpool_threadbuffers_t * buffer_group) {
+    task_info_t *info = (task_info_t *) arg;
+
+    for (int j = info->from; j < info->to; j++) {
+        char blob[1024];
+        snprintf(blob, 1024, "%s/blob_%02x", Modes.state_dir, j);
+        load_blob(blob, &buffer_group->buffers[0]);
+    }
 }
 
 static inline void heatmapCheckAlloc(struct heatEntry **buffer, int64_t **slices, int64_t *alloc, int64_t len) {

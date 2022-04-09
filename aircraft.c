@@ -115,6 +115,9 @@ struct aircraft *aircraftGet(uint32_t addr) {
 
 void freeAircraft(struct aircraft *a) {
     quickRemove(a);
+    if (a->onActiveList) {
+        ca_remove(&Modes.aircraftActive, a);
+    }
     traceCleanup(a);
     free(a);
 }

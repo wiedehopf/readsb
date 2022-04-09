@@ -303,6 +303,20 @@ static void trackPeriodicUpdate() {
     start_monotonic_timing(&start_time);
     struct timespec before = threadpool_get_cumulative_thread_time(Modes.allPool);
 
+    if (Modes.replace_state_blob && pthread_mutex_trylock(&Threads.misc.mutex) == 0) {
+        threadpool_buffer_t pbuffer = { 0 };
+        load_blob(Modes.replace_state_blob, &pbuffer);
+
+        char blob[1024];
+        snprintf(blob, 1024, "%s.lzol", Modes.replace_state_blob);
+        unlink(blob);
+
+        sfree(pbuffer.buf);
+        free(Modes.replace_state_blob);
+        Modes.replace_state_blob = NULL;
+
+        pthread_mutex_unlock(&Threads.misc.mutex);
+    }
 
     if (now > Modes.next_remove_stale && pthread_mutex_trylock(&Threads.misc.mutex) == 0) {
         pthread_mutex_lock(&Modes.hungTimerMutex);
@@ -1718,6 +1732,14 @@ static void configAfterParse() {
     }
 }
 
+static void notask_save_blob(uint32_t blob) {
+    threadpool_buffer_t pbuffer1 = { 0 };
+    threadpool_buffer_t pbuffer2 = { 0 };
+    save_blob(blob, &pbuffer1, &pbuffer2);
+    sfree(pbuffer1.buf);
+    sfree(pbuffer2.buf);
+}
+
 static void miscStuff() {
     int64_t now = mstime();
 
@@ -1732,45 +1754,63 @@ static void miscStuff() {
     // don't do everything at once ... this stuff isn't that time critical it'll get its turn
     int enough = 0;
 
-    // function can unlock / lock misc mutex
-    if (handleHeatmap(now)) {
-        enough = 1;
-    }
     if (Modes.state_dir) {
         static uint32_t blob; // current blob
         static int64_t next_blob;
         char filename[PATH_MAX];
 
+        snprintf(filename, PATH_MAX, "%s/replaceState", Modes.state_dir);
+        if (!Modes.replace_state_blob && access(filename, R_OK) == 0) {
+            for (int j = 0; j < STATE_BLOBS; j++) {
+                char blob[1024];
+                snprintf(blob, 1024, "%s/blob_%02x.lzol", filename, j);
+                if (access(blob, R_OK) == 0) {
+                    fprintf(stderr, "overriding current state with this blob: %s\n", blob);
+                    snprintf(blob, 1024, "%s/blob_%02x", filename, j);
+                    Modes.replace_state_blob = strdup(blob);
+                    enough = 1;
+                    break;
+                }
+            }
+        }
+
         snprintf(filename, PATH_MAX, "%s/writeState", Modes.state_dir);
         int fd = open(filename, O_RDONLY);
         if (fd > -1) {
-            close(fd);
-            if (!Modes.writeInternalState) {
-                Modes.writeInternalState = 1;
-                fprintf(stderr, "Writing of internal state requested (file exists: %s)\n", filename);
-            }
-        }
-        if (Modes.writeInternalState == 2) {
-            Modes.writeInternalState = 0;
-            writeInternalState();
+            enough = 1;
             next_blob = now + 45 * SECONDS;
 
+            char tmp[3];
+            int len = read(fd, tmp, 2);
+            close(fd);
+
+            tmp[2] = '\0';
+
+            if (len == 0) {
+                writeInternalState();
+            } else if (len == 2) {
+                uint32_t suffix = strtol(tmp, NULL, 16);
+                notask_save_blob(suffix);
+                fprintf(stderr, "save_blob: %02x\n", suffix);
+            }
+
+            unlink(filename);
             // unlink only after writing state, if the file doesn't exist that's fine as well
             // this is a hack to detect from a shell script when the task is done
-            fprintf(stderr, "Writing of internal state completed (deleting file: %s)\n", filename);
-            unlink(filename);
         }
 
         // only continuously write state if we keep permanent trace
         if (!Modes.state_only_on_exit && !enough && now > next_blob) {
             enough = 1;
-            threadpool_buffer_t pbuffer1 = { 0 };
-            threadpool_buffer_t pbuffer2 = { 0 };
-            save_blob(blob++ % STATE_BLOBS, &pbuffer1, &pbuffer2);
-            sfree(pbuffer1.buf);
-            sfree(pbuffer2.buf);
+            notask_save_blob(blob);
+            blob = (blob + 1) % STATE_BLOBS;
             next_blob = now + 60 * MINUTES / STATE_BLOBS;
         }
+    }
+
+    // function can unlock / lock misc mutex
+    if (!enough && handleHeatmap(now)) {
+        enough = 1;
     }
 
     static int64_t next_clients_json;
@@ -1822,7 +1862,7 @@ static void *miscEntryPoint(void *arg) {
             miscStuff();
         }
 
-        threadTimedWait(&Threads.misc, &ts, 250); // check every quarter second if there is something to do
+        threadTimedWait(&Threads.misc, &ts, 200); // check every 0.2 seconds if there is something to do
     }
 
     pthread_mutex_unlock(&Threads.misc.mutex);

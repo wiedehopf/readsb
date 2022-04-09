@@ -503,7 +503,9 @@ struct _Modes
 
     struct hexInterval* deleteTrace;
 
+    int write_state_blob;
     int writeInternalState;
+    char *replace_state_blob;
     uint32_t currentPing;
 
     int8_t apiUpdate; // creates json snippets also by non api stuff
