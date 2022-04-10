@@ -2374,7 +2374,7 @@ decompress:
         load_aircrafts(p, end, filename, now);
     }
 
-    free(cb.buffer);
+    sfree(cb.buffer);
 }
 
 static void load_blobs(void *arg, threadpool_threadbuffers_t * buffer_group) {
@@ -2666,6 +2666,10 @@ static void gzipFile(char *file) {
     }
 
     writeGz(gzfp, cb.buffer, cb.len, fileGz);
+
+    sfree(cb.buffer);
+    cb.len = 0;
+
     if (gzclose(gzfp) != Z_OK) {
         fprintf(stderr, "compressACAS gzclose failed: %s\n", fileGz);
         unlink(fileGz);
