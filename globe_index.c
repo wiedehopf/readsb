@@ -2152,33 +2152,35 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
         lzo_out = check_grow_threadpool_buffer_t(pbuffer2, lzo_out_alloc);
     }
 
-    struct aircraft copy;
+    struct aircraft copyback;
+    struct aircraft *copy = &copyback;
     for (int j = start; j < end; j++) {
         for (struct aircraft *a = Modes.aircraft[j]; a || (j == end - 1); a = a->next) {
             int size_state = 0;
-            if (a) {
+            if (!a) {
+                copy = NULL;
+            } else {
                 // work on local copy of aircraft for traceUsePosBuffered
-                copy = *a;
-                a = &copy;
+                memcpy(copy, a, sizeof(struct aircraft));
 
-                traceUsePosBuffered(a);
+                traceUsePosBuffered(copy);
 
                 size_state += sizeof(struct aircraft);
-                if (a->trace_chunk_len > 0 && a->trace_chunks == NULL) {
-                    fprintf(stderr, "<3> %06x trace corrupted, a->trace_chunks is NULL but a->trace_chunk_len > 0, resetting a->trace_chunk_len to 0\n", a->addr);
-                    a->trace_chunk_len = 0;
+                if (copy->trace_chunk_len > 0 && copy->trace_chunks == NULL) {
+                    fprintf(stderr, "<3> %06x trace corrupted, copy->trace_chunks is NULL but copy->trace_chunk_len > 0, resetting copy->trace_chunk_len to 0\n", copy->addr);
+                    copy->trace_chunk_len = 0;
                     break;
                 }
-                for (int k = 0; k < a->trace_chunk_len; k++) {
-                    stateChunk *chunk = &a->trace_chunks[k];
+                for (int k = 0; k < copy->trace_chunk_len; k++) {
+                    stateChunk *chunk = &copy->trace_chunks[k];
                     size_state += sizeof(stateChunk);
                     size_state += roundUp8(chunk->compressed_size);
                 }
-                size_state += stateBytes(a->trace_current_len);
+                size_state += stateBytes(copy->trace_current_len);
             }
 
             // 3 * sizeof(uint64_t) for state_save_magic, size_aircraft and state_save_magic_end
-            if (!a || (p + 3 * sizeof(uint64_t) + size_state > buf + alloc)) {
+            if (!copy || (p + 3 * sizeof(uint64_t) + size_state > buf + alloc)) {
                 //fprintf(stderr, "save_blob writing %d KB (buffer)\n", (int) ((p - buf) / 1024));
 
                 uint64_t magic_end = STATE_SAVE_MAGIC_END;
@@ -2209,7 +2211,7 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
                 p = buf;
             }
 
-            if (!a) {
+            if (!copy) {
                 break;
             }
 
@@ -2219,16 +2221,16 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
             p += memcpySize(p, &size_aircraft, sizeof(size_aircraft));
 
             if (p + size_state > buf + alloc) {
-                fprintf(stderr, "%06x: Couldn't write internal state, check save_blob code!\n", a->addr);
+                fprintf(stderr, "%06x: Couldn't write internal state, check save_blob code!\n", copy->addr);
             } else {
-                p += memcpySize(p, a, sizeof(struct aircraft));
-                if (a->trace_len > 0) {
+                p += memcpySize(p, copy, sizeof(struct aircraft));
+                if (copy->trace_len > 0) {
 
                     uint64_t fourState_size = sizeof(fourState);
                     p += memcpySize(p, &fourState_size, sizeof(fourState_size));
 
-                    for (int k = 0; k < a->trace_chunk_len; k++) {
-                        stateChunk *chunk = &a->trace_chunks[k];
+                    for (int k = 0; k < copy->trace_chunk_len; k++) {
+                        stateChunk *chunk = &copy->trace_chunks[k];
                         p += memcpySize(p, chunk, sizeof(stateChunk));
 
                         p += memcpySize(p, chunk->compressed, chunk->compressed_size);
@@ -2236,7 +2238,7 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
                         memset(p, 0x0, padBytes);
                         p += padBytes;
                     }
-                    p += memcpySize(p, a->trace_current, stateBytes(a->trace_current_len));
+                    p += memcpySize(p, copy->trace_current, stateBytes(copy->trace_current_len));
                 }
             }
         }
