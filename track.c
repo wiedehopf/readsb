@@ -784,6 +784,28 @@ static int doLocalCPR(struct aircraft *a, struct modesMessage *mm, double *lat, 
         }
     }
 
+    // check max range
+    if (Modes.maxRange > 0 && Modes.userLocationValid) {
+        mm->receiver_distance = greatcircle(Modes.fUserLat, Modes.fUserLon, *lat, *lon, 0);
+        if (mm->receiver_distance > Modes.maxRange) {
+            if (a->addr == Modes.cpr_focus || Modes.debug_bogus) {
+                fprintf(stdout, "%5llu %5.1f Global range check failed: %06x %.3f,%.3f, max range %.1fkm, actual %.1fkm\n",
+                        (long long) mm->timestampMsg % 65536,
+                        10 * log10(mm->signalLevel),
+                        a->addr, *lat, *lon, Modes.maxRange / 1000.0, mm->receiver_distance / 1000.0);
+            }
+
+            if (mm->source != SOURCE_MLAT) {
+                Modes.stats_current.cpr_local_range_checks++;
+                if (Modes.debug_maxRange) {
+                    showPositionDebug(a, mm, mm->sysTimestampMsg, *lat, *lon);
+                }
+            }
+            return (-2); // we consider an out-of-range value to be bad data
+        }
+    }
+
+
     // check speed limit
     if (!speed_check(a, mm->source, *lat, *lon, mm, CPR_LOCAL)) {
         if (mm->source != SOURCE_MLAT)

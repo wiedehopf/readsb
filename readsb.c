@@ -139,7 +139,7 @@ static void configSetDefaults(void) {
     Modes.interactive_display_ttl = MODES_INTERACTIVE_DISPLAY_TTL;
     Modes.json_interval = 1000;
     Modes.json_location_accuracy = 2;
-    Modes.maxRange = 1852 * 300; // 300NM default max range
+    Modes.maxRange = 1852 * 450; // 450 nmi default max range
     Modes.nfix_crc = 1;
     Modes.biastee = 0;
     Modes.position_persistence = 4;
