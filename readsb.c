@@ -1613,7 +1613,7 @@ static void configAfterParse() {
 
     Modes.traceReserve = alignSFOUR(32);
 
-    Modes.traceChunkPoints = alignSFOUR(3 * 64);
+    Modes.traceChunkPoints = alignSFOUR(32);
 
     if (Modes.json_trace_interval < 1) {
         Modes.json_trace_interval = 1; // 1 ms
@@ -1886,6 +1886,7 @@ static void *miscEntryPoint(void *arg) {
 //
 
 int main(int argc, char **argv) {
+
     srandom(get_seed());
 
     // Set sane defaults

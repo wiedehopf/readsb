@@ -237,4 +237,6 @@ static inline void *check_grow_threadpool_buffer_t(threadpool_buffer_t *buffer, 
     return buffer->buf;
 }
 
+void gzipFile(char *file);
+
 #endif

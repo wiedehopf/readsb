@@ -313,6 +313,7 @@ struct char_buffer readWholeFile(int fd, char *errorContext) {
         cb.len += res;
         toRead -= res;
     }
+    //fprintf(stderr, "readWholeFile: %s fsize %ld cb.len %ld\n", errorContext, (long) fsize, (long) cb.len);
     if (fstat(fd, &fileinfo)) {
         fprintf(stderr, "%s: readWholeFile: fstat failed, wat?!\n", errorContext);
 
@@ -685,4 +686,46 @@ void destroy_task_group(task_group_t *group) {
 
     memset(group, 0x0, sizeof(task_group_t));
     free(group);
+}
+
+
+void gzipFile(char *filename) {
+    int fd;
+    char fileGz[PATH_MAX];
+    gzFile gzfp;
+
+    // read uncompressed file into buffer
+    fd = open(filename, O_RDONLY);
+    if (fd < 0) {
+        return;
+    }
+    struct char_buffer cb = readWholeFile(fd, filename);
+    close(fd);
+    if (!cb.buffer) {
+        fprintf(stderr, "compressACAS readWholeFile failed: %s\n", filename);
+        return;
+    }
+
+    snprintf(fileGz, PATH_MAX, "%s.gz", filename);
+    gzfp = gzopen(fileGz, "wb");
+    if (!gzfp) {
+        fprintf(stderr, "gzopen failed:");
+        perror(fileGz);
+        return;
+    }
+    int res = gzsetparams(gzfp, 9, Z_DEFAULT_STRATEGY);
+    if (res < 0) {
+        fprintf(stderr, "gzsetparams fail: %d", res);
+    }
+
+    writeGz(gzfp, cb.buffer, cb.len, fileGz);
+
+    sfree(cb.buffer);
+    cb.len = 0;
+
+    if (gzclose(gzfp) != Z_OK) {
+        fprintf(stderr, "compressACAS gzclose failed: %s\n", fileGz);
+        unlink(fileGz);
+        return;
+    }
 }
