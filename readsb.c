@@ -1613,7 +1613,7 @@ static void configAfterParse() {
 
     Modes.traceReserve = alignSFOUR(32);
 
-    Modes.traceChunkPoints = alignSFOUR(32);
+    Modes.traceChunkPoints = alignSFOUR(5 * 64);
 
     if (Modes.json_trace_interval < 1) {
         Modes.json_trace_interval = 1; // 1 ms

@@ -1683,11 +1683,15 @@ static void compressCurrent(struct aircraft *a, int chunkPoints) {
 
 }
 
+static int get_active_trace_current_points() {
+    return alignSFOUR(Modes.traceChunkPoints + Modes.traceReserve);
+}
+
 static int get_nominal_trace_current_points(struct aircraft *a, int64_t now) {
     if (now - a->seenPosReliable > 1 * HOURS) {
         return alignSFOUR(a->trace_current_len + Modes.traceReserve);
     } else {
-        return alignSFOUR(Modes.traceChunkPoints + Modes.traceReserve);
+        return get_active_trace_current_points();
     }
 }
 
@@ -1758,8 +1762,11 @@ void traceMaintenance(struct aircraft *a, int64_t now) {
     }
 
     // reset trace_current allocation to minimal size if aircraft has been inactive for some time
-    if (a->trace_current && a->trace_current_max > 2 * Modes.traceReserve && now - a->seenPosReliable > 1 * HOURS) {
-        compressCurrent(a, alignSFOUR(a->trace_current_len - Modes.traceReserve / 4));
+    if (a->trace_current && a->trace_current_max >= get_active_trace_current_points() && now - a->seenPosReliable > 1 * HOURS) {
+        int toCompress = alignSFOUR(a->trace_current_len - Modes.traceReserve / 4);
+        if (toCompress > chunkPoints / 4) {
+            compressCurrent(a, toCompress);
+        }
         resizeTraceCurrent(a, now, 0);
     }
     // reset trace_current allocation to nominal size aircraft is active again
