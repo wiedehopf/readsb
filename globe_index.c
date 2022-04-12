@@ -1602,6 +1602,7 @@ static void compressChunk(stateChunk *target, fourState *source, int pointCount)
     int res = lzo1x_1_compress((unsigned char *) source, chunkBytes, lzo_out, &compressed_len, lzo_work);
 
     if (res != LZO_E_OK) { fprintf(stderr, "lzo1x_1_compress error Theij8ah\n"); exit(1); }
+    if (compressed_len < 1) { fprintf(stderr, "compressChunk len < 1\n"); exit(1); }
 
     target->compressed_size = compressed_len;
 
@@ -1653,8 +1654,10 @@ static void setTrace(struct aircraft *a, fourState *source, int len) {
 
 
 static void compressCurrent(struct aircraft *a) {
-    int chunkPoints = alignSFOUR(a->trace_current_len - Modes.traceReserve / 4);
-    if (chunkPoints < Modes.traceChunkPoints / 8) {
+    int keep = alignSFOUR(8);
+    int chunkPoints = ((a->trace_current_len - keep) / SFOUR) * SFOUR;
+    int newLen = a->trace_current_len - chunkPoints;
+    if (chunkPoints < 1 || newLen < keep || chunkPoints < Modes.traceChunkPoints / 8) {
         return;
     }
     if (chunkPoints % SFOUR != 0) {
@@ -1679,9 +1682,19 @@ static void compressCurrent(struct aircraft *a) {
                 a->addr, new->compressed_size, a->trace_chunk_len, stateBytes(chunkPoints) / (double) new->compressed_size);
     }
 
+    int oldBytes = stateBytes(a->trace_current_len);
     a->trace_current_len -= chunkPoints;
-    memmove(a->trace_current, a->trace_current + getFourStates(chunkPoints), stateBytes(a->trace_current_len));
+    int newBytes = stateBytes(a->trace_current_len);
 
+    int diffBytes = stateBytes(chunkPoints);
+    char *src = ((char *) a->trace_current) + diffBytes;
+    char *dest = (char *) a->trace_current;
+
+    if (newBytes + diffBytes != oldBytes) {
+        fprintf(stderr, "<3> %06x compressCurrent very wrong, very bad!\n", a->addr);
+    }
+
+    memmove(dest, src, newBytes);
 }
 
 static int get_active_trace_current_points() {

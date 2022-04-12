@@ -1617,6 +1617,8 @@ static void configAfterParse() {
         Modes.traceChunkPoints = alignSFOUR(Modes.traceChunkPoints * oversize);
     }
 
+    //Modes.traceChunkPoints = alignSFOUR(4);
+
     Modes.traceRecentPoints = alignSFOUR(TRACE_RECENT_POINTS);
     Modes.traceCachePoints = alignSFOUR(Modes.traceRecentPoints + TRACE_CACHE_EXTRA);
 

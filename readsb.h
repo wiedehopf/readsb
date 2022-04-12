@@ -69,9 +69,6 @@
 
 #define VERSION_STRING MODES_READSB_VARIANT " version: " MODES_READSB_VERSION
 
-#define MemoryAlignment 32
-#define ALIGNED __attribute__((aligned(MemoryAlignment)))
-
 // ============================= Include files ==========================
 
 #include <stdio.h>
@@ -351,7 +348,20 @@ typedef enum {
 
 void setExit(int arg);
 
+#define MemoryAlignment 32
+#define ALIGNED __attribute__((aligned(MemoryAlignment)))
+
 static inline void *aligned_alloc_or_exit(size_t alignment, size_t size, const char *file, int line) {
+    size_t mod = size % alignment;
+    if (mod != 0) {
+        size += (alignment - mod);
+    }
+    /*
+    mod = size % alignment;
+    if (mod != 0) {
+        fprintf(stderr, "aligned_alloc bad alignment: %ld\n", (long) mod);
+    }
+    */
     void *buf = aligned_alloc(alignment, size);
     if (unlikely(!buf)) {
         setExit(2); // irregular exit ... soon
