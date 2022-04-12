@@ -1792,9 +1792,10 @@ open:
         if (!gzfp)
             goto error_1;
 
-        int gBufSize = imin(len, 1024 * 1024);
-        gBufSize = imax(gBufSize, 8 * 1024);
-
+        int gBufSize = 128 * 1024;
+        if (len < 16 * 1024) {
+            gBufSize = 16 * 1024;
+        }
         gzbuffer(gzfp, gBufSize);
 
         int name_len = strlen(file);

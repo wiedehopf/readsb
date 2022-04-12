@@ -1918,6 +1918,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "apiEntry: %zu\n", sizeof(struct apiEntry));
         //fprintf(stderr, "%zu\n", sizeof(struct state_flags));
         fprintf(stderr, "modesMessage: %zu\n", sizeof(struct modesMessage));
+        fprintf(stderr, "stateChunk: %zu\n", sizeof(stateChunk));
         exit(0);
     }
 
