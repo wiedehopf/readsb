@@ -1115,10 +1115,17 @@ static int pongReceived(struct client *c, int64_t now) {
 
     int64_t pong = c->pong;
     int64_t current = now & ((1LL << 24) - 1);
+
     // handle 24 bit overflow by making the 2 numbers comparable
-    if (current + 1 * SECONDS < pong) {
-        current += (1 << 24);
-    } else if (current < pong) {
+    if (labs(current - pong) > (1LL << 24) * 7 / 8) {
+        if (current < pong) {
+            current += (1 << 24);
+        } else {
+            pong += (1 << 24);
+        }
+    }
+
+    if (current < pong) {
         // even without overflow, current can be smaller than pong due to
         // the other clock ticking up a ms just after receiving the ping (with sub ms latency)
         // but this clock ticked up just before sending the ping
