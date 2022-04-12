@@ -1652,8 +1652,9 @@ static void setTrace(struct aircraft *a, fourState *source, int len) {
 }
 
 
-static void compressCurrent(struct aircraft *a, int chunkPoints) {
-    if (chunkPoints <= 0) {
+static void compressCurrent(struct aircraft *a) {
+    int chunkPoints = alignSFOUR(a->trace_current_len - Modes.traceReserve / 4);
+    if (chunkPoints < Modes.traceChunkPoints / 8) {
         return;
     }
     if (chunkPoints % SFOUR != 0) {
@@ -1756,22 +1757,26 @@ void traceMaintenance(struct aircraft *a, int64_t now) {
         a->trace_next_perm = now + random() % (5 * MINUTES);
     }
 
-    int chunkPoints = Modes.traceChunkPoints;
-    if (a->trace_current_len >= chunkPoints + alignSFOUR(Modes.traceReserve / 4)) {
-        compressCurrent(a, chunkPoints);
-    }
-
-    // reset trace_current allocation to minimal size if aircraft has been inactive for some time
-    if (a->trace_current && a->trace_current_max >= get_active_trace_current_points() && now - a->seenPosReliable > 1 * HOURS) {
-        int toCompress = alignSFOUR(a->trace_current_len - Modes.traceReserve / 4);
-        if (toCompress > chunkPoints / 4) {
-            compressCurrent(a, toCompress);
+    if (a->trace_current_len > 0) {
+        if (
+                (a->trace_current_len >= alignSFOUR(Modes.traceChunkPoints + Modes.traceReserve / 4))
+                || (a->trace_current_len >= Modes.traceChunkPoints / 4 && now - (getState(a->trace_current, a->trace_current_len - 1))->timestamp > 1 * HOURS)
+           ) {
+            compressCurrent(a);
         }
-        resizeTraceCurrent(a, now, 0);
-    }
-    // reset trace_current allocation to nominal size aircraft is active again
-    if (a->trace_current && a->trace_current_max < get_nominal_trace_current_points(a, now)) {
-        resizeTraceCurrent(a, now, 0);
+
+        // reset trace_current allocation to minimal size if aircraft has been inactive for some time
+        if (
+                (a->trace_current_max >= get_active_trace_current_points() / 2 && now - a->seenPosReliable > 1 * HOURS)
+                || a->trace_current_max > get_active_trace_current_points()
+           ) {
+            compressCurrent(a);
+            resizeTraceCurrent(a, now, 0);
+        }
+        // reset trace_current allocation to nominal size aircraft is active again
+        if (a->trace_current_max < get_nominal_trace_current_points(a, now)) {
+            resizeTraceCurrent(a, now, 0);
+        }
     }
 }
 
@@ -2770,7 +2775,7 @@ void writeInternalState() {
 
     int64_t now = mstime();
 
-    threadpool_t *pool = threadpool_create(Modes.allPoolSize, 4);
+    threadpool_t *pool = threadpool_create(imax(1, Modes.num_procs), 4);
     task_group_t *group = allocate_task_group(STATE_BLOBS + 1);
     threadpool_task_t *tasks = group->tasks;
     task_info_t *infos = group->infos;
@@ -2858,7 +2863,7 @@ void readInternalState() {
 
     int64_t now = mstime();
 
-    threadpool_t *pool = threadpool_create(Modes.allPoolSize, 4);
+    threadpool_t *pool = threadpool_create(imax(1, Modes.num_procs), 4);
     task_group_t *group = allocate_task_group(STATE_BLOBS + 1);
     threadpool_task_t *tasks = group->tasks;
     task_info_t *infos = group->infos;

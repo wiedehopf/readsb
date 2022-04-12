@@ -328,13 +328,6 @@ static void trackPeriodicUpdate() {
 
         Modes.currentTask = "trackRemoveStale";
 
-        if (Modes.writeInternalState == 1) {
-            // signal actual state writing that trackRemoveStale has run
-            // removeStale will do activeUpdateRange which calls traceMaintenance
-            // which for writeInternalState will save any buffered trace position
-            Modes.writeInternalState = 2;
-        }
-
         trackRemoveStale(now);
         traceDelete();
 
@@ -2123,11 +2116,6 @@ int main(int argc, char **argv) {
         display_total_stats();
     }
 
-    // frees aircraft when Modes.free_aircraft is set
-    // writes state if Modes.state_dir is set
-    Modes.free_aircraft = 1;
-    writeInternalState();
-
     if (Modes.allPool) {
         threadpool_destroy(Modes.allPool);
         destroy_task_group(Modes.allTasks);
@@ -2137,6 +2125,12 @@ int main(int argc, char **argv) {
         threadpool_destroy(Modes.tracePool);
         destroy_task_group(Modes.traceTasks);
     }
+
+    // frees aircraft when Modes.free_aircraft is set
+    // writes state if Modes.state_dir is set
+    Modes.free_aircraft = 1;
+    writeInternalState();
+
 
     if (Modes.exit != 1) {
         log_with_timestamp("Abnormal exit.");
