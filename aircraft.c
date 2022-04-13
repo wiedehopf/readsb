@@ -115,6 +115,10 @@ struct aircraft *aircraftGet(uint32_t addr) {
 
 void freeAircraft(struct aircraft *a) {
     quickRemove(a);
+
+    // remove from the globeList
+    set_globe_index(a, -5);
+
     if (a->onActiveList) {
         ca_remove(&Modes.aircraftActive, a);
     }

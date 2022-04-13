@@ -2431,15 +2431,6 @@ static void removeStaleRange(void *arg, threadpool_threadbuffers_t * buffers) {
                 if (a->addr == Modes.cpr_focus)
                     fprintf(stderr, "del: %06x seen: %.1f seen_pos: %.1f\n", a->addr, (now - a->seen) / 1000.0, (now - a->seen_pos) / 1000.0);
 
-                // remove from the globeList
-                set_globe_index(a, -5);
-
-                // remove from activeList
-                if (a->onActiveList) {
-                    a->onActiveList = 0;
-                    ca_remove(&Modes.aircraftActive, a);
-                }
-
                 // Remove the element from the linked list
                 *nextPointer = a->next;
 

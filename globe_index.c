@@ -705,9 +705,7 @@ static void free_aircraft_range(int start, int end) {
         while (a) {
             na = a->next;
             if (a) {
-                if (a->trace_len) {
-                    traceCleanupNoUnlink(a);
-                }
+                traceCleanupNoUnlink(a);
                 free(a);
             }
             a = na;
