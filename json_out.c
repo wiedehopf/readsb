@@ -996,6 +996,20 @@ struct char_buffer generateAircraftBin(threadpool_buffer_t *pbuffer) {
     uint32_t messageCount = Modes.stats_current.messages_total + Modes.stats_alltime.messages_total;
     memWrite(p, messageCount);
 
+    int32_t receiver_lat = 0;
+    int32_t receiver_lon = 0;
+    if (Modes.userLocationValid) {
+        if (Modes.json_location_accuracy == 1) {
+            receiver_lat = (int32_t) (1E4 * nearbyint(Modes.fUserLat * 1E2));
+            receiver_lon = (int32_t) (1E4 * nearbyint(Modes.fUserLon * 1E2));
+        } else if (Modes.json_location_accuracy == 2) {
+            receiver_lat = (int32_t) nearbyint(Modes.fUserLat * 1E6);
+            receiver_lon = (int32_t) nearbyint(Modes.fUserLon * 1E6);
+        }
+    }
+    memWrite(p, receiver_lat);
+    memWrite(p, receiver_lon);
+
     if (p - buf > (int) elementSize)
         fprintf(stderr, "buffer overrun aircrafBin\n");
 

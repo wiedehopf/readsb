@@ -509,6 +509,7 @@ struct _Modes
     struct net_writer json_out; // SBS-format output
     struct net_writer vrs_out; // SBS-format output
     struct net_writer fatsv_out; // FATSV-format output
+    struct net_writer gpsd_in; // for sending 1 line to gpsd
     struct net_service *beast_in_service;
 
     struct hexInterval* deleteTrace;

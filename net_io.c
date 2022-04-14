@@ -78,6 +78,7 @@
 //    handled via non-blocking I/O and manually polling clients to see if
 //    they have something new to share with us when reading is needed.
 
+static int handle_gpsd(struct client *c, char *p, int remote, int64_t now);
 static int handleCommandSocket(struct client *c, char *p, int remote, int64_t now);
 static int handleBeastCommand(struct client *c, char *p, int remote, int64_t now);
 static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now);
@@ -382,6 +383,13 @@ static void checkServiceConnected(struct net_connector *con, int64_t now) {
         c->sendq[c->sendq_len++] = 0x1a;
         c->sendq[c->sendq_len++] = 'W';
         c->sendq[c->sendq_len++] = 'O';
+        if (flushClient(c, now) < 0) {
+            return;
+        }
+    }
+    if ((c->sendq && c->sendq_len + 256 < c->sendq_max)
+                && strcmp(con->protocol, "gpsd_in") == 0) {
+        c->sendq_len += snprintf(c->sendq, 256, "?WATCH={\"enable\":true,\"json\":true};\n");
         if (flushClient(c, now) < 0) {
             return;
         }
@@ -737,6 +745,7 @@ void modesInitNet(void) {
     struct net_service *sbs_in_mlat;
     struct net_service *sbs_in_jaero;
     struct net_service *sbs_in_prio;
+    struct net_service *gpsd_in;
 
     signal(SIGPIPE, SIG_IGN);
     Modes.services = NULL;
@@ -827,6 +836,8 @@ void modesInitNet(void) {
         sfree(jaero);
     }
 
+    gpsd_in = serviceInit("GPSD TCP input", &Modes.gpsd_in, NULL, READ_MODE_ASCII, "\n", handle_gpsd);
+
     if (Modes.json_dir && Modes.json_globe_index && Modes.globe_history_dir) {
         /* command input */
         struct net_service *commandService = serviceInit("command input", NULL, NULL, READ_MODE_ASCII, "\n", handleCommandSocket);
@@ -893,6 +904,8 @@ void modesInitNet(void) {
             con->service = sbs_out_prio;
         else if (strcmp(con->protocol, "sbs_out_replay") == 0)
             con->service = sbs_out_replay;
+        else if (strcmp(con->protocol, "gpsd_in") == 0)
+            con->service = gpsd_in;
 
     }
 }
@@ -2087,10 +2100,13 @@ float ieee754_binary32_le_to_float(uint8_t *data) {
 }
 
 static void handle_radarcape_position(float lat, float lon, float alt) {
-	// disable this
-	return;
-    if (!isfinite(lat) || lat < -90 || lat > 90 || !isfinite(lon) || lon < -180 || lon > 180 || !isfinite(alt))
+    if (Modes.netIngest || Modes.netReceiverId) {
         return;
+    }
+
+    if (!isfinite(lat) || lat < -90 || lat > 90 || !isfinite(lon) || lon < -180 || lon > 180 || !isfinite(alt)) {
+        return;
+    }
 
     if (!Modes.userLocationValid) {
         Modes.fUserLat = lat;
@@ -2212,6 +2228,58 @@ void sendBeastSettings(int fd, const char *settings) {
     }
 
     anetWrite(fd, buf, len);
+}
+
+static int handle_gpsd(struct client *c, char *p, int remote, int64_t now) {
+    MODES_NOTUSED(c);
+    MODES_NOTUSED(remote);
+    MODES_NOTUSED(now);
+    // remove spaces in place
+    char *d = p;
+    char *s = p;
+    do {
+        while (*s == ' ') {
+            s++;
+        }
+        *d = *s++;
+    } while (*d++);
+
+    // filter all messages but TPV type
+    if (!strstr(p, "\"class\":\"TPV\"")) {
+        return 0;
+    }
+    // filter all messages which don't have lat / lon
+    char *latp = strstr(p, "\"lat\":");
+    char *lonp = strstr(p, "\"lon\":");
+    if (!latp || !lonp) {
+        return 0;
+    }
+    latp += 6;
+    lonp += 6;
+
+    char *saveptr = NULL;
+    strtok_r(latp, ",", &saveptr);
+    strtok_r(lonp, ",", &saveptr);
+
+    double lat = strtod(latp, NULL);
+    double lon = strtod(lonp, NULL);
+
+    //fprintf(stderr, "%11.6f %11.6f\n", lat, lon);
+
+
+    if (!isfinite(lat) || lat < -90 || lat > 90 || !isfinite(lon) || lon < -180 || lon > 180) {
+        return 0;
+    }
+
+    Modes.fUserLat = lat;
+    Modes.fUserLon = lon;
+    Modes.userLocationValid = 1;
+
+    if (Modes.json_dir) {
+        free(writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson()).buffer); // location changed
+    }
+
+    return 0;
 }
 
 static int handleCommandSocket(struct client *c, char *p, int remote, int64_t now) {
