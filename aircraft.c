@@ -123,6 +123,8 @@ void freeAircraft(struct aircraft *a) {
         ca_remove(&Modes.aircraftActive, a);
     }
     traceCleanup(a);
+
+    memset(a, 0xff, sizeof (struct aircraft));
     free(a);
 }
 
