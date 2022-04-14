@@ -4,6 +4,7 @@
 #define API_HASH_BITS (16)
 #define API_BUCKETS (1 << API_HASH_BITS)
 
+static int apiUpdate();
 static inline uint32_t hexHash(uint32_t addr) {
     return addrHash(addr, API_HASH_BITS);
 }
@@ -692,7 +693,8 @@ static inline void apiGenerateJson(struct apiBuffer *buffer, int64_t now) {
 }
 
 
-int apiUpdate(struct craftArray *ca) {
+static int apiUpdate() {
+    struct craftArray *ca = &Modes.aircraftActive;
 
     // always clear and update the inactive apiBuffer
     int flip = (atomic_load(&Modes.apiFlip[0]) + 1) % 2;
@@ -1486,7 +1488,7 @@ static void *apiUpdateEntryPoint(void *arg) {
 
         start_cpu_timing(&cpu_timer);
 
-        apiUpdate(&Modes.aircraftActive);
+        apiUpdate();
 
         end_cpu_timing(&cpu_timer, &Modes.stats_current.api_update_cpu);
 
@@ -1517,7 +1519,7 @@ void apiBufferInit() {
         buffer->regHash = aligned_malloc(API_BUCKETS * sizeof(struct apiEntry*));
         buffer->callsignHash = aligned_malloc(API_BUCKETS * sizeof(struct apiEntry*));
     }
-    apiUpdate(&Modes.aircraftActive); // run an initial apiUpdate
+    apiUpdate(); // run an initial apiUpdate
     threadCreate(&Threads.apiUpdate, NULL, apiUpdateEntryPoint, NULL);
 }
 

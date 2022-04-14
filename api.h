@@ -123,8 +123,6 @@ void apiBufferCleanup();
 void apiInit();
 void apiCleanup();
 
-int apiUpdate(struct craftArray *ca);
-
 struct char_buffer apiGenerateAircraftJson(threadpool_buffer_t *pbuffer);
 struct char_buffer apiGenerateGlobeJson(int globe_index, threadpool_buffer_t *pbuffer);
 
