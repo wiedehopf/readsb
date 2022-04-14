@@ -337,8 +337,8 @@ static void trackPeriodicUpdate() {
         }
 
         Modes.next_remove_stale = now + REMOVE_STALE_INTERVAL;
-        pthread_mutex_unlock(&Threads.misc.mutex);
         removed_stale = 1;
+        pthread_mutex_unlock(&Threads.misc.mutex);
     }
 
     int64_t elapsed1 = lapWatch(&watch);

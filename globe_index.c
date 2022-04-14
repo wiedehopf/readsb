@@ -1838,6 +1838,7 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
 
     int traceDebug = (a->addr == Modes.trace_focus);
 
+    int save_state_no_buf = 0;
     int posUsed = 0;
     int bufferedPosUsed = 0;
     double distance = 0;
@@ -1959,9 +1960,10 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
         if (traceDebug) fprintf(stderr, "speed_change: %0.1f %0.1f -> %0.1f", fabs(last->gs / 10.0 - a->gs), last->gs / 10.0, a->gs);
 
         if (buffered && last->gs == buffered->gs) {
-            goto save_state_no_buf;
+            save_state_no_buf = 1;
+        } else {
+            goto save_state;
         }
-        goto save_state;
     }
 
     // record ground air state changes precisely
@@ -1998,9 +2000,10 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
         if (alt_diff >= max_diff) {
             if (traceDebug) fprintf(stderr, "alt_change1: %d -> %d", last_alt, alt);
             if (alt_diff == max_diff || (buffered && last->baro_alt == buffered->baro_alt)) {
-                goto save_state_no_buf;
+                save_state_no_buf = 1;
+            } else {
+                goto save_state;
             }
-            goto save_state;
         }
 
         int base = 800;
@@ -2012,7 +2015,7 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
         int64_t too_long = ((max_elapsed / 4) * base / (float) alt_diff);
         if (alt_diff >= 25 && elapsed > too_long) {
             if (traceDebug) fprintf(stderr, "alt_change2: %d -> %d, %5.1f", last_alt, alt, too_long / 1000.0);
-            goto save_state_no_buf;
+            save_state_no_buf = 1;
         }
     }
 
@@ -2064,6 +2067,10 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
        ) {
         if (traceDebug) fprintf(stderr, "track_change: %0.1f %0.1f -> %0.1f", track_diff, last_track, a->track);
         goto save_state;
+    }
+
+    if (save_state_no_buf) {
+        goto save_state_no_buf;
     }
 
     goto no_save_state;
