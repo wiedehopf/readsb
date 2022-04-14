@@ -521,6 +521,8 @@ static void *jsonEntryPoint(void *arg) {
             writeJsonToGzip(Modes.json_dir, "globeMil_42777.binCraft", cb2, 5);
         }
 
+        sfree(pass_buffer.buf);
+
         end_cpu_timing(&start_time, &Modes.stats_current.aircraft_json_cpu);
 
         // we should exit this wait early due to a cond_signal from api.c
@@ -841,6 +843,8 @@ static void writeTraces() {
     threadpool_run(Modes.tracePool, tasks, taskCount);
     struct timespec after = threadpool_get_cumulative_thread_time(Modes.tracePool);
     timespec_add_elapsed(&before, &after, &Modes.stats_current.trace_json_cpu);
+
+    threadpool_reset_buffers(Modes.tracePool);
 }
 
 static void *upkeepEntryPoint(void *arg) {

@@ -65,5 +65,7 @@ void threadpool_run(threadpool_t *pool, threadpool_task_t *tasks, uint32_t count
 // this time is best effort to achieve optimal performance
 struct timespec threadpool_get_cumulative_thread_time(threadpool_t* threadpool);
 
+// only use this after rading the code for it
+void threadpool_reset_buffers(threadpool_t *pool);
 
 #endif /* _THREADPOOL_H_ */

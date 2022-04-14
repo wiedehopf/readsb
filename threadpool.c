@@ -117,6 +117,19 @@ threadpool_t *threadpool_create(uint32_t thread_count, uint32_t buffer_count)
     return pool;
 }
 
+void threadpool_reset_buffers(threadpool_t *pool)
+{
+    for (uint32_t i = 0; i < pool->thread_count; i++)
+    {
+        thread_t *thread = &pool->threads[i];
+        for (uint32_t k = 0; k < thread->user_buffers.buffer_count; k++) {
+            free(thread->user_buffers.buffers[k].buf);
+            thread->user_buffers.buffers[k].buf = NULL;
+            thread->user_buffers.buffers[k].size = 0;
+        }
+    }
+}
+
 void threadpool_destroy(threadpool_t *pool)
 {
     pool->terminate = 1;
@@ -139,6 +152,8 @@ void threadpool_destroy(threadpool_t *pool)
 
         for (uint32_t k = 0; k < thread->user_buffers.buffer_count; k++) {
             free(thread->user_buffers.buffers[k].buf);
+            thread->user_buffers.buffers[k].buf = NULL;
+            thread->user_buffers.buffers[k].size = 0;
         }
         free(thread->user_buffers.buffers);
     }
