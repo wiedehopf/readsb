@@ -1130,7 +1130,7 @@ static int pongReceived(struct client *c, int64_t now) {
     int64_t current = now & ((1LL << 24) - 1);
 
     // handle 24 bit overflow by making the 2 numbers comparable
-    if (labs(current - pong) > (1LL << 24) * 7 / 8) {
+    if (labs((long) (current - pong)) > (1LL << 24) * 7 / 8) {
         if (current < pong) {
             current += (1 << 24);
         } else {
