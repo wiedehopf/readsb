@@ -1287,67 +1287,107 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
     }
 }
 
+void ca_lock_read(struct craftArray *ca) {
+    pthread_mutex_lock(&ca->read_mutex);
+
+    if (ca->reader_count == 0) {
+        pthread_mutex_lock(&ca->write_mutex);
+    }
+    ca->reader_count++;
+    if (0 && ca->reader_count > 1) {
+        fprintf(stderr, "ca->reader_count %d\n", ca->reader_count);
+    }
+
+    pthread_mutex_unlock(&ca->read_mutex);
+}
+
+void ca_unlock_read(struct craftArray *ca) {
+    pthread_mutex_lock(&ca->read_mutex);
+
+    ca->reader_count--;
+    if (ca->reader_count == 0) {
+        pthread_mutex_unlock(&ca->write_mutex);
+    }
+    //fprintf(stderr, "ca->reader_count %d\n", ca->reader_count);
+
+    pthread_mutex_unlock(&ca->read_mutex);
+}
+
 void ca_init (struct craftArray *ca) {
-    //*ca = (struct craftArray) {0};
-    pthread_mutex_init(&ca->mutex , NULL);
+    memset(ca, 0x0, sizeof(struct craftArray));
+    pthread_mutex_init(&ca->change_mutex, NULL);
+    pthread_mutex_init(&ca->read_mutex, NULL);
+    pthread_mutex_init(&ca->write_mutex, NULL);
 }
 
 void ca_destroy (struct craftArray *ca) {
-    if (ca->list)
-        free(ca->list);
-    pthread_mutex_destroy(&ca->mutex);
-    *ca = (struct craftArray) {0};
+    if (ca->list) {
+        sfree(ca->list);
+    }
+
+    pthread_mutex_destroy(&ca->change_mutex);
+    pthread_mutex_destroy(&ca->read_mutex);
+    pthread_mutex_destroy(&ca->write_mutex);
+
+    memset(ca, 0x0, sizeof(struct craftArray));
 }
 
 void ca_add (struct craftArray *ca, struct aircraft *a) {
-    pthread_mutex_lock(&ca->mutex);
-    if (ca->alloc == 0) {
-        ca->alloc = 64;
-        ca->list = realloc(ca->list, ca->alloc * sizeof(struct aircraft *));
+    pthread_mutex_lock(&ca->change_mutex);
+
+    if (ca->len == ca->alloc) {
+        pthread_mutex_lock(&ca->write_mutex);
+        if (ca->len == ca->alloc) {
+            ca->alloc = ca->alloc * 2 + 16;
+            ca->list = realloc(ca->list, ca->alloc * sizeof(struct aircraft *));
+            if (!ca->list) {
+                fprintf(stderr, "ca_add(): out of memory!\n");
+                exit(1);
+            }
+        }
+        pthread_mutex_unlock(&ca->write_mutex);
     }
-    // + 32 ... some arbitrary buffer for concurrent stuff with limited locking
-    if (ca->len + 32 >= ca->alloc) {
-        ca->alloc = ca->alloc * 3 / 2;
-        ca->list = realloc(ca->list, ca->alloc * sizeof(struct aircraft *));
-    }
-    if (!ca->list) {
-        fprintf(stderr, "ca_add(): out of memory!\n");
-        exit(1);
-    }
+
+    int duplicate = 0;
     for (int i = 0; i < ca->len; i++) {
-        if (a == ca->list[i]) {
+        if (unlikely(a == ca->list[i])) {
             fprintf(stderr, "<3>hex: %06x, ca_add(): double add!\n", a->addr);
-            pthread_mutex_unlock(&ca->mutex);
-            return;
+            duplicate = 1;
         }
     }
 
-    ca->list[ca->len] = a;  // add at the end
-    ca->len++;
-    pthread_mutex_unlock(&ca->mutex);
+    if (!duplicate) {
+        ca->list[ca->len] = a;  // add at the end
+        ca->len++;
+    }
+
+    pthread_mutex_unlock(&ca->change_mutex);
 }
 
 void ca_remove (struct craftArray *ca, struct aircraft *a) {
-    pthread_mutex_lock(&ca->mutex);
-    if (!ca->list) {
-        fprintf(stderr, "<3>hex: %06x, ca_remove(): list does not exist!\n", a->addr);
-        pthread_mutex_unlock(&ca->mutex);
-        return;
-    }
+    pthread_mutex_lock(&ca->change_mutex);
+
     int found = 0;
     for (int i = 0; i < ca->len; i++) {
         if (ca->list[i] == a) {
             // replace with last element in array
+
             ca->list[i] = ca->list[ca->len - 1];
             ca->list[ca->len - 1] = NULL;
+
             ca->len--;
             i--;
-            found = 1;
+
+            found++;
         }
     }
-    pthread_mutex_unlock(&ca->mutex);
-    if (!found)
+    if (found == 0) {
         fprintf(stderr, "<3>hex: %06x, ca_remove(): pointer not in array!\n", a->addr);
+    } else if (found > 1) {
+        fprintf(stderr, "<3>hex: %06x, ca_remove(): pointer removed %d times!\n", a->addr, found);
+    }
+
+    pthread_mutex_unlock(&ca->change_mutex);
 }
 
 void set_globe_index (struct aircraft *a, int new_index) {

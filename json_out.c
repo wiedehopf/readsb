@@ -961,6 +961,7 @@ struct char_buffer generateAircraftBin(threadpool_buffer_t *pbuffer) {
     struct aircraft *a;
 
     struct craftArray *ca = &Modes.aircraftActive;
+    ca_lock_read(ca);
     size_t alloc = 4096 + ca->len * sizeof(struct binCraft);
 
     char *buf = check_grow_threadpool_buffer_t(pbuffer, alloc);
@@ -1018,6 +1019,8 @@ struct char_buffer generateAircraftBin(threadpool_buffer_t *pbuffer) {
 
     }
 
+    ca_unlock_read(ca);
+
     cb.len = p - buf;
     cb.buffer = buf;
     return cb;
@@ -1026,25 +1029,27 @@ struct char_buffer generateAircraftBin(threadpool_buffer_t *pbuffer) {
 }
 
 struct char_buffer generateGlobeBin(int globe_index, int mil, threadpool_buffer_t *pbuffer) {
-    struct char_buffer cb;
+    struct char_buffer cb = { 0 };
     int64_t now = mstime();
     struct aircraft *a;
     ssize_t alloc = 4096;
 
     struct craftArray *ca = NULL;
-    int good;
+
     if (globe_index == -1) {
         ca = &Modes.aircraftActive;
-        good = 1;
     } else if (globe_index <= GLOBE_MAX_INDEX) {
         ca = &Modes.globeLists[globe_index];
-        good = 1;
-    } else {
-        fprintf(stderr, "generateGlobeBin: bad globe_index: %d\n", globe_index);
-        good = 0;
     }
-    if (good && ca)
-        alloc += ca->len * sizeof(struct binCraft);
+
+    if (!ca) {
+        fprintf(stderr, "generateGlobeBin: bad globe_index: %d\n", globe_index);
+        return cb;
+    }
+
+    ca_lock_read(ca);
+
+    alloc += ca->len * sizeof(struct binCraft);
 
     char *buf = check_grow_threadpool_buffer_t(pbuffer, alloc);
     char *p = buf;
@@ -1098,32 +1103,32 @@ struct char_buffer generateGlobeBin(int globe_index, int mil, threadpool_buffer_
 
     p = buf + elementSize;
 
-    if (good && ca->list) {
-        for (int i = 0; i < ca->len; i++) {
-            a = ca->list[i];
-            if (a == NULL) continue;
+    for (int i = 0; i < ca->len; i++) {
+        a = ca->list[i];
+        if (a == NULL) continue;
 
-            if (!includeAircraftJson(now, a))
-                continue;
+        if (!includeAircraftJson(now, a))
+            continue;
 
-            if (mil && !(a->dbFlags & 1))
-                continue;
-                        // check if we have enough space
-            if ((p + 2 * sizeof(struct binCraft)) >= end) {
-                int used = p - buf;
-                alloc *= 2;
-                buf = (char *) realloc(buf, alloc);
-                p = buf + used;
-                end = buf + alloc;
-            }
-
-            toBinCraft(a, (struct binCraft *) p, now);
-            p += sizeof(struct binCraft);
-
-            if (p >= end)
-                fprintf(stderr, "buffer overrun globeBin\n");
+        if (mil && !(a->dbFlags & 1))
+            continue;
+        // check if we have enough space
+        if ((p + 2 * sizeof(struct binCraft)) >= end) {
+            int used = p - buf;
+            alloc *= 2;
+            buf = (char *) realloc(buf, alloc);
+            p = buf + used;
+            end = buf + alloc;
         }
+
+        toBinCraft(a, (struct binCraft *) p, now);
+        p += sizeof(struct binCraft);
+
+        if (p >= end)
+            fprintf(stderr, "buffer overrun globeBin\n");
     }
+
+    ca_unlock_read(ca);
 
     cb.len = p - buf;
     cb.buffer = buf;
@@ -1133,21 +1138,22 @@ struct char_buffer generateGlobeBin(int globe_index, int mil, threadpool_buffer_
 }
 
 struct char_buffer generateGlobeJson(int globe_index, threadpool_buffer_t *pbuffer) {
-    struct char_buffer cb;
+    struct char_buffer cb = { 0 };
     int64_t now = mstime();
     struct aircraft *a;
     ssize_t alloc = 4096; // The initial buffer is resized as needed
 
     struct craftArray *ca = NULL;
-    int good;
     if (globe_index <= GLOBE_MAX_INDEX) {
         ca = &Modes.globeLists[globe_index];
-        good = 1;
-        alloc += ca->len * 1024; // 1024 bytes per potential aircraft object
-    } else {
-        fprintf(stderr, "generateAircraftJson: bad globe_index: %d\n", globe_index);
-        good = 0;
     }
+    if (!ca) {
+        fprintf(stderr, "generateAircraftJson: bad globe_index: %d\n", globe_index);
+        return cb;
+    }
+    ca_lock_read(ca);
+
+    alloc += ca->len * 1024; // 1024 bytes per potential aircraft object
 
     char *buf = check_grow_threadpool_buffer_t(pbuffer, alloc);
 
@@ -1195,35 +1201,36 @@ struct char_buffer generateGlobeJson(int globe_index, threadpool_buffer_t *pbuff
 
     p = safe_snprintf(p, end, "  \"aircraft\" : [");
 
-    if (good && ca->list) {
-        for (int i = 0; i < ca->len; i++) {
-            a = ca->list[i];
-            if (a == NULL) continue;
+    for (int i = 0; i < ca->len; i++) {
+        a = ca->list[i];
+        if (a == NULL) continue;
 
-            if (!includeAircraftJson(now, a))
-                continue;
+        if (!includeAircraftJson(now, a))
+            continue;
 
-            // check if we have enough space
-            if ((p + 2000) >= end) {
-                int used = p - buf;
-                alloc *= 2;
-                buf = (char *) realloc(buf, alloc);
-                p = buf + used;
-                end = buf + alloc;
-            }
-
-            p = safe_snprintf(p, end, "\n");
-            p = sprintAircraftObject(p, end, a, now, 0, NULL);
-            p = safe_snprintf(p, end, ",");
-
-            if (p >= end)
-                fprintf(stderr, "buffer overrun aircraft json\n");
+        // check if we have enough space
+        if ((p + 2000) >= end) {
+            int used = p - buf;
+            alloc *= 2;
+            buf = (char *) realloc(buf, alloc);
+            p = buf + used;
+            end = buf + alloc;
         }
+
+        p = safe_snprintf(p, end, "\n");
+        p = sprintAircraftObject(p, end, a, now, 0, NULL);
+        p = safe_snprintf(p, end, ",");
+
+        if (p >= end)
+            fprintf(stderr, "buffer overrun aircraft json\n");
     }
+
     if (*(p-1) == ',')
         p--;
 
     p = safe_snprintf(p, end, "\n  ]\n}\n");
+
+    ca_unlock_read(ca);
 
     cb.len = p - buf;
     cb.buffer = buf;
@@ -1236,6 +1243,9 @@ struct char_buffer generateAircraftJson(int64_t onlyRecent){
     struct aircraft *a;
 
     struct craftArray *ca = &Modes.aircraftActive;
+
+    ca_lock_read(ca);
+
     size_t alloc = 4096 + ca->len * sizeof(struct binCraft); // The initial buffer is resized as needed
 
     char *buf = aligned_malloc(alloc);
@@ -1293,6 +1303,8 @@ struct char_buffer generateAircraftJson(int64_t onlyRecent){
     p = safe_snprintf(p, end, "\n  ]\n}\n");
 
     //    fprintf(stderr, "%u\n", ac_counter);
+
+    ca_unlock_read(ca);
 
     cb.len = p - buf;
     cb.buffer = buf;

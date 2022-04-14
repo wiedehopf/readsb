@@ -59,12 +59,20 @@ int handleHeatmap(int64_t now);
 
 struct craftArray {
     struct aircraft **list;
-    int len; // index of highest entry + 1
+    int len;
     int alloc; // memory allocated for aircraft pointers
-    pthread_mutex_t mutex;
+
+    // unclean changing of arrays, we always check for NULL when iterating
+    pthread_mutex_t change_mutex;
+
+    // be strict with reallocation operations
+    pthread_mutex_t read_mutex;
+    int reader_count;
+    pthread_mutex_t write_mutex;
 };
 
-
+void ca_lock_read(struct craftArray *ca);
+void ca_unlock_read(struct craftArray *ca);
 void ca_init (struct craftArray *ca);
 void ca_destroy (struct craftArray *ca);
 void ca_remove (struct craftArray *ca, struct aircraft *a);

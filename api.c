@@ -704,9 +704,8 @@ int apiUpdate(struct craftArray *ca) {
 
     int acCount = ca->len;
     if (buffer->alloc < acCount) {
-        if (acCount > 50000) {
-            fprintf(stderr, "api bailing, too many aircraft!\n");
-            return buffer->len;
+        if (acCount > 100000) {
+            fprintf(stderr, "<3> this is strange, too many aircraft!\n");
         }
         buffer->alloc = acCount + 128;
         sfree(buffer->list);
@@ -731,6 +730,7 @@ int apiUpdate(struct craftArray *ca) {
     buffer->aircraftJsonCount = 0;
 
     int64_t now = mstime();
+    ca_lock_read(ca);
     for (int i = 0; i < ca->len; i++) {
         struct aircraft *a = ca->list[i];
 
@@ -739,6 +739,7 @@ int apiUpdate(struct craftArray *ca) {
 
         apiAdd(buffer, a, now);
     }
+    ca_unlock_read(ca);
 
     // sort api lists
     qsort(buffer->list, buffer->len, sizeof(struct apiEntry), compareLon);
@@ -1635,18 +1636,23 @@ struct char_buffer apiGenerateAircraftJson(threadpool_buffer_t *pbuffer) {
 struct char_buffer apiGenerateGlobeJson(int globe_index, threadpool_buffer_t *pbuffer) {
     assert (globe_index <= GLOBE_MAX_INDEX);
 
-    struct char_buffer cb;
+    struct char_buffer cb = { 0 };
 
     int flip = atomic_load(&Modes.apiFlip[0]);
 
     struct apiBuffer *buffer = &Modes.apiBuffer[flip];
 
 
-    ssize_t alloc = 4096;
+    ssize_t alloc = 16 * 1024;
     // only used to estimate allocation size
     struct craftArray *ca = &Modes.globeLists[globe_index];
-    if (ca)
-        alloc += ca->len * 1200;
+    if (!ca) {
+        return cb;
+    }
+
+    ca_lock_read(ca);
+    alloc += ca->len * 1200;
+    ca_unlock_read(ca);
 
     char *buf = check_grow_threadpool_buffer_t(pbuffer, alloc);
     char *p = buf;

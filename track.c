@@ -2311,6 +2311,8 @@ void trackMatchAC(int64_t now) {
     // scan aircraft list, look for matches
     struct craftArray *ca = &Modes.aircraftActive;
     struct aircraft *a;
+
+    ca_lock_read(ca);
     for (int i = 0; i < ca->len; i++) {
         a = ca->list[i];
         if (a == NULL) continue;
@@ -2353,6 +2355,7 @@ void trackMatchAC(int64_t now) {
             }
         }
     }
+    ca_unlock_read(ca);
 
     // reset counts for next time
     for (unsigned i = 0; i < 4096; ++i) {
@@ -2465,7 +2468,7 @@ static void activeUpdateRange(void *arg, threadpool_threadbuffers_t * buffers) {
 // update active Aircraft
 static void activeUpdate(int64_t now) {
     struct craftArray *ca = &Modes.aircraftActive;
-    pthread_mutex_lock(&ca->mutex);
+    pthread_mutex_lock(&ca->change_mutex);
     for (int i = 0; i < ca->len; i++) {
 
         struct aircraft *a = ca->list[i];
@@ -2496,7 +2499,7 @@ static void activeUpdate(int64_t now) {
         }
     }
     quickInit();
-    pthread_mutex_unlock(&ca->mutex);
+    pthread_mutex_unlock(&ca->change_mutex);
 }
 
 // run activeUpdate and remove stale aircraft for a fraction of the entire hashtable
@@ -2532,7 +2535,10 @@ void trackRemoveStale(int64_t now) {
 
         //fprintf(stderr, "%d %d\n", thread_start, thread_end);
     }
+
+    ca_lock_read(ca);
     threadpool_run(Modes.allPool, tasks, taskCount);
+    ca_unlock_read(ca);
 
 
     // don't mix tasks above and below
