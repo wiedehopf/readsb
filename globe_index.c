@@ -2465,13 +2465,11 @@ static inline void heatmapCheckAlloc(struct heatEntry **buffer, int64_t **slices
 }
 
 static void checkMiscBreak() {
-    static int64_t last_break;
     // take a break now and then and let maintenance functions run
-    if (mstime() - last_break > REMOVE_STALE_INTERVAL) {
+    if (mstime() > Modes.next_remove_stale) {
         struct timespec ts;
         clock_gettime(CLOCK_REALTIME, &ts);
         threadTimedWait(&Threads.misc, &ts, 2 * PERIODIC_UPDATE);
-        last_break = mstime();
     }
 }
 
