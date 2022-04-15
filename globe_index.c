@@ -834,11 +834,10 @@ static int load_aircraft(char **p, char *end, int64_t now) {
     int discard_trace = 0;
 
     // check that the trace meta data make sense before loading it
-    if (a->trace_len > 0
-            // let's allow for loading traces larger than we normally allow by a factor of 32
-            && a->trace_len <= 32 * Modes.traceMax
-       ) {
-
+    if (a->trace_len > 0) {
+        if (a->trace_len > Modes.traceMax) {
+            fprintf(stderr, "%06x unexpectedly long trace: %d!\n", a->addr, a->trace_len);
+        }
         ssize_t oldFourStateSize = *((uint64_t *) *p);
         *p += sizeof(uint64_t);
         if (oldFourStateSize != sizeof(fourState)) {
@@ -2154,10 +2153,6 @@ no_save_state:
     return posUsed || bufferedPosUsed;
 }
 
-static int state_chunk_size() {
-    return 8 * 1024 * 1024;
-}
-
 void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbuffer2) {
     if (!Modes.state_dir)
         return;
@@ -2209,18 +2204,24 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
     int start = stride * blob;
     int end = start + stride;
 
-    int alloc = state_chunk_size();
+    int alloc = Modes.state_chunk_size;
 
     unsigned char *buf = check_grow_threadpool_buffer_t(pbuffer1, alloc);
     unsigned char *p = buf;
 
-    int lzo_out_alloc = alloc + alloc / 16 + 64 + 3; // from mini lzo example
+    //fprintf(stderr, "buf %p p %p \n", buf, p);
+
     lzo_uint compressed_len = 0;
     unsigned char *lzo_out = NULL;
     unsigned char lzo_work[LZO1X_1_MEM_COMPRESS];
+    int lzo_out_alloc;
+    int lzo_header_len = 2 * sizeof(uint64_t);
     if (lzo) {
+        lzo_out_alloc = lzo_header_len + alloc + alloc / 16 + 64 + 3; // from mini lzo example
         lzo_out = check_grow_threadpool_buffer_t(pbuffer2, lzo_out_alloc);
     }
+
+    int chunk_count = 0;
 
     struct aircraft copyback;
     struct aircraft *copy = &copyback;
@@ -2245,19 +2246,24 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
                     size_state += roundUp8(chunk->compressed_size);
                 }
                 size_state += stateBytes(copy->trace_current_len);
+
+                // add space for 2 magic constants / 2 struct sizes
+                size_state += 4 * sizeof(uint64_t);
             }
 
-            // 3 * sizeof(uint64_t) for state_save_magic, size_aircraft and state_save_magic_end
-            if (!copy || (p + 3 * sizeof(uint64_t) + size_state > buf + alloc)) {
-                //fprintf(stderr, "save_blob writing %d KB (buffer)\n", (int) ((p - buf) / 1024));
+            if (!copy || (p + size_state > buf + alloc)) {
+                //fprintf(stderr, "save_blob writing %d bytes (buffer %p alloc %d)\n", (int) ((p - buf)), p, alloc);
 
                 uint64_t magic_end = STATE_SAVE_MAGIC_END;
                 memcpy(p, &magic_end, sizeof(magic_end));
                 p += sizeof(magic_end);
 
-                if (lzo) {
+                if (p > buf + alloc) {
+                    fprintf(stderr, "save_blob: overran buffer! %ld\n", (long) (p - (buf + alloc)));
+                }
 
-                    int res = lzo1x_1_compress(buf, p - buf, lzo_out + 2 * sizeof(uint64_t), &compressed_len, lzo_work);
+                if (lzo) {
+                    int res = lzo1x_1_compress(buf, p - buf, lzo_out + lzo_header_len, &compressed_len, lzo_work);
 
                     //fprintf(stderr, "%d %08lld\n", blob, (long long) compressed_len);
 
@@ -2265,49 +2271,79 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
                         fprintf(stderr, "lzo1x_1_compress error, couldn't save state blob: %s\n", filename);
                         goto error;
                     }
+
+                    // write header
                     uint64_t lzo_magic = LZO_MAGIC;
                     memcpy(lzo_out, &lzo_magic, sizeof(uint64_t));
                     uint64_t compressed_len_64 = compressed_len;
                     memcpy(lzo_out + sizeof(uint64_t), &compressed_len_64, sizeof(uint64_t));
-                    check_write(fd, lzo_out, compressed_len + 2 * sizeof(uint64_t), tmppath);
+                    // end header
+
+                    check_write(fd, lzo_out, compressed_len + lzo_header_len, tmppath);
                 } else if (gzip) {
                     writeGz(gzfp, buf, p - buf, tmppath);
                 } else {
                     check_write(fd, buf, p - buf, tmppath);
                 }
 
+                if (size_state > alloc) {
+                    if (1) {
+                        fprintf(stderr, "%06x: Increasing state_chunk_size to %d! chunk_count %d size_state %d alloc %d\n",
+                                copy->addr, size_state, chunk_count, (int) size_state, (int) alloc);
+                    }
+
+                    alloc = size_state;
+                    //Modes.state_chunk_size = alloc; // increase chunk size for later invocations
+
+                    buf = check_grow_threadpool_buffer_t(pbuffer1, alloc);
+                    p = buf;
+
+                    if (lzo) {
+                        lzo_out_alloc = lzo_header_len + alloc + alloc / 16 + 64 + 3; // from mini lzo example
+                        lzo_out = check_grow_threadpool_buffer_t(pbuffer2, lzo_out_alloc);
+                    }
+                }
+
                 p = buf;
+                chunk_count = 0;
             }
 
             if (!copy) {
                 break;
             }
 
+            if (p + size_state > buf + alloc) {
+                fprintf(stderr, "<3> %06x: Couldn't write internal state, check save_blob code! chunk_count %d size_state %d alloc %d\n", copy->addr, chunk_count, (int) size_state, alloc);
+                continue;
+            }
+
+            chunk_count++;
+
             uint64_t magic = STATE_SAVE_MAGIC;
             p += memcpySize(p, &magic, sizeof(magic));
             uint64_t size_aircraft = sizeof(struct aircraft);
             p += memcpySize(p, &size_aircraft, sizeof(size_aircraft));
 
-            if (p + size_state > buf + alloc) {
-                fprintf(stderr, "%06x: Couldn't write internal state, check save_blob code!\n", copy->addr);
-            } else {
-                p += memcpySize(p, copy, sizeof(struct aircraft));
-                if (copy->trace_len > 0) {
+            p += memcpySize(p, copy, sizeof(struct aircraft));
+            if (copy->trace_len > 0) {
 
-                    uint64_t fourState_size = sizeof(fourState);
-                    p += memcpySize(p, &fourState_size, sizeof(fourState_size));
+                uint64_t fourState_size = sizeof(fourState);
+                p += memcpySize(p, &fourState_size, sizeof(fourState_size));
 
-                    for (int k = 0; k < copy->trace_chunk_len; k++) {
-                        stateChunk *chunk = &copy->trace_chunks[k];
-                        p += memcpySize(p, chunk, sizeof(stateChunk));
+                for (int k = 0; k < copy->trace_chunk_len; k++) {
+                    stateChunk *chunk = &copy->trace_chunks[k];
+                    p += memcpySize(p, chunk, sizeof(stateChunk));
 
-                        p += memcpySize(p, chunk->compressed, chunk->compressed_size);
-                        ssize_t padBytes = roundUp8(chunk->compressed_size) - chunk->compressed_size;
+                    p += memcpySize(p, chunk->compressed, chunk->compressed_size);
+                    ssize_t padBytes = roundUp8(chunk->compressed_size) - chunk->compressed_size;
+                    if (padBytes > 0) {
                         memset(p, 0x0, padBytes);
                         p += padBytes;
+                    } else if (padBytes < 0) {
+                        fprintf(stderr, "padBytes %ld roundUp8 %ld compressed_size %ld\n", (long) padBytes, (long) roundUp8(chunk->compressed_size), (long) chunk->compressed_size);
                     }
-                    p += memcpySize(p, copy->trace_current, stateBytes(copy->trace_current_len));
                 }
+                p += memcpySize(p, copy->trace_current, stateBytes(copy->trace_current_len));
             }
         }
     }
@@ -2397,7 +2433,7 @@ void load_blob(char *blob, threadpool_buffer_t *passbuffer) {
     end = p + cb.len;
 
     if (lzo) {
-        int lzo_out_alloc = state_chunk_size() * 17 / 16;
+        int lzo_out_alloc = Modes.state_chunk_size_read;
 
         char *lzo_out = check_grow_threadpool_buffer_t(passbuffer, lzo_out_alloc);
 
@@ -2425,7 +2461,8 @@ decompress:
             res = lzo1x_decompress_safe((unsigned char*) p, compressed_len, (unsigned char*) lzo_out, &uncompressed_len, NULL);
             if (res != LZO_E_OK) {
                 lzo_out_alloc *= 2;
-                fprintf(stderr, "decompression failed, trying larger buffer: %s\n", filename);
+                Modes.state_chunk_size_read = lzo_out_alloc; // also increase chunk size for later invocations
+                fprintf(stderr, "decompression failed, trying larger buffer (%d): %s\n", lzo_out_alloc, filename);
                 if (lzo_out_alloc > 256 * 1024 * 1024 || !lzo_out) {
                     fprintf(stderr, "Corrupt state file (decompression failure): %s\n", filename);
                     break;

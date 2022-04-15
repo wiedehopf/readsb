@@ -159,6 +159,9 @@ static void configSetDefaults(void) {
     Modes.currentTask = "unset";
     Modes.joinTimeout = 30 * SECONDS;
 
+    Modes.state_chunk_size = 8 * 1024 * 1024;
+    Modes.state_chunk_size_read = Modes.state_chunk_size;
+
     Modes.filterDF = 0;
     Modes.filterDFbitset = 0;
     Modes.cpr_focus = BADDR;
