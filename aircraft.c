@@ -32,7 +32,7 @@ static void quickResize(int bits) {
         fprintf(stderr, "quickLookup: changing size to %d!\n", (int) quickBuckets);
 
     sfree(quick);
-    quick = aligned_malloc(quickSize);
+    quick = cmalloc(quickSize);
     memset(quick, 0xFF, quickSize);
 }
 
@@ -132,7 +132,7 @@ struct aircraft *aircraftCreate(uint32_t addr) {
     struct aircraft *a = aircraftGet(addr);
     if (a)
         return a;
-    a = aligned_malloc(sizeof(struct aircraft));
+    a = cmalloc(sizeof(struct aircraft));
 
     // Default everything to zero/NULL
     memset(a, 0, sizeof (struct aircraft));
@@ -380,7 +380,7 @@ static char *sprintDB(char *p, char *end, dbEntry *d) {
 }
 static void dbToJson() {
     size_t buflen = 32 * 1024 * 1024;
-    char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
+    char *buf = (char *) cmalloc(buflen), *p = buf, *end = buf + buflen;
     p = safe_snprintf(p, end, "{");
 
     for (int j = 0; j < DB_BUCKETS; j++) {
@@ -466,8 +466,8 @@ int dbUpdate() {
         if (cb.buffer[i] == '\n')
             alloc++;
     }
-    Modes.db2 = aligned_malloc(alloc * sizeof(dbEntry));
-    Modes.db2Index = aligned_malloc(DB_BUCKETS * sizeof(void*));
+    Modes.db2 = cmalloc(alloc * sizeof(dbEntry));
+    Modes.db2Index = cmalloc(DB_BUCKETS * sizeof(void*));
     memset(Modes.db2Index, 0, DB_BUCKETS * sizeof(void*));
 
     if (!Modes.db2 || !Modes.db2Index) {

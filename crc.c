@@ -201,7 +201,7 @@ static struct errorinfo *prepareErrorTable(int bits, int max_correct, int max_de
     fprintf(stderr, "Preparing syndrome table to correct up to %d-bit errors (detecting %d-bit errors) in a %d-bit message (max %d entries)\n", max_correct, max_detect, bits, maxsize);
 #endif
 
-    table = aligned_malloc(maxsize * sizeof (struct errorinfo));
+    table = cmalloc(maxsize * sizeof (struct errorinfo));
     base_entry.syndrome = 0;
     base_entry.errors = 0;
     for (i = 0; i < MODES_MAX_BITERRORS; ++i)

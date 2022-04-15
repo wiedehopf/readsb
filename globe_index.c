@@ -9,7 +9,7 @@ static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t af
 static void resizeTraceCurrent(struct aircraft *a, int64_t now, int overridePoints);
 
 void init_globe_index() {
-    struct tile *s_tiles = Modes.json_globe_special_tiles = aligned_malloc(GLOBE_SPECIAL_INDEX * sizeof(struct tile));
+    struct tile *s_tiles = Modes.json_globe_special_tiles = cmalloc(GLOBE_SPECIAL_INDEX * sizeof(struct tile));
     memset(s_tiles, 0, GLOBE_SPECIAL_INDEX * sizeof(struct tile));
     int count = 0;
 
@@ -326,7 +326,7 @@ void init_globe_index() {
     if (count + 1 >= GLOBE_SPECIAL_INDEX)
         fprintf(stderr, "increase GLOBE_SPECIAL_INDEX please!\n");
 
-    Modes.json_globe_indexes = aligned_malloc(GLOBE_MAX_INDEX * sizeof(int32_t));
+    Modes.json_globe_indexes = cmalloc(GLOBE_MAX_INDEX * sizeof(int32_t));
     memset(Modes.json_globe_indexes, 0, GLOBE_MAX_INDEX * sizeof(int32_t));
     Modes.json_globe_indexes_len = 0;
     for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {

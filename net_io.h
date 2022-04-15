@@ -116,9 +116,9 @@ struct client
     double recent_rtt; // in milliseconds
     struct epoll_event epollEvent;
     struct net_connector *con;
-    ALIGNED char proxy_string[256]; // store string received from PROXY protocol v1 (v2 not supported currently)
-    ALIGNED char host[NI_MAXHOST]; // For logging
-    ALIGNED char port[NI_MAXSERV];
+    char proxy_string[256]; // store string received from PROXY protocol v1 (v2 not supported currently)
+    char host[NI_MAXHOST]; // For logging
+    char port[NI_MAXSERV];
 };
 
 // Client connection

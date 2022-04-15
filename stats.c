@@ -660,7 +660,7 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
 struct char_buffer generateStatusProm(int64_t now) {
     struct char_buffer cb;
     size_t buflen = 8192;
-    char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
+    char *buf = (char *) cmalloc(buflen), *p = buf, *end = buf + buflen;
 
     struct statsCount *sC = &(Modes.globalStatsCount);
 
@@ -688,7 +688,7 @@ struct char_buffer generateStatusProm(int64_t now) {
 struct char_buffer generateStatusJson(int64_t now) {
     struct char_buffer cb;
     size_t buflen = 8192;
-    char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
+    char *buf = (char *) cmalloc(buflen), *p = buf, *end = buf + buflen;
 
     int64_t uptime = now - Modes.startup_time;
     if (now < Modes.startup_time)
@@ -712,7 +712,7 @@ struct char_buffer generateStatusJson(int64_t now) {
 struct char_buffer generateStatsJson(int64_t now) {
     struct char_buffer cb;
     int bufsize = 64 * 1024;
-    char *buf = (char *) aligned_malloc(bufsize), *p = buf, *end = buf + bufsize;
+    char *buf = (char *) cmalloc(bufsize), *p = buf, *end = buf + bufsize;
 
     p = safe_snprintf(p, end,
             "{ \"now\" : %.1f",
@@ -745,7 +745,7 @@ struct char_buffer generateStatsJson(int64_t now) {
 struct char_buffer generatePromFile(int64_t now) {
     struct char_buffer cb;
     int bufsize = 64 * 1024;
-    char *buf = (char *) aligned_malloc(bufsize), *p = buf, *end = buf + bufsize;
+    char *buf = (char *) cmalloc(bufsize), *p = buf, *end = buf + bufsize;
 
     struct stats *st = &Modes.stats_1min;
 

@@ -124,7 +124,7 @@ struct net_service *serviceInit(const char *descr, struct net_writer *writer, he
         exit(1);
     }
 
-    if (!(service = aligned_malloc(sizeof (struct net_service)))) {
+    if (!(service = cmalloc(sizeof (struct net_service)))) {
         fprintf(stderr, "Out of memory allocating service %s\n", descr);
         exit(1);
     }
@@ -153,7 +153,7 @@ struct net_service *serviceInit(const char *descr, struct net_writer *writer, he
         // set writer to zero
         memset(service->writer, 0, sizeof(struct net_writer));
 
-        if (!(service->writer->data = aligned_malloc(MODES_OUT_BUF_SIZE))) {
+        if (!(service->writer->data = cmalloc(MODES_OUT_BUF_SIZE))) {
             fprintf(stderr, "Out of memory allocating output buffer for service %s\n", descr);
             exit(1);
         }
@@ -214,7 +214,7 @@ struct client *createGenericClient(struct net_service *service, int fd) {
         fprintf(stderr, "<3> FATAL: createGenericClient called with invalid parameters!\n");
         exit(1);
     }
-    if (!(c = (struct client *) aligned_malloc(sizeof (struct client)))) {
+    if (!(c = (struct client *) cmalloc(sizeof (struct client)))) {
         fprintf(stderr, "<3> FATAL: Out of memory allocating a new %s network client\n", service->descr);
         exit(1);
     }
@@ -250,7 +250,7 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     if (Modes.netIngest) {
         c->bufmax = MODES_NET_SNDBUF_SIZE;
     }
-    if (!(c->buf = aligned_malloc(c->bufmax))) {
+    if (!(c->buf = cmalloc(c->bufmax))) {
         fprintf(stderr, "Out of memory allocating client SendQ\n");
         exit(1);
     }
@@ -260,7 +260,7 @@ struct client *createGenericClient(struct net_service *service, int fd) {
         if (service->sendqOverrideSize) {
             c->sendq_max = service->sendqOverrideSize;
         }
-        if (!(c->sendq = aligned_malloc(c->sendq_max))) {
+        if (!(c->sendq = cmalloc(c->sendq_max))) {
             fprintf(stderr, "Out of memory allocating client SendQ\n");
             exit(1);
         }
@@ -684,7 +684,7 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
     service->listener_fds = fds;
 
     if (epfd >= 0) {
-        service->listenSockets = aligned_malloc(service->listener_count * sizeof(struct client));
+        service->listenSockets = cmalloc(service->listener_count * sizeof(struct client));
         memset(service->listenSockets, 0, service->listener_count * sizeof(struct client));
         for (int i = 0; i < service->listener_count; ++i) {
 

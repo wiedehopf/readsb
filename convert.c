@@ -36,7 +36,7 @@ static bool init_uc8_lookup() {
     if (uc8_lookup)
         return true;
 
-    uc8_lookup = aligned_malloc(sizeof (uint16_t) * 256 * 256);
+    uc8_lookup = cmalloc(sizeof (uint16_t) * 256 * 256);
     if (!uc8_lookup) {
         fprintf(stderr, "can't allocate UC8 conversion lookup table\n");
         return false;
@@ -269,7 +269,7 @@ static bool init_sc16q11_lookup() {
     if (sc16q11_lookup)
         return true;
 
-    sc16q11_lookup = aligned_malloc(sizeof (uint16_t) * (1 << (USE_BITS * 2)));
+    sc16q11_lookup = cmalloc(sizeof (uint16_t) * (1 << (USE_BITS * 2)));
     if (!sc16q11_lookup) {
         fprintf(stderr, "can't allocate SC16Q11 conversion lookup table\n");
         return false;
@@ -465,7 +465,7 @@ iq_convert_fn init_converter(input_format_t format,
             return NULL;
     }
 
-    *out_state = aligned_malloc(sizeof (struct converter_state));
+    *out_state = cmalloc(sizeof (struct converter_state));
     if (! *out_state) {
         fprintf(stderr, "can't allocate converter state\n");
         return NULL;

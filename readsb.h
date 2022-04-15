@@ -351,9 +351,9 @@ void setExit(int arg);
 #define MemoryAlignment 32
 #define ALIGNED __attribute__((aligned(MemoryAlignment)))
 
-static inline void *aligned_alloc_or_exit(size_t alignment, size_t size, const char *file, int line) {
+static inline void *malloc_or_exit(size_t alignment, size_t size, const char *file, int line) {
     void *buf = NULL;
-    if (1) {
+    if (alignment) {
         size_t mod = size % alignment;
         if (mod != 0) {
             size += (alignment - mod);
@@ -376,7 +376,8 @@ static inline void *aligned_alloc_or_exit(size_t alignment, size_t size, const c
     return buf;
 }
 
-#define aligned_malloc(size) aligned_alloc_or_exit(MemoryAlignment, size, __FILE__, __LINE__)
+// currently normal malloc, no alignment
+#define cmalloc(size) malloc_or_exit(0, size, __FILE__, __LINE__)
 
 // Include subheaders after all the #defines are in place
 
@@ -455,7 +456,7 @@ struct _Modes
     task_group_t *traceTasks;
 
     int lockThreadsCount;
-    ALIGNED threadT *lockThreads[LOCK_THREADS_MAX];
+    threadT *lockThreads[LOCK_THREADS_MAX];
 
     struct timespec hungTimer1;
     struct timespec hungTimer2;
@@ -477,7 +478,7 @@ struct _Modes
     sdr_type_t sdr_type; // where are we getting data from?
     int freq;
     int ppm_error;
-    ALIGNED char aneterr[ANET_ERR_LEN];
+    char aneterr[ANET_ERR_LEN];
     struct net_service *services; // Active services
     int exitEventfd;
     int net_epfd; // epoll fd used for most network stuff

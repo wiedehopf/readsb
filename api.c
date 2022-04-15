@@ -395,7 +395,7 @@ static int findInCircle(struct apiEntry *haystack, int haylen, struct apiCircle 
 
 
 static struct apiEntry *apiAlloc(int count) {
-    struct apiEntry *buf = aligned_malloc(count * sizeof(struct apiEntry));
+    struct apiEntry *buf = cmalloc(count * sizeof(struct apiEntry));
     if (!buf) {
         fprintf(stderr, "FATAL: apiAlloc malloc fail\n");
         setExit(2);
@@ -542,7 +542,7 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *op
         if (doFree) { sfree(matches); }; doFree = 1; matches = filtered;
     }
 
-    cb.buffer = aligned_malloc(alloc);
+    cb.buffer = cmalloc(alloc);
     if (!cb.buffer)
         return cb;
 
@@ -635,7 +635,7 @@ static inline void apiGenerateJson(struct apiBuffer *buffer, int64_t now) {
     buffer->json = NULL;
 
     size_t alloc = buffer->len * 1024 + 4096; // The initial buffer is resized as needed
-    buffer->json = (char *) aligned_malloc(alloc);
+    buffer->json = (char *) cmalloc(alloc);
     char *p = buffer->json;
     char *end = buffer->json + alloc;
 
@@ -712,8 +712,8 @@ static int apiUpdate() {
         buffer->alloc = acCount + 128;
         sfree(buffer->list);
         sfree(buffer->list_flag);
-        buffer->list = aligned_malloc(buffer->alloc * sizeof(struct apiEntry));
-        buffer->list_flag = aligned_malloc(buffer->alloc * sizeof(struct apiEntry));
+        buffer->list = cmalloc(buffer->alloc * sizeof(struct apiEntry));
+        buffer->list_flag = cmalloc(buffer->alloc * sizeof(struct apiEntry));
         if (!buffer->list || !buffer->list_flag) {
             fprintf(stderr, "apiList alloc: out of memory!\n");
             exit(1);
@@ -1506,18 +1506,18 @@ void apiBufferInit() {
     Modes.apiThreadCount = imax(1, Modes.num_procs / 2);
 
     size_t size = sizeof(struct apiThread) * Modes.apiThreadCount;
-    Modes.apiThread = aligned_malloc(size);
+    Modes.apiThread = cmalloc(size);
     memset(Modes.apiThread, 0x0, size);
 
     size = sizeof(atomic_int) * Modes.apiThreadCount;
-    Modes.apiFlip = aligned_malloc(size);
+    Modes.apiFlip = cmalloc(size);
     memset(Modes.apiFlip, 0x0, size);
 
     for (int i = 0; i < 2; i++) {
         struct apiBuffer *buffer = &Modes.apiBuffer[i];
-        buffer->hexHash = aligned_malloc(API_BUCKETS * sizeof(struct apiEntry*));
-        buffer->regHash = aligned_malloc(API_BUCKETS * sizeof(struct apiEntry*));
-        buffer->callsignHash = aligned_malloc(API_BUCKETS * sizeof(struct apiEntry*));
+        buffer->hexHash = cmalloc(API_BUCKETS * sizeof(struct apiEntry*));
+        buffer->regHash = cmalloc(API_BUCKETS * sizeof(struct apiEntry*));
+        buffer->callsignHash = cmalloc(API_BUCKETS * sizeof(struct apiEntry*));
     }
     apiUpdate(); // run an initial apiUpdate
     threadCreate(&Threads.apiUpdate, NULL, apiUpdateEntryPoint, NULL);
@@ -1548,10 +1548,10 @@ void apiInit() {
         Modes.api = 0;
         return;
     }
-    Modes.apiListeners = aligned_malloc(sizeof(struct apiCon*) * Modes.apiService.listener_count);
+    Modes.apiListeners = cmalloc(sizeof(struct apiCon*) * Modes.apiService.listener_count);
     memset(Modes.apiListeners, 0, sizeof(struct apiCon*) * Modes.apiService.listener_count);
     for (int i = 0; i < Modes.apiService.listener_count; ++i) {
-        struct apiCon *con = aligned_malloc(sizeof(struct apiCon));
+        struct apiCon *con = cmalloc(sizeof(struct apiCon));
         memset(con, 0, sizeof(struct apiCon));
         if (!con) fprintf(stderr, "EMEM, how much is the fish?\n"), exit(1);
 
@@ -1568,7 +1568,7 @@ void apiInit() {
     Modes.api_fds_per_thread = Modes.max_fds * 7 / 8 / Modes.apiThreadCount;
     //fprintf(stderr, "Modes.api_fds_per_thread: %d\n", Modes.api_fds_per_thread);
     for (int i = 0; i < Modes.apiThreadCount; i++) {
-        Modes.apiThread[i].cons = aligned_malloc(Modes.api_fds_per_thread * sizeof(struct apiCon));
+        Modes.apiThread[i].cons = cmalloc(Modes.api_fds_per_thread * sizeof(struct apiCon));
         memset(Modes.apiThread[i].cons, 0x0, Modes.api_fds_per_thread * sizeof(struct apiCon));
         Modes.apiThread[i].index = i;
         pthread_create(&Modes.apiThread[i].thread, NULL, apiThreadEntryPoint, &Modes.apiThread[i]);

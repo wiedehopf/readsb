@@ -1262,7 +1262,7 @@ struct char_buffer generateAircraftJson(int64_t onlyRecent){
 
     size_t alloc = 4096 + ca->len * sizeof(struct binCraft); // The initial buffer is resized as needed
 
-    char *buf = aligned_malloc(alloc);
+    char *buf = cmalloc(alloc);
     char *p = buf;
     char *end = buf + alloc;
 
@@ -1436,7 +1436,7 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
         }
         ssize_t size_entries = Modes.traceCachePoints * sizeof(struct traceCacheEntry);
         cache->json_max = Modes.traceCachePoints * 256; // 256 per entry
-        cache->entries = aligned_malloc(size_entries + cache->json_max);
+        cache->entries = cmalloc(size_entries + cache->json_max);
         if (!cache->entries)  {
             fprintf(stderr, "malloc error code point ohB6yeeg\n");
             return;
@@ -1678,7 +1678,7 @@ struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int sta
 struct char_buffer generateReceiverJson() {
     struct char_buffer cb;
     size_t buflen = 8192;
-    char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
+    char *buf = (char *) cmalloc(buflen), *p = buf, *end = buf + buflen;
 
     p = safe_snprintf(p, end, "{ "
             "\"refresh\": %.0f, "
@@ -1747,7 +1747,7 @@ struct char_buffer generateReceiverJson() {
 struct char_buffer generateOutlineJson() {
     struct char_buffer cb;
     size_t buflen = 1024 + RANGEDIRS_BUCKETS * 64;
-    char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
+    char *buf = (char *) cmalloc(buflen), *p = buf, *end = buf + buflen;
 
     // check for maximum over last 24 ivals and current ival
     struct distCoords record[RANGEDIRS_BUCKETS];
@@ -1880,7 +1880,7 @@ struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {
     int64_t now = mstime();
     struct aircraft *a;
     size_t buflen = 256*1024; // The initial buffer is resized as needed
-    char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
+    char *buf = (char *) cmalloc(buflen), *p = buf, *end = buf + buflen;
     int first = 1;
     int part_len = AIRCRAFT_BUCKETS / n_parts;
     int part_start = part * part_len;
@@ -2066,7 +2066,7 @@ struct char_buffer generateClientsJson() {
     int64_t now = mstime();
 
     size_t buflen = 1*1024*1024; // The initial buffer is resized as needed
-    char *buf = (char *) aligned_malloc(buflen), *p = buf, *end = buf + buflen;
+    char *buf = (char *) cmalloc(buflen), *p = buf, *end = buf + buflen;
 
     p = safe_snprintf(p, end, "{ \"now\" : %.3f,\n", now / 1000.0);
     p = safe_snprintf(p, end, "  \"format\" : "

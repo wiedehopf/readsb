@@ -141,7 +141,7 @@ bool ifileOpen(void) {
             return false;
     }
 
-    if (!(ifile.readbuf = aligned_malloc(MODES_MAG_BUF_SAMPLES * ifile.bytes_per_sample))) {
+    if (!(ifile.readbuf = cmalloc(MODES_MAG_BUF_SAMPLES * ifile.bytes_per_sample))) {
         fprintf(stderr, "ifile: failed to allocate read buffer\n");
         ifileClose();
         return false;
