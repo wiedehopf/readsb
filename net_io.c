@@ -2270,7 +2270,10 @@ static int handle_gpsd(struct client *c, char *p, int remote, int64_t now) {
     //fprintf(stderr, "%11.6f %11.6f\n", lat, lon);
 
 
-    if (!isfinite(lat) || lat < -90 || lat > 90 || !isfinite(lon) || lon < -180 || lon > 180) {
+    if (!isfinite(lat) || lat < -89.9 || lat > 89.9 || !isfinite(lon) || lon < -180 || lon > 180) {
+        return 0;
+    }
+    if (fabs(lat) < 0.1 && fabs(lon) < 0.1) {
         return 0;
     }
 
