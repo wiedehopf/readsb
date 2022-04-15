@@ -1254,7 +1254,7 @@ static inline int flushClient(struct client *c, int64_t now) {
                 c->service->descr, strerror(err), c->host, c->port,
                 c->fd, c->sendq_len, c->buflen);
         modesCloseClient(c);
-        return 0;
+        return -1;
     }
     if (bytesWritten > 0) {
         // Advance buffer
@@ -1321,6 +1321,9 @@ static void flushWrites(struct net_writer *writer) {
             c->sendq_len += writer->dataUsed;
             // Try flushing...
             if (flushClient(c, now) < 0) {
+                continue;
+            }
+            if (!c->service) {
                 continue;
             }
         }
@@ -2764,7 +2767,10 @@ static const char *hexEscapeString(const char *str, char *buf, int len) {
 // close the connection with the client in case of non-recoverable errors.
 //
 static void modesReadFromClient(struct client *c, int64_t start) {
-    assert(c->service);
+    if (!c->service) {
+        fprintf(stderr, "c->service null jahFuN3e\n");
+        return;
+    }
 
     int left;
     int nread;
@@ -2937,6 +2943,7 @@ static void modesReadFromClient(struct client *c, int64_t start) {
                 char *eom; // one byte past end of message
                 unsigned char ch;
 
+                if (!c->service) { fprintf(stderr, "c->service null ohThee9u\n"); }
 
                 // Check for message with receiverId prepended
                 ch = *p;
@@ -2971,6 +2978,8 @@ static void modesReadFromClient(struct client *c, int64_t start) {
                     som = p; // set start of next message
                     p++; // skip 0x1a
                 }
+
+                if (!c->service) { fprintf(stderr, "c->service null waevem0E\n"); }
 
                 ch = *p;
                 if (ch == '2') {
@@ -3015,12 +3024,14 @@ static void modesReadFromClient(struct client *c, int64_t start) {
                         pingClient(c, newPing);
                         if (!c->service) {
                             fprintf(stderr, "c->service null Ieseey5s\n");
+                            return;
                         }
                         if (flushClient(c, now) < 0) {
                             return;
                         }
                         if (!c->service) {
                             fprintf(stderr, "c->service null EshaeC7n\n");
+                            return;
                         }
                     }
                     som += 2;
@@ -3035,6 +3046,8 @@ static void modesReadFromClient(struct client *c, int64_t start) {
                     c->garbage += 2;
                     continue;
                 }
+
+                if (!c->service) { fprintf(stderr, "c->service null quooJ1ea\n"); return; }
 
                 if (eom > eod) // Incomplete message in buffer, retry later
                     break;
@@ -3276,13 +3289,17 @@ static void handleEpoll(int count) {
         } else {
             if ((event.events & EPOLLOUT)) {
                 // check if we need to flush a client because the send buffer was full previously
-                if (cl->service)
-                    flushClient(cl, now);
+                if (cl->service) {
+                    if (flushClient(cl, now) < 0) {
+                        continue;
+                    }
+                }
             }
 
             if ((event.events & (EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP))) {
-                if (cl->service)
+                if (cl->service) {
                     modesReadFromClient(cl, now);
+                }
             }
         }
     }
@@ -3298,9 +3315,6 @@ void modesNetPeriodicWork(void) {
         epollAllocEvents(&Modes.net_events, &Modes.net_maxEvents);
     }
 
-    // unlock decode mutex for waiting in handleEpoll
-    pthread_mutex_unlock(&Threads.decode.mutex);
-
     int64_t wait_ms;
     if (Modes.net_only) {
         // wait in net-only mode, but never less than 1 ms (unless we get network packets, that wakes the wait immediately)
@@ -3309,6 +3323,9 @@ void modesNetPeriodicWork(void) {
         // NO WAIT WHEN USING AN SDR !! IMPORTANT !!
         wait_ms = 0;
     }
+
+    // unlock decode mutex for waiting in handleEpoll
+    pthread_mutex_unlock(&Threads.decode.mutex);
 
     int count = epoll_wait(Modes.net_epfd, Modes.net_events, Modes.net_maxEvents, wait_ms);
 
