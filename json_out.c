@@ -1435,7 +1435,7 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
             return;
         }
         ssize_t size_entries = Modes.traceCachePoints * sizeof(struct traceCacheEntry);
-        cache->json_max = Modes.traceCachePoints * 256; // 256 per entry
+        cache->json_max = Modes.traceCachePoints * 17 * 16; // 272 per entry
         cache->entries = cmalloc(size_entries + cache->json_max);
         if (!cache->entries)  {
             fprintf(stderr, "malloc error code point ohB6yeeg\n");
