@@ -123,7 +123,7 @@ static int filter_dbFlags(struct apiEntry *haystack, int haylen, struct apiEntry
                 || (options->filter_ladd && (e->bin.dbFlags & 8))
            ) {
             matches[count++] = *e;
-            alloc += e->jsonOffset.len;
+            *alloc += e->jsonOffset.len;
         }
     }
     return count;
@@ -136,7 +136,7 @@ static int filterWithPos(struct apiEntry *haystack, int haylen, struct apiEntry 
         struct apiEntry *e = &haystack[i];
         if (e->bin.position_valid) {
             matches[count++] = *e;
-            alloc += e->jsonOffset.len;
+            *alloc += e->jsonOffset.len;
         }
     }
     return count;
@@ -149,7 +149,7 @@ static int filterSquawk(struct apiEntry *haystack, int haylen, struct apiEntry *
         //fprintf(stderr, "%04x %04x\n", options->squawk, e->bin.squawk);
         if (e->bin.squawk == squawk && e->bin.squawk_valid) {
             matches[count++] = *e;
-            alloc += e->jsonOffset.len;
+            *alloc += e->jsonOffset.len;
         }
     }
     return count;

@@ -2913,8 +2913,8 @@ void writeInternalState() {
 }
 
 static void readInternalMiscTask(void *arg, threadpool_threadbuffers_t * buffers) {
-    buffers = buffers; // unused
-    arg = arg; // unused
+    MODES_NOTUSED(arg);
+    MODES_NOTUSED(buffers);
     char pathbuf[PATH_MAX];
 
     if (Modes.outline_json) {
