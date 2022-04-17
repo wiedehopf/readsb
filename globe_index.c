@@ -458,10 +458,6 @@ void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuff
 
     if (Modes.trace_hist_only) {
         int hist_only_mask = WPERM | WMEM | WRECENT;
-        if (Modes.trace_hist_only & 1)
-            hist_only_mask &= ~ WRECENT;
-        if (Modes.trace_hist_only & 2)
-            hist_only_mask &= ~ WMEM;
 
         if (Modes.trace_hist_only & 8) {
             hist_only_mask = WPERM;
@@ -473,6 +469,12 @@ void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuff
                 hist_only_mask |= WMEM;
             }
         }
+
+        if (Modes.trace_hist_only & 1)
+            hist_only_mask &= ~ WRECENT;
+        if (Modes.trace_hist_only & 2)
+            hist_only_mask &= ~ WMEM;
+
 
         trace_write &= hist_only_mask;
     }
