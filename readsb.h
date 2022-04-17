@@ -492,8 +492,8 @@ struct _Modes
     uint64_t trace_cache_size;
     uint64_t trace_current_size;
 
-    ssize_t state_chunk_size;
-    ssize_t state_chunk_size_read;
+    ssize_t volatile state_chunk_size;
+    ssize_t volatile state_chunk_size_read;
 
     ALIGNED struct aircraft * aircraft[AIRCRAFT_BUCKETS];
     ALIGNED struct craftArray globeLists[GLOBE_MAX_INDEX+1];

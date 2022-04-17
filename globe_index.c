@@ -2224,7 +2224,7 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
         lzo_out = check_grow_threadpool_buffer_t(pbuffer2, lzo_out_alloc);
     }
 
-    int chunk_count = 0;
+    int chunk_ac_count = 0;
 
     struct aircraft copyback;
     struct aircraft *copy = &copyback;
@@ -2290,13 +2290,14 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
                 }
 
                 if (size_state > alloc) {
-                    if (1) {
-                        fprintf(stderr, "%06x: Increasing state_chunk_size to %d! chunk_count %d size_state %d alloc %d\n",
-                                copy->addr, size_state, chunk_count, (int) size_state, (int) alloc);
+                    int old_alloc = alloc;
+                    alloc = imax(2 * size_state, Modes.state_chunk_size);
+                    if (alloc > Modes.state_chunk_size) {
+                        Modes.state_chunk_size = alloc; // increase chunk size for later invocations
+                        fprintf(stderr, "%06x: Increasing state_chunk_size to %d! chunk_ac_count %d size_state %d old_alloc %d\n",
+                                copy->addr, (int) alloc, chunk_ac_count, (int) size_state, (int) old_alloc);
                     }
 
-                    alloc = size_state;
-                    //Modes.state_chunk_size = alloc; // increase chunk size for later invocations
 
                     buf = check_grow_threadpool_buffer_t(pbuffer1, alloc);
                     p = buf;
@@ -2308,7 +2309,7 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
                 }
 
                 p = buf;
-                chunk_count = 0;
+                chunk_ac_count = 0;
             }
 
             if (!copy) {
@@ -2316,11 +2317,11 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
             }
 
             if (p + size_state > buf + alloc) {
-                fprintf(stderr, "<3> %06x: Couldn't write internal state, check save_blob code! chunk_count %d size_state %d alloc %d\n", copy->addr, chunk_count, (int) size_state, alloc);
+                fprintf(stderr, "<3> %06x: Couldn't write internal state, check save_blob code! chunk_ac_count %d size_state %d alloc %d\n", copy->addr, chunk_ac_count, (int) size_state, alloc);
                 continue;
             }
 
-            chunk_count++;
+            chunk_ac_count++;
 
             uint64_t magic = STATE_SAVE_MAGIC;
             p += memcpySize(p, &magic, sizeof(magic));
@@ -2463,9 +2464,12 @@ decompress:
             uncompressed_len = lzo_out_alloc;
             res = lzo1x_decompress_safe((unsigned char*) p, compressed_len, (unsigned char*) lzo_out, &uncompressed_len, NULL);
             if (res != LZO_E_OK) {
-                lzo_out_alloc *= 2;
-                Modes.state_chunk_size_read = lzo_out_alloc; // also increase chunk size for later invocations
-                fprintf(stderr, "decompression failed, trying larger buffer (%d): %s\n", lzo_out_alloc, filename);
+                lzo_out_alloc = imax(2 * lzo_out_alloc, Modes.state_chunk_size_read);
+                lzo_out_alloc = imax(lzo_out_alloc, 2 * compressed_len);
+                if (lzo_out_alloc > Modes.state_chunk_size_read) {
+                    Modes.state_chunk_size_read = lzo_out_alloc; // also increase chunk size for later invocations
+                    fprintf(stderr, "decompression failed, trying larger buffer (%d): %s\n", lzo_out_alloc, filename);
+                }
                 if (lzo_out_alloc > 256 * 1024 * 1024 || !lzo_out) {
                     fprintf(stderr, "Corrupt state file (decompression failure): %s\n", filename);
                     break;
