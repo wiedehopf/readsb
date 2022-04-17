@@ -1,5 +1,6 @@
 #!/bin/bash
 
+set -e
 
 # ssh access required for both the source and target box
 # this script will transfer the traces for last 24h and current aircraft positions
@@ -10,7 +11,7 @@ SHOST=localhost
 SDIR=/var/globe_history/internal_state
 
 # target
-THOST=localhost
+THOST=x230
 TDIR=/var/globe_history/internal_state
 
 SSHDIR="$HOME/.vee0za6ugohru6Id0ziK3ahv1ietahva"
@@ -30,21 +31,27 @@ TCMD="ssh $THOST $SSHCOMMON $SSHPERSIST $P2"
 RDIR="$TDIR/replaceState"
 TTDIR="$TDIR/tmp"
 $TCMD "mkdir -p $TTDIR; mkdir -p $RDIR; chmod a+w $RDIR"
+
+
+echo "$(date -u --rfc-3339=s) starting transfer from $SHOST to $THOST"
+
 for num in $(seq 0 255); do
     blob="$(printf "%02x\n" "$num")"
     TRIGGER="$SDIR/writeState"
     LZOL="blob_${blob}.lzol"
-    $SCMD "echo $blob > $TRIGGER; while [[ -f $TRIGGER ]]; do sleep 0.1; done;" &
-    echo "transferring $LZOL"
-    wait
-    sleep 0.2 &
+    $SCMD "echo $blob > $TRIGGER; while [[ -f $TRIGGER ]]; do sleep 0.01; done;"
+
+    wait # wait for previous transfer to finish before starting new transfer
+
     $SCMD "tar -C $SDIR -c -f - $LZOL" | $TCMD "tar -C $TTDIR --overwrite -x -f - && chmod a+w $TTDIR/$LZOL && mv -f $TTDIR/$LZOL $RDIR/$LZOL;" &
-    wait
+    echo "$(date -u --rfc-3339=s) transferring $LZOL"
 done
 
-echo "transfer done, waiting for completion of state load on the target side"
-$TCMD "while ls $RDIR | grep -v tmp &>/dev/null; do sleep 1; done"
-$TCMD "if ls $RDIR | grep lzol; then echo transfer or state loading incomplete, check target readsb log; else echo state loading completed on target; fi"
+wait # wait for last transfer
+
+echo "$(date -u --rfc-3339=s) transfer done, waiting for completion of state load on the target side"
+$TCMD "while ls $RDIR | grep -qs -v -e tmp; do sleep 1; done"
+$TCMD "if ls $RDIR | grep -qs lzol; then echo transfer or state loading incomplete, check target readsb log; else echo $(date -u --rfc-3339=s) state loading completed on target; fi"
 $TCMD "rm -rf $RDIR $TTDIR"
 
 rm -rf "$SSHDIR"
