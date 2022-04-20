@@ -2753,7 +2753,7 @@ static inline int declination(struct aircraft *a, double *dec, int64_t now) {
 #if defined(TRACKS_UUID)
   uint64_t receiverId;
   */
-void to_state(struct aircraft *a, struct state *new, int64_t now, int on_ground, float track) {
+void to_state(struct aircraft *a, struct state *new, int64_t now, int on_ground, float track, int stale) {
     memset(new, 0, sizeof(struct state));
 
     new->timestamp = now;
@@ -2761,8 +2761,7 @@ void to_state(struct aircraft *a, struct state *new, int64_t now, int on_ground,
     new->lat = (int32_t) nearbyint(a->latReliable * 1E6);
     new->lon = (int32_t) nearbyint(a->lonReliable * 1E6);
 
-    if (now > a->seenPosReliable + TRACE_STALE)
-        new->stale = 1;
+    new->stale = stale;
 
     if (on_ground)
         new->on_ground = 1;

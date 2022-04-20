@@ -2131,7 +2131,7 @@ no_save_state:
 
     struct state *new = getState(a->trace_current, a->trace_current_len);
 
-    to_state(a, new, now, on_ground, track);
+    to_state(a, new, now, on_ground, track, stale);
 
     // trace_all stuff:
     struct state_all *new_all = getStateAll(a->trace_current, a->trace_current_len);
