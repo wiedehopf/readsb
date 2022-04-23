@@ -1158,13 +1158,15 @@ static int pongReceived(struct client *c, int64_t now) {
 
     int32_t bucket = 0;
     float bucketsize = PING_BUCKETBASE;
-    int32_t bucketmax = 0;
+    float bucketmax = 0;
     for (int i = 0; i < PING_BUCKETS; i++) {
         bucketmax += bucketsize;
         bucketmax = nearbyint(bucketmax / 10) * 10;
         bucketsize *= PING_BUCKETMULT;
+
+        bucket = i;
+
         if (c->rtt <= bucketmax) {
-            bucket = i;
             break;
         }
     }
