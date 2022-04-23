@@ -3112,7 +3112,11 @@ static void modesReadFromClient(struct client *c, int64_t start) {
                     return;
                 }
                 // Have a 0x1a followed by 1/2/3/4/5 - pass message to handler.
-                if (c->service->read_handler(c, noEscape, remote, now)) {
+                int res = c->service->read_handler(c, noEscape, remote, now);
+                if (!c->service) {
+                    return;
+                }
+                if (res) {
                     modesCloseClient(c);
                     return;
                 }
