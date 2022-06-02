@@ -1074,6 +1074,7 @@ static int parseLongs(char *p, long long *results, int result_size) {
 }
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
+    //fprintf(stderr, "parse_opt(%d, %s, argp_state*)\n", key, arg);
     switch (key) {
         case OptDevice:
             Modes.dev_name = strdup(arg);
@@ -1516,10 +1517,14 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             if (sdrHandleOption(key, arg) == false)
                 return 1;
             break;
+        case ARGP_KEY_ARG:
+            return ARGP_ERR_UNKNOWN;
+            break;
         case ARGP_KEY_END:
-            if (state->arg_num > 0)
+            if (state->arg_num > 0) {
                 /* We use only options but no arguments */
-                argp_usage(state);
+                return ARGP_ERR_UNKNOWN;
+            }
             break;
         default:
             return ARGP_ERR_UNKNOWN;
@@ -1570,12 +1575,10 @@ int parseCommandLine(int argc, char **argv) {
         doc = "vieadsb Mode-S/ADSB/TIS commandline viewer   ";
     }
 
-
     struct argp_option *options = Modes.viewadsb ? optionsViewadsb : optionsReadsb;
 
-    const char args_doc[] = "";
+    const char* args_doc = "";
     struct argp argp = {options, parse_opt, args_doc, doc, NULL, NULL, NULL};
-
 
     if (argp_parse(&argp, argc, argv, ARGP_NO_EXIT, 0, 0)) {
         fprintf(stderr, "Command line used:\n");

@@ -20,7 +20,7 @@
 #ifndef HELP_H
 #define HELP_H
 
-#include <argp.h>
+#include "argp.h"
 const char *argp_program_version = VERSION_STRING;
 const char *argp_program_bug_address = "Matthias Wirth <matthias.wirth@gmail.com>";
 static error_t parse_opt (int key, char *arg, struct argp_state *state);
@@ -170,7 +170,7 @@ static struct argp_option optionsReadsb[] = {
     {"beast-baudrate", OptBeastBaudrate, "<baud>", 0, "Override Baudrate (default rate 3000000 baud)", 5},
 
     {0, 0, 0, 0, "GNS HULC options, use with --device-type gnshulc:", 6},
-    //{0, 0, 0, OPTION_DOC, "Beast binary and HULC protocol input with hardware handshake enabled.", 6},
+    {0, 0, 0, OPTION_DOC, "Beast binary and HULC protocol input with hardware handshake enabled.", 6},
     {"beast-serial", OptBeastSerial, "<path>", 0, "Path to GNS HULC serial device (default /dev/ttyUSB0)", 6},
 
     {0,0,0,0, "ifile-specific options, use with --ifile:", 7},
