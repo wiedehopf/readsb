@@ -29,6 +29,12 @@ ifeq ($(shell $(CC) -c feature_test.c -o feature_test.o -Wno-format-truncation -
 	CFLAGS += -Wno-format-truncation
 endif
 
+ifeq ($(DISABLE_INTERACTIVE), yes)
+  CPPFLAGS += -DDISABLE_INTERACTIVE
+else
+  LIBS += -lncurses
+endif
+
 ifeq ($(HISTORY), yes)
   CPPFLAGS += -DALL_JSON=1
 endif
@@ -118,7 +124,7 @@ readsb: readsb.o argp.o anet.o interactive.o mode_ac.o mode_s.o comm_b.o json_ou
 	stats.o cpr.o icao_filter.o track.o util.o fasthash.o convert.o sdr_ifile.o sdr_beast.o sdr.o ais_charset.o \
 	globe_index.o geomag.o receiver.o aircraft.o api.o minilzo.o threadpool.o \
 	$(SDR_OBJ) $(COMPAT)
-	$(CC) -g -o $@ $^ $(LDFLAGS) $(LIBS) $(LIBS_SDR) -lncurses $(OPTIMIZE)
+	$(CC) -g -o $@ $^ $(LDFLAGS) $(LIBS) $(LIBS_SDR) $(OPTIMIZE)
 
 viewadsb: readsb
 	cp --remove-destination readsb viewadsb

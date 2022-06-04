@@ -53,7 +53,15 @@
 
 #include "readsb.h"
 
+#ifndef DISABLE_INTERACTIVE
 #include <curses.h>
+#endif
+
+#ifdef DISABLE_INTERACTIVE
+void interactiveInit() {}
+void interactiveCleanup(void) {}
+void interactiveShowData(void) {}
+#else
 
 //
 //========================= Interactive mode ===============================
@@ -218,6 +226,8 @@ void interactiveShowData(void) {
     clrtobot();
     refresh();
 }
+
+#endif
 
 //
 //=========================================================================

@@ -1539,8 +1539,10 @@ int parseCommandLine(int argc, char **argv) {
         Modes.net = 1;
         Modes.sdr_type = SDR_NONE;
         Modes.net_only = 1;
+#ifndef DISABLE_INTERACTIVE
         Modes.interactive = 1;
         Modes.quiet = 1;
+#endif
         Modes.net_connector_delay = 5 * 1000;
         // let this get overwritten in case the command line specifies a net-connector
         make_net_connector("127.0.0.1,30005,beast_in");
