@@ -339,7 +339,9 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
     // Get the approx system time for the start of this block
     block_duration = 1e3 * slen / Modes.sample_rate;
 
-    milli_micro_seconds(&outbuf->sysTimestamp, &outbuf->sysMicroseconds);
+    outbuf->sysTimestamp = mstime();
+    outbuf->sysMicroseconds = mono_micro_seconds();
+
     outbuf->sysTimestamp -= block_duration;
     outbuf->sysMicroseconds -= block_duration * 1000;
 

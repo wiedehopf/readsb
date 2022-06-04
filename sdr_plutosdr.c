@@ -219,7 +219,10 @@ static void plutosdrCallback(int16_t *buf, uint32_t len) {
     outbuf->sampleTimestamp = sampleCounter * 12e6 / Modes.sample_rate;
     sampleCounter += slen;
     block_duration = 1e3 * slen / Modes.sample_rate;
-    milli_micro_seconds(&outbuf->sysTimestamp, &outbuf->sysMicroseconds);
+
+    outbuf->sysTimestamp = mstime();
+    outbuf->sysMicroseconds = mono_micro_seconds();
+
     outbuf->sysTimestamp -= block_duration;
     outbuf->sysMicroseconds -= block_duration * 1000;
 

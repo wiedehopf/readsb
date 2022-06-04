@@ -336,11 +336,6 @@ static void *handle_bladerf_samples(struct bladerf *dev,
     MODES_NOTUSED(user_data);
     MODES_NOTUSED(num_samples);
 
-    // record initial time for later sys timestamp calculation
-    int64_t entryTimestamp;
-    int64_t microSeconds;
-    milli_micro_seconds(&entryTimestamp, &microSeconds);
-
     lockReader();
     if (Modes.exit) {
         unlockReader();
@@ -361,6 +356,9 @@ static void *handle_bladerf_samples(struct bladerf *dev,
 
     dropping = false;
     unlockReader();
+
+    outbuf->sysTimestamp = mstime();
+    outbuf->sysMicroseconds = mono_micro_seconds();
 
     // Copy trailing data from last block (or reset if not valid)
     if (outbuf->dropped == 0) {
@@ -441,8 +439,8 @@ static void *handle_bladerf_samples(struct bladerf *dev,
     if (blocks_processed) {
         // Get the approx system time for the start of this block
         int64_t block_duration = 1e3 * outbuf->length / Modes.sample_rate;
-        outbuf->sysTimestamp = entryTimestamp - block_duration;
-        outbuf->sysMicroseconds = microSeconds - 1000 * block_duration;
+        outbuf->sysTimestamp -= block_duration;
+        outbuf->sysMicroseconds -= 1000 * block_duration;
 
         outbuf->mean_level /= blocks_processed;
         outbuf->mean_power /= blocks_processed;

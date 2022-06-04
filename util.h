@@ -72,6 +72,7 @@ int64_t mstime (void);
 int64_t microtime(void);
 
 void milli_micro_seconds(int64_t *milli, int64_t *micro);
+int64_t mono_micro_seconds();
 
 int snprintHMS(char *buf, size_t bufsize, int64_t now);
 
