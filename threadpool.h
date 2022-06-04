@@ -25,6 +25,8 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVE
 #define _THREADPOOL_H_
 
 #include <stdint.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 // Minimal thread pool implementation using pthread.h and stdatomic.h
 // with option per thread pointers (for readsb used for per thread buffers)
