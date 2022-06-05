@@ -20,7 +20,7 @@ CFLAGS := $(DIALECT) -g -W -D_DEFAULT_SOURCE -Wall -Werror -fno-common -O2 $(CFL
 LIBS = -pthread -lpthread -lm -lrt
 
 ifeq ($(ZLIB_STATIC), yes)
-	LIBS += ../zlib/libz.a
+	LIBS += -l:libz.a
 else
 	LIBS += -lz
 endif
@@ -127,7 +127,8 @@ readsb: readsb.o argp.o anet.o interactive.o mode_ac.o mode_s.o comm_b.o json_ou
 	$(CC) -g -o $@ $^ $(LDFLAGS) $(LIBS) $(LIBS_SDR) $(OPTIMIZE)
 
 viewadsb: readsb
-	cp --remove-destination readsb viewadsb
+	rm -f viewadsb
+	cp readsb viewadsb
 
 clean:
 	rm -f *.o compat/clock_gettime/*.o compat/clock_nanosleep/*.o readsb viewadsb cprtests crctests convert_benchmark
