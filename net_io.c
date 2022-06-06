@@ -582,6 +582,7 @@ static void serviceReconnectCallback(int64_t now) {
             if (Modes.net_heartbeat_interval && c
                     && now - c->last_read > 2 * Modes.net_heartbeat_interval
                     && c->service->read_mode != READ_MODE_IGNORE && c->service->read_mode != READ_MODE_BEAST_COMMAND
+                    && c->service != Modes.uat_in_service
                ) {
                 fprintf(stderr, "%s: No data or heartbeat received for %.0f seconds, reconnecting: %s port %s\n",
                         c->service->descr, (2 * Modes.net_heartbeat_interval) / 1000.0, c->host, c->port);
@@ -766,7 +767,6 @@ void modesInitNet(void) {
     struct net_service *sbs_in_jaero;
     struct net_service *sbs_in_prio;
     struct net_service *gpsd_in;
-    struct net_service *uat_in;
 
     signal(SIGPIPE, SIG_IGN);
     Modes.services = NULL;
@@ -891,9 +891,9 @@ void modesInitNet(void) {
         createGenericClient(Modes.beast_in_service, Modes.beast_fd);
     }
 
-    uat_in = serviceInit("UAT TCP input", NULL, NULL, READ_MODE_ASCII, "\n", decodeUatMessage);
+    Modes.uat_in_service = serviceInit("UAT TCP input", NULL, NULL, READ_MODE_ASCII, "\n", decodeUatMessage);
     // for testing ... don't care to create an argument to open this port
-    // serviceListen(uat_in, Modes.net_bind_address, "1234", Modes.net_epfd);
+    // serviceListen(Modes.uat_in_service, Modes.net_bind_address, "1234", Modes.net_epfd);
 
     for (int i = 0; i < Modes.net_connectors_count; i++) {
         struct net_connector *con = Modes.net_connectors[i];
@@ -932,7 +932,7 @@ void modesInitNet(void) {
         else if (strcmp(con->protocol, "gpsd_in") == 0)
             con->service = gpsd_in;
         else if (strcmp(con->protocol, "uat_in") == 0)
-            con->service = uat_in;
+            con->service = Modes.uat_in_service;
 
     }
 }
