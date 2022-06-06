@@ -61,6 +61,8 @@
 #include <poll.h>
 #include <sys/sendfile.h>
 
+#include "uat2esnt/uat2esnt.h"
+
 
 //#include <brotli/encode.h>
 
@@ -727,6 +729,23 @@ void serviceClose(struct net_service *s) {
 }
 
 void modesInitNet(void) {
+    uat2esnt_initCrcTables();
+
+    if (0) {
+        char *msg[4] = { "-00a974f135362f522fc408c9122e1b015900;",
+             "-08a78bea35705f5283880459010227605809e00d40a2040be2a5c2a00004a0000000;rs=2;",
+             "-10ad7233358a9d528bc40aa900be3120880000000000000000000000000b10000000;rs=4;",
+             "-10a78bea3570b152830c0449010626e04800000000000000000000000004a0000000;rs=2;" };
+
+        for (int i = 0; i < 4; i++) {
+            char output[2048];
+            uat2esnt_convert_message(msg[i], msg[i] + strlen(msg[i]), output, output + sizeof(output));
+            fprintf(stderr, "%s\n", output);
+        }
+        exit(1);
+    }
+
+
     if (!Modes.net)
         return;
     struct net_service *beast_out;
