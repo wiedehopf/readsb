@@ -84,7 +84,8 @@ static int handle_gpsd(struct client *c, char *p, int remote, int64_t now);
 static int handleCommandSocket(struct client *c, char *p, int remote, int64_t now);
 static int handleBeastCommand(struct client *c, char *p, int remote, int64_t now);
 static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now);
-static int decodeHexMessage(struct client *c, char *hex, int remote, int64_t now);
+static int processHexMessage(struct client *c, char *hex, int remote, int64_t now);
+static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now);
 static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now);
 static int decodeSbsLineMlat(struct client *c, char *line, int remote, int64_t now) {
     MODES_NOTUSED(remote);
@@ -765,6 +766,7 @@ void modesInitNet(void) {
     struct net_service *sbs_in_jaero;
     struct net_service *sbs_in_prio;
     struct net_service *gpsd_in;
+    struct net_service *uat_in;
 
     signal(SIGPIPE, SIG_IGN);
     Modes.services = NULL;
@@ -869,7 +871,7 @@ void modesInitNet(void) {
         chmod(commandSocket, 0600);
     }
 
-    raw_in = serviceInit("Raw TCP input", NULL, NULL, READ_MODE_ASCII, "\n", decodeHexMessage);
+    raw_in = serviceInit("Raw TCP input", NULL, NULL, READ_MODE_ASCII, "\n", processHexMessage);
     serviceListen(raw_in, Modes.net_bind_address, Modes.net_input_raw_ports, Modes.net_epfd);
 
     /* Beast input via network */
@@ -888,6 +890,10 @@ void modesInitNet(void) {
     if (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS) {
         createGenericClient(Modes.beast_in_service, Modes.beast_fd);
     }
+
+    uat_in = serviceInit("UAT TCP input", NULL, NULL, READ_MODE_ASCII, "\n", decodeUatMessage);
+    // for testing ... don't care to create an argument to open this port
+    // serviceListen(uat_in, Modes.net_bind_address, "1234", Modes.net_epfd);
 
     for (int i = 0; i < Modes.net_connectors_count; i++) {
         struct net_connector *con = Modes.net_connectors[i];
@@ -925,6 +931,8 @@ void modesInitNet(void) {
             con->service = sbs_out_replay;
         else if (strcmp(con->protocol, "gpsd_in") == 0)
             con->service = gpsd_in;
+        else if (strcmp(con->protocol, "uat_in") == 0)
+            con->service = uat_in;
 
     }
 }
@@ -2546,36 +2554,18 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now) 
     useModesMessage(&mm);
     return 0;
 }
-//
-//
-//=========================================================================
-//
-// This function decodes a string representing message in raw hex format
-// like: *8D4B969699155600E87406F5B69F; The string is null-terminated.
-//
-// The message is passed to the higher level layers, so it feeds
-// the selected screen output, the network output and so forth.
-//
-// If the message looks invalid it is silently discarded.
-//
-// The function always returns 0 (success) to the caller as there is no
-// case where we want broken messages here to close the client connection.
-//
-static int decodeHexMessage(struct client *c, char *hex, int remote, int64_t now) {
+
+// exception decoding subroutine, return 1 for success, 0 for failure
+static int decodeHexMessage(struct client *c, char *hex, int64_t now, struct modesMessage *mm) {
     int l = strlen(hex), j;
-    struct modesMessage mm;
-    unsigned char *msg = mm.msg;
+    unsigned char *msg = mm->msg;
 
-    MODES_NOTUSED(remote);
-    MODES_NOTUSED(c);
-
-    memset(&mm, 0, sizeof(mm));
-    mm.client = c;
+    mm->client = c;
 
     // Mark messages received over the internet as remote so that we don't try to
     // pass them off as being received by this instance when forwarding them
-    mm.remote = 1;
-    mm.signalLevel = 0;
+    mm->remote = 1;
+    mm->signalLevel = 0;
 
     // Remove spaces on the left and on the right
     while (l && isspace(hex[l - 1])) {
@@ -2606,10 +2596,10 @@ static int decodeHexMessage(struct client *c, char *hex, int remote, int64_t now
         char *saveptr = NULL;
         char *token = strtok_r(&hex[pos + 1], ",", &saveptr);
         if (!token) return 0;
-        mm.signalLevel = strtol(token, NULL, 10);
-        mm.signalLevel /= 1000; // let's assume 1000 mV max .. i only have a small sample, specification isn't clear
-        mm.signalLevel = mm.signalLevel * mm.signalLevel; // square it to get power
-        mm.signalLevel = fmin(1.0, mm.signalLevel); // cap at 1
+        mm->signalLevel = strtol(token, NULL, 10);
+        mm->signalLevel /= 1000; // let's assume 1000 mV max .. i only have a small sample, specification isn't clear
+        mm->signalLevel = mm->signalLevel * mm->signalLevel; // square it to get power
+        mm->signalLevel = fmin(1.0, mm->signalLevel); // cap at 1
                                                     //
         token = strtok_r(NULL, ",", &saveptr); // discard signal quality
         if (!token) return 0;
@@ -2623,9 +2613,9 @@ static int decodeHexMessage(struct client *c, char *hex, int remote, int64_t now
                 seconds -= 1;
                 // assume our clock is one second in front of the GPS clock, go back one second before adding the after pps time
             }
-            mm.timestampMsg = (seconds * (1000 * 1000) + after_pps) * 12;
+            mm->timestampMsg = (seconds * (1000 * 1000) + after_pps) * 12;
         } else {
-            mm.timestampMsg = now * 12e3; // make 12 MHz timestamp from microseconds
+            mm->timestampMsg = now * 12e3; // make 12 MHz timestamp from microseconds
         }
     }
     // Turn the message into binary.
@@ -2645,66 +2635,66 @@ static int decodeHexMessage(struct client *c, char *hex, int remote, int64_t now
     switch (hex[0]) {
         // <TTTTTTTTTTTTSS
         case '<':
-        {
-            // skip <
-            hex++;
-            l--;
-            // skip ;
-            l--;
-
-            if (l < 12)
-                return (0);
-            for (j = 0; j < 12; j++) {
-                mm.timestampMsg = (mm.timestampMsg << 4) | hexDigitVal(*hex);
+            {
+                // skip <
                 hex++;
                 l--;
+                // skip ;
+                l--;
+
+                if (l < 12)
+                    return (0);
+                for (j = 0; j < 12; j++) {
+                    mm->timestampMsg = (mm->timestampMsg << 4) | hexDigitVal(*hex);
+                    hex++;
+                    l--;
+                }
+                if (l < 2)
+                    return (0);
+                mm->signalLevel = ((hexDigitVal(hex[0]) << 4) | hexDigitVal(hex[1])) / 255.0;
+                hex += 2;
+                l -= 2;
+                mm->signalLevel = mm->signalLevel * mm->signalLevel;
+                break;
             }
-            if (l < 2)
-                return (0);
-            mm.signalLevel = ((hexDigitVal(hex[0]) << 4) | hexDigitVal(hex[1])) / 255.0;
-            hex += 2;
-            l -= 2;
-            mm.signalLevel = mm.signalLevel * mm.signalLevel;
-            break;
-        }
 
         case '@': // No CRC check
-        // example timestamp 03BA2A7C1DD1, should be 12 MHz treat it as such
-        // example message: @03BA2A7C1DD15D4CA7F9A0B84B;
-        { // CRC is OK
-            hex++;
-            l -= 2; // Skip @ and ;
-
-            if (l <= 12) // if we have only enough hex for the timestamp or less it's invalid
-                return (0);
-            for (j = 0; j < 12; j++) {
-                mm.timestampMsg = (mm.timestampMsg << 4) | hexDigitVal(*hex);
+                  // example timestamp 03BA2A7C1DD1, should be 12 MHz treat it as such
+                  // example message: @03BA2A7C1DD15D4CA7F9A0B84B;
+            { // CRC is OK
                 hex++;
-            }
+                l -= 2; // Skip @ and ;
 
-            l -= 12; // timestamp now processed
-            break;
-        }
+                if (l <= 12) // if we have only enough hex for the timestamp or less it's invalid
+                    return (0);
+                for (j = 0; j < 12; j++) {
+                    mm->timestampMsg = (mm->timestampMsg << 4) | hexDigitVal(*hex);
+                    hex++;
+                }
+
+                l -= 12; // timestamp now processed
+                break;
+            }
         case '%':
-        { // CRC is OK
-            hex += 13;
-            l -= 14; // Skip @,%, and timestamp, and ;
-            break;
-        }
+            { // CRC is OK
+                hex += 13;
+                l -= 14; // Skip @,%, and timestamp, and ;
+                break;
+            }
 
         case '*':
         case ':':
-        {
-            hex++;
-            l -= 2; // Skip * and ;
-            break;
-        }
+            {
+                hex++;
+                l -= 2; // Skip * and ;
+                break;
+            }
 
         default:
-        {
-            return (0); // We don't know what this is, so abort
-            break;
-        }
+            {
+                return (0); // We don't know what this is, so abort
+                break;
+            }
     }
 
     if ((l != (MODEAC_MSG_BYTES * 2))
@@ -2727,16 +2717,16 @@ static int decodeHexMessage(struct client *c, char *hex, int remote, int64_t now
     }
 
     // record reception time as the time we read it.
-    mm.sysTimestampMsg = now;
+    mm->sysTimestampMsg = now;
 
     if (l == (MODEAC_MSG_BYTES * 2)) { // ModeA or ModeC
         Modes.stats_current.remote_received_modeac++;
-        decodeModeAMessage(&mm, ((msg[0] << 8) | msg[1]));
+        decodeModeAMessage(mm, ((msg[0] << 8) | msg[1]));
     } else { // Assume ModeS
         int result;
 
         Modes.stats_current.remote_received_modes++;
-        result = decodeModesMessage(&mm);
+        result = decodeModesMessage(mm);
         if (result < 0) {
             if (result == -1)
                 Modes.stats_current.remote_rejected_unknown_icao++;
@@ -2744,12 +2734,81 @@ static int decodeHexMessage(struct client *c, char *hex, int remote, int64_t now
                 Modes.stats_current.remote_rejected_bad++;
             return 0;
         } else {
-            Modes.stats_current.remote_accepted[mm.correctedbits]++;
+            Modes.stats_current.remote_accepted[mm->correctedbits]++;
         }
     }
 
-    useModesMessage(&mm);
+    return 1;
+}
+
+//
+//
+//=========================================================================
+//
+// This function decodes a string representing message in raw hex format
+// like: *8D4B969699155600E87406F5B69F; The string is null-terminated.
+//
+// The message is passed to the higher level layers, so it feeds
+// the selected screen output, the network output and so forth.
+//
+// If the message looks invalid it is silently discarded.
+//
+// The function always returns 0 (success) to the caller as there is no
+// case where we want broken messages here to close the client connection.
+//
+
+static int processHexMessage(struct client *c, char *hex, int remote, int64_t now) {
+    MODES_NOTUSED(remote);
+
+    struct modesMessage mm;
+    memset(&mm, 0, sizeof(mm));
+
+    int success = decodeHexMessage(c, hex, now, &mm);
+
+    if (success) {
+        useModesMessage(&mm);
+    }
+
     return (0);
+}
+
+static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now) {
+    MODES_NOTUSED(remote);
+
+    char *end = msg + strlen(msg);
+    char output[512];
+
+    uat2esnt_convert_message(msg, end, output, output + sizeof(output));
+
+    char *som = output;
+    char *eod = rawmemchr(som, '\0');
+    char *p;
+
+    while (((p = memchr(som, '\n', eod - som)) != NULL)) {
+        *p = '\0';
+
+        struct modesMessage mm_back;
+        struct modesMessage *mm = &mm_back;
+        memset(mm, 0, sizeof(struct modesMessage));
+
+        int success = decodeHexMessage(c, som, now, mm);
+
+        if (success) {
+            struct aircraft *a = aircraftGet(mm->addr);
+            if (!a) { // If it's a currently unknown aircraft....
+                a = aircraftCreate(mm->addr); // ., create a new record for it,
+            }
+            // ignore the first UAT message
+            if (now > a->seen + 300 * SECONDS) {
+                //fprintf(stderr, "IGNORING first UAT message from: %06x\n", a->addr);
+                a->seen = now;
+                return 0;
+            }
+            useModesMessage(mm);
+        }
+        som = p + 1;
+    }
+    return 0;
 }
 
 static const char *hexEscapeString(const char *str, char *buf, int len) {

@@ -821,5 +821,6 @@ static int process_line(frame_handler_t handler, void *handler_data1, void *hand
 
 
 void uat2esnt_convert_message(char *p, char *end, char *out, char *out_end) {
+    out[0] = '\0';
     process_line(frame_to_esnt, out, out_end, p, end);
 }
