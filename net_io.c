@@ -3281,6 +3281,10 @@ beastWhileBreak:
 
             while (som < eod && (p = strstr(som, c->service->read_sep)) != NULL) { // end of first message if found
                 *p = '\0'; // The handler expects null terminated strings
+                // remove \r for strings that still have it at the end
+                if (p - 1 > som && *(p - 1) == '\r') {
+                    *(p - 1) = '\0';
+                }
                 if (c->service->read_handler(c, som, remote, now)) { // Pass message to handler.
                     if (Modes.debug_net) {
                         fprintf(stderr, "%s: Closing connection from %s port %s\n", c->service->descr, c->host, c->port);
