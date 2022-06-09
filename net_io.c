@@ -64,21 +64,8 @@
 #include "uat2esnt/uat2esnt.h"
 
 
-//#include <brotli/encode.h>
-
-
-//
 // ============================= Networking =============================
 //
-// Note: here we disregard any kind of good coding practice in favor of
-// extreme simplicity, that is:
-//
-// 1) We only rely on the kernel buffers for our I/O without any kind of
-//    user space buffering.
-// 2) We don't register any kind of event handler, from time to time a
-//    function gets called and we accept new connections. All the rest is
-//    handled via non-blocking I/O and manually polling clients to see if
-//    they have something new to share with us when reading is needed.
 
 static int handle_gpsd(struct client *c, char *p, int remote, int64_t now);
 static int handleCommandSocket(struct client *c, char *p, int remote, int64_t now);
