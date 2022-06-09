@@ -2021,10 +2021,6 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
         }
     }
 
-    // don't record non moving targets ... unless json-interval is set to less than 5 seconds
-    if (on_ground && distance < 10 && max_elapsed > 5 * SECONDS)
-        goto no_save_state;
-
     // don't record unnecessary many points
     if (elapsed < min_elapsed)
         goto no_save_state;
@@ -2042,9 +2038,6 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
     if (!on_ground && elapsed > max_elapsed) // default 30000 ms
         goto save_state;
 
-    if (on_ground && elapsed > 2 * max_elapsed)
-        goto save_state;
-
     // SS2
     if (a->addr == 0xa19b53 && elapsed > max_elapsed / 4)
         goto save_state;
@@ -2055,12 +2048,22 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
     }
 
     if (on_ground) {
-        if (distance * track_diff > 250) {
+        if (elapsed > 4 * max_elapsed) {
+            goto save_state;
+        }
+        if (distance > 10 && elapsed > max_elapsed) {
+            goto save_state;
+        }
+        if (a->gs > 5 && elapsed > max_elapsed / 2) {
+            goto save_state;
+        }
+
+        if (distance * track_diff > 130) {
             if (traceDebug) fprintf(stderr, "track_change: %0.1f %0.1f -> %0.1f", track_diff, last_track, a->track);
             goto save_state;
         }
 
-        if (distance > 400)
+        if (distance > 50)
             goto save_state;
     }
 
