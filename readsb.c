@@ -298,6 +298,7 @@ static void trackPeriodicUpdate() {
     Modes.currentTask = "locked";
 
     int64_t now = mstime();
+    int64_t mono = mono_milli_seconds();
     int removed_stale = 0;
 
     if (now > Modes.next_stats_update)
@@ -324,7 +325,7 @@ static void trackPeriodicUpdate() {
         pthread_mutex_unlock(&Threads.misc.mutex);
     }
 
-    if (now > Modes.next_remove_stale && pthread_mutex_trylock(&Threads.misc.mutex) == 0) {
+    if (mono > Modes.next_remove_stale && pthread_mutex_trylock(&Threads.misc.mutex) == 0) {
         pthread_mutex_lock(&Modes.hungTimerMutex);
         startWatch(&Modes.hungTimer2);
         pthread_mutex_unlock(&Modes.hungTimerMutex);
@@ -334,12 +335,12 @@ static void trackPeriodicUpdate() {
         trackRemoveStale(now);
         traceDelete();
 
-        int64_t interval = now - Modes.next_remove_stale;
-        if (interval > 5 * REMOVE_STALE_INTERVAL && interval < 1 * HOURS) {
+        int64_t interval = mono - Modes.next_remove_stale;
+        if (interval > 5 * REMOVE_STALE_INTERVAL && Modes.next_remove_stale) {
             fprintf(stderr, "<3> removeStale didn't run for %.1f seconds!\n", interval / 1000.0);
         }
 
-        Modes.next_remove_stale = now + REMOVE_STALE_INTERVAL;
+        Modes.next_remove_stale = mono + REMOVE_STALE_INTERVAL;
         removed_stale = 1;
         pthread_mutex_unlock(&Threads.misc.mutex);
     }
@@ -382,9 +383,9 @@ static void trackPeriodicUpdate() {
     Modes.currentTask = "unlocked";
 
     static int64_t antiSpam;
-    if ((Modes.debug_removeStaleDuration && Modes.next_remove_stale == now + 1 * SECONDS) || ((elapsed1 > 150 || elapsed2 > 150) && now > antiSpam + 30 * SECONDS)) {
+    if ((Modes.debug_removeStaleDuration && Modes.next_remove_stale == mono + 1 * SECONDS) || ((elapsed1 > 150 || elapsed2 > 150) && mono > antiSpam + 30 * SECONDS)) {
         fprintf(stderr, "<3>High load: removeStale took %"PRIi64"/%"PRIi64" ms! upcount: %d stats: %d (suppressing for 30 seconds)\n", elapsed1, elapsed2, (int) (upcount % (1 * SECONDS / PERIODIC_UPDATE)), Modes.updateStats);
-        antiSpam = now;
+        antiSpam = mono;
     }
 
     //fprintf(stderr, "running for %ld ms\n", mstime() - Modes.startup_time);
@@ -412,9 +413,9 @@ static void trackPeriodicUpdate() {
     if (Modes.outline_json) {
         Modes.currentTask = "outlineJson";
         static int64_t nextOutlineWrite;
-        if (now > nextOutlineWrite) {
+        if (mono > nextOutlineWrite) {
             free(writeJsonToFile(Modes.json_dir, "outline.json", generateOutlineJson()).buffer);
-            nextOutlineWrite = now + 30 * SECONDS;
+            nextOutlineWrite = mono + 30 * SECONDS;
         }
     }
     end_monotonic_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
@@ -648,12 +649,13 @@ static void *decodeEntryPoint(void *arg) {
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
     int64_t now = mstime();
+    int64_t mono = mono_milli_seconds();
     if (Modes.net_only) {
         while (!Modes.exit) {
             struct timespec start_time;
 
             // in case we're not waiting in backgroundTasks and trackPeriodic doesn't have a chance to schedule
-            if (now > Modes.next_remove_stale + 5 * SECONDS) {
+            if (mono > Modes.next_remove_stale + 5 * SECONDS) {
                 threadTimedWait(&Threads.decode, &ts, 15);
             }
             start_cpu_timing(&start_time);
@@ -761,7 +763,7 @@ static void *decodeEntryPoint(void *arg) {
                  */
                 threadTimedWait(&Threads.decode, &ts, 80);
             }
-            if (now > Modes.next_remove_stale + 5 * SECONDS) {
+            if (mono > Modes.next_remove_stale + 5 * SECONDS) {
                 threadTimedWait(&Threads.decode, &ts, 5);
             }
         }
@@ -1877,7 +1879,8 @@ static void *miscEntryPoint(void *arg) {
 
     while (!Modes.exit) {
 
-        if (mstime() < Modes.next_remove_stale) {
+        int64_t mono = mono_milli_seconds();
+        if (mono < Modes.next_remove_stale) {
             // function can unlock / lock misc mutex
             miscStuff();
         }

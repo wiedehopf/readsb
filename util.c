@@ -107,6 +107,17 @@ int64_t mono_micro_seconds() {
     return micro;
 }
 
+int64_t mono_milli_seconds() {
+    if (Modes.synthetic_now) {
+        return Modes.synthetic_now;
+    }
+
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    int64_t milli = ((int64_t) ts.tv_sec) * 1000 + ((int64_t) ts.tv_nsec) / (1000 * 1000);
+    return milli;
+}
+
 int snprintHMS(char *buf, size_t bufsize, int64_t now) {
     time_t nowTime = nearbyint(now / 1000.0);
     struct tm local;
