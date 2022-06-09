@@ -29,6 +29,10 @@ ifeq ($(shell $(CC) -c feature_test.c -o feature_test.o -Wno-format-truncation -
 	CFLAGS += -Wno-format-truncation
 endif
 
+ifeq ($(shell uname -m | grep -qs -e arm >/dev/null 2>&1 && echo 1 || echo 0), 1)
+  CPPFLAGS += -DSC16Q11_TABLE_BITS=8
+endif
+
 ifeq ($(DISABLE_INTERACTIVE), yes)
   CPPFLAGS += -DDISABLE_INTERACTIVE
 else
