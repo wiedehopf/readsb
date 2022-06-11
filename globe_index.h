@@ -21,8 +21,6 @@
 #define TDATE_FORMAT "%Y/%m/%d"
 
 #define TRACE_STALE (15 * SECONDS)
-#define TRACE_MIN_ELAPSED (250) // milliseconds
-
 
 #ifndef TRACE_RECENT_POINTS
 #define TRACE_RECENT_POINTS (84)

@@ -1851,8 +1851,7 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
     float track_diff = 0;
 
     int64_t max_elapsed = Modes.json_trace_interval;
-    // default is now 250 ms, so this usually doesn't affect anything
-    int64_t min_elapsed = imin(TRACE_MIN_ELAPSED, max_elapsed / 4);
+    int64_t min_elapsed = imin(250, max_elapsed / 4);
 
     float turn_density = 5.0;
     float max_speed_diff = 5.0;
@@ -1866,16 +1865,13 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
 
     if (Modes.json_trace_interval > 5 * SECONDS) {
         if (a->pos_reliable_valid.source == SOURCE_MLAT) {
-            min_elapsed = 2500; // 2.5 seconds
-            turn_density /= 2;
-            max_elapsed *= 0.75;
-            max_speed_diff = 30;
+            min_elapsed = 1500;
         }
-        // some towers on MLAT .... create unnecessary data
-        // only reduce data produced for configurations with trace interval more than 5 seconds, others migh want EVERY DOT :)
-        if (a->squawk_valid.source != SOURCE_INVALID && a->squawk == 0x7777) {
-            min_elapsed += 60 * SECONDS;
-        }
+    }
+    // some towers on MLAT .... create unnecessary data
+    // only reduce data produced for configurations with trace interval more than 5 seconds, others migh want EVERY DOT :)
+    if (a->squawk_valid.source != SOURCE_INVALID && a->squawk == 0x7777) {
+        min_elapsed = max_elapsed;
     }
 
     int on_ground = 0;
