@@ -2258,6 +2258,9 @@ void useModesMessage(struct modesMessage *mm) {
     if (!Modes.quiet || mm->addr == Modes.show_only || mm->maybe_addr == Modes.show_only) {
         displayModesMessage(mm);
     }
+    if (Modes.debug_7700 && a && a->squawk == 0x7700 && trackDataValid(&a->squawk_valid)) {
+        displayModesMessage(mm);
+    }
     if (Modes.debug_bogus) {
         if (!Modes.synthetic_now) {
             Modes.startup_time = mstime() - mm->timestampMsg / 12000U;

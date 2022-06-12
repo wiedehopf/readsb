@@ -572,6 +572,7 @@ struct _Modes
     int8_t debug_removeStaleDuration;
     int8_t debug_receiverRangeLimit;
     int8_t debug_yeet;
+    int8_t debug_7700;
     int8_t verbose;
 
     int8_t net_verbatim; // if true, send the original message, not the CRC-corrected one
