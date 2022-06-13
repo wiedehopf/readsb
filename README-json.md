@@ -68,7 +68,7 @@ The keys are:
    * baro_rate: Rate of change of barometric altitude, feet/minute
    * geom_rate: Rate of change of geometric (GNSS / INS) altitude, feet/minute
    * squawk: Mode A code (Squawk), encoded as 4 octal digits
-   * emergency: ADS-B emergency/priority status, a superset of the 7x00 squawks (2.2.3.2.7.8.1.1)
+   * emergency: ADS-B emergency/priority status, a superset of the 7x00 squawks (2.2.3.2.7.8.1.1) (none, general, lifeguard, minfuel, nordo, unlawful, downed, reserved)
    * category: emitter category to identify particular aircraft or vehicle classes (values A0 - D7) (2.2.3.2.5.2)
    * nav_qnh: altimeter setting (QFE or QNH/QNE), hPa
    * nav_altitude_mcp: selected altitude from the Mode Control Panel / Flight Control Unit (MCP/FCU) or equivalent equipment
@@ -96,7 +96,9 @@ The keys are:
    * alert: Flight status alert bit (2.2.3.2.3.2)
    * spi: Flight status special position identification bit (2.2.3.2.3.2)
    * wd, ws: wind direction and wind speed are calculated from ground track, true heading, true airspeed and ground speed
-   * oat, tat: outer/static air temperature and total air temperature are calculated from mach number and true airspeed (typically somewhat inaccurate at lower altitudes / mach numbers below 0.5, calculation is inhibited for mach < 0.395)
+   * oat, tat: outer/static air temperature (C) and total air temperature (C) are calculated from mach number and true airspeed (typically somewhat inaccurate at lower altitudes / mach numbers below 0.5, calculation is inhibited for mach < 0.395)
+   * acas_ra: experimental, subject to change, see format here: https://github.com/wiedehopf/readsb/blob/ca5b8257bb6176854eb18ecd96761e107fbb12fa/json_out.c#L249
+   * gpsOkBefore: experimental, subject to change: aircraft lost GPS / GPS heavily degraded, it was working well before this timestamp, only displayed for 15 min after GPS is lost / degraded
 
 (Section references (2.2.xyz) refer to DO-260B.)
 
