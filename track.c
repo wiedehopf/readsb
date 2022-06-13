@@ -922,12 +922,22 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
 
     if (posReliable(a) && accept_data(&a->pos_reliable_valid, mm->source, mm, a, 2)) {
 
+        // when accepting crappy positions, invalidate the data indicating position accuracy
+        if (mm->source < SOURCE_TISB) {
+            // a->nic_baro_valid.source = SOURCE_INVALID;
+            a->nac_p_valid.source = SOURCE_INVALID;
+            a->nac_v_valid.source = SOURCE_INVALID;
+            a->sil_valid.source = SOURCE_INVALID;
+            a->gva_valid.source = SOURCE_INVALID;
+            a->sda_valid.source = SOURCE_INVALID;
+            a->sil_type = SIL_INVALID;
+        }
+
         set_globe_index(a, globe_index(a->lat, a->lon));
 
         if (0 && a->addr == Modes.trace_focus) {
             fprintf(stderr, "%5.1fs traceAdd: %06x\n", (now % (600 * SECONDS)) / 1000.0, a->addr);
         }
-
 
         a->lastPosReceiverId = mm->receiverId;
 
@@ -953,18 +963,6 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
             a->seenAdsbReliable = now;
         }
 
-        // when accepting crappy positions, invalidate the data indicating position accuracy
-        if (mm->source < SOURCE_TISB) {
-            // a->nic_baro_valid.source = SOURCE_INVALID;
-            a->nac_p_valid.source = SOURCE_INVALID;
-            a->nac_v_valid.source = SOURCE_INVALID;
-            a->sil_valid.source = SOURCE_INVALID;
-            a->gva_valid.source = SOURCE_INVALID;
-            a->sda_valid.source = SOURCE_INVALID;
-            a->sil_type = SIL_INVALID;
-        }
-
-
         if (Modes.userLocationValid) {
 
             if (mm->receiver_distance == 0) {
@@ -985,7 +983,9 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
         }
     }
 
-
+    if (0 && a->addr == Modes.cpr_focus) {
+        fprintf(stderr, "%06x: reliability odd: %3.1f even: %3.1f status: %d\n", a->addr, a->pos_reliable_odd, a->pos_reliable_even, posReliable(a));
+    }
 }
 
 static void updatePosition(struct aircraft *a, struct modesMessage *mm, int64_t now) {
@@ -3246,7 +3246,7 @@ static void incrementReliable(struct aircraft *a, struct modesMessage *mm, int64
         a->pos_reliable_odd = fminf(a->pos_reliable_odd + increment, Modes.position_persistence);
 
     if (!odd || odd == 2)
-        a->pos_reliable_even = imin(a->pos_reliable_even + increment, Modes.position_persistence);
+        a->pos_reliable_even = fminf(a->pos_reliable_even + increment, Modes.position_persistence);
 }
 
 static void position_bad(struct modesMessage *mm, struct aircraft *a) {
