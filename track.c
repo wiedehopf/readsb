@@ -2070,6 +2070,17 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                 a->airground = AG_AIRBORNE;
                 mm->reduce_forward = 1;
             }
+            // old or shitty transponders can continue sending CPR_AIRBORNE while on the ground
+            // but the risk to wrongly show good transponders on the ground is too damn great
+            // thus set AG_UNCERTAIN if we get CPR_AIRBORNE and are currently AG_GROUND
+            if (mm->cpr_type == CPR_AIRBORNE
+                    && mm->airground == AG_UNCERTAIN
+                    && a->airground == AG_GROUND
+                    && accept_data(&a->airground_valid, mm->source, mm, a, 0)) {
+                focusGroundstateChange(a, mm, 2, now, AG_UNCERTAIN);
+                a->airground = AG_UNCERTAIN;
+                mm->reduce_forward = 1;
+            }
             if (mm->cpr_type == CPR_SURFACE
                     && accept_data(&a->airground_valid, mm->source, mm, a, 0)) {
                 focusGroundstateChange(a, mm, 2, now, AG_GROUND);
