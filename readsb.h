@@ -332,7 +332,7 @@ typedef enum {
 #define PING_BUCKETMULT (1.2) // each bucket will grow by that factor
 
 #define PING_REDUCE (1500) // 1.5 seconds
-#define PING_REDUCE_IVAL (15 * SECONDS)
+#define PING_REDUCE_DURATION (15 * SECONDS)
 
 #define GARBAGE_THRESHOLD (512)
 
@@ -549,6 +549,7 @@ struct _Modes
     int8_t mode_ac; // Enable decoding of SSR Modes A & C
     int8_t mode_ac_auto; // allow toggling of A/C by Beast commands
     int8_t debug_net;
+    int8_t debug_nextra;
     int8_t debug_cpr;
     int8_t debug_speed_check;
     int8_t debug_garbage;

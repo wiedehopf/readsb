@@ -1435,6 +1435,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 switch (*arg) {
                     case 'n': Modes.debug_net = 1;
                         break;
+                    case 'N': Modes.debug_nextra = 1;
+                        break;
                     case 'P': Modes.debug_cpr = 1;
                         break;
                     case 'R': Modes.debug_receiver = 1;
