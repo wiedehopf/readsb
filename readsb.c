@@ -1487,6 +1487,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         break;
                     case '7': Modes.debug_7700 = 1;
                         break;
+                    case 'D': Modes.debug_send_uuid = 1;
+                        break;
 
                     default:
                         fprintf(stderr, "Unknown debugging flag: %c\n", *arg);
