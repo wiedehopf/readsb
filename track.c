@@ -877,6 +877,8 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
         return;
     }
 
+    // due to accept_data / beast_reduce forwarding we can't put receivers
+    // into the receiver list which aren't the first ones to send us the position
     if (Modes.netReceiverId) {
         a->receiverIdsNext = (a->receiverIdsNext + 1) % RECEIVERIDBUFFER;
         a->receiverIds[a->receiverIdsNext] = simpleHash(mm->receiverId);
