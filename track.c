@@ -868,6 +868,15 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
         a->receiverCountMlat = mm->receiverCountMlat;
     }
 
+    if (mm->client) {
+        mm->client->positionCounter++;
+    }
+
+    if (mm->duplicate) {
+        Modes.stats_current.pos_duplicate++;
+        return;
+    }
+
     if (Modes.netReceiverId) {
         a->receiverIdsNext = (a->receiverIdsNext + 1) % RECEIVERIDBUFFER;
         a->receiverIds[a->receiverIdsNext] = simpleHash(mm->receiverId);
@@ -877,15 +886,6 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
     }
 
     a->receiverId = mm->receiverId;
-
-    if (mm->client) {
-        mm->client->positionCounter++;
-    }
-
-    if (mm->duplicate) {
-        Modes.stats_current.pos_duplicate++;
-        return;
-    }
 
     if (mm->source != SOURCE_JAERO && mm->distance_traveled >= 100) {
         if (mm->calculated_track != -1)
