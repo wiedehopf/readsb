@@ -276,14 +276,14 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
     static int antiSpam;
     static int antiSpam2;
 
-    /*
-     * simulating missed USB packets:
-    static int fail;
-    if (fail++ % (35 * 20) == 0) {
-        fprintf(stderr, "ignoring rtsdrCallback\n");
-        return;
+    // simulating missed USB packets:
+    if (0) {
+        static int fail;
+        if (fail++ % (35 * 20) == 0) {
+            fprintf(stderr, "ignoring rtsdrCallback\n");
+            return;
+        }
     }
-    */
 
     MODES_NOTUSED(ctx);
 

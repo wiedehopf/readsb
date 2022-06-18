@@ -706,7 +706,6 @@ static void *decodeEntryPoint(void *arg) {
                 pthread_cond_signal(&Threads.reader.cond);
                 unlockReader();
 
-
                 Modes.stats_current.samples_lost += MODES_MAG_BUF_SAMPLES - buf->length;
                 {
                     static int64_t last_sys;
@@ -719,6 +718,7 @@ static void *decodeEntryPoint(void *arg) {
                     if (elapsed_sys > 30 * SECONDS * 1000) {
                         double elapsed_sample = buf->sampleTimestamp - last_sample;
                         double freq_ratio = elapsed_sample / (elapsed_sys * 12.0);
+                        double diff_us = elapsed_sys - elapsed_sample / 12.0;
                         double ppm = (freq_ratio - 1) * 1e6;
                         // ignore the first 30 seconds for alerting purposes
                         if (last_sample != 0) {
@@ -727,7 +727,8 @@ static void *decodeEntryPoint(void *arg) {
                                 if (ppm < -1000) {
                                     int packets_lost = (int) nearbyint(ppm / -1820);
                                     Modes.stats_current.samples_lost += packets_lost * MODES_MAG_BUF_SAMPLES;
-                                    fprintf(stderr, "Lost %d packets on USB, MLAT could be UNSTABLE, check sync! (ppm: %.0f) (or the system clock jumped for some reason)\n", packets_lost, ppm);
+                                    fprintf(stderr, "Lost %d packets (%.1f us) on USB, MLAT could be UNSTABLE, check sync! (ppm: %.0f)"
+                                            "(or the system clock jumped for some reason)\n", packets_lost, diff_us, ppm);
                                 } else {
                                     fprintf(stderr, "SDR ppm out of specification (could cause MLAT issues) or local clock jumped / not syncing with ntp or chrony! ppm: %.0f\n", ppm);
                                 }
