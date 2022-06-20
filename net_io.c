@@ -2773,7 +2773,7 @@ static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now
     uat2esnt_convert_message(msg, end, output, output + sizeof(output));
 
     char *som = output;
-    char *eod = rawmemchr(som, '\0');
+    char *eod = som + strlen(som);
     char *p;
 
     while (((p = memchr(som, '\n', eod - som)) != NULL)) {
