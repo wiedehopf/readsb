@@ -54,7 +54,7 @@ The keys are:
      * tisb_other: traffic information about a non-ADS-B target using a non-ICAO address
      * tisb_trackfile: traffic information about a non-ADS-B target using a track/file identifier, typically from primary or Mode A/C radar
    * flight: callsign, the flight name or aircraft registration as 8 chars (2.2.8.2.6)
-   * alt_baro: the aircraft barometric altitude in feet
+   * alt_baro: the aircraft barometric altitude in feet as a number OR "ground" as a string
    * alt_geom: geometric (GNSS / INS) altitude in feet referenced to the WGS84 ellipsoid
    * gs: ground speed in knots
    * ias: indicated air speed in knots
