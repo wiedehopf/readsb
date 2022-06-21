@@ -1490,6 +1490,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         break;
                     case 'D': Modes.debug_send_uuid = 1;
                         break;
+                    case 'Z': Modes.debug_provoke_segfault = 1;
+                        break;
 
                     default:
                         fprintf(stderr, "Unknown debugging flag: %c\n", *arg);
@@ -2087,6 +2089,17 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "<3>FATAL: removeStale() interval %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed2 / SECONDS);
                 setExit(2);
                 break;
+            }
+        }
+
+        if (Modes.debug_provoke_segfault) {
+            static int64_t next_fail;
+            int64_t now = mstime();
+            if (next_fail == 0) {
+                next_fail = now + 15 * SECONDS;
+            } else if (now > next_fail) {
+                int *a = NULL;
+                *a = 0;
             }
         }
     }

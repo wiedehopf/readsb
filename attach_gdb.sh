@@ -2,11 +2,14 @@
 if [[ -d /opt/rh/devtoolset-9 ]]; then
     source scl_source enable devtoolset-9
 fi
-while sleep 5; do
+while true; do
     date -u
     date
-    gdb --pid "$(pgrep readsb)" \
+    sleep 5 &
+    gdb --pid "$(pgrep -f readsb)" \
         -ex 'handle SIGTERM nostop print pass' \
+        -ex 'handle SIGINT nostop print pass' \
         -ex 'handle SIGCONT nostop print pass' \
-        -batch -ex continue -ex bt
-done 2>&1 >> gdb.log
+        -batch -ex continue -ex 'bt full'
+    wait
+done  >> gdb.log 2>&1

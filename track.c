@@ -1569,10 +1569,11 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (mm->decodeResult < 0)
         return NULL;
 
+    int64_t now = mm->sysTimestampMsg;
+
     struct aircraft *a;
     unsigned int cpr_new = 0;
     mm->calculated_track = -1;
-
 
     if (CHECK_APPROXIMATIONS) {
         // great circle random testing stuff ...
@@ -1592,7 +1593,6 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         }
     }
 
-    int64_t now = mm->sysTimestampMsg;
 
     // Lookup our aircraft or create a new one
     a = aircraftGet(mm->addr);
