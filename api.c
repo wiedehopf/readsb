@@ -1171,7 +1171,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
         return;
     }
 
-    int nread, err, toRead;
+    int nread, toRead;
     int fd = con->fd;
 
     struct char_buffer *request = &con->request;
@@ -1198,18 +1198,17 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
     }
     toRead = request->alloc - request->len - 1; // leave an extra byte we can set \0
     nread = recv(fd, request->buffer + request->len, toRead, 0);
-    err = errno;
+
+    if (nread < 0 && !(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)) {
+        send400(fd);
+        apiCloseCon(con, thread);
+        return;
+    }
 
     if (nread > 0) {
         request->len += nread;
         // terminate string
         request->buffer[request->len] = '\0';
-    }
-
-    if (nread < 0 && !(err == EAGAIN || err == EWOULDBLOCK || err == EINTR)) {
-        send400(fd);
-        apiCloseCon(con, thread);
-        return;
     }
 
     // detect orderly connection shutdown
@@ -1374,7 +1373,8 @@ static void acceptCon(struct apiCon *con, struct apiThread *thread) {
                         "exiting to make sure we don't remain in a broken state!\n");
             }
             Modes.exit = 2;
-        } else if (!(errno & (EINTR | EAGAIN | EWOULDBLOCK))) {
+
+        } else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
             if (antiSpam(&thread->antiSpam[2], 5 * SECONDS)) {
                 fprintf(stderr, "api acceptCon(): Error accepting new connection: errno: %d %s\n", errno, strerror(errno));
             }

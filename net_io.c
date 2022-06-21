@@ -978,7 +978,7 @@ static void modesAcceptClients(struct client *c, int64_t now) {
         }
     }
 
-    if (!(errno & (EMFILE | EINTR | EAGAIN | EWOULDBLOCK))) {
+    if (errno != EMFILE && errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK) {
         fprintf(stderr, "%s: Error accepting new connection: %s\n", s->descr, Modes.aneterr);
     }
 }
