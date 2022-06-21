@@ -1906,6 +1906,12 @@ static void *miscEntryPoint(void *arg) {
 
 int main(int argc, char **argv) {
 
+    if (0) {
+        unlink("test.gz");
+        gzipFile("test");
+        exit(1);
+    }
+
     srandom(get_seed());
 
     // Set sane defaults

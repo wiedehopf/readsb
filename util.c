@@ -323,19 +323,20 @@ struct char_buffer readWholeFile(int fd, char *errorContext) {
         fprintf(stderr, "%s: readWholeFile couldn't allocate buffer!\n", errorContext);
         return cb;
     }
-    int res = 0;
+    int64_t res = 0;
     int toRead = fsize;
     cb.len = 0;
     while (toRead >= 0) {
         res = read(fd, cb.buffer + cb.len, toRead);
-        if (res == EINTR)
-            continue;
-        if (res <= 0)
+        if (res <= 0) {
+            if (errno == EINTR) {
+                continue;
+            }
             break;
+        }
         cb.len += res;
         toRead -= res;
     }
-    //fprintf(stderr, "readWholeFile: %s fsize %ld cb.len %ld\n", errorContext, (long) fsize, (long) cb.len);
     if (fstat(fd, &fileinfo)) {
         fprintf(stderr, "%s: readWholeFile: fstat failed, wat?!\n", errorContext);
 
@@ -344,7 +345,8 @@ struct char_buffer readWholeFile(int fd, char *errorContext) {
     }
 
     if (toRead < 0 || res < 0 || cb.len != fsize || (size_t) fileinfo.st_size != fsize) {
-        fprintf(stderr, "%s: readWholeFile size mismatch!\n", errorContext);
+        fprintf(stderr, "%s: readWholeFile size mismatch! toRead %ld res %ld %s cb.len %ld fsize %ld fileinfo.st_size %ld\n",
+                errorContext, (long) toRead, (long) res, strerror(res), (long) cb.len, (long) fsize, (long) fileinfo.st_size);
 
         sfree(cb.buffer);
         cb.len = 0;
@@ -724,7 +726,7 @@ void gzipFile(char *filename) {
     struct char_buffer cb = readWholeFile(fd, filename);
     close(fd);
     if (!cb.buffer) {
-        fprintf(stderr, "compressACAS readWholeFile failed: %s\n", filename);
+        fprintf(stderr, "gzipFile readWholeFile failed: %s\n", filename);
         return;
     }
 
