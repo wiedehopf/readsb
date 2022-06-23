@@ -291,6 +291,10 @@ struct traceCache {
     char *json;
 };
 
+static inline void destroyTraceCache(struct traceCache *cache) {
+    sfree(cache->entries);
+    memset(cache, 0x0, sizeof(struct traceCache));
+}
 
 /* Structure used to describe the state of one tracked aircraft */
 struct aircraft

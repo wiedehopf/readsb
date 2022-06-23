@@ -1442,7 +1442,17 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
             return;
         }
         cache->json = (char *) (cache->entries + Modes.traceCachePoints);
-        memset(cache->entries, 0x0, size_entries + cache->json_max);
+
+        {
+            // check alternative calculation
+            char *alt = ((char *) (cache->entries)) + size_entries;
+            if (alt != cache->json) {
+                fprintf(stderr, "alt - cache->json: %ld\n", (long) (alt - cache->json));
+            }
+        }
+
+        memset(cache->entries, 0x0, size_entries);
+        memset(cache->json, 0x0, cache->json_max);
     }
     char *p;
     char *end = cache->json + cache->json_max;
@@ -1477,6 +1487,7 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
         } else if (newEntryCount + cache->entriesLen > Modes.traceCachePoints) {
             // if the cache would get full, do memmove fun!
             int moveIndexes = imin(k, TRACE_CACHE_EXTRA);
+
             cache->entriesLen -= moveIndexes;
             k -= moveIndexes;
             memmove(entries, entries + TRACE_CACHE_EXTRA, cache->entriesLen * sizeof(struct traceCacheEntry));
@@ -1485,11 +1496,18 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
             struct traceCacheEntry *last = &entries[cache->entriesLen - 1];
             int jsonLen = last->offset + last->len;
 
-            memmove(cache->json, cache->json + moveDist, jsonLen - moveDist);
-            for (int x = 0; x < cache->entriesLen; x++) {
-                entries[x].offset -= moveDist;
+            if (moveDist >= 0 && moveDist <= jsonLen && moveDist <= cache->json_max) {
+                updateCache = 1;
+                memmove(cache->json, cache->json + moveDist, jsonLen - moveDist);
+                for (int x = 0; x < cache->entriesLen; x++) {
+                    entries[x].offset -= moveDist;
+                }
+            } else {
+                fprintf(stderr, "%06x k: %d moveIndexes: %d newEntryCount: %d jsonLen: %d moveDist: %d\n", a->addr, k, moveIndexes, newEntryCount, jsonLen, moveDist);
+                destroyTraceCache(cache);
+                return;
             }
-            updateCache = 1;
+
             //if (a->addr == TRACE_FOCUS)
             //    fprintf(stderr, "%06x k: %d moveIndexes: %d newEntryCount: %d\n", a->addr, k, moveIndexes, newEntryCount);
         } else {

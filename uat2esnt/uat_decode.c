@@ -656,7 +656,7 @@ static const char *decode_dlac(uint8_t *data, unsigned bytelen)
     int tab = 0;
     
     while (data < end) {
-        int ch;
+        int ch = 0;
 
         assert(step >= 0 && step <= 3);
         switch (step) {
