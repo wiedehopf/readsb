@@ -8,15 +8,11 @@ AGGRESSIVE ?= no
 HAVE_BIASTEE ?= no
 TRACKS_UUID ?= no
 
-CPPFLAGS += -DMODES_READSB_VERSION=\"$(READSB_VERSION)\"
-CPPFLAGS += -D_GNU_SOURCE
-CPPFLAGS += -D_FORTIFY_SOURCE=2 -fstack-protector-strong -Wformat -Werror=format-security
-
-#OPTIMIZE ?= -march=native
-
 DIALECT = -std=c11
+CFLAGS = $(DIALECT) -W -D_GNU_SOURCE -D_DEFAULT_SOURCE -Wall -Werror -fno-common -O2
+CFLAGS += -DMODES_READSB_VERSION=\"$(READSB_VERSION)\"
+CFLAGS += -Wdate-time -D_FORTIFY_SOURCE=2 -fstack-protector-strong -Wformat -Werror=format-security
 
-CFLAGS := $(DIALECT) -g -W -D_DEFAULT_SOURCE -Wall -Werror -fno-common -O2 $(CFLAGS) $(OPTIMIZE)
 LIBS = -pthread -lpthread -lm -lrt
 
 ifeq ($(ZLIB_STATIC), yes)
@@ -30,56 +26,57 @@ ifeq ($(shell $(CC) -c feature_test.c -o feature_test.o -Wno-format-truncation -
 endif
 
 ifeq ($(shell uname -m | grep -qs -e arm >/dev/null 2>&1 && echo 1 || echo 0), 1)
-  CPPFLAGS += -DSC16Q11_TABLE_BITS=8
+  CFLAGS += -DSC16Q11_TABLE_BITS=8
 endif
 
 ifeq ($(DISABLE_INTERACTIVE), yes)
-  CPPFLAGS += -DDISABLE_INTERACTIVE
+  CFLAGS += -DDISABLE_INTERACTIVE
 else
   LIBS += -lncurses
 endif
 
 ifeq ($(HISTORY), yes)
-  CPPFLAGS += -DALL_JSON=1
+  CFLAGS += -DALL_JSON=1
 endif
 
 ifneq ($(PREAMBLE_THRESHOLD_DEFAULT),)
-  CPPFLAGS += -DPREAMBLE_THRESHOLD_DEFAULT=$(PREAMBLE_THRESHOLD_DEFAULT)
+  CFLAGS += -DPREAMBLE_THRESHOLD_DEFAULT=$(PREAMBLE_THRESHOLD_DEFAULT)
 endif
 
 ifneq ($(GLOBE_PERM_IVAL),)
-  CPPFLAGS += -DGLOBE_PERM_IVAL=$(GLOBE_PERM_IVAL)
+  CFLAGS += -DGLOBE_PERM_IVAL=$(GLOBE_PERM_IVAL)
 endif
 
 ifneq ($(TRACE_THREADS),)
-  CPPFLAGS += -DTRACE_THREADS=$(TRACE_THREADS)
+  CFLAGS += -DTRACE_THREADS=$(TRACE_THREADS)
 endif
 
 ifneq ($(TRACE_RECENT_POINTS),)
-  CPPFLAGS += -DTRACE_RECENT_POINTS=$(TRACE_RECENT_POINTS)
+  CFLAGS += -DTRACE_RECENT_POINTS=$(TRACE_RECENT_POINTS)
 endif
 
 ifneq ($(AIRCRAFT_HASH_BITS),)
-  CPPFLAGS += -DAIRCRAFT_HASH_BITS=$(AIRCRAFT_HASH_BITS)
+  CFLAGS += -DAIRCRAFT_HASH_BITS=$(AIRCRAFT_HASH_BITS)
 endif
 
 ifeq ($(STATS_PHASE),yes)
-  CPPFLAGS += -DSTATS_PHASE
+  CFLAGS += -DSTATS_PHASE
 endif
 
 ifeq ($(TRACKS_UUID), yes)
-	CPPFLAGS += -DTRACKS_UUID
+  CFLAGS += -DTRACKS_UUID
 endif
+
 ifeq ($(RTLSDR), yes)
   SDR_OBJ += sdr_rtlsdr.o
-  CPPFLAGS += -DENABLE_RTLSDR
+  CFLAGS += -DENABLE_RTLSDR
 
   ifeq ($(HAVE_BIASTEE), yes)
-    CPPFLAGS += -DENABLE_RTLSDR_BIASTEE
+    CFLAGS += -DENABLE_RTLSDR_BIASTEE
   endif
 
   ifdef RTLSDR_PREFIX
-    CPPFLAGS += -I$(RTLSDR_PREFIX)/include
+    CFLAGS += -I$(RTLSDR_PREFIX)/include
     LDFLAGS += -L$(RTLSDR_PREFIX)/lib
   else
     CFLAGS += $(shell pkg-config --cflags librtlsdr)
@@ -95,17 +92,18 @@ endif
 
 ifeq ($(BLADERF), yes)
   SDR_OBJ += sdr_bladerf.o sdr_ubladerf.o
-  CPPFLAGS += -DENABLE_BLADERF
-  CFLAGS += $(shell pkg-config --cflags libbladeRF)
+  CFLAGS += $(shell pkg-config --cflags libbladeRF) -DENABLE_BLADERF
   LIBS_SDR += $(shell pkg-config --libs libbladeRF)
 endif
 
 ifeq ($(PLUTOSDR), yes)
     SDR_OBJ += sdr_plutosdr.o
-    CPPFLAGS += -DENABLE_PLUTOSDR
-    CFLAGS += $(shell pkg-config --cflags libiio libad9361)
+    CFLAGS += $(shell pkg-config --cflags libiio libad9361) -DENABLE_PLUTOSDR
     LIBS_SDR += $(shell pkg-config --libs libiio libad9361)
 endif
+
+# add custom overrides if user defines them
+CFLAGS += -g $(OPTIMIZE)
 
 all: readsb viewadsb
 
@@ -116,20 +114,20 @@ ifneq ($(shell cat .version 2>/dev/null),prefix $(READSB_VERSION))
 endif
 
 readsb.o: readsb.c *.h .version
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 %.o: %.c *.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 minilzo.o: minilzo/minilzo.c minilzo/minilzo.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 readsb: readsb.o argp.o anet.o interactive.o mode_ac.o mode_s.o comm_b.o json_out.o net_io.o crc.o demod_2400.o \
 	uat2esnt/uat2esnt.o uat2esnt/uat_decode.o \
 	stats.o cpr.o icao_filter.o track.o util.o fasthash.o convert.o sdr_ifile.o sdr_beast.o sdr.o ais_charset.o \
 	globe_index.o geomag.o receiver.o aircraft.o api.o minilzo.o threadpool.o \
 	$(SDR_OBJ) $(COMPAT)
-	$(CC) -g -o $@ $^ $(LDFLAGS) $(LIBS) $(LIBS_SDR) $(OPTIMIZE)
+	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS) $(LIBS_SDR) $(OPTIMIZE)
 
 viewadsb: readsb
 	rm -f viewadsb
@@ -142,16 +140,16 @@ cprtest: cprtests
 	./cprtests
 
 cprtests: cpr.o cprtests.o
-	$(CC) $(CPPFLAGS) $(CFLAGS) -g -o $@ $^ -lm
+	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 crctests: crc.c crc.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) -g -DCRCDEBUG -o $@ $<
+	$(CC) $(CFLAGS) -DCRCDEBUG -o $@ $<
 
 benchmarks: convert_benchmark
 	./convert_benchmark
 
 oneoff/convert_benchmark: oneoff/convert_benchmark.o convert.o util.o
-	$(CC) $(CPPFLAGS) $(CFLAGS) -g -o $@ $^ -lm
+	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 oneoff/decode_comm_b: oneoff/decode_comm_b.o comm_b.o ais_charset.o
-	$(CC) $(CPPFLAGS) $(CFLAGS) -g -o $@ $^ -lm
+	$(CC) $(CFLAGS) -o $@ $^ -lm

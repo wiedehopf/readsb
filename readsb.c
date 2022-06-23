@@ -2098,6 +2098,7 @@ int main(int argc, char **argv) {
             if (next_fail == 0) {
                 next_fail = now + 15 * SECONDS;
             } else if (now > next_fail) {
+                fprintf(stderr, "debug=Z -> provoking SEGFAULT now!\n");
                 int *a = NULL;
                 *a = 0;
             }
