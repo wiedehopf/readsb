@@ -742,7 +742,9 @@ void gzipFile(char *filename) {
         fprintf(stderr, "gzsetparams fail: %d", res);
     }
 
-    writeGz(gzfp, cb.buffer, cb.len, fileGz);
+    if (cb.len > 0) {
+        writeGz(gzfp, cb.buffer, cb.len, fileGz);
+    }
 
     sfree(cb.buffer);
     cb.len = 0;
