@@ -527,6 +527,7 @@ struct _Modes
     int write_state_blob;
     int writeInternalState;
     char *replace_state_blob;
+    int64_t network_time_limit;
     uint32_t currentPing;
 
     int8_t apiUpdate; // creates json snippets also by non api stuff

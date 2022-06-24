@@ -301,6 +301,13 @@ static void trackPeriodicUpdate() {
     int64_t mono = mono_milli_seconds();
     int removed_stale = 0;
 
+    static int64_t last_periodic_mono;
+    int64_t periodic_interval = mono - last_periodic_mono;
+    if (periodic_interval > 10 * PERIODIC_UPDATE && last_periodic_mono) {
+        fprintf(stderr, "<3> trackPeriodicUpdate didn't run for %.1f seconds!\n", periodic_interval / 1000.0);
+    }
+    last_periodic_mono = mono;
+
     if (now > Modes.next_stats_update)
         Modes.updateStats = 1;
 
@@ -311,6 +318,8 @@ static void trackPeriodicUpdate() {
     struct timespec before = threadpool_get_cumulative_thread_time(Modes.allPool);
 
     if (Modes.replace_state_blob && pthread_mutex_trylock(&Threads.misc.mutex) == 0) {
+
+        fprintf(stderr, "overriding current state with this blob: %s\n", Modes.replace_state_blob);
         threadpool_buffer_t pbuffer = { 0 };
         load_blob(Modes.replace_state_blob, &pbuffer);
 
@@ -336,7 +345,7 @@ static void trackPeriodicUpdate() {
         traceDelete();
 
         int64_t interval = mono - Modes.next_remove_stale;
-        if (interval > 5 * REMOVE_STALE_INTERVAL && Modes.next_remove_stale) {
+        if (interval > 2 * REMOVE_STALE_INTERVAL && Modes.next_remove_stale) {
             fprintf(stderr, "<3> removeStale didn't run for %.1f seconds!\n", interval / 1000.0);
         }
 
@@ -1764,6 +1773,9 @@ static void notask_save_blob(uint32_t blob) {
 }
 
 static void checkReplaceState() {
+    if (!Modes.state_dir) {
+        return;
+    }
     char filename[PATH_MAX];
 
     snprintf(filename, PATH_MAX, "%s/replaceState", Modes.state_dir);
@@ -1772,7 +1784,6 @@ static void checkReplaceState() {
             char blob[1024];
             snprintf(blob, 1024, "%s/blob_%02x.lzol", filename, j);
             if (access(blob, R_OK) == 0) {
-                fprintf(stderr, "overriding current state with this blob: %s\n", blob);
                 snprintf(blob, 1024, "%s/blob_%02x", filename, j);
                 Modes.replace_state_blob = strdup(blob);
                 break;
@@ -1833,6 +1844,7 @@ static void miscStuff() {
         // only continuously write state if we keep permanent trace
         if (!Modes.state_only_on_exit && !enough && now > next_blob) {
             enough = 1;
+            //fprintf(stderr, "save_blob: %02x\n", blob);
             notask_save_blob(blob);
             blob = (blob + 1) % STATE_BLOBS;
             next_blob = now + 60 * MINUTES / STATE_BLOBS;

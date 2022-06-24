@@ -2841,7 +2841,7 @@ static const char *hexEscapeString(const char *str, char *buf, int len) {
 // The handler returns 0 on success, or 1 to signal this function we should
 // close the connection with the client in case of non-recoverable errors.
 //
-static void modesReadFromClient(struct client *c, int64_t start) {
+static void modesReadFromClient(struct client *c, int64_t now) {
     if (!c->service) {
         fprintf(stderr, "c->service null jahFuN3e\n");
         return;
@@ -2852,11 +2852,9 @@ static void modesReadFromClient(struct client *c, int64_t start) {
     int bContinue = 1;
     int discard = 0;
 
-    int64_t now = start;
-
-    for (int loop = 0; bContinue && loop < 32; loop++, now = mstime()) {
-
-        if (!discard && now > start + 200) {
+    for (int loop = 0; bContinue && loop < 32; loop++) {
+        now = mstime();
+        if (!discard && now > Modes.network_time_limit) {
             discard = 1;
             static int64_t antiSpam;
             if (now > antiSpam + 5 * SECONDS) {
@@ -3416,6 +3414,8 @@ void modesNetPeriodicWork(void) {
 
     int64_t interval = lapWatch(&watch);
 
+    int64_t now = mstime();
+    Modes.network_time_limit = now + 500; // limit 1 network read to 500 ms
     handleEpoll(count);
 
     if (count == Modes.net_maxEvents) {
@@ -3424,7 +3424,7 @@ void modesNetPeriodicWork(void) {
 
     int64_t elapsed1 = lapWatch(&watch);
 
-    int64_t now = mstime();
+    now = mstime();
 
     pingSenders(Modes.beast_in_service, now);
 
