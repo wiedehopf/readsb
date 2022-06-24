@@ -461,9 +461,17 @@ void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuff
 
         if (Modes.trace_hist_only & 8) {
             hist_only_mask = WPERM;
-            if (a->trace_writeCounter > recent_points) {
-                hist_only_mask |= WRECENT;
-                a->trace_writeCounter = 0;
+            if (Modes.trace_hist_only == 10) {
+                if (a->trace_writeCounter > 0 && now > a->trace_next_mw) {
+                    a->trace_next_mw = now + 5 * MINUTES;
+                    hist_only_mask |= WRECENT;
+                    a->trace_writeCounter = 0;
+                }
+            } else {
+                if (a->trace_writeCounter > recent_points) {
+                    hist_only_mask |= WRECENT;
+                    a->trace_writeCounter = 0;
+                }
             }
             if (now > a->trace_next_mw) {
                 hist_only_mask |= WMEM;
