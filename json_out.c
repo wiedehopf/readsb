@@ -1488,9 +1488,14 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
             // if the cache would get full, do memmove fun!
             int moveIndexes = imin(k, TRACE_CACHE_EXTRA);
 
+            if (moveIndexes < TRACE_CACHE_EXTRA) {
+                fprintf(stderr, "%06x unexpected value moveIndexes: %ld k: %ld newEntryCount: %ld cache->entriesLen: %ld Modes.traceCachePoints: %ld\n",
+                        a->addr, (long) moveIndexes, (long) k, (long) newEntryCount, (long) cache->entriesLen, (long) Modes.traceCachePoints);
+            }
+
             cache->entriesLen -= moveIndexes;
             k -= moveIndexes;
-            memmove(entries, entries + TRACE_CACHE_EXTRA, cache->entriesLen * sizeof(struct traceCacheEntry));
+            memmove(entries, entries + moveIndexes, cache->entriesLen * sizeof(struct traceCacheEntry));
 
             int moveDist = entries[0].offset;
             struct traceCacheEntry *last = &entries[cache->entriesLen - 1];
@@ -1503,7 +1508,8 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
                     entries[x].offset -= moveDist;
                 }
             } else {
-                fprintf(stderr, "%06x k: %d moveIndexes: %d newEntryCount: %d jsonLen: %d moveDist: %d\n", a->addr, k, moveIndexes, newEntryCount, jsonLen, moveDist);
+                fprintf(stderr, "%06x in checkTraceCache: prevented illegal memmove: k: %ld moveIndexes: %ld newEntryCount: %ld jsonLen: %ld moveDist: %ld\n",
+                        a->addr, (long) k, (long) moveIndexes, (long) newEntryCount, (long) jsonLen, (long) moveDist);
                 destroyTraceCache(cache);
                 return;
             }
