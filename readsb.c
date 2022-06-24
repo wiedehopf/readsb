@@ -888,9 +888,20 @@ static void *upkeepEntryPoint(void *arg) {
             wait = 20;
         }
         if (Modes.json_globe_index) {
+            struct timespec watch;
+            startWatch(&watch);
+
             Modes.currentTask = "writeTraces_start";
             writeTraces();
             Modes.currentTask = "writeTraces_end";
+
+            int64_t elapsed = stopWatch(&watch);
+            static int64_t antiSpam2;
+            int64_t now = mstime();
+            if (elapsed > 2 * SECONDS && now > antiSpam2 + 30 * SECONDS) {
+                fprintf(stderr, "<3>writeTraces() took %"PRIu64" ms! Suppressing for 30 seconds\n", elapsed);
+                antiSpam2 = now;
+            }
         }
         threadTimedWait(&Threads.upkeep, &ts, wait);
     }
