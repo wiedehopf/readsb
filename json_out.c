@@ -1488,7 +1488,7 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
             // if the cache would get full, do memmove fun!
             int moveIndexes = imin(cacheIndex, TRACE_CACHE_EXTRA);
 
-            if (moveIndexes < TRACE_CACHE_EXTRA) {
+            if (moveIndexes != TRACE_CACHE_EXTRA) {
                 fprintf(stderr, "%06x unexpected value moveIndexes: %ld cacheIndex: %ld newEntryCount: %ld cache->entriesLen: %ld Modes.traceCachePoints: %ld\n",
                         a->addr, (long) moveIndexes, (long) cacheIndex, (long) newEntryCount, (long) cache->entriesLen, (long) Modes.traceCachePoints);
             }
