@@ -303,7 +303,7 @@ static void trackPeriodicUpdate() {
 
     static int64_t last_periodic_mono;
     int64_t periodic_interval = mono - last_periodic_mono;
-    if (periodic_interval > 10 * PERIODIC_UPDATE && last_periodic_mono) {
+    if (periodic_interval > 5 * SECONDS && last_periodic_mono) {
         fprintf(stderr, "<3> trackPeriodicUpdate didn't run for %.1f seconds!\n", periodic_interval / 1000.0);
     }
     last_periodic_mono = mono;
@@ -345,7 +345,7 @@ static void trackPeriodicUpdate() {
         traceDelete();
 
         int64_t interval = mono - Modes.next_remove_stale;
-        if (interval > 2 * REMOVE_STALE_INTERVAL && Modes.next_remove_stale) {
+        if (interval > 5 * SECONDS && Modes.next_remove_stale) {
             fprintf(stderr, "<3> removeStale didn't run for %.1f seconds!\n", interval / 1000.0);
         }
 
@@ -787,21 +787,25 @@ static void *decodeEntryPoint(void *arg) {
 static void traceWriteTask(void *arg, threadpool_threadbuffers_t *buffer_group) {
     task_info_t *info = (task_info_t *) arg;
 
-    int64_t now = mstime();
-
-    if (now > Modes.traceWriteTimelimit) {
+    if (mono_milli_seconds() > Modes.traceWriteTimelimit) {
         return;
     }
+
+    int64_t now = mstime();
 
     struct aircraft *a;
     for (int j = info->from; j < info->to; j++) {
         for (a = Modes.aircraft[j]; a; a = a->next) {
             if (a->trace_write) {
-                now = mstime();
-                if (now > Modes.traceWriteTimelimit) {
+                int64_t before = mono_milli_seconds();
+                if (before > Modes.traceWriteTimelimit) {
                     return;
                 }
                 traceWrite(a, now, 0, buffer_group);
+                int64_t elapsed = mono_milli_seconds() - before;
+                if (elapsed > 4 * SECONDS) {
+                    fprintf(stderr, "<3>traceWrite() for %06x took %.1f s!\n", a->addr, elapsed / 1000.0);
+                }
             }
         }
     }
@@ -829,7 +833,7 @@ static void writeTraces() {
 
     static int part = 0;
 
-    Modes.traceWriteTimelimit = mstime() + PERIODIC_UPDATE;
+    Modes.traceWriteTimelimit = mono_milli_seconds() + PERIODIC_UPDATE;
 
     for (int i = 0; i < taskCount; i++) {
         threadpool_task_t *task = &tasks[i];
@@ -896,11 +900,8 @@ static void *upkeepEntryPoint(void *arg) {
             Modes.currentTask = "writeTraces_end";
 
             int64_t elapsed = stopWatch(&watch);
-            static int64_t antiSpam2;
-            int64_t now = mstime();
-            if (elapsed > 2 * SECONDS && now > antiSpam2 + 30 * SECONDS) {
-                fprintf(stderr, "<3>writeTraces() took %"PRIu64" ms! Suppressing for 30 seconds\n", elapsed);
-                antiSpam2 = now;
+            if (elapsed > 4 * SECONDS) {
+                fprintf(stderr, "<3>writeTraces() took %"PRIu64" ms!\n", elapsed);
             }
         }
         threadTimedWait(&Threads.upkeep, &ts, wait);

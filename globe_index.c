@@ -630,7 +630,16 @@ void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuff
                     // only write permanent trace if we haven't already written it
                     && a->trace_perm_last_timestamp != endStamp
                ) {
+
+                int64_t before = mono_milli_seconds();
+
                 mark_legs(tb, a, 0);
+
+                int64_t elapsed = mono_milli_seconds() - before;
+                if (elapsed > 2 * SECONDS) {
+                    fprintf(stderr, "<3>mark_legs() for %06x took %.1f s!\n", a->addr, elapsed / 1000.0);
+                }
+
                 hist = generateTraceJson(a, tb, start, end, generate_buffer);
                 if (hist.len > 0) {
                     permWritten = 1;
