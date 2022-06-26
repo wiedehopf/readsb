@@ -1852,6 +1852,7 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
     int duplicate = 0;
     float speed_diff = 0;
     float track_diff = 0;
+    float baro_rate_diff = 0;
 
     int64_t max_elapsed = Modes.json_trace_interval;
     int64_t min_elapsed = imin(250, max_elapsed / 4);
@@ -1923,8 +1924,13 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
         alt_diff = abs(a->baro_alt - last_alt);
     }
 
-    if (trackDataValid(&a->gs_valid) && last->gs_valid)
+    if (trackDataValid(&a->gs_valid) && last->gs_valid) {
         speed_diff = fabs(last->gs / _gs_factor - a->gs);
+    }
+
+    if (trackDataValid(&a->baro_rate_valid) && last->baro_rate_valid) {
+        baro_rate_diff = fabs(last->baro_rate / _rate_factor - a->baro_rate);
+    }
 
     // keep the last air ground state if the current isn't valid
     if (!agValid && !alt_valid) {
@@ -1958,13 +1964,23 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
     }
 
     if (speed_diff >= max_speed_diff) {
-        if (traceDebug) fprintf(stderr, "speed_change: %0.1f %0.1f -> %0.1f", fabs(last->gs / 10.0 - a->gs), last->gs / 10.0, a->gs);
+        if (traceDebug) {
+            fprintf(stderr, "speed_change: %0.1f %0.1f -> %0.1f", speed_diff, last->gs / _gs_factor, a->gs);
+        }
 
         if (buffered && last->gs == buffered->gs) {
             save_state_no_buf = 1;
         } else {
             goto save_state;
         }
+    }
+
+    if (baro_rate_diff >= 450) {
+        if (traceDebug) {
+            fprintf(stderr, "baro_rate_change: %0.0f %0.0f -> %0.0f", baro_rate_diff, last->baro_rate / _rate_factor, (double) a->baro_rate);
+        }
+
+        goto save_state;
     }
 
     // record ground air state changes precisely
