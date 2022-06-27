@@ -930,8 +930,9 @@ static int load_aircraft(char **p, char *end, int64_t now) {
 static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
     if (tb.len < 20)
         return;
-    if (start < 1)
-        start = 1;
+    if (start < 0) {
+        start = 0;
+    }
 
     int high = 0;
     int low = 100000;
@@ -940,37 +941,48 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
     for (int i = 0; i < 5; i++) { last_five[i] = -1000; }
     uint32_t five_pos = 0;
 
+    int32_t last_air_alt = INT32_MIN;
+
     double sum = 0;
     int count = 0;
 
     struct state *last_leg = NULL;
     struct state *new_leg = NULL;
 
-    for (int i = start; i < tb.len; i++) {
-        int on_ground = getState(tb.trace, i)->on_ground;
-        int altitude_valid = getState(tb.trace, i)->baro_alt_valid;
-        int altitude = getState(tb.trace, i)->baro_alt / _alt_factor;
+    int increment = SFOUR;
+    if (tb.len > 256 * SFOUR) {
+        increment = 4 * SFOUR;
+    }
+    for (int i = start - (start % SFOUR); i < tb.len; i += increment) {
+        struct state *curr = getState(tb.trace, i);
+        int on_ground = curr->on_ground;
+        int altitude_valid = curr->baro_alt_valid;
+        int altitude = curr->baro_alt / _alt_factor;
 
-        if (!altitude_valid && getState(tb.trace, i)->geom_alt_valid) {
+        if (!altitude_valid && curr->geom_alt_valid) {
             altitude_valid = 1;
-            altitude = getState(tb.trace, i)->geom_alt / _alt_factor;
+            altitude = curr->geom_alt / _alt_factor;
         }
 
-        if (getState(tb.trace, i)->leg_marker) {
-            getState(tb.trace, i)->leg_marker = 0;
+        if (curr->leg_marker) {
+            curr->leg_marker = 0;
             // reset leg marker
-            last_leg = getState(tb.trace, i);
+            last_leg = curr;
         }
 
         if (!altitude_valid)
             continue;
 
         if (on_ground) {
-            int avg = 0;
-            for (int i = 0; i < 5; i++) avg += last_five[i];
-            avg /= 5;
-            altitude = avg;
+            if (last_air_alt == INT32_MIN) {
+                int avg = 0;
+                for (int i = 0; i < 5; i++) avg += last_five[i];
+                avg /= 5;
+                last_air_alt = avg;
+            }
+            altitude = last_air_alt;
         } else {
+            last_air_alt = INT32_MIN;
             if (five_pos == 0) {
                 for (int i = 0; i < 5; i++)
                     last_five[i] = altitude;
@@ -1019,17 +1031,26 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
 
     int was_ground = 0;
 
-    for (int i = 0; i < 5; i++)
-        last_five[i] = 0;
+    last_air_alt = INT32_MIN;
+    for (int i = 0; i < 5; i++) { last_five[i] = -1000; }
     five_pos = 0;
 
-    int prev_tmp = start - 1;
-    for (int i = start; i < tb.len; i++) {
-        struct state *state = getState(tb.trace, i);
-        int prev_index = prev_tmp;
-        struct state *prev = getState(tb.trace, prev_index);
+    if (start < 1) {
+        start = 1;
+    }
+    int prev_index = start - 1;
+    struct state *state = getState(tb.trace, prev_index);
+    struct state *prev;
+    for (int index = start; index < tb.len; prev_index = index, index++) {
+        prev = state;
+        state = getState(tb.trace, index);
 
         int64_t elapsed = state->timestamp - prev->timestamp;
+
+        if (elapsed < 5 * SECONDS) {
+            state = prev;
+            continue;
+        }
 
         int on_ground = state->on_ground;
         int altitude_valid = state->baro_alt_valid;
@@ -1042,22 +1063,22 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
 
         if (!on_ground && !altitude_valid)
             continue;
+
         if (0 && a->addr == Modes.leg_focus) {
-            fprintf(stderr, "state: %d %d %d %d\n", i, altitude, altitude_valid, on_ground);
+            fprintf(stderr, "state: %d %d %d %d\n", index, altitude, altitude_valid, on_ground);
         }
 
-        prev_tmp = i;
 
         if (on_ground) {
-            int avg = 0;
-            for (int i = 0; i < 5; i++)
-                avg += last_five[i];
-            avg /= 5;
-            altitude = avg - threshold / 8;
-            //if (a->addr == Modes.leg_focus) {
-            //    fprintf(stderr, "%d\n", altitude);
-            //}
+            if (last_air_alt == INT32_MIN) {
+                int avg = 0;
+                for (int i = 0; i < 5; i++) avg += last_five[i];
+                avg /= 5;
+                last_air_alt = avg;
+            }
+            altitude = last_air_alt;
         } else {
+            last_air_alt = INT32_MIN;
             if (five_pos == 0) {
                 for (int i = 0; i < 5; i++)
                     last_five[i] = altitude;
@@ -1071,10 +1092,10 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
             // count the last point in time on ground to be when the aircraft is received airborn after being on ground
             if (state->timestamp > last_ground + 5 * MINUTES) {
                 first_ground = state->timestamp;
-                first_ground_index = i;
+                first_ground_index = index;
             }
             last_ground = state->timestamp;
-            last_ground_index = i;
+            last_ground_index = index;
         } else {
             last_airborne = state->timestamp;
         }
@@ -1106,7 +1127,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
 
         if (abs(low - altitude) < threshold * 1 / 3) {
             last_low = state->timestamp;
-            last_low_index = i;
+            last_low_index = index;
         }
         if (abs(high - altitude) < threshold * 1 / 3) {
             last_high = state->timestamp;
@@ -1178,10 +1199,10 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
             leg_now = 1;
         }
         double distance = greatcircle(
-                (double) state->lat / 1E6,
-                (double) state->lon / 1E6,
-                (double) prev->lat / 1E6,
-                (double) prev->lon / 1E6,
+                (double) state->lat * 1e-6,
+                (double) state->lon * 1e-6,
+                (double) prev->lat * 1e-6,
+                (double) prev->lon * 1e-6,
                 0
                 );
 
@@ -1221,12 +1242,12 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
             int64_t leg_ts = 0;
 
             if (leg_now) {
-                new_leg = getState(tb.trace, prev_index + 1);
-                for (int k = prev_index + 1; k < i; k++) {
-                    struct state *state = getState(tb.trace, i);
-                    struct state *last = getState(tb.trace, i - 1);
+                new_leg = state;
+                for (int k = prev_index + 1; k < index; k++) {
+                    struct state *state = getState(tb.trace, k);
+                    struct state *last = getState(tb.trace, k - 1);
 
-                    if (state->timestamp > last->timestamp + 5 * 60 * 1000) {
+                    if (state->timestamp > last->timestamp + 5 * MINUTES) {
                         new_leg = state;
                         break;
                     }
