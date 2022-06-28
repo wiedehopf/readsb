@@ -432,7 +432,7 @@ static void scheduleMemBothWrite(struct aircraft *a, int64_t schedTime) {
     a->trace_writeCounter = 0xc0ffee;
 }
 
-// return first index at or after timestamp, return -1 if all indexes are before the timestamp
+// return first index at or after timestamp, return tb.len if all indexes are before the timestamp
 static int first_index_ge_timestamp(traceBuffer tb, int64_t timestamp) {
     int start = 0;
     int end = tb.len - 1;
@@ -450,7 +450,7 @@ static int first_index_ge_timestamp(traceBuffer tb, int64_t timestamp) {
             return i;
         }
     }
-    return -1;
+    return tb.len;
 }
 
 void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuffers_t *buffer_group) {
@@ -529,16 +529,12 @@ void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuff
     } else {
         startFull = first_index_ge_timestamp(tb, now - Modes.keep_traces);
     }
-    // this should happen rarely, we don't want to use any of the trace in this case ...
-    // just use the very last point of the trace and only emit that instead because emitting no points at all gives headaches
-    if (startFull < 0) {
-        startFull = tb.len - 1;
-    }
 
     if ((trace_write & WRECENT)) {
         int start_recent = tb.len - recent_points;
-        if (start_recent < startFull)
+        if (start_recent < startFull) {
             start_recent = startFull;
+        }
 
         if (!init) {
             mark_legs(tb, a, imax(0, tb.len - 4 * recent_points));
@@ -629,7 +625,7 @@ void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuff
 
             int start = first_index_ge_timestamp(tb, start_of_day);
             int end = first_index_ge_timestamp(tb, end_of_day);
-            if (end < 0) {
+            if (end >= tb.len) {
                 end = tb.len - 1;
             } else if (end > 0){
                 end -= 1;

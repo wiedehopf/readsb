@@ -1619,7 +1619,12 @@ struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int sta
             p = safe_snprintf(p, end, ",\n\"noRegData\":true");
     }
 
-    int64_t startStamp = getState(tb.trace, start)->timestamp;
+    int64_t startStamp;
+    if (start >= 0 && start < tb.len) {
+        startStamp = getState(tb.trace, start)->timestamp;
+    } else {
+        startStamp = now;
+    }
 
     struct traceCache *tCache = NULL;
     struct traceCacheEntry *entries = NULL;
@@ -1649,38 +1654,38 @@ struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int sta
 
     p = safe_snprintf(p, end, ",\n\"trace\":[ ");
 
-    if (tCache) {
-        int sprintCount = 0;
-        for (int i = start; i <= last && i < tb.len; i++) {
-            if (k < tCache->entriesLen && entries[k].stateIndex == i
-                    && getState(tb.trace, i)->leg_marker == entries[k].leg_marker) {
-                memcpy(p, tCache->json + entries[k].offset, entries[k].len);
-                p += entries[k].len;
-            } else {
+    if (start >= 0) {
+        if (tCache) {
+            int sprintCount = 0;
+            for (int i = start; i <= last && i < tb.len; i++) {
+                if (k < tCache->entriesLen && entries[k].stateIndex == i
+                        && getState(tb.trace, i)->leg_marker == entries[k].leg_marker) {
+                    memcpy(p, tCache->json + entries[k].offset, entries[k].len);
+                    p += entries[k].len;
+                } else {
+                    struct state *state = getState(tb.trace, i);
+                    struct state_all *state_all = getStateAll(tb.trace, i);
+                    p = sprintTracePoint(p, end, state, state_all, startStamp);
+                    sprintCount++;
+                }
+                *p++ = ',';
+                k++;
+            }
+            if (a->addr == TRACE_FOCUS && sprintCount > 1) {
+                fprintf(stderr, "%06x sprintCount2: %d\n", a->addr, sprintCount);
+            }
+        } else {
+            for (int i = start; i <= last && i < tb.len; i++) {
                 struct state *state = getState(tb.trace, i);
                 struct state_all *state_all = getStateAll(tb.trace, i);
                 p = sprintTracePoint(p, end, state, state_all, startStamp);
-                sprintCount++;
+                *p++ = ',';
             }
-            if (p < end)
-                *p++ = ',';
-            k++;
         }
-        if (a->addr == TRACE_FOCUS && sprintCount > 1) {
-            fprintf(stderr, "%06x sprintCount2: %d\n", a->addr, sprintCount);
-        }
-    } else {
-        for (int i = start; i <= last && i < tb.len; i++) {
-            struct state *state = getState(tb.trace, i);
-            struct state_all *state_all = getStateAll(tb.trace, i);
-            p = sprintTracePoint(p, end, state, state_all, startStamp);
-            if (p < end)
-                *p++ = ',';
-        }
-    }
+        if (*(p-1) == ',')
+            p--; // remove last comma
 
-    if (*(p-1) == ',')
-        p--; // remove last comma
+    }
 
     p = safe_snprintf(p, end, " ]\n");
 
