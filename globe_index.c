@@ -1046,15 +1046,18 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
     }
     int prev_index = start - 1;
     struct state *state = getState(tb.trace, prev_index);
+    int state_index = prev_index;
     struct state *prev;
-    for (int index = start; index < tb.len; prev_index = index, index++) {
+    for (int index = start; index < tb.len; prev_index = state_index, index++) {
         prev = state;
         state = getState(tb.trace, index);
+        state_index = index;
 
         int64_t elapsed = state->timestamp - prev->timestamp;
 
         if (elapsed < 5 * SECONDS) {
             state = prev;
+            state_index = prev_index;
             continue;
         }
 
