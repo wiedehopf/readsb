@@ -432,6 +432,27 @@ static void scheduleMemBothWrite(struct aircraft *a, int64_t schedTime) {
     a->trace_writeCounter = 0xc0ffee;
 }
 
+// return first index at or after timestamp, return -1 if all indexes are before the timestamp
+static int first_index_ge_timestamp(traceBuffer tb, int64_t timestamp) {
+    int start = 0;
+    int end = tb.len - 1;
+    while (start + 32 < end) {
+        int pivot = (start + end) / 2 + 1;
+        int64_t pivot_ts = getState(tb.trace, pivot)->timestamp;
+        if (pivot_ts < timestamp) {
+            start = pivot + 1;
+        } else {
+            end = pivot;
+        }
+    }
+    for (int i = start; i <= end; i++) {
+        if (getState(tb.trace, i)->timestamp >= timestamp) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuffers_t *buffer_group) {
     struct char_buffer recent;
     struct char_buffer full;
@@ -503,20 +524,15 @@ void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuff
     }
 
     int startFull = 0;
-    for (int i = 0; i < tb.len; i++) {
-        if (getState(tb.trace, i)->timestamp > now - Modes.keep_traces) {
-            startFull = i;
-            break;
-        }
-    }
-
     if ((Modes.trace_hist_only & 8) && (trace_write & WMEM)) {
-        for (int i = 0; i < tb.len; i++) {
-            if (getState(tb.trace, i)->timestamp > now - GLOBE_MEM_IVAL) {
-                startFull = i;
-                break;
-            }
-        }
+        startFull = first_index_ge_timestamp(tb, now - GLOBE_MEM_IVAL);
+    } else {
+        startFull = first_index_ge_timestamp(tb, now - Modes.keep_traces);
+    }
+    // this should happen rarely, we don't want to use any of the trace in this case ...
+    // just use the very last point of the trace and only emit that instead because emitting no points at all gives headaches
+    if (startFull < 0) {
+        startFull = tb.len - 1;
     }
 
     if ((trace_write & WRECENT)) {
@@ -611,20 +627,14 @@ void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuff
             int64_t start_of_day = 1000 * (int64_t) (timegm(&utc));
             int64_t end_of_day = 1000 * (int64_t) (timegm(&utc) + 86400);
 
-            int start = -1;
-            int end = -1;
-            for (int i = 0; i < tb.len; i++) {
-                if (start == -1 && getState(tb.trace, i)->timestamp > start_of_day) {
-                    start = i;
-                    break;
-                }
+            int start = first_index_ge_timestamp(tb, start_of_day);
+            int end = first_index_ge_timestamp(tb, end_of_day);
+            if (end < 0) {
+                end = tb.len - 1;
+            } else if (end > 0){
+                end -= 1;
             }
-            for (int i = tb.len - 1; i >= 0; i--) {
-                if (getState(tb.trace, i)->timestamp < end_of_day) {
-                    end = i;
-                    break;
-                }
-            }
+
             int64_t endStamp = getState(tb.trace, end)->timestamp;
             if (start >= 0 && end >= 0 && end >= start
                     // only write permanent trace if we haven't already written it
