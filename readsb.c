@@ -1220,6 +1220,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptRangeOutlineDuration:
             Modes.range_outline_duration = (int64_t) (atof(arg) * HOURS);
+            if (Modes.range_outline_duration < 1 * MINUTES) {
+                Modes.range_outline_duration = 1 * MINUTES;
+                fprintf(stderr, "--range-outline-hours too small, using minimum value 0.016\n");
+            }
             break;
         case OptSnip:
             snipMode(atoi(arg));
