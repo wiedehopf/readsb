@@ -993,15 +993,18 @@ static void modesCloseClient(struct client *c) {
         fprintf(stderr, "warning: double close of net client\n");
         return;
     }
-    if (Modes.netIngest && c->garbage < GARBAGE_THRESHOLD) {
+    if (Modes.netIngest) {
         double elapsed = (mstime() - c->connectedSince + 1) / 1000.0;
         double kbitpersecond = c->bytesReceived / 128.0 / elapsed;
 
         char uuid[64]; // needs 36 chars and null byte
         sprint_uuid(c->receiverId, c->receiverId2, uuid);
-        fprintf(stderr, "disc: %6.1f s %6.2f kbit/s %s \n",
-                elapsed, kbitpersecond, c->proxy_string);
+        fprintf(stderr, "disc: %s %6.1f s %6.2f kbit/s rId %s %s\n",
+                (c->rtt > PING_DISCONNECT) ? "RTT  " : ((c->garbage >= GARBAGE_THRESHOLD) ? "garb." : "     "),
+                elapsed, kbitpersecond,
+                uuid, c->proxy_string);
     }
+
     epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, c->fd, &c->epollEvent);
     anetCloseSocket(c->fd);
     c->service->connections--;
@@ -1047,7 +1050,7 @@ static void lockReceiverId(struct client *c) {
     if (Modes.netIngest && Modes.debug_net && c->garbage < 50) {
         char uuid[64]; // needs 36 chars and null byte
         sprint_uuid(c->receiverId, c->receiverId2, uuid);
-        fprintf(stderr, "new client:                  rId %s %s\n",
+        fprintf(stderr, "new client:                        rId %s %s\n",
                 uuid, c->proxy_string);
     }
 }
@@ -1209,16 +1212,20 @@ static int pongReceived(struct client *c, int64_t now) {
 
     // only log if the average is greater the rejection threshold, don't log for single packet events
     // actual discard / rejection happens elsewhere int the code
-    if (Modes.debug_nextra && c->latest_rtt > PING_REJECT && now > antiSpam) {
-        antiSpam = now + 250; // limit to 4 messages a second
+    if (c->latest_rtt > PING_REJECT && now > antiSpam) {
         char uuid[64]; // needs 36 chars and null byte
         sprint_uuid(c->receiverId, c->receiverId2, uuid);
-        if (Modes.netIngest) {
-            fprintf(stderr, "reject: %6.0f ms %6.0f ms  rId %s %s\n",
-                    c->latest_rtt, c->recent_rtt, uuid, c->proxy_string);
+        if (Modes.debug_nextra) {
+            antiSpam = now + 250; // limit to 4 messages a second
         } else {
-            fprintf(stderr, "<3>high network delay: %6.0f ms %6.0f ms  rId %s %s current: %ld pong: %ld\n",
-                    c->latest_rtt, c->recent_rtt, uuid, c->proxy_string, (long) current, (long) pong);
+            antiSpam = now + 30 * SECONDS;
+        }
+        if (Modes.netIngest) {
+            fprintf(stderr, "reject: %6.0fms %6.0fms %6.0fms rId %s %s\n",
+                    (double) c->rtt, c->latest_rtt, c->recent_rtt, uuid, c->proxy_string);
+        } else {
+            fprintf(stderr, "high network delay: %6.0f ms; discarding data: %s rId %s\n",
+                    c->latest_rtt, c->proxy_string, uuid);
         }
     }
     if (c->latest_rtt > PING_REDUCE) {
@@ -1244,12 +1251,6 @@ static int pongReceived(struct client *c, int64_t now) {
         }
     }
     if (Modes.netIngest && c->rtt > PING_DISCONNECT) {
-        if (Modes.debug_net) {
-            char uuid[64]; // needs 36 chars and null byte
-            sprint_uuid(c->receiverId, c->receiverId2, uuid);
-            fprintf(stderr, "<3>disconnecting due to high RTT: %6.0f ms %6.0f ms  rId %s %s current: %ld pong: %ld\n",
-                    c->latest_rtt, c->recent_rtt, uuid, c->proxy_string, (long) current, (long) pong);
-        }
         return 1; // disconnect the client if the messages are delayed too much
     }
     return 0;
@@ -2529,7 +2530,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now) 
         // if messages are received with more than 100 ms delay after a pong, recalculate c->rtt
         pongReceived(c, now);
     }
-    if (c->rtt && c->rtt > PING_REJECT && Modes.netIngest) {
+    if (c->rtt > PING_REJECT && Modes.netIngest) {
         // don't discard CPRs, if we have better data speed_check generally will take care of delayed CPR messages
         // this way we get basic data even from high latency receivers
         // super high latency receivers are getting disconnected in pongReceived()
@@ -2986,16 +2987,16 @@ static void modesReadFromClient(struct client *c, int64_t now) {
 
             // disconnect garbage feeds
             if (c->garbage >= GARBAGE_THRESHOLD) {
-                if (1 || !Modes.netIngest || Modes.debug_receiver) {
-                    *eod = '\0';
-                    char sample[64];
-                    hexEscapeString(som, sample, sizeof(sample));
-                    sample[sizeof(sample) - 1] = '\0';
-                    if (Modes.netIngest && c->proxy_string[0] != '\0')
-                        fprintf(stderr, "Garbage: Close: %s sample: %s\n", c->proxy_string, sample);
-                    else
-                        fprintf(stderr, "Garbage: Close: %s port %s sample: %s\n", c->host, c->port, sample);
-                }
+
+                *eod = '\0';
+                char sample[64];
+                hexEscapeString(som, sample, sizeof(sample));
+                sample[sizeof(sample) - 1] = '\0';
+                if (c->proxy_string[0] != '\0')
+                    fprintf(stderr, "Garbage: Close: %s sample: %s\n", c->proxy_string, sample);
+                else
+                    fprintf(stderr, "Garbage: Close: %s port %s sample: %s\n", c->host, c->port, sample);
+
                 modesCloseClient(c);
                 return;
             }
