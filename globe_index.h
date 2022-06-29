@@ -10,7 +10,7 @@
 #ifndef GLOBE_PERM_IVAL
 #define GLOBE_PERM_IVAL (4 * HOURS)
 #endif
-#define GLOBE_MEM_IVAL (20 * MINUTES)
+#define GLOBE_MEM_IVAL (60 * MINUTES)
 
 #define GLOBE_INDEX_GRID 3
 #define GLOBE_SPECIAL_INDEX 70

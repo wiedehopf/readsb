@@ -1541,6 +1541,7 @@ static void tracePrune(struct aircraft *a, int64_t now) {
             fprintf(stderr, "%06x deleting %d chunks\n", a->addr, deletedChunks);
         }
         resizeTraceChunks(a, a->trace_chunk_len - deletedChunks);
+        a->trace_writeCounter = 0xc0ffee;
     }
 
     if (a->trace_current_len > 0 && getState(a->trace_current, a->trace_current_len - 1)->timestamp < keep_after) {
