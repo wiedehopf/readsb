@@ -632,7 +632,7 @@ struct _Modes
     double sample_rate; // actual sample rate in use (in hz)
     int64_t interactive_display_ttl; // Interactive mode: TTL display
     int64_t json_interval; // Interval between rewriting the json aircraft file, in milliseconds; also the advertised map refresh interval
-    int64_t stats; // Interval (millis) between stats dumps,
+    int64_t stats_display_interval; // Interval (millis) between stats dumps,
     int64_t range_outline_duration;
     char *db_file;
     char *net_output_raw_ports; // List of raw output TCP ports

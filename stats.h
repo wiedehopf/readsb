@@ -189,6 +189,6 @@ void statsUpdate(int64_t now);
 void checkDisplayStats(int64_t now);
 void statsResetCount();
 void statsCountAircraft(int64_t now);
-void statsWrite(int64_t now);
+void statsProcess(int64_t now);
 
 #endif

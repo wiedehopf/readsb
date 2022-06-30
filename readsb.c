@@ -196,7 +196,7 @@ static void modesInit(void) {
 
     int64_t now = mstime();
     Modes.next_stats_update = roundSeconds(10, 5, now + 10 * SECONDS);
-    Modes.next_stats_display = now + Modes.stats;
+    Modes.next_stats_display = now + Modes.stats_display_interval;
 
     pthread_mutex_init(&Modes.traceDebugMutex, NULL);
     pthread_mutex_init(&Modes.hungTimerMutex, NULL);
@@ -308,8 +308,9 @@ static void trackPeriodicUpdate() {
     }
     last_periodic_mono = mono;
 
-    if (now > Modes.next_stats_update)
+    if (now > Modes.next_stats_update) {
         Modes.updateStats = 1;
+    }
 
     struct timespec watch;
     startWatch(&watch);
@@ -366,11 +367,6 @@ static void trackPeriodicUpdate() {
         netFreeClients();
     }
 
-    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 3) {
-        Modes.currentTask = "checkDisplayStats";
-        checkDisplayStats(now);
-    }
-
     if (Modes.updateStats) {
         Modes.currentTask = "statsUpdate";
         statsUpdate(now); // needs to happen under lock
@@ -409,8 +405,9 @@ static void trackPeriodicUpdate() {
         Modes.currentTask = "statsCount";
         statsCountAircraft(now);
 
-        Modes.currentTask = "statsWrite";
-        statsWrite(now);
+
+        Modes.currentTask = "statsProcess";
+        statsProcess(now);
 
         Modes.updateStats = 0;
 
@@ -1209,14 +1206,17 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.maxRange = atof(arg) * 1852.0; // convert to metres
             break;
         case OptStats:
-            if (!Modes.stats)
-                Modes.stats = (int64_t) 1 << 60; // "never"
+            if (!Modes.stats_display_interval)
+                Modes.stats_display_interval = ((int64_t) 1) << 60; // "never"
             break;
         case OptStatsRange:
             Modes.stats_range_histo = 1;
             break;
         case OptStatsEvery:
-            Modes.stats = (int64_t) (1000.0 * atof(arg));
+            Modes.stats_display_interval = ((int64_t) nearbyint(atof(arg) / 10.0)) * 10 * SECONDS;
+            if (Modes.stats_display_interval == 0) {
+                Modes.stats_display_interval = 10 * SECONDS;
+            }
             break;
         case OptRangeOutlineDuration:
             Modes.range_outline_duration = (int64_t) (atof(arg) * HOURS);
@@ -2192,7 +2192,7 @@ int main(int argc, char **argv) {
         display_total_short_range_stats();
     }
     // If --stats were given, print statistics
-    if (Modes.stats) {
+    if (Modes.stats_display_interval) {
         display_total_stats();
     }
 

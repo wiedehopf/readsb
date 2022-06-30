@@ -438,57 +438,29 @@ void display_total_short_range_stats() {
 void checkDisplayStats(int64_t now) {
     Modes.stats_current.end = now;
 
-    if (Modes.stats && now >= Modes.next_stats_display) {
-        lockCurrent();
-        add_stats(&Modes.stats_periodic, &Modes.stats_current, &Modes.stats_periodic);
-        unlockCurrent();
+    //fprintf(stderr, "next_stats_display %.1f now %.1f", Modes.next_stats_display / 1000.0, now / 1000.0);
+    if (Modes.stats_display_interval && now + 5 * SECONDS >= Modes.next_stats_display) {
+        Modes.next_stats_display = now + Modes.stats_display_interval;
+
         display_stats(&Modes.stats_periodic);
         reset_stats(&Modes.stats_periodic);
-
-        Modes.next_stats_display += Modes.stats;
-        if (Modes.next_stats_display <= now) {
-            /* something has gone wrong, perhaps the system clock jumped */
-            Modes.next_stats_display = now + Modes.stats;
-        }
     }
 }
 
 void statsUpdate(int64_t now) {
     Modes.stats_current.end = now;
-    int i;
 
     Modes.next_stats_update = roundSeconds(10, 5, now + 10 * SECONDS);
 
     lockCurrent();
+    Modes.stats_bucket = (Modes.stats_bucket + 1) % STAT_BUCKETS;
     Modes.stats_10[Modes.stats_bucket] = Modes.stats_current;
     add_stats(&Modes.stats_current, &Modes.stats_alltime, &Modes.stats_alltime);
     add_stats(&Modes.stats_current, &Modes.stats_periodic, &Modes.stats_periodic);
-    unlockCurrent();
 
-    reset_stats(&Modes.stats_1min);
-    for (i = 0; i < 6; ++i) {
-        int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
-        add_stats(&Modes.stats_10[index], &Modes.stats_1min, &Modes.stats_1min);
-    }
-
-    reset_stats(&Modes.stats_5min);
-    for (i = 0; i < 30; ++i) {
-        int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
-        add_stats(&Modes.stats_10[index], &Modes.stats_5min, &Modes.stats_5min);
-    }
-
-    reset_stats(&Modes.stats_15min);
-    for (i = 0; i < 90; ++i) {
-        int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
-        add_stats(&Modes.stats_10[index], &Modes.stats_15min, &Modes.stats_15min);
-    }
-
-    lockCurrent();
     reset_stats(&Modes.stats_current);
     Modes.stats_current.start = Modes.stats_current.end = now;
     unlockCurrent();
-
-    Modes.stats_bucket = (Modes.stats_bucket + 1) % STAT_BUCKETS;
 }
 
 static char * appendTypeCounts(char *p, char *end) {
@@ -1028,6 +1000,26 @@ static int compareFloat(const void *p1, const void *p2) {
 }
 
 static void statsCalc() {
+
+    // add up the buckets for the 1 min, 5 min and 15 min stats
+    reset_stats(&Modes.stats_1min);
+    for (int i = 0; i < 6; ++i) {
+        int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
+        add_stats(&Modes.stats_10[index], &Modes.stats_1min, &Modes.stats_1min);
+    }
+
+    reset_stats(&Modes.stats_5min);
+    for (int i = 0; i < 30; ++i) {
+        int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
+        add_stats(&Modes.stats_10[index], &Modes.stats_5min, &Modes.stats_5min);
+    }
+
+    reset_stats(&Modes.stats_15min);
+    for (int i = 0; i < 90; ++i) {
+        int index = (Modes.stats_bucket - i + STAT_BUCKETS) % STAT_BUCKETS;
+        add_stats(&Modes.stats_10[index], &Modes.stats_15min, &Modes.stats_15min);
+    }
+
     struct statsCount *s = &(Modes.globalStatsCount);
     s->readsb_aircraft_total = s->readsb_aircraft_with_position + s->readsb_aircraft_no_position;
 
@@ -1061,8 +1053,10 @@ static void statsCalc() {
         s->readsb_aircraft_rssi_min = -50;
 }
 
-void statsWrite(int64_t now) {
+void statsProcess(int64_t now) {
         statsCalc(); // calculate statistics stuff
+
+        checkDisplayStats(now); // display stats if requested
 
         struct char_buffer prom = { 0 };
         if (Modes.json_dir || Modes.prom_file) {
