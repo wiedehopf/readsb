@@ -425,10 +425,6 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     if (speed < 0 || a->speedUnreliable > 8) {
         speed = surface ? 120 : 900; // guess
     }
-    if (source <= SOURCE_MLAT) {
-        speed = speed * 2;
-        range += 250;
-    }
 
     if (speed > 1 && track_diff > -1 && a->trackUnreliable < 8) {
         track_bonus = speed * (90.0f - track_diff) / 90.0f;
@@ -464,6 +460,11 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
     // cap speed at 2000 knots ..
     speed = fmin(speed, 2000);
+
+    if (source == SOURCE_MLAT) {
+        speed = 3000; // fixed allowed speed for MLAT
+        range += 400; // add fixed allowed offset
+    }
 
     if (distance > 1 && (track_diff < 70 || track_diff == -1)) {
         if (distance <= range + (((float) elapsed + 200.0f) * (1.0f / 1000.0f)) * (transmitted_speed * (1852.0f / 3600.0f))) {
