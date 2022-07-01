@@ -1833,24 +1833,11 @@ static void checkReplaceState() {
     }
 }
 
-static void miscStuff() {
-    int64_t now = mstime();
-
-    struct timespec watch;
-    startWatch(&watch);
-
-    struct timespec start_time;
-    start_cpu_timing(&start_time);
+static void miscStuff(int64_t now) {
 
     checkNewDay(now);
 
     // don't do everything at once ... this stuff isn't that time critical it'll get its turn
-    int enough = 0;
-
-    // if we're trying to load a state blob it takes priority
-    if (Modes.replace_state_blob) {
-        enough = 1;
-    }
 
     if (Modes.state_dir) {
         static uint32_t blob; // current blob
@@ -1860,7 +1847,6 @@ static void miscStuff() {
         snprintf(filename, PATH_MAX, "%s/writeState", Modes.state_dir);
         int fd = open(filename, O_RDONLY);
         if (fd > -1) {
-            enough = 1;
             next_blob = now + 45 * SECONDS;
 
             char tmp[3];
@@ -1880,55 +1866,50 @@ static void miscStuff() {
             unlink(filename);
             // unlink only after writing state, if the file doesn't exist that's fine as well
             // this is a hack to detect from a shell script when the task is done
+
+            return;
         }
 
         // only continuously write state if we keep permanent trace
         if (!Modes.state_only_on_exit && !enough && now > next_blob) {
-            enough = 1;
             //fprintf(stderr, "save_blob: %02x\n", blob);
             notask_save_blob(blob);
             blob = (blob + 1) % STATE_BLOBS;
             next_blob = now + 60 * MINUTES / STATE_BLOBS;
+
+            return;
         }
     }
 
     // function can unlock / lock misc mutex
-    if (!enough && handleHeatmap(now)) {
-        enough = 1;
+    if (handleHeatmap(now)) {
+        return;
     }
 
     static int64_t next_clients_json;
-    if (!enough && Modes.json_dir && now > next_clients_json) {
-        enough = 1;
+    if (Modes.json_dir && now > next_clients_json) {
         next_clients_json = now + 10 * SECONDS;
         if (Modes.netIngest)
             free(writeJsonToFile(Modes.json_dir, "clients.json", generateClientsJson()).buffer);
         if (Modes.netReceiverIdJson)
             free(writeJsonToFile(Modes.json_dir, "receivers.json", generateReceiversJson()).buffer);
+
+        return;
     }
 
-    if (!enough) {
-        // one iteration later, finish db update if db was updated
-        if (dbFinishUpdate())
-            enough = 1;
+    // one iteration later, finish db update if db was updated
+    if (dbFinishUpdate()) {
+        return;
     }
+
+
     static int64_t next_db_check;
-    if (!enough && now > next_db_check) {
-        enough = 1;
+    if (now > next_db_check) {
         dbUpdate();
         // db update check every 5 min
         next_db_check = now + 5 * MINUTES;
-    }
 
-    pthread_mutex_lock(&Modes.currentStatsMutex);
-    end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
-    pthread_mutex_unlock(&Modes.currentStatsMutex);
-
-    int64_t elapsed = stopWatch(&watch);
-    static int64_t antiSpam2;
-    if (elapsed > 12 * SECONDS && now > antiSpam2 + 30 * SECONDS) {
-        fprintf(stderr, "<3>High load: heatmap_and_stuff took %"PRIu64" ms! Suppressing for 30 seconds\n", elapsed);
-        antiSpam2 = now;
+        return;
     }
 }
 
@@ -1942,14 +1923,37 @@ static void *miscEntryPoint(void *arg) {
     clock_gettime(CLOCK_REALTIME, &ts);
 
     while (!Modes.exit) {
+        threadTimedWait(&Threads.misc, &ts, 200); // check every 0.2 seconds if there is something to do
 
         int64_t mono = mono_milli_seconds();
-        if (mono < Modes.next_remove_stale) {
-            // function can unlock / lock misc mutex
-            miscStuff();
+        if (mono > Modes.next_remove_stale) {
+            continue;
+        }
+        if (Modes.replace_state_blob) {
+            continue;
         }
 
-        threadTimedWait(&Threads.misc, &ts, 200); // check every 0.2 seconds if there is something to do
+        struct timespec watch;
+        startWatch(&watch);
+
+        struct timespec start_time;
+        start_cpu_timing(&start_time);
+
+        int64_t now = mstime();
+
+        // function can unlock / lock misc mutex
+        miscStuff(now);
+
+        pthread_mutex_lock(&Modes.currentStatsMutex);
+        end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
+        pthread_mutex_unlock(&Modes.currentStatsMutex);
+
+        int64_t elapsed = stopWatch(&watch);
+        static int64_t antiSpam2;
+        if (elapsed > 12 * SECONDS && now > antiSpam2 + 30 * SECONDS) {
+            fprintf(stderr, "<3>High load: heatmap_and_stuff took %"PRIu64" ms! Suppressing for 30 seconds\n", elapsed);
+            antiSpam2 = now;
+        }
     }
 
     pthread_mutex_unlock(&Threads.misc.mutex);
