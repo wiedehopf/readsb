@@ -60,6 +60,7 @@
 struct _Modes Modes;
 struct _Threads Threads;
 
+static void loadReplaceState();
 static void checkReplaceState();
 static void backgroundTasks(int64_t now);
 static error_t parse_opt(int key, char *arg, struct argp_state *state);
@@ -286,8 +287,6 @@ static void trackPeriodicUpdate() {
         upcount = 0;
     }
 
-    checkReplaceState();
-
     // stop all threads so we can remove aircraft from the list.
     // also serves as memory barrier so json threads get new aircraft in the list
     // adding aircraft does not need to be done with locking:
@@ -320,17 +319,10 @@ static void trackPeriodicUpdate() {
 
     if (Modes.replace_state_blob && pthread_mutex_trylock(&Threads.misc.mutex) == 0) {
 
-        fprintf(stderr, "overriding current state with this blob: %s\n", Modes.replace_state_blob);
-        threadpool_buffer_t pbuffer = { 0 };
-        load_blob(Modes.replace_state_blob, &pbuffer);
-
-        char blob[1024];
-        snprintf(blob, 1024, "%s.lzol", Modes.replace_state_blob);
-        unlink(blob);
-
-        sfree(pbuffer.buf);
-        free(Modes.replace_state_blob);
-        Modes.replace_state_blob = NULL;
+        for (int i = 0; i < 4 && Modes.replace_state_blob; i++) {
+            loadReplaceState();
+            checkReplaceState();
+        }
 
         pthread_mutex_unlock(&Threads.misc.mutex);
     }
@@ -883,12 +875,18 @@ static void *upkeepEntryPoint(void *arg) {
     clock_gettime(CLOCK_REALTIME, &ts);
 
     while (!Modes.exit) {
+        checkReplaceState();
+
         trackPeriodicUpdate();
+
+        checkReplaceState();
+
         int64_t wait = PERIODIC_UPDATE;
         if (Modes.synthetic_now) {
             wait = 20;
         }
-        if (Modes.json_globe_index) {
+
+        if (Modes.json_globe_index && !Modes.replace_state_blob) {
             struct timespec watch;
             startWatch(&watch);
 
@@ -1794,8 +1792,29 @@ static void notask_save_blob(uint32_t blob) {
     sfree(pbuffer2.buf);
 }
 
+static void loadReplaceState() {
+    if (!Modes.replace_state_blob) {
+        return;
+    }
+
+    fprintf(stderr, "overriding current state with this blob: %s\n", Modes.replace_state_blob);
+    threadpool_buffer_t pbuffer = { 0 };
+    load_blob(Modes.replace_state_blob, &pbuffer);
+
+    char blob[1024];
+    snprintf(blob, 1024, "%s.lzol", Modes.replace_state_blob);
+    unlink(blob);
+
+    sfree(pbuffer.buf);
+    free(Modes.replace_state_blob);
+    Modes.replace_state_blob = NULL;
+}
+
 static void checkReplaceState() {
     if (!Modes.state_dir) {
+        return;
+    }
+    if (Modes.replace_state_blob) {
         return;
     }
     char filename[PATH_MAX];
