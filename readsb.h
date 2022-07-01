@@ -443,6 +443,7 @@ extern struct _Threads Threads;
 struct _Modes
 { // Internal state
     pthread_mutex_t traceDebugMutex;
+    pthread_mutex_t currentStatsMutex;
 
     int num_procs;
     int allPoolSize;

@@ -819,7 +819,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
 
     // if we are loading this data via the replace_state mechanism, make sure we write the permanent trace again
     if (Modes.replace_state_blob) {
-        a->trace_perm_last_timestamp = 0 ;
+        a->trace_perm_last_timestamp = 0;
     }
 
     // make sure we set anything allocated to null pointers

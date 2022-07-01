@@ -1920,7 +1920,9 @@ static void miscStuff() {
         next_db_check = now + 5 * MINUTES;
     }
 
+    pthread_mutex_lock(&Modes.currentStatsMutex);
     end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
+    pthread_mutex_unlock(&Modes.currentStatsMutex);
 
     int64_t elapsed = stopWatch(&watch);
     static int64_t antiSpam2;
