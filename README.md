@@ -70,6 +70,23 @@ install them (and a method for starting them) yourself.
 "make RTLSDR=yes" will enable rtl-sdr support and add the dependency on
 librtlsdr.
 
+On Raspbian 32 bit, mostly rpi2 and older you might want to use this to compile if you're running into CPU issues:
+```
+make AIRCRAFT_HASH_BITS=11 RTLSDR=yes OPTIMIZE="-Ofast -mcpu=arm1176jzf-s -mfpu=vfp"
+```
+
+In general if you want to save on CPU cycles, you can try building with these options:
+```
+make AIRCRAFT_HASH_BITS=11 RTLSDR=yes OPTIMIZE="-O3 -march=native"
+```
+Or even more aggressive but could cause unexpected behaviour:
+```
+make AIRCRAFT_HASH_BITS=11 RTLSDR=yes OPTIMIZE="-Ofast -march=native"
+```
+
+The difference of using -Ofast or -O3 over the default of -O2 is likely very minimal.
+-march=native also usually makes little difference but it might, so it's worth a try.
+
 ## Configuration
 
 If required, edit `/etc/default/readsb` to set the service options, device type, network ports etc.
