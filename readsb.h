@@ -498,6 +498,8 @@ struct _Modes
 
     ALIGNED struct aircraft * aircraft[AIRCRAFT_BUCKETS];
     ALIGNED struct craftArray globeLists[GLOBE_MAX_INDEX+1];
+    int receiver_table_hash_bits;
+    int receiver_table_size;
     struct receiver **receiverTable;
     struct craftArray aircraftActive;
     dbEntry *db;

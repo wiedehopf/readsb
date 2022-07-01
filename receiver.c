@@ -8,9 +8,9 @@ uint32_t receiverHash(uint64_t id) {
 
     h -= (h >> 32);
     h &= (1ULL << 32) - 1;
-    h -= (h >> RECEIVER_TABLE_HASH_BITS);
+    h -= (h >> Modes.receiver_table_hash_bits);
 
-    return h & (RECEIVER_TABLE_SIZE - 1);
+    return h & (Modes.receiver_table_size - 1);
 }
 
 struct receiver *receiverGet(uint64_t id) {
@@ -31,7 +31,7 @@ struct receiver *receiverCreate(uint64_t id) {
     struct receiver *r = receiverGet(id);
     if (r)
         return r;
-    if (Modes.receiverCount > 4 * RECEIVER_TABLE_SIZE)
+    if (Modes.receiverCount > Modes.receiver_table_size)
         return NULL;
     uint32_t hash = receiverHash(id);
     r = cmalloc(sizeof(struct receiver));
@@ -41,8 +41,8 @@ struct receiver *receiverCreate(uint64_t id) {
     r->firstSeen = r->lastSeen = mstime();
     Modes.receiverTable[hash] = r;
     Modes.receiverCount++;
-    if (Modes.receiverCount % (RECEIVER_TABLE_SIZE / 8) == 0)
-        fprintf(stderr, "receiverTable fill: %0.8f\n", Modes.receiverCount / (double) RECEIVER_TABLE_SIZE);
+    if (Modes.receiverCount % (Modes.receiver_table_size / 8) == 0)
+        fprintf(stderr, "receiverTable fill: %0.8f\n", Modes.receiverCount / (double) Modes.receiver_table_size);
     if (Modes.debug_receiver && Modes.receiverCount % 128 == 0)
         fprintf(stderr, "receiverCount: %"PRIu64"\n", Modes.receiverCount);
     return r;
@@ -51,7 +51,7 @@ void receiverTimeout(int part, int nParts, int64_t now) {
     if (!Modes.receiverTable) {
         return;
     }
-    int stride = RECEIVER_TABLE_SIZE / nParts;
+    int stride = Modes.receiver_table_size / nParts;
     int start = stride * part;
     int end = start + stride;
     //fprintf(stderr, "START: %8d END: %8d\n", start, end);
@@ -66,7 +66,7 @@ void receiverTimeout(int part, int nParts, int64_t now) {
                     b->latMin, b->latMax, b->lonMin, b->lonMax);
             */
             if (
-                    (Modes.receiverCount > RECEIVER_TABLE_SIZE && (*r)->lastSeen < now - 20 * MINUTES)
+                    (Modes.receiverCount > Modes.receiver_table_size && (*r)->lastSeen < now - 20 * MINUTES)
                     || (now > (*r)->lastSeen + 24 * HOURS)
                     || ((*r)->badExtent && now > (*r)->badExtent + 30 * MINUTES)
                ) {
@@ -82,16 +82,22 @@ void receiverTimeout(int part, int nParts, int64_t now) {
     }
 }
 void receiverInit() {
-    if (Modes.netReceiverId || !Modes.userLocationValid || Modes.netReceiverIdJson) {
-        Modes.receiverTable = cmalloc(RECEIVER_TABLE_SIZE * sizeof(struct receiver));
-        memset(Modes.receiverTable, 0x0,  RECEIVER_TABLE_SIZE * sizeof(struct receiver));
+    if (Modes.netReceiverId || Modes.netIngest) {
+        Modes.receiver_table_hash_bits = 16;
+    } else {
+        Modes.receiver_table_hash_bits = 8;
     }
+
+    Modes.receiver_table_size = 1 << Modes.receiver_table_hash_bits;
+
+    Modes.receiverTable = cmalloc(Modes.receiver_table_size * sizeof(struct receiver));
+    memset(Modes.receiverTable, 0x0,  Modes.receiver_table_size * sizeof(struct receiver));
 }
 void receiverCleanup() {
     if (!Modes.receiverTable) {
         return;
     }
-    for (int i = 0; i < RECEIVER_TABLE_SIZE; i++) {
+    for (int i = 0; i < Modes.receiver_table_size; i++) {
         struct receiver *r = Modes.receiverTable[i];
         struct receiver *next;
         while (r) {
@@ -317,7 +323,7 @@ struct char_buffer generateReceiversJson() {
     struct receiver *r;
 
     if (Modes.receiverTable) {
-        for (int j = 0; j < RECEIVER_TABLE_SIZE; j++) {
+        for (int j = 0; j < Modes.receiver_table_size; j++) {
             for (r = Modes.receiverTable[j]; r; r = r->next) {
 
                 // check if we have enough space

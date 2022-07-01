@@ -1,9 +1,6 @@
 #ifndef RECEIVER_H
 #define RECEIVER_H
 
-#define RECEIVER_TABLE_HASH_BITS 18
-#define RECEIVER_TABLE_SIZE (1 << RECEIVER_TABLE_HASH_BITS)
-
 #define RECEIVER_BAD_AIRCRAFT (2)
 
 struct bad_ac {
