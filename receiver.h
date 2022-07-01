@@ -38,6 +38,7 @@ struct char_buffer generateReceiversJson();
 
 int receiverPositionReceived(struct aircraft *a, struct modesMessage *mm, double lat, double lon, int64_t now);
 void receiverTimeout(int part, int nParts, int64_t now);
+void receiverInit();
 void receiverCleanup();
 void receiverTest();
 struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft *a, int noDebug);

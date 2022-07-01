@@ -2823,25 +2823,30 @@ static void compressACAS(char *dateDir) {
     unlink(filename);
 }
 
-// this doesn't need to run under lock as the there should be no need for synchronisation
 void checkNewDay(int64_t now) {
     if (!Modes.globe_history_dir || !Modes.json_globe_index)
         return;
 
+    static int64_t next_check;
+    if (now < next_check) {
+        return;
+    }
+    next_check = now = 5 * SECONDS;
+
     char filename[PATH_MAX];
     char dateDir[PATH_MAX * 3/4];
-    struct tm utc;
 
     // at 30 min past midnight, start a permanent write of all traces
     // create the new directory for writing traces
     // prevent the webserver from reading it until they are in a finished state
     time_t thirtyAgo = now / 1000 - 30 * 60; // in seconds
-    gmtime_r(&thirtyAgo, &utc);
+    struct tm utcThirtyAgo;
+    gmtime_r(&thirtyAgo, &utcThirtyAgo);
 
-    if (utc.tm_mday != Modes.triggerPermWriteDay) {
-        Modes.triggerPermWriteDay = utc.tm_mday;
+    if (utcThirtyAgo.tm_mday != Modes.triggerPermWriteDay) {
+        Modes.triggerPermWriteDay = utcThirtyAgo.tm_mday;
 
-        createDateDir(Modes.globe_history_dir, &utc, dateDir);
+        createDateDir(Modes.globe_history_dir, &utcThirtyAgo, dateDir);
 
         snprintf(filename, PATH_MAX, "%s/traces", dateDir);
         int err = mkdir(filename, 0700);
@@ -2866,26 +2871,25 @@ void checkNewDay(int64_t now) {
     // fiftysix_ago changes day 56 min after midnight: allow webserver to read the previous days traces (see checkNewDay function)
     // this is in seconds, not milliseconds
     time_t fiftysix_ago = now / 1000 - 56 * 60;
-    gmtime_r(&fiftysix_ago, &utc);
+    struct tm utcFiftySixAgo;
+    gmtime_r(&fiftysix_ago, &utcFiftySixAgo);
 
-    if (utc.tm_mday != Modes.traceDay) {
-        Modes.traceDay = utc.tm_mday;
+    if (utcFiftySixAgo.tm_mday != Modes.traceDay) {
+        Modes.traceDay = utcFiftySixAgo.tm_mday;
         time_t yesterday = now / 1000 - 24 * 3600;
-        gmtime_r(&yesterday, &utc);
+        struct tm tm_yesterday;
+        gmtime_r(&yesterday, &tm_yesterday);
 
-        createDateDir(Modes.globe_history_dir, &utc, dateDir); // doesn't usually create a directory ... but use the function anyhow worst that can happen is an empty directory for yesterday
+        createDateDir(Modes.globe_history_dir, &tm_yesterday, dateDir); // doesn't usually create a directory ... but use the function anyhow worst that can happen is an empty directory for yesterday
 
         snprintf(filename, PATH_MAX, "%s/traces", dateDir);
         chmod(filename, 0755);
 
         compressACAS(dateDir);
     }
-
-    return;
 }
 
-// do stuff which needs to happen when the other threads locked
-void checkNewDayLocked(int64_t now) {
+void checkNewDayAcas(int64_t now) {
     if (!Modes.globe_history_dir || !Modes.json_globe_index)
         return;
 

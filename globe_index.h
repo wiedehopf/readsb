@@ -38,7 +38,7 @@ struct tile {
 };
 
 void checkNewDay(int64_t now);
-void checkNewDayLocked(int64_t now);
+void checkNewDayAcas(int64_t now);
 int globe_index(double lat_in, double lon_in);
 int globe_index_index(int index);
 void init_globe_index();

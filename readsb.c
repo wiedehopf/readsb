@@ -281,11 +281,6 @@ static void trackPeriodicUpdate() {
     startWatch(&Modes.hungTimer1);
     pthread_mutex_unlock(&Modes.hungTimerMutex);
     Modes.currentTask = "trackPeriodic_start";
-    static int32_t upcount;
-    upcount++; // free running counter, first iteration is with 1
-    if (upcount < 0) {
-        upcount = 0;
-    }
 
     // stop all threads so we can remove aircraft from the list.
     // also serves as memory barrier so json threads get new aircraft in the list
@@ -349,29 +344,10 @@ static void trackPeriodicUpdate() {
 
     int64_t elapsed1 = lapWatch(&watch);
 
-    if (Modes.mode_ac && upcount % (1 * SECONDS / PERIODIC_UPDATE) == 2) {
-        Modes.currentTask = "trackMatchAC";
-        trackMatchAC(now);
-    }
-
-    if (upcount % (1 * SECONDS / PERIODIC_UPDATE) == 4) {
-        Modes.currentTask = "netFreeClients";
-        netFreeClients();
-    }
-
     if (Modes.updateStats) {
         Modes.currentTask = "statsUpdate";
         statsUpdate(now); // needs to happen under lock
     }
-
-
-    Modes.currentTask = "checkNewDayLocked";
-    checkNewDayLocked(now);
-
-
-    Modes.currentTask = "receiverTimeout";
-    int nParts = 5 * MINUTES / PERIODIC_UPDATE;
-    receiverTimeout((upcount % nParts), nParts, now);
 
     int64_t elapsed2 = lapWatch(&watch);
 
@@ -381,7 +357,7 @@ static void trackPeriodicUpdate() {
 
     static int64_t antiSpam;
     if ((Modes.debug_removeStaleDuration && Modes.next_remove_stale == mono + 1 * SECONDS) || ((elapsed1 > 150 || elapsed2 > 150) && mono > antiSpam + 30 * SECONDS)) {
-        fprintf(stderr, "<3>High load: removeStale took %"PRIi64"/%"PRIi64" ms! upcount: %d stats: %d (suppressing for 30 seconds)\n", elapsed1, elapsed2, (int) (upcount % (1 * SECONDS / PERIODIC_UPDATE)), Modes.updateStats);
+        fprintf(stderr, "<3>High load: removeStale took %"PRIi64"/%"PRIi64" ms! stats: %d (suppressing for 30 seconds)\n", elapsed1, elapsed2, Modes.updateStats);
         antiSpam = mono;
     }
 
@@ -948,8 +924,20 @@ static void backgroundTasks(int64_t now) {
         icaoFilterExpire(now);
         next_flip = now + MODES_ICAO_FILTER_TTL;
     }
+
     if (Modes.net) {
         modesNetPeriodicWork();
+    }
+
+    static int64_t next_every_second;
+    if (now > next_every_second) {
+        next_every_second = now + 1 * SECONDS;
+
+        checkNewDayAcas(now);
+
+        if (Modes.mode_ac) {
+            trackMatchAC(now);
+        }
     }
 }
 
@@ -1871,7 +1859,7 @@ static void miscStuff(int64_t now) {
         }
 
         // only continuously write state if we keep permanent trace
-        if (!Modes.state_only_on_exit && !enough && now > next_blob) {
+        if (!Modes.state_only_on_exit && now > next_blob) {
             //fprintf(stderr, "save_blob: %02x\n", blob);
             notask_save_blob(blob);
             blob = (blob + 1) % STATE_BLOBS;
@@ -2018,6 +2006,8 @@ int main(int argc, char **argv) {
 
     modesInit();
 
+    receiverInit();
+
     // init stats:
     Modes.stats_current.start = Modes.stats_current.end =
             Modes.stats_alltime.start = Modes.stats_alltime.end =
@@ -2056,7 +2046,7 @@ int main(int argc, char **argv) {
     }
 
     checkNewDay(mstime());
-    checkNewDayLocked(mstime());
+    checkNewDayAcas(mstime());
 
     if (Modes.state_dir) {
         readInternalState();

@@ -3330,7 +3330,7 @@ const char *airground_enum_string(airground_t ag) {
 }
 
 // Unlink and free closed clients
-void netFreeClients() {
+static void netFreeClients() {
     struct client *c, **prev;
     struct net_service *s;
 
@@ -3453,6 +3453,20 @@ void modesNetPeriodicWork(void) {
                 flushWrites(s->writer);
                 //fprintf(stderr, "%s: interval flush\n", s->descr);
             }
+        }
+    }
+
+    static int64_t next_free_clients;
+    int64_t free_client_interval = 1 * SECONDS;
+    if (now > next_free_clients) {
+        next_free_clients = now + free_client_interval;
+        netFreeClients();
+
+        if (Modes.receiverTable) {
+            static uint32_t upcount;
+            int nParts = 5 * MINUTES / free_client_interval;
+            receiverTimeout((upcount % nParts), nParts, now);
+            upcount++;
         }
     }
 

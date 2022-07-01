@@ -179,7 +179,6 @@ void modesQueueOutput (struct modesMessage *mm, struct aircraft *a);
 void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a);
 void modesNetPeriodicWork (void);
 void cleanupNetwork(void);
-void netFreeClients();
 
 void writeJsonToNet(struct net_writer *writer, struct char_buffer cb);
 

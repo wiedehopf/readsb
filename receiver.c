@@ -14,6 +14,9 @@ uint32_t receiverHash(uint64_t id) {
 }
 
 struct receiver *receiverGet(uint64_t id) {
+    if (!Modes.receiverTable) {
+        return NULL;
+    }
     struct receiver *r = Modes.receiverTable[receiverHash(id)];
 
     while (r && r->id != id) {
@@ -22,6 +25,9 @@ struct receiver *receiverGet(uint64_t id) {
     return r;
 }
 struct receiver *receiverCreate(uint64_t id) {
+    if (!Modes.receiverTable) {
+        return NULL;
+    }
     struct receiver *r = receiverGet(id);
     if (r)
         return r;
@@ -42,6 +48,9 @@ struct receiver *receiverCreate(uint64_t id) {
     return r;
 }
 void receiverTimeout(int part, int nParts, int64_t now) {
+    if (!Modes.receiverTable) {
+        return;
+    }
     int stride = RECEIVER_TABLE_SIZE / nParts;
     int start = stride * part;
     int end = start + stride;
@@ -72,7 +81,16 @@ void receiverTimeout(int part, int nParts, int64_t now) {
         }
     }
 }
+void receiverInit() {
+    if (Modes.netReceiverId || !Modes.userLocationValid || Modes.netReceiverIdJson) {
+        Modes.receiverTable = cmalloc(RECEIVER_TABLE_SIZE * sizeof(struct receiver));
+        memset(Modes.receiverTable, 0x0,  RECEIVER_TABLE_SIZE * sizeof(struct receiver));
+    }
+}
 void receiverCleanup() {
+    if (!Modes.receiverTable) {
+        return;
+    }
     for (int i = 0; i < RECEIVER_TABLE_SIZE; i++) {
         struct receiver *r = Modes.receiverTable[i];
         struct receiver *next;
@@ -82,6 +100,7 @@ void receiverCleanup() {
             r = next;
         }
     }
+    sfree(Modes.receiverTable);
 }
 int receiverPositionReceived(struct aircraft *a, struct modesMessage *mm, double lat, double lon, int64_t now) {
     if (lat > 85.0 || lat < -85.0 || lon < -175 || lon > 175)
@@ -179,6 +198,9 @@ int receiverPositionReceived(struct aircraft *a, struct modesMessage *mm, double
 }
 
 struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft *a, int noDebug) {
+    if (!Modes.receiverTable) {
+        return NULL;
+    }
     struct receiver *r = receiverGet(id);
     if (!(Modes.debug_receiver && a && a->addr == Modes.cpr_focus)) {
         noDebug = 1;
@@ -249,6 +271,9 @@ int receiverCheckBad(uint64_t id, int64_t now) {
 }
 
 struct receiver *receiverBad(uint64_t id, uint32_t addr, int64_t now) {
+    if (!Modes.receiverTable) {
+        return NULL;
+    }
     struct receiver *r = receiverGet(id);
 
     if (!r)
@@ -291,36 +316,38 @@ struct char_buffer generateReceiversJson() {
 
     struct receiver *r;
 
-    for (int j = 0; j < RECEIVER_TABLE_SIZE; j++) {
-        for (r = Modes.receiverTable[j]; r; r = r->next) {
+    if (Modes.receiverTable) {
+        for (int j = 0; j < RECEIVER_TABLE_SIZE; j++) {
+            for (r = Modes.receiverTable[j]; r; r = r->next) {
 
-            // check if we have enough space
-            if ((p + 1000) >= end) {
-                int used = p - buf;
-                buflen *= 2;
-                buf = (char *) realloc(buf, buflen);
-                p = buf + used;
-                end = buf + buflen;
+                // check if we have enough space
+                if ((p + 1000) >= end) {
+                    int used = p - buf;
+                    buflen *= 2;
+                    buf = (char *) realloc(buf, buflen);
+                    p = buf + used;
+                    end = buf + buflen;
+                }
+
+                char uuid[64];
+                sprint_uuid1(r->id, uuid);
+
+                double elapsed = (r->lastSeen - r->firstSeen) / 1000.0 + 1.0;
+                p = safe_snprintf(p, end, "    [ \"%s\", %6.2f, %6.2f, %6.2f, %6.2f, %7.2f, %7.2f, %d, %0.2f,%0.2f ],\n",
+                        uuid,
+                        r->positionCounter / elapsed,
+                        r->timedOutCounter * 3600.0 / elapsed,
+                        r->latMin,
+                        r->latMax,
+                        r->lonMin,
+                        r->lonMax,
+                        r->badExtent ? 1 : 0,
+                        r->latMin + (r->latMax - r->latMin) / 2.0,
+                        r->lonMin + (r->lonMax - r->lonMin) / 2.0);
+
+                if (p >= end)
+                    fprintf(stderr, "buffer overrun client json\n");
             }
-
-            char uuid[64];
-            sprint_uuid1(r->id, uuid);
-
-            double elapsed = (r->lastSeen - r->firstSeen) / 1000.0 + 1.0;
-            p = safe_snprintf(p, end, "    [ \"%s\", %6.2f, %6.2f, %6.2f, %6.2f, %7.2f, %7.2f, %d, %0.2f,%0.2f ],\n",
-                    uuid,
-                    r->positionCounter / elapsed,
-                    r->timedOutCounter * 3600.0 / elapsed,
-                    r->latMin,
-                    r->latMax,
-                    r->lonMin,
-                    r->lonMax,
-                    r->badExtent ? 1 : 0,
-                    r->latMin + (r->latMax - r->latMin) / 2.0,
-                    r->lonMin + (r->lonMax - r->lonMin) / 2.0);
-
-            if (p >= end)
-                fprintf(stderr, "buffer overrun client json\n");
         }
     }
 
