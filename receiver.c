@@ -41,7 +41,7 @@ struct receiver *receiverCreate(uint64_t id) {
     r->firstSeen = r->lastSeen = mstime();
     Modes.receiverTable[hash] = r;
     Modes.receiverCount++;
-    if (Modes.receiverCount % (Modes.receiver_table_size / 8) == 0)
+    if (Modes.receiverCount % (Modes.receiver_table_size / 4) == 0)
         fprintf(stderr, "receiverTable fill: %0.8f\n", Modes.receiverCount / (double) Modes.receiver_table_size);
     if (Modes.debug_receiver && Modes.receiverCount % 128 == 0)
         fprintf(stderr, "receiverCount: %"PRIu64"\n", Modes.receiverCount);
