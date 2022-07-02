@@ -272,6 +272,22 @@ static void unlockThreads() {
     }
 }
 
+
+// function to check if trackPeriodicUpdate() needs to run
+int trackPeriodicPending() {
+    int64_t now = mstime();
+    int64_t mono = mono_milli_seconds();
+    if (
+            (now > Modes.next_stats_update)
+            || Modes.replace_state_blob
+            || (mono > Modes.next_remove_stale)
+       ) {
+        return 1; // something to do
+    } else {
+        return 0; // nothing to do
+    }
+}
+
 //
 // Entry point for periodic updates
 //
@@ -280,19 +296,21 @@ static void trackPeriodicUpdate() {
     pthread_mutex_lock(&Modes.hungTimerMutex);
     startWatch(&Modes.hungTimer1);
     pthread_mutex_unlock(&Modes.hungTimerMutex);
+
     Modes.currentTask = "trackPeriodic_start";
 
     // stop all threads so we can remove aircraft from the list.
-    // also serves as memory barrier so json threads get new aircraft in the list
     // adding aircraft does not need to be done with locking:
     // the worst case is that the newly added aircraft is skipped as it's not yet
     // in the cache used by the json threads.
+
     Modes.currentTask = "locking";
     lockThreads();
     Modes.currentTask = "locked";
 
     int64_t now = mstime();
     int64_t mono = mono_milli_seconds();
+
     int removed_stale = 0;
 
     static int64_t last_periodic_mono;
@@ -302,27 +320,18 @@ static void trackPeriodicUpdate() {
     }
     last_periodic_mono = mono;
 
-    if (now > Modes.next_stats_update) {
-        Modes.updateStats = 1;
-    }
-
     struct timespec watch;
     startWatch(&watch);
     struct timespec start_time;
     start_monotonic_timing(&start_time);
     struct timespec before = threadpool_get_cumulative_thread_time(Modes.allPool);
 
-    if (Modes.replace_state_blob && pthread_mutex_trylock(&Threads.misc.mutex) == 0) {
-
-        for (int i = 0; i < 4 && Modes.replace_state_blob; i++) {
-            loadReplaceState();
-            checkReplaceState();
-        }
-
-        pthread_mutex_unlock(&Threads.misc.mutex);
+    if (Modes.replace_state_blob) {
+        loadReplaceState();
+        checkReplaceState();
     }
 
-    if (mono > Modes.next_remove_stale && pthread_mutex_trylock(&Threads.misc.mutex) == 0) {
+    if (mono > Modes.next_remove_stale) {
         pthread_mutex_lock(&Modes.hungTimerMutex);
         startWatch(&Modes.hungTimer2);
         pthread_mutex_unlock(&Modes.hungTimerMutex);
@@ -339,11 +348,13 @@ static void trackPeriodicUpdate() {
 
         Modes.next_remove_stale = mono + REMOVE_STALE_INTERVAL;
         removed_stale = 1;
-        pthread_mutex_unlock(&Threads.misc.mutex);
     }
 
     int64_t elapsed1 = lapWatch(&watch);
 
+    if (now > Modes.next_stats_update) {
+        Modes.updateStats = 1;
+    }
     if (Modes.updateStats) {
         Modes.currentTask = "statsUpdate";
         statsUpdate(now); // needs to happen under lock
@@ -384,14 +395,7 @@ static void trackPeriodicUpdate() {
             free(writeJsonToFile(Modes.json_dir, "status.prom", generateStatusProm(now)).buffer);
         }
     }
-    if (Modes.outline_json) {
-        Modes.currentTask = "outlineJson";
-        static int64_t nextOutlineWrite;
-        if (mono > nextOutlineWrite) {
-            free(writeJsonToFile(Modes.json_dir, "outline.json", generateOutlineJson()).buffer);
-            nextOutlineWrite = mono + 30 * SECONDS;
-        }
-    }
+
     end_monotonic_timing(&start_time, &Modes.stats_current.remove_stale_cpu);
     if (removed_stale) {
         struct timespec after = threadpool_get_cumulative_thread_time(Modes.allPool);
@@ -837,11 +841,13 @@ static void *upkeepEntryPoint(void *arg) {
 
     pthread_mutex_lock(&Threads.upkeep.mutex);
 
+    Modes.lockThreads[Modes.lockThreadsCount++] = &Threads.misc;
     Modes.lockThreads[Modes.lockThreadsCount++] = &Threads.apiUpdate;
     Modes.lockThreads[Modes.lockThreadsCount++] = &Threads.globeJson;
     Modes.lockThreads[Modes.lockThreadsCount++] = &Threads.globeBin;
     Modes.lockThreads[Modes.lockThreadsCount++] = &Threads.json;
     Modes.lockThreads[Modes.lockThreadsCount++] = &Threads.decode;
+
     if (Modes.lockThreadsCount > LOCK_THREADS_MAX) {
         fprintf(stderr, "FATAL: LOCK_THREADS_MAX insufficient!\n");
         exit(1);
@@ -851,18 +857,18 @@ static void *upkeepEntryPoint(void *arg) {
     clock_gettime(CLOCK_REALTIME, &ts);
 
     while (!Modes.exit) {
-        checkReplaceState();
-
-        trackPeriodicUpdate();
 
         checkReplaceState();
+        while (trackPeriodicPending()) {
+            trackPeriodicUpdate();
+        }
 
         int64_t wait = PERIODIC_UPDATE;
         if (Modes.synthetic_now) {
             wait = 20;
         }
 
-        if (Modes.json_globe_index && !Modes.replace_state_blob) {
+        if (Modes.json_globe_index) {
             struct timespec watch;
             startWatch(&watch);
 
@@ -1719,7 +1725,7 @@ static void configAfterParse() {
         fprintf(stderr, "Using lat: %9.4f, lon: %9.4f\n", Modes.fUserLat, Modes.fUserLon);
     }
     if (!Modes.userLocationValid || !Modes.json_dir) {
-        Modes.outline_json = 0; // disale outline_json
+        Modes.outline_json = 0; // disable outline_json
     }
     if (Modes.json_reliable == -13) {
         if (Modes.userLocationValid && Modes.maxRange != 0)
@@ -1825,6 +1831,14 @@ static void miscStuff(int64_t now) {
 
     checkNewDay(now);
 
+    if (Modes.outline_json) {
+        static int64_t nextOutlineWrite;
+        if (now > nextOutlineWrite) {
+            free(writeJsonToFile(Modes.json_dir, "outline.json", generateOutlineJson()).buffer);
+            nextOutlineWrite = now + 15 * SECONDS;
+        }
+    }
+
     // don't do everything at once ... this stuff isn't that time critical it'll get its turn
 
     if (Modes.state_dir) {
@@ -1913,11 +1927,8 @@ static void *miscEntryPoint(void *arg) {
     while (!Modes.exit) {
         threadTimedWait(&Threads.misc, &ts, 200); // check every 0.2 seconds if there is something to do
 
-        int64_t mono = mono_milli_seconds();
-        if (mono > Modes.next_remove_stale) {
-            continue;
-        }
-        if (Modes.replace_state_blob) {
+        // trackPeriodicUpdate has priority
+        if (trackPeriodicPending()) {
             continue;
         }
 
@@ -1932,9 +1943,7 @@ static void *miscEntryPoint(void *arg) {
         // function can unlock / lock misc mutex
         miscStuff(now);
 
-        pthread_mutex_lock(&Modes.currentStatsMutex);
         end_cpu_timing(&start_time, &Modes.stats_current.heatmap_and_state_cpu);
-        pthread_mutex_unlock(&Modes.currentStatsMutex);
 
         int64_t elapsed = stopWatch(&watch);
         static int64_t antiSpam2;

@@ -2592,10 +2592,11 @@ static inline void heatmapCheckAlloc(struct heatEntry **buffer, int64_t **slices
 
 static void checkMiscBreak() {
     // take a break now and then and let maintenance functions run
-    while (mono_milli_seconds() > Modes.next_remove_stale || Modes.replace_state_blob) {
+    // wait in 50 ms increments
+    while (trackPeriodicPending()) {
         struct timespec ts;
         clock_gettime(CLOCK_REALTIME, &ts);
-        threadTimedWait(&Threads.misc, &ts, PERIODIC_UPDATE / 2);
+        threadTimedWait(&Threads.misc, &ts, 50);
     }
 }
 

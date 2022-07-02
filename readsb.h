@@ -346,6 +346,7 @@ typedef enum {
 #define unlikely(x)     __builtin_expect((x),0)
 
 void setExit(int arg);
+int trackPeriodicPending();
 
 #define MemoryAlignment 32
 #define ALIGNED __attribute__((aligned(MemoryAlignment)))
@@ -443,7 +444,6 @@ extern struct _Threads Threads;
 struct _Modes
 { // Internal state
     pthread_mutex_t traceDebugMutex;
-    pthread_mutex_t currentStatsMutex;
 
     int num_procs;
     int allPoolSize;
