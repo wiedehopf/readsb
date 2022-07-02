@@ -317,7 +317,7 @@ typedef enum {
 
 #define STATE_BLOBS 256 // change naming scheme if increasing this
 #define LOCK_THREADS_MAX 64
-#define PERIODIC_UPDATE 200 // don't use values larger than 200 ... some hard-coded stuff
+#define PERIODIC_UPDATE (1 * SECONDS)
 #define REMOVE_STALE_INTERVAL (1 * SECONDS)
 
 #define STAT_BUCKETS 90 // 90 * 10 seconds = 15 min (max interval in stats.json)

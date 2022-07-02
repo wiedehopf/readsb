@@ -272,16 +272,22 @@ static void unlockThreads() {
     }
 }
 
+static int64_t ms_until_priority() {
+    int64_t now = mstime();
+    int64_t mono = mono_milli_seconds();
+    int64_t ms_until_run = imin(
+            Modes.next_stats_update - now,
+            Modes.next_remove_stale - mono
+            );
+    if (ms_until_run > 0 && Modes.replace_state_blob) {
+        ms_until_run = 0;
+    }
+    return ms_until_run;
+}
 
 // function to check if priorityTasksRun() needs to run
 int priorityTasksPending() {
-    int64_t now = mstime();
-    int64_t mono = mono_milli_seconds();
-    if (
-            (now > Modes.next_stats_update)
-            || Modes.replace_state_blob
-            || (mono > Modes.next_remove_stale)
-       ) {
+    if (ms_until_priority() <= 0) {
         return 1; // something to do
     } else {
         return 0; // nothing to do
@@ -331,7 +337,7 @@ static void priorityTasksRun() {
         checkReplaceState();
     }
 
-    if (mono > Modes.next_remove_stale) {
+    if (mono >= Modes.next_remove_stale) {
         pthread_mutex_lock(&Modes.hungTimerMutex);
         startWatch(&Modes.hungTimer2);
         pthread_mutex_unlock(&Modes.hungTimerMutex);
@@ -352,7 +358,7 @@ static void priorityTasksRun() {
 
     int64_t elapsed1 = lapWatch(&watch);
 
-    if (now > Modes.next_stats_update) {
+    if (now >= Modes.next_stats_update) {
         Modes.updateStats = 1;
     }
     if (Modes.updateStats) {
@@ -763,7 +769,8 @@ static void traceWriteTask(void *arg, threadpool_threadbuffers_t *buffer_group) 
     int64_t now = mstime();
 
     struct aircraft *a;
-    for (int j = info->from; j < info->to; j++) {
+    // increment info->from to mark this part of the task as finshed
+    for (int j = info->from; j < info->to; j++, info->from++) {
         for (a = Modes.aircraft[j]; a; a = a->next) {
             if (a->trace_write) {
                 int64_t before = mono_milli_seconds();
@@ -780,12 +787,17 @@ static void traceWriteTask(void *arg, threadpool_threadbuffers_t *buffer_group) 
     }
 }
 
-static void writeTraces() {
+static void writeTraces(int64_t mono) {
+    static int lastRunFinished;
+    static int part;
+    static int64_t lastCompletion;
 
     if (!Modes.tracePool) {
         Modes.tracePoolSize = imax(1, Modes.num_procs - 2);
         Modes.tracePool = threadpool_create(Modes.tracePoolSize, 4);
-        Modes.traceTasks = allocate_task_group(4 * Modes.tracePoolSize);
+        Modes.traceTasks = allocate_task_group(6 * Modes.tracePoolSize);
+        lastRunFinished = 1;
+        lastCompletion = mono;
     }
 
     int taskCount = Modes.traceTasks->task_count;
@@ -793,46 +805,75 @@ static void writeTraces() {
     task_info_t *infos = Modes.traceTasks->infos;
 
     // how long until we want to have checked every aircraft if a trace needs to be written
-    int completeTime = 3 * SECONDS;
+    int completeTime = 4 * SECONDS;
     // how many invocations we get in that timeframe
-    int invocations = completeTime / PERIODIC_UPDATE;
+    int invocations = imax(1, completeTime / PERIODIC_UPDATE);
     // how many parts we want to split the complete workload into
     int n_parts = taskCount * invocations;
     int thread_section_len = AIRCRAFT_BUCKETS / n_parts + 1;
 
-    static int part = 0;
+    // only assign new task if we finished the last set of tasks
+    if (lastRunFinished) {
+        for (int i = 0; i < taskCount; i++) {
+            threadpool_task_t *task = &tasks[i];
+            task_info_t *range = &infos[i];
 
-    Modes.traceWriteTimelimit = mono_milli_seconds() + PERIODIC_UPDATE;
+            int thread_start = part * thread_section_len;
+            int thread_end = thread_start + thread_section_len;
+            if (thread_end > AIRCRAFT_BUCKETS)
+                thread_end = AIRCRAFT_BUCKETS;
 
-    for (int i = 0; i < taskCount; i++) {
-        threadpool_task_t *task = &tasks[i];
-        task_info_t *range = &infos[i];
+            //fprintf(stderr, "%8d %8d\n", thread_start, thread_end);
 
-        int thread_start = part * thread_section_len;
-        int thread_end = thread_start + thread_section_len;
-        if (thread_end > AIRCRAFT_BUCKETS)
-            thread_end = AIRCRAFT_BUCKETS;
+            range->from = thread_start;
+            range->to = thread_end;
 
-        //fprintf(stderr, "%8d %8d\n", thread_start, thread_end);
+            task->function = traceWriteTask;
+            task->argument = range;
 
-        range->from = thread_start;
-        range->to = thread_end;
+            //fprintf(stderr, "%d %d\n", thread_start, thread_end);
 
-        task->function = traceWriteTask;
-        task->argument = range;
+            if (++part >= n_parts) {
+                part = 0;
 
-        //fprintf(stderr, "%d %d\n", thread_start, thread_end);
+                int64_t elapsed = mono - lastCompletion;
+                if (elapsed > 30 * SECONDS && mstime() - Modes.startup_time > 10 * MINUTES) {
+                    fprintf(stderr, "trace writing iteration took %.1f seconds, traces might not be up to date, "
+                            "consider alloting more CPU cores or increasing json-trace-interval!\n",
+                            elapsed / 1000.0);
+                    if (elapsed > 10 * MINUTES) {
+                        fprintf(stderr, "<3>trace writing iteration took %.1f seconds, persistent traces for the previous UTC day might not all have been written, "
+                                "consider alloting more CPU cores or increasing json-trace-interval!\n",
+                                elapsed / 1000.0);
+                    }
+                }
 
-        if (++part >= n_parts) {
-            part = 0;
+                lastCompletion = mono;
+            }
         }
     }
+
     struct timespec before = threadpool_get_cumulative_thread_time(Modes.tracePool);
     threadpool_run(Modes.tracePool, tasks, taskCount);
     struct timespec after = threadpool_get_cumulative_thread_time(Modes.tracePool);
     timespec_add_elapsed(&before, &after, &Modes.stats_current.trace_json_cpu);
 
-    threadpool_reset_buffers(Modes.tracePool);
+    lastRunFinished = 1;
+    for (int i = 0; i < taskCount; i++) {
+        task_info_t *range = &infos[i];
+        if (range->from != range->to) {
+            lastRunFinished = 0;
+        }
+    }
+
+    //fprintf(stderr, "n_parts %4d part %4d lastRunFinished %d\n", n_parts, part, lastRunFinished);
+
+    // reset allocated buffers every 5 minutes
+    static int64_t next_buffer_reset;
+    if (mono > next_buffer_reset) {
+        next_buffer_reset = mono + 5 * MINUTES;
+        threadpool_reset_buffers(Modes.tracePool);
+    }
 }
 
 static void *upkeepEntryPoint(void *arg) {
@@ -859,29 +900,43 @@ static void *upkeepEntryPoint(void *arg) {
     while (!Modes.exit) {
 
         checkReplaceState();
+        if (priorityTasksPending()) {
+            priorityTasksRun();
+        }
 
-        priorityTasksRun();
+        if (Modes.json_globe_index) {
+            // writing a trace takes some time, to increase timing precision the priority tasks, allot a little less time than available
+            // this isn't critical though
+            int64_t time_alloted = ms_until_priority() - PERIODIC_UPDATE / 10;
+            if (time_alloted > 0) {
 
+                int64_t mono = mono_milli_seconds();
+                Modes.traceWriteTimelimit = mono + time_alloted;
+
+                struct timespec watch;
+                startWatch(&watch);
+
+                Modes.currentTask = "writeTraces_start";
+                writeTraces(mono);
+                Modes.currentTask = "writeTraces_end";
+
+                int64_t elapsed = stopWatch(&watch);
+                if (elapsed > 4 * SECONDS) {
+                    fprintf(stderr, "<3>writeTraces() took %"PRIu64" ms!\n", elapsed);
+                }
+            }
+        }
         int64_t wait = PERIODIC_UPDATE;
         if (Modes.synthetic_now) {
             wait = 20;
+        } else {
+            wait = ms_until_priority();
         }
-        if (priorityTasksPending()) {
-            wait = 1;
-            // if we have priority tasks pending, don't write traces and wait only 1 ms
-        } else if (Modes.json_globe_index) {
-            struct timespec watch;
-            startWatch(&watch);
-
-            Modes.currentTask = "writeTraces_start";
-            writeTraces();
-            Modes.currentTask = "writeTraces_end";
-
-            int64_t elapsed = stopWatch(&watch);
-            if (elapsed > 4 * SECONDS) {
-                fprintf(stderr, "<3>writeTraces() took %"PRIu64" ms!\n", elapsed);
-            }
+        if (0) {
+            fprintf(stderr, "upkeep wait: %ld ms\n", (long) wait);
         }
+
+        clock_gettime(CLOCK_REALTIME, &ts);
         threadTimedWait(&Threads.upkeep, &ts, wait);
     }
 
