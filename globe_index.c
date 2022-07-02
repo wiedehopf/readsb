@@ -423,6 +423,9 @@ static void createDateDir(char *base_dir, struct tm *utc, char *dateDir) {
             perror(pathbuf);
     }
     sprintDateDir(base_dir, utc, dateDir);
+
+    //fprintf(stderr, "making sure directory exists: %s\n", dateDir);
+
     if (mkdir(dateDir, 0755) && errno != EEXIST)
         perror(dateDir);
 }
@@ -2831,7 +2834,7 @@ void checkNewDay(int64_t now) {
     if (now < next_check) {
         return;
     }
-    next_check = now = 5 * SECONDS;
+    next_check = now + 5 * SECONDS;
 
     char filename[PATH_MAX];
     char dateDir[PATH_MAX * 3/4];
