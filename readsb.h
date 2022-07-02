@@ -537,6 +537,9 @@ struct _Modes
     int8_t api; // enable api output
     int apiThreadCount;
     atomic_int apiWorkerCpuMicro;
+    atomic_int recentTraceWrites;
+    atomic_int fullTraceWrites;
+    atomic_int permTraceWrites;
     struct net_service apiService;
     struct apiCon **apiListeners;
 

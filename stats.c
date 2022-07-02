@@ -305,12 +305,17 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
     add_timespecs(&st1->api_update_cpu, &st2->api_update_cpu, &target->api_update_cpu);
     add_timespecs(&st1->api_worker_cpu, &st2->api_worker_cpu, &target->api_worker_cpu);
     add_timespecs(&st1->trace_json_cpu, &st2->trace_json_cpu, &target->trace_json_cpu);
-    for (i = 0; i < NUM_TYPES; i ++) {
-        target->pos_by_type[i] = st1->pos_by_type[i] + st2->pos_by_type[i];
-    }
+
     target->pos_all = st1->pos_all + st2->pos_all;
     target->pos_duplicate = st1->pos_duplicate + st2->pos_duplicate;
     target->pos_garbage = st1->pos_garbage + st2->pos_garbage;
+    for (i = 0; i < NUM_TYPES; i ++) {
+        target->pos_by_type[i] = st1->pos_by_type[i] + st2->pos_by_type[i];
+    }
+
+    target->recentTraceWrites = st1->recentTraceWrites + st2->recentTraceWrites;
+    target->fullTraceWrites = st1->fullTraceWrites + st2->fullTraceWrites;
+    target->permTraceWrites = st1->permTraceWrites + st2->permTraceWrites;
 
     // noise power:
     target->noise_power_sum = st1->noise_power_sum + st2->noise_power_sum;
@@ -391,10 +396,15 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
 
 static void lockCurrent() {
     pthread_mutex_lock(&Modes.currentStatsMutex);
+
     int micro = atomic_exchange(&Modes.apiWorkerCpuMicro, 0);
     Modes.stats_current.api_worker_cpu.tv_sec += micro / (1000LL * 1000LL);
     Modes.stats_current.api_worker_cpu.tv_nsec += 1000LL * (micro % (1000LL * 1000LL));
     normalize_timespec(&Modes.stats_current.api_worker_cpu);
+
+    Modes.stats_current.recentTraceWrites += atomic_exchange(&Modes.recentTraceWrites, 0);
+    Modes.stats_current.fullTraceWrites += atomic_exchange(&Modes.fullTraceWrites, 0);
+    Modes.stats_current.permTraceWrites += atomic_exchange(&Modes.permTraceWrites, 0);
 }
 static void unlockCurrent() {
     pthread_mutex_unlock(&Modes.currentStatsMutex);
@@ -780,6 +790,12 @@ struct char_buffer generatePromFile(int64_t now) {
     p = safe_snprintf(p, end, "readsb_cpu_api_update %llu\n", CPU_MILLIS(api_update));
     p = safe_snprintf(p, end, "readsb_cpu_api_workers %llu\n", CPU_MILLIS(api_worker));
 #undef CPU_MILLIS
+
+    p = safe_snprintf(p, end, "readsb_tracewrites_recent %u\n", st->recentTraceWrites);
+    p = safe_snprintf(p, end, "readsb_tracewrites_full %u\n", st->fullTraceWrites);
+    p = safe_snprintf(p, end, "readsb_tracewrites_perm %u\n", st->permTraceWrites);
+
+
     p = safe_snprintf(p, end, "readsb_distance_max %u\n", (uint32_t) st->distance_max);
     if (st->distance_min < 1E42)
         p = safe_snprintf(p, end, "readsb_distance_min %u\n", (uint32_t) st->distance_min);

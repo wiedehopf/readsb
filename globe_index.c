@@ -544,6 +544,9 @@ void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuff
         }
 
 
+        // statistics
+        atomic_fetch_add(&Modes.recentTraceWrites, 1);
+
         // prepare the data for the trace_recent file in /run
         recent = generateTraceJson(a, tb, start_recent, -2, generate_buffer);
 
@@ -574,6 +577,9 @@ void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuff
                 fprintf(stderr, "full\n");
 
             mark_legs(tb, a, 0);
+
+            // statistics
+            atomic_fetch_add(&Modes.fullTraceWrites, 1);
 
             full = generateTraceJson(a, tb, startFull, -1, generate_buffer);
 
@@ -648,6 +654,9 @@ void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuff
                 if (elapsed > 2 * SECONDS) {
                     fprintf(stderr, "<3>mark_legs() for %06x took %.1f s!\n", a->addr, elapsed / 1000.0);
                 }
+
+                // statistics
+                atomic_fetch_add(&Modes.permTraceWrites, 1);
 
                 hist = generateTraceJson(a, tb, start, end, generate_buffer);
                 if (hist.len > 0) {

@@ -126,6 +126,10 @@ struct stats
   uint32_t pos_garbage;
   uint32_t pos_by_type[NUM_TYPES];
 
+  uint32_t recentTraceWrites;
+  uint32_t fullTraceWrites;
+  uint32_t permTraceWrites;
+
   // number of altitude messages ignored because
   // we had a recent DF17/18 altitude
   uint32_t suppressed_altitude_messages;
