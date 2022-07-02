@@ -2593,7 +2593,7 @@ static inline void heatmapCheckAlloc(struct heatEntry **buffer, int64_t **slices
 static void checkMiscBreak() {
     // take a break now and then and let maintenance functions run
     // wait in 50 ms increments
-    while (trackPeriodicPending()) {
+    while (priorityTasksPending()) {
         struct timespec ts;
         clock_gettime(CLOCK_REALTIME, &ts);
         threadTimedWait(&Threads.misc, &ts, 50);

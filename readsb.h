@@ -346,7 +346,7 @@ typedef enum {
 #define unlikely(x)     __builtin_expect((x),0)
 
 void setExit(int arg);
-int trackPeriodicPending();
+int priorityTasksPending();
 
 #define MemoryAlignment 32
 #define ALIGNED __attribute__((aligned(MemoryAlignment)))
@@ -428,7 +428,7 @@ struct mag_buf
 // Program global state
 
 struct _Threads {
-    threadT upkeep; // runs trackPeriodicUpdate, locks most other threads when doing its thing
+    threadT upkeep; // runs priorityTasksUpdate, locks most other threads when doing its thing
     threadT decode; // thread doing demodulation, decoding and networking
 
     threadT reader;

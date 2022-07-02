@@ -221,7 +221,7 @@ static void incTimedwait(struct timespec *target, int64_t increment) {
     normalize_timespec(target);
     struct timespec now;
     clock_gettime(CLOCK_REALTIME, &now);
-    int64_t min_sleep = 10 * 1000; // always wait a bit (10 us) to yield (i hope)
+    int64_t min_sleep = 50 * 1000; // always wait a bit (50 us) to yield (i hope)
     if (target->tv_sec < now.tv_sec || (target->tv_sec == now.tv_sec && target->tv_nsec <= now.tv_nsec + min_sleep)) {
         target->tv_sec = now.tv_sec;
         target->tv_nsec = now.tv_nsec + min_sleep;

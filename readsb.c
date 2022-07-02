@@ -273,8 +273,8 @@ static void unlockThreads() {
 }
 
 
-// function to check if trackPeriodicUpdate() needs to run
-int trackPeriodicPending() {
+// function to check if priorityTasksRun() needs to run
+int priorityTasksPending() {
     int64_t now = mstime();
     int64_t mono = mono_milli_seconds();
     if (
@@ -292,12 +292,12 @@ int trackPeriodicPending() {
 // Entry point for periodic updates
 //
 
-static void trackPeriodicUpdate() {
+static void priorityTasksRun() {
     pthread_mutex_lock(&Modes.hungTimerMutex);
     startWatch(&Modes.hungTimer1);
     pthread_mutex_unlock(&Modes.hungTimerMutex);
 
-    Modes.currentTask = "trackPeriodic_start";
+    Modes.currentTask = "priorityTasks_start";
 
     // stop all threads so we can remove aircraft from the list.
     // adding aircraft does not need to be done with locking:
@@ -316,7 +316,7 @@ static void trackPeriodicUpdate() {
     static int64_t last_periodic_mono;
     int64_t periodic_interval = mono - last_periodic_mono;
     if (periodic_interval > 5 * SECONDS && last_periodic_mono) {
-        fprintf(stderr, "<3> trackPeriodicUpdate didn't run for %.1f seconds!\n", periodic_interval / 1000.0);
+        fprintf(stderr, "<3> priorityTasksRun didn't run for %.1f seconds!\n", periodic_interval / 1000.0);
     }
     last_periodic_mono = mono;
 
@@ -401,7 +401,7 @@ static void trackPeriodicUpdate() {
         struct timespec after = threadpool_get_cumulative_thread_time(Modes.allPool);
         timespec_add_elapsed(&before, &after, &Modes.stats_current.remove_stale_cpu);
     }
-    Modes.currentTask = "trackPeriodic_end";
+    Modes.currentTask = "priorityTasks_end";
 }
 
 //
@@ -632,7 +632,7 @@ static void *decodeEntryPoint(void *arg) {
         while (!Modes.exit) {
             struct timespec start_time;
 
-            // in case we're not waiting in backgroundTasks and trackPeriodic doesn't have a chance to schedule
+            // in case we're not waiting in backgroundTasks and priorityTasks doesn't have a chance to schedule
             if (mono > Modes.next_remove_stale + 5 * SECONDS) {
                 threadTimedWait(&Threads.decode, &ts, 15);
             }
@@ -859,16 +859,17 @@ static void *upkeepEntryPoint(void *arg) {
     while (!Modes.exit) {
 
         checkReplaceState();
-        while (trackPeriodicPending()) {
-            trackPeriodicUpdate();
-        }
+
+        priorityTasksRun();
 
         int64_t wait = PERIODIC_UPDATE;
         if (Modes.synthetic_now) {
             wait = 20;
         }
-
-        if (Modes.json_globe_index) {
+        if (priorityTasksPending()) {
+            wait = 1;
+            // if we have priority tasks pending, don't write traces and wait only 1 ms
+        } else if (Modes.json_globe_index) {
             struct timespec watch;
             startWatch(&watch);
 
@@ -1927,8 +1928,8 @@ static void *miscEntryPoint(void *arg) {
     while (!Modes.exit) {
         threadTimedWait(&Threads.misc, &ts, 200); // check every 0.2 seconds if there is something to do
 
-        // trackPeriodicUpdate has priority
-        if (trackPeriodicPending()) {
+        // priorityTasksRun has priority
+        if (priorityTasksPending()) {
             continue;
         }
 
@@ -2138,7 +2139,7 @@ int main(int argc, char **argv) {
             fprintf(stderr, "<3> readsb was suspended for more than 5 seconds, this isn't healthy you know!\n");
         } else {
             if (elapsed1 > 60 * SECONDS && !Modes.synthetic_now) {
-                fprintf(stderr, "<3>FATAL: trackPeriodicUpdate() interval %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed1 / SECONDS);
+                fprintf(stderr, "<3>FATAL: priorityTasksRun() interval %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed1 / SECONDS);
                 fprintf(stderr, "<3>lockThreads() probably hung on %s\n", Modes.currentTask);
                 setExit(2);
                 break;
@@ -2201,7 +2202,7 @@ int main(int argc, char **argv) {
     if (Modes.exit < 2) {
         // force stats to be done, this must happen before network cleanup as it checks network stuff
         Modes.next_stats_update = 0;
-        trackPeriodicUpdate();
+        priorityTasksRun();
 
         /* Cleanup network setup */
         cleanupNetwork();
