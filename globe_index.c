@@ -894,6 +894,8 @@ static int load_aircraft(char **p, char *end, int64_t now) {
 
         if (a->trace_chunk_len > 0) {
             a->trace_chunks = malloc(a->trace_chunk_len * sizeof(stateChunk));
+        } else {
+            a->trace_chunk_len = 0;
         }
         for (int k = 0; k < a->trace_chunk_len; k++) {
             stateChunk *chunk = &a->trace_chunks[k];
@@ -1496,12 +1498,30 @@ static void traceUnlink(struct aircraft *a) {
 
 static stateChunk *resizeTraceChunks(struct aircraft *a, int newLen) {
     int oldLen = a->trace_chunk_len;
+
+    if (oldLen < 0 || newLen < 0) {
+        fprintf(stderr, "resizeTraceChunks: oldLen < 0 || newLen < 0 ... this is a fatal error, exiting.\n");
+        exit(1);
+    }
+    if (oldLen > 0 && !a->trace_chunks) {
+        fprintf(stderr, "resizeTraceChunks: oldLen > 0 && !a->trace_chunks ... this is a fatal error, exiting.\n");
+        exit(1);
+    }
+
     a->trace_chunk_len = newLen;
     if (newLen == 0) {
         sfree(a->trace_chunks);
         return NULL;
     }
+    if (oldLen == newLen) {
+        fprintf(stderr, "resizeTraceChunks: oldLen == newLen ... this is weird but shouldn't be an issue\n");
+    }
 
+    int maxLen = INT_MAX / sizeof(stateChunk);
+    if (maxLen < newLen || maxLen < oldLen) {
+        fprintf(stderr, "resizeTraceChunks: wat? overflow3? this can't happen, shut up old gcc\n");
+        exit(1);
+    }
 
     int newBytes = newLen * sizeof(stateChunk);
     int oldBytes = oldLen * sizeof(stateChunk);
@@ -1512,11 +1532,23 @@ static stateChunk *resizeTraceChunks(struct aircraft *a, int newLen) {
         exit(1);
     }
 
-    if (newLen < oldLen) {
-        memcpy(new, a->trace_chunks + (oldLen - newLen), newBytes);
+    if (oldLen > newLen) {
+        int shrinkByLen = oldLen - newLen;
+        if (shrinkByLen < 0) {
+            fprintf(stderr, "resizeTraceChunks: wat? overflow1? this can't happen, shut up old gcc\n");
+            exit(1);
+        }
+
+        memcpy(new, a->trace_chunks + shrinkByLen, newBytes);
     } else {
+        int growByBytes = newBytes - oldBytes;
+        if (growByBytes < 0) {
+            fprintf(stderr, "resizeTraceChunks: wat? overflow2? this can't happen, shut up old gcc\n");
+            exit(1);
+        }
+
         memcpy(new, a->trace_chunks, oldBytes);
-        memset(new + oldLen, 0x0, (newBytes - oldBytes));
+        memset(new + oldLen, 0x0, growByBytes);
     }
 
     sfree(a->trace_chunks);
@@ -1730,6 +1762,11 @@ static void setTrace(struct aircraft *a, fourState *source, int len) {
     int chunkSize = Modes.traceChunkPoints;
     while (len > chunkSize) {
         stateChunk *new = resizeTraceChunks(a, a->trace_chunk_len + 1);
+
+        if (!new) {
+            fprintf(stderr, "%06x setTrace error, resizeTraceChunks returned NULL, treat this as fatal and exit.\n", a->addr);
+            exit(1);
+        }
 
         new->numStates = chunkSize;
         new->firstTimestamp = getState(p, 0)->timestamp;
