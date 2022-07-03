@@ -74,6 +74,14 @@ struct net_service
     int recvqOverrideSize;
 };
 
+#define NET_SERVICE_GROUP_MAX 16
+
+struct net_service_group {
+    struct net_service *services;
+    int len;
+    int alloc;
+};
+
 // Structure used to describe a networking client
 
 struct client
@@ -166,7 +174,6 @@ struct net_writer
     int noTimestamps;
 };
 
-struct net_service *serviceInit (const char *descr, struct net_writer *writer, heartbeat_fn hb_handler, read_mode_t mode, const char *sep, read_fn read_handler);
 void serviceListen (struct net_service *service, char *bind_addr, char *bind_ports, int epfd);
 void serviceClose(struct net_service *s);
 struct client *createSocketClient (struct net_service *service, int fd);

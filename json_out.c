@@ -2099,11 +2099,12 @@ struct char_buffer generateClientsJson() {
 
     p = safe_snprintf(p, end, "  \"clients\" : [\n");
 
-    for (struct net_service *s = Modes.services; s; s = s->next) {
-        for (struct client *c = s->clients; c; c = c->next) {
+    for (struct net_service *service = Modes.services_in.services; service->descr; service++) {
+        if (!service->read_handler) {
+            continue;
+        }
+        for (struct client *c = service->clients; c; c = c->next) {
             if (!c->service)
-                continue;
-            if (!s->read_handler)
                 continue;
 
             // check if we have enough space

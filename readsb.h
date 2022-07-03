@@ -479,7 +479,8 @@ struct _Modes
     int freq;
     int ppm_error;
     char aneterr[ANET_ERR_LEN];
-    struct net_service *services; // Active services
+    struct net_service_group services_in; // Active services which primarily receive data
+    struct net_service_group services_out; // Active services which primarily send data
     int exitEventfd;
     int net_epfd; // epoll fd used for most network stuff
     int net_maxEvents;

@@ -107,21 +107,29 @@ static void modesReadFromClient(struct client *c, int64_t start);
 
 // Init a service with the given read/write characteristics, return the new service.
 // Doesn't arrange for the service to listen or connect
-struct net_service *serviceInit(const char *descr, struct net_writer *writer, heartbeat_fn hb, read_mode_t mode, const char *sep, read_fn handler) {
-    struct net_service *service;
+static struct net_service *serviceInit(struct net_service_group *group, const char *descr, struct net_writer *writer, heartbeat_fn hb, read_mode_t mode, const char *sep, read_fn handler) {
     if (!descr) {
         fprintf(stderr, "Fatal: no service description\n");
         exit(1);
     }
 
-    if (!(service = cmalloc(sizeof (struct net_service)))) {
-        fprintf(stderr, "Out of memory allocating service %s\n", descr);
+    if (!group->services) {
+        group->alloc = NET_SERVICE_GROUP_MAX;
+        group->services = cmalloc(group->alloc * sizeof(struct net_service));
+    }
+
+    if (!group->services) {
+    }
+
+    group->len++;
+    if (group->len + 1 > group->alloc) {
+        fprintf(stderr, "FATAL: Increase NET_SERVICE_GROUP_MAX\n");
         exit(1);
     }
-    memset(service, 0, sizeof(struct net_service));
 
-    service->next = Modes.services;
-    Modes.services = service;
+    struct net_service *service = &group->services[group->len - 1];
+    memset(service, 0, 2 * sizeof(struct net_service));
+    // also set the extra service to zero, zero terminatd array
 
     service->descr = descr;
     service->listener_count = 0;
@@ -143,10 +151,7 @@ struct net_service *serviceInit(const char *descr, struct net_writer *writer, he
         // set writer to zero
         memset(service->writer, 0, sizeof(struct net_writer));
 
-        if (!(service->writer->data = cmalloc(MODES_OUT_BUF_SIZE))) {
-            fprintf(stderr, "Out of memory allocating output buffer for service %s\n", descr);
-            exit(1);
-        }
+        service->writer->data = cmalloc(MODES_OUT_BUF_SIZE);
 
         service->writer->service = service;
         service->writer->dataUsed = 0;
@@ -695,28 +700,6 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
     }
 }
 
-void serviceClose(struct net_service *s) {
-    if (!s)
-        return;
-    if (s->listenSockets) {
-        for (int i = 0; i < s->listener_count; ++i) {
-            struct client *c = &s->listenSockets[i]; // not really a client
-            epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, c->fd, &c->epollEvent);
-            anetCloseSocket(s->listener_fds[i]);
-        }
-        sfree(s->listenSockets);
-    }
-    sfree(s->listener_fds);
-    if (s->writer && s->writer->data) {
-        sfree(s->writer->data);
-    }
-    if (s->unixSocket) {
-        unlink(s->unixSocket);
-        sfree(s->unixSocket);
-    }
-    sfree(s);
-}
-
 void modesInitNet(void) {
     uat2esnt_initCrcTables();
 
@@ -756,37 +739,36 @@ void modesInitNet(void) {
     struct net_service *gpsd_in;
 
     signal(SIGPIPE, SIG_IGN);
-    Modes.services = NULL;
 
     Modes.net_epfd = my_epoll_create();
 
     // set up listeners
-    raw_out = serviceInit("Raw TCP output", &Modes.raw_out, send_raw_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    raw_out = serviceInit(&Modes.services_out, "Raw TCP output", &Modes.raw_out, send_raw_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(raw_out, Modes.net_bind_address, Modes.net_output_raw_ports, Modes.net_epfd);
 
-    beast_out = serviceInit("Beast TCP output", &Modes.beast_out, send_beast_heartbeat, READ_MODE_BEAST_COMMAND, NULL, handleBeastCommand);
+    beast_out = serviceInit(&Modes.services_out, "Beast TCP output", &Modes.beast_out, send_beast_heartbeat, READ_MODE_BEAST_COMMAND, NULL, handleBeastCommand);
     serviceListen(beast_out, Modes.net_bind_address, Modes.net_output_beast_ports, Modes.net_epfd);
 
-    beast_reduce_out = serviceInit("BeastReduce TCP output", &Modes.beast_reduce_out, send_beast_heartbeat, READ_MODE_BEAST_COMMAND, NULL, handleBeastCommand);
+    beast_reduce_out = serviceInit(&Modes.services_out, "BeastReduce TCP output", &Modes.beast_reduce_out, send_beast_heartbeat, READ_MODE_BEAST_COMMAND, NULL, handleBeastCommand);
 
     serviceListen(beast_reduce_out, Modes.net_bind_address, Modes.net_output_beast_reduce_ports, Modes.net_epfd);
 
-    garbage_out = serviceInit("Garbage TCP output", &Modes.garbage_out, send_beast_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    garbage_out = serviceInit(&Modes.services_out, "Garbage TCP output", &Modes.garbage_out, send_beast_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(garbage_out, Modes.net_bind_address, Modes.garbage_ports, Modes.net_epfd);
 
-    vrs_out = serviceInit("VRS json output", &Modes.vrs_out, NULL, READ_MODE_IGNORE, NULL, NULL);
+    vrs_out = serviceInit(&Modes.services_out, "VRS json output", &Modes.vrs_out, NULL, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(vrs_out, Modes.net_bind_address, Modes.net_output_vrs_ports, Modes.net_epfd);
 
-    json_out = serviceInit("Position json output", &Modes.json_out, NULL, READ_MODE_IGNORE, NULL, NULL);
+    json_out = serviceInit(&Modes.services_out, "Position json output", &Modes.json_out, NULL, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(json_out, Modes.net_bind_address, Modes.net_output_json_ports, Modes.net_epfd);
 
-    sbs_out = serviceInit("SBS TCP output ALL", &Modes.sbs_out, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    sbs_out = serviceInit(&Modes.services_out, "SBS TCP output ALL", &Modes.sbs_out, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(sbs_out, Modes.net_bind_address, Modes.net_output_sbs_ports, Modes.net_epfd);
 
-    sbs_out_replay = serviceInit("SBS TCP output MAIN", &Modes.sbs_out_replay, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
-    sbs_out_prio = serviceInit("SBS TCP output PRIO", &Modes.sbs_out_prio, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
-    sbs_out_mlat = serviceInit("SBS TCP output MLAT", &Modes.sbs_out_mlat, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
-    sbs_out_jaero = serviceInit("SBS TCP output JAERO", &Modes.sbs_out_jaero, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    sbs_out_replay = serviceInit(&Modes.services_out, "SBS TCP output MAIN", &Modes.sbs_out_replay, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    sbs_out_prio = serviceInit(&Modes.services_out, "SBS TCP output PRIO", &Modes.sbs_out_prio, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    sbs_out_mlat = serviceInit(&Modes.services_out, "SBS TCP output MLAT", &Modes.sbs_out_mlat, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    sbs_out_jaero = serviceInit(&Modes.services_out, "SBS TCP output JAERO", &Modes.sbs_out_jaero, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
 
     serviceListen(sbs_out_jaero, Modes.net_bind_address, Modes.net_output_jaero_ports, Modes.net_epfd);
 
@@ -815,12 +797,12 @@ void modesInitNet(void) {
         sfree(jaero);
     }
 
-    sbs_in = serviceInit("SBS TCP input MAIN", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLine);
+    sbs_in = serviceInit(&Modes.services_in, "SBS TCP input MAIN", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLine);
     serviceListen(sbs_in, Modes.net_bind_address, Modes.net_input_sbs_ports, Modes.net_epfd);
 
-    sbs_in_mlat = serviceInit("SBS TCP input MLAT", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLineMlat);
-    sbs_in_prio = serviceInit("SBS TCP input PRIO", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLinePrio);
-    sbs_in_jaero = serviceInit("SBS TCP input JAERO", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLineJaero);
+    sbs_in_mlat = serviceInit(&Modes.services_in, "SBS TCP input MLAT", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLineMlat);
+    sbs_in_prio = serviceInit(&Modes.services_in, "SBS TCP input PRIO", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLinePrio);
+    sbs_in_jaero = serviceInit(&Modes.services_in, "SBS TCP input JAERO", NULL, NULL, READ_MODE_ASCII, "\n",  decodeSbsLineJaero);
 
 
     serviceListen(sbs_in_jaero, Modes.net_bind_address, Modes.net_input_jaero_ports, Modes.net_epfd);
@@ -844,11 +826,11 @@ void modesInitNet(void) {
         sfree(jaero);
     }
 
-    gpsd_in = serviceInit("GPSD TCP input", &Modes.gpsd_in, NULL, READ_MODE_ASCII, "\n", handle_gpsd);
+    gpsd_in = serviceInit(&Modes.services_in, "GPSD TCP input", &Modes.gpsd_in, NULL, READ_MODE_ASCII, "\n", handle_gpsd);
 
     if (Modes.json_dir && Modes.json_globe_index && Modes.globe_history_dir) {
         /* command input */
-        struct net_service *commandService = serviceInit("command input", NULL, NULL, READ_MODE_ASCII, "\n", handleCommandSocket);
+        struct net_service *commandService = serviceInit(&Modes.services_in, "command input", NULL, NULL, READ_MODE_ASCII, "\n", handleCommandSocket);
         char commandSocketFile[PATH_MAX];
         char commandSocket[PATH_MAX];
         snprintf(commandSocketFile, PATH_MAX, "%s/cmd.sock", Modes.json_dir);
@@ -858,11 +840,11 @@ void modesInitNet(void) {
         chmod(commandSocket, 0600);
     }
 
-    raw_in = serviceInit("Raw TCP input", NULL, NULL, READ_MODE_ASCII, "\n", processHexMessage);
+    raw_in = serviceInit(&Modes.services_in, "Raw TCP input", NULL, NULL, READ_MODE_ASCII, "\n", processHexMessage);
     serviceListen(raw_in, Modes.net_bind_address, Modes.net_input_raw_ports, Modes.net_epfd);
 
     /* Beast input via network */
-    Modes.beast_in_service = serviceInit("Beast TCP input", &Modes.beast_in, NULL, READ_MODE_BEAST, NULL, decodeBinMessage);
+    Modes.beast_in_service = serviceInit(&Modes.services_in, "Beast TCP input", &Modes.beast_in, NULL, READ_MODE_BEAST, NULL, decodeBinMessage);
     if (Modes.netIngest) {
         Modes.beast_in_service->sendqOverrideSize = MODES_NET_SNDBUF_SIZE;
         Modes.beast_in_service->recvqOverrideSize = MODES_NET_SNDBUF_SIZE;
@@ -878,7 +860,7 @@ void modesInitNet(void) {
         createGenericClient(Modes.beast_in_service, Modes.beast_fd);
     }
 
-    Modes.uat_in_service = serviceInit("UAT TCP input", NULL, NULL, READ_MODE_ASCII, "\n", decodeUatMessage);
+    Modes.uat_in_service = serviceInit(&Modes.services_in, "UAT TCP input", NULL, NULL, READ_MODE_ASCII, "\n", decodeUatMessage);
     // for testing ... don't care to create an argument to open this port
     // serviceListen(Modes.uat_in_service, Modes.net_bind_address, "1234", Modes.net_epfd);
 
@@ -2221,15 +2203,12 @@ static void decodeHulcMessage(char *p) {
 
 // recompute global Mode A/C setting
 static void autoset_modeac() {
-    struct net_service *s;
-    struct client *c;
-
     if (!Modes.mode_ac_auto)
         return;
 
     Modes.mode_ac = 0;
-    for (s = Modes.services; s; s = s->next) {
-        for (c = s->clients; c; c = c->next) {
+    for (struct net_service *service = Modes.services_out.services; service->descr; service++) {
+        for (struct client *c = service->clients; c; c = c->next) {
             if (c->modeac_requested) {
                 Modes.mode_ac = 1;
                 break;
@@ -3329,23 +3308,28 @@ const char *airground_enum_string(airground_t ag) {
     }
 }
 
+static void serviceFreeClients(struct net_service *s) {
+    struct client *c, **prev;
+    for (prev = &s->clients, c = *prev; c; c = *prev) {
+        if (c->fd == -1) {
+            // Recently closed, prune from list
+            *prev = c->next;
+            sfree(c->sendq);
+            sfree(c->buf);
+            sfree(c);
+        } else {
+            prev = &c->next;
+        }
+    }
+}
+
 // Unlink and free closed clients
 static void netFreeClients() {
-    struct client *c, **prev;
-    struct net_service *s;
-
-    for (s = Modes.services; s; s = s->next) {
-        for (prev = &s->clients, c = *prev; c; c = *prev) {
-            if (c->fd == -1) {
-                // Recently closed, prune from list
-                *prev = c->next;
-                sfree(c->sendq);
-                sfree(c->buf);
-                sfree(c);
-            } else {
-                prev = &c->next;
-            }
-        }
+    for (struct net_service *service = Modes.services_out.services; service->descr; service++) {
+        serviceFreeClients(service);
+    }
+    for (struct net_service *service = Modes.services_in.services; service->descr; service++) {
+        serviceFreeClients(service);
     }
 }
 
@@ -3386,6 +3370,24 @@ static void handleEpoll(int count) {
         }
     }
 }
+
+static void flushService(struct net_service *service, int64_t now) {
+    if (!service->writer) {
+        return;
+    }
+    int force_flush = 0;
+    struct net_writer *writer = service->writer;
+    if (Modes.net_heartbeat_interval && writer->send_heartbeat
+            && now - writer->lastWrite >= Modes.net_heartbeat_interval) {
+        // If we have generated no messages for a while, send a heartbeat
+        writer->send_heartbeat(service);
+        force_flush = 1;
+    }
+    if (writer->dataUsed && (force_flush || now > writer->lastWrite + Modes.net_output_flush_interval)) {
+        flushWrites(writer);
+    }
+}
+
 //
 // Perform periodic network work
 //
@@ -3436,23 +3438,13 @@ void modesNetPeriodicWork(void) {
         next_flush_interval = now + Modes.net_output_flush_interval / 4;
 
         serviceReconnectCallback(now);
-        // If we have data that has been waiting to be written for a while,
-        // write it now.
-        for (struct net_service *s = Modes.services; s; s = s->next) {
-            if (!s->writer) {
-                continue;
-            }
-            int force_flush = 0;
-            if (Modes.net_heartbeat_interval && s->writer->send_heartbeat
-                    && now - s->writer->lastWrite >= Modes.net_heartbeat_interval) {
-                // If we have generated no messages for a while, send a heartbeat
-                s->writer->send_heartbeat(s);
-                force_flush = 1;
-            }
-            if (s->writer->dataUsed && (force_flush || now > s->writer->lastWrite + Modes.net_output_flush_interval)) {
-                flushWrites(s->writer);
-                //fprintf(stderr, "%s: interval flush\n", s->descr);
-            }
+
+        // If we have data that has been waiting to be written for a while, write it now.
+        for (struct net_service *service = Modes.services_out.services; service->descr; service++) {
+            flushService(service, now);
+        }
+        for (struct net_service *service = Modes.services_in.services; service->descr; service++) {
+            flushService(service, now);
         }
     }
 
@@ -3564,33 +3556,58 @@ static void *pthreadGetaddrinfo(void *param) {
     return NULL;
 }
 
+static void cleanupService(struct net_service *s) {
+    //fprintf(stderr, "cleanupService %s\n", s->descr);
+
+    struct client *c = s->clients, *nc;
+    while (c) {
+        nc = c->next;
+
+        anetCloseSocket(c->fd);
+        c->sendq_len = 0;
+        sfree(c->sendq);
+        sfree(c->buf);
+        sfree(c);
+
+        c = nc;
+    }
+
+    if (s->listenSockets) {
+        for (int i = 0; i < s->listener_count; ++i) {
+            struct client *c = &s->listenSockets[i]; // not really a client
+            epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, c->fd, &c->epollEvent);
+            anetCloseSocket(s->listener_fds[i]);
+        }
+        sfree(s->listenSockets);
+    }
+    sfree(s->listener_fds);
+    if (s->writer && s->writer->data) {
+        sfree(s->writer->data);
+    }
+    if (s->unixSocket) {
+        unlink(s->unixSocket);
+        sfree(s->unixSocket);
+    }
+
+    memset(s, 0, sizeof(struct net_service));
+}
+
+static void serviceGroupCleanup(struct net_service_group *group) {
+    for (struct net_service *service = group->services; service->descr != NULL; service++) {
+        cleanupService(service);
+    }
+    sfree(group->services);
+    memset(group, 0x0, sizeof(struct net_service_group));
+}
 
 void cleanupNetwork(void) {
-    if (!Modes.net)
+    if (!Modes.net) {
         return;
-    for (struct net_service *s = Modes.services; s; s = s->next) {
-        struct client *c = s->clients, *nc;
-        while (c) {
-            nc = c->next;
-
-            anetCloseSocket(c->fd);
-            c->sendq_len = 0;
-            sfree(c->sendq);
-            sfree(c->buf);
-            sfree(c);
-
-            c = nc;
-        }
     }
+    serviceGroupCleanup(&Modes.services_out);
+    serviceGroupCleanup(&Modes.services_in);
 
     close(Modes.net_epfd);
-
-    struct net_service *s = Modes.services, *ns;
-    while (s) {
-        ns = s->next;
-        serviceClose(s);
-        s = ns;
-    }
 
     for (int i = 0; i < Modes.net_connectors_count; i++) {
         struct net_connector *con = Modes.net_connectors[i];
