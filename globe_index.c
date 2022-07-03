@@ -613,30 +613,30 @@ void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuff
             // fiftyfive_ago changes day 55 min after midnight: stop writing the previous days traces
             // fiftysix_ago changes day 56 min after midnight: allow webserver to read the previous days traces (see checkNewDay function)
             // this is in seconds, not milliseconds
-            time_t fiftyfive = now / 1000 - 55 * 60;
+            time_t fiftyfive_time = now / 1000 - 55 * 60;
 
-            struct tm utc;
-            gmtime_r(&fiftyfive, &utc);
+            struct tm fiftyfive;
+            gmtime_r(&fiftyfive_time, &fiftyfive);
 
             // this is in reference to the fiftyfive clock ....
-            if (utc.tm_hour == 23 && utc.tm_min > 30) {
+            if (fiftyfive.tm_hour == 23) {
                 a->trace_next_perm = now + GLOBE_PERM_IVAL / 8 + random() % (GLOBE_PERM_IVAL / 1);
             } else {
                 a->trace_next_perm = now + GLOBE_PERM_IVAL / 1 + random() % (GLOBE_PERM_IVAL / 8);
             }
 
             // we just use the day of the struct tm in the next lines
-            utc.tm_sec = 0;
-            utc.tm_min = 0;
-            utc.tm_hour = 0;
-            int64_t start_of_day = 1000 * (int64_t) (timegm(&utc));
-            int64_t end_of_day = 1000 * (int64_t) (timegm(&utc) + 86400);
+            fiftyfive.tm_sec = 0;
+            fiftyfive.tm_min = 0;
+            fiftyfive.tm_hour = 0;
+            int64_t start_of_day = 1000 * (int64_t) (timegm(&fiftyfive));
+            int64_t end_of_day = 1000 * (int64_t) (timegm(&fiftyfive) + 86400);
 
             int start = first_index_ge_timestamp(tb, start_of_day);
             int end = first_index_ge_timestamp(tb, end_of_day);
             if (end >= tb.len) {
                 end = tb.len - 1;
-            } else if (end > 0){
+            } else if (end > 0) {
                 end -= 1;
             }
 
@@ -645,6 +645,13 @@ void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuff
                     // only write permanent trace if we haven't already written it
                     && a->trace_perm_last_timestamp != endStamp
                ) {
+
+                if (fiftyfive.tm_hour == 23 && fiftyfive.tm_min > 50) {
+                    fprintf(stderr, "<3>%06x permanent trace written for yesterday was written successfully but a bit late,"
+                            "persistent traces for the previous UTC day are in danger of not all getting done!"
+                            "consider alloting more CPU cores or increasing json-trace-interval!\n",
+                            a->addr);
+                }
 
                 int64_t before = mono_milli_seconds();
 
@@ -662,7 +669,7 @@ void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuff
                 if (hist.len > 0) {
                     permWritten = 1;
                     char tstring[100];
-                    strftime (tstring, 100, TDATE_FORMAT, &utc);
+                    strftime (tstring, 100, TDATE_FORMAT, &fiftyfive);
 
                     snprintf(filename, PATH_MAX, "%s/traces/%02x/trace_full_%s%06x.json", tstring, a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
                     filename[PATH_MAX - 101] = 0;
@@ -2886,17 +2893,17 @@ void checkNewDay(int64_t now) {
     char filename[PATH_MAX];
     char dateDir[PATH_MAX * 3/4];
 
-    // at 30 min past midnight, start a permanent write of all traces
+    // at 15 min past midnight, start a permanent write of all traces
     // create the new directory for writing traces
     // prevent the webserver from reading it until they are in a finished state
-    time_t thirtyAgo = now / 1000 - 30 * 60; // in seconds
-    struct tm utcThirtyAgo;
-    gmtime_r(&thirtyAgo, &utcThirtyAgo);
+    time_t fifteenAgo = (now - 15 * MINUTES) / 1000; // in seconds
+    struct tm utcFifteenAgo;
+    gmtime_r(&fifteenAgo, &utcFifteenAgo);
 
-    if (utcThirtyAgo.tm_mday != Modes.triggerPermWriteDay) {
-        Modes.triggerPermWriteDay = utcThirtyAgo.tm_mday;
+    if (utcFifteenAgo.tm_mday != Modes.triggerPermWriteDay) {
+        Modes.triggerPermWriteDay = utcFifteenAgo.tm_mday;
 
-        createDateDir(Modes.globe_history_dir, &utcThirtyAgo, dateDir);
+        createDateDir(Modes.globe_history_dir, &utcFifteenAgo, dateDir);
 
         snprintf(filename, PATH_MAX, "%s/traces", dateDir);
         int err = mkdir(filename, 0700);

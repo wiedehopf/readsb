@@ -838,14 +838,9 @@ static void writeTraces(int64_t mono) {
 
                 int64_t elapsed = mono - lastCompletion;
                 if (elapsed > 30 * SECONDS && mstime() - Modes.startup_time > 10 * MINUTES) {
-                    fprintf(stderr, "trace writing iteration took %.1f seconds, traces might not be up to date, "
+                    fprintf(stderr, "trace writing iteration took %.1f seconds (roughly %.1f minutes), traces might not be up to date, "
                             "consider alloting more CPU cores or increasing json-trace-interval!\n",
-                            elapsed / 1000.0);
-                    if (elapsed > 10 * MINUTES) {
-                        fprintf(stderr, "<3>trace writing iteration took %.1f seconds, persistent traces for the previous UTC day might not all have been written, "
-                                "consider alloting more CPU cores or increasing json-trace-interval!\n",
-                                elapsed / 1000.0);
-                    }
+                            elapsed / 1000.0, elapsed / (double) MINUTES);
                 }
 
                 lastCompletion = mono;
