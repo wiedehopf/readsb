@@ -36,7 +36,7 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
 char *sprintAircraftRecent(char *p, char *end, struct aircraft *a, int64_t now, int printMode, struct modesMessage *mm, int64_t recent);
 struct char_buffer generateAircraftJson(int64_t onlyRecent);
 struct char_buffer generateAircraftBin(threadpool_buffer_t *pbuffer);
-struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int start, int last, threadpool_buffer_t *buffer);
+struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int start, int last, threadpool_buffer_t *buffer, int64_t startStamp);
 struct char_buffer generateGlobeBin(int globe_index, int mil, threadpool_buffer_t *buffer);
 struct char_buffer generateGlobeJson(int globe_index, threadpool_buffer_t *buffer);
 struct char_buffer generateReceiverJson ();

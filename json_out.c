@@ -1566,7 +1566,7 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
     }
 }
 
-struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int start, int last, threadpool_buffer_t *buffer) {
+struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int start, int last, threadpool_buffer_t *buffer, int64_t startStamp) {
     struct char_buffer cb = { 0 };
     if (!Modes.json_globe_index) {
         return cb;
@@ -1612,9 +1612,11 @@ struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int sta
             p = safe_snprintf(p, end, ",\n\"noRegData\":true");
     }
 
-    int64_t startStamp;
     if (start >= 0 && start < tb.len) {
-        startStamp = getState(tb.trace, start)->timestamp;
+        int64_t firstStamp = getState(tb.trace, start)->timestamp;
+        if (!startStamp || firstStamp < startStamp) {
+            startStamp = firstStamp;
+        }
     } else {
         startStamp = now;
     }
