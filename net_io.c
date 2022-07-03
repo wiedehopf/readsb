@@ -131,6 +131,7 @@ static struct net_service *serviceInit(struct net_service_group *group, const ch
     memset(service, 0, 2 * sizeof(struct net_service));
     // also set the extra service to zero, zero terminatd array
 
+    service->group = group;
     service->descr = descr;
     service->listener_count = 0;
     service->pusher_count = 0;
@@ -3333,7 +3334,7 @@ static void netFreeClients() {
     }
 }
 
-static void handleEpoll(int count) {
+static void handleEpoll(struct net_service_group *group, int count) {
     int64_t now = mstime();
 
     int i;
@@ -3345,6 +3346,17 @@ static void handleEpoll(int count) {
         struct client *cl = (struct client *) Modes.net_events[i].data.ptr;
         if (!cl) { fprintf(stderr, "handleEpoll: epollEvent.data.ptr == NULL\n"); continue; }
 
+        if (!cl->service) {
+            // client is closed
+            fprintf(stderr, "handleEpoll(): client closed\n");
+            continue;
+        }
+
+        if (cl->service->group != group) {
+            //fprintf(stderr, "handleEpoll(): wrong group\n");
+            continue;
+        }
+
         if (cl->acceptSocket || cl->net_connector_dummyClient) {
             if (cl->acceptSocket) {
                 modesAcceptClients(cl, now);
@@ -3355,17 +3367,13 @@ static void handleEpoll(int count) {
         } else {
             if ((event.events & EPOLLOUT)) {
                 // check if we need to flush a client because the send buffer was full previously
-                if (cl->service) {
-                    if (flushClient(cl, now) < 0) {
-                        continue;
-                    }
+                if (flushClient(cl, now) < 0) {
+                    continue;
                 }
             }
 
             if ((event.events & (EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP))) {
-                if (cl->service) {
-                    modesReadFromClient(cl, now);
-                }
+                modesReadFromClient(cl, now);
             }
         }
     }
@@ -3419,7 +3427,10 @@ void modesNetPeriodicWork(void) {
 
     int64_t now = mstime();
     Modes.network_time_limit = now + 500; // limit 1 network read to 500 ms
-    handleEpoll(count);
+
+    handleEpoll(&Modes.services_in, count);
+
+    handleEpoll(&Modes.services_out, count);
 
     if (count == Modes.net_maxEvents) {
         epollAllocEvents(&Modes.net_events, &Modes.net_maxEvents);

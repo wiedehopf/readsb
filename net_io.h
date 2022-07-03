@@ -32,6 +32,7 @@ struct aircraft;
 struct modesMessage;
 struct client;
 struct net_service;
+struct net_service_group;
 typedef int (*read_fn)(struct client *, char *, int, int64_t);
 typedef void (*heartbeat_fn)(struct net_service *);
 
@@ -55,15 +56,15 @@ typedef enum
 
 struct net_service
 {
+    const char *descr;
+    struct net_service_group *group;
+    struct net_writer *writer; // shared writer state
     int listener_count; // number of listeners
     int pusher_count; // Number of push servers connected to
     int connections; // number of active clients
     int serial_service; // 1 if this is a service for serial devices
     read_mode_t read_mode;
     read_fn read_handler;
-    struct net_writer *writer; // shared writer state
-    struct net_service* next;
-    const char *descr;
     int read_sep_len;
     const char *read_sep; // hander details for input data
     struct client *clients; // linked list of clients connected to this service
