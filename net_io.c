@@ -99,6 +99,9 @@ static int flushClient(struct client *c, int64_t now);
 static char *read_uuid(struct client *c, char *p, char *eod);
 static void modesReadFromClient(struct client *c, int64_t start);
 
+static void netUseMessage(struct modesMessage *mm);
+static struct modesMessage *get_mm();
+
 //
 //=========================================================================
 //
@@ -702,6 +705,16 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
 }
 
 void modesInitNet(void) {
+    {
+        struct messageBuffer *buf = &Modes.netUseMessageBuffer;
+
+        buf->alloc = 4 * (1 << Modes.net_sndbuf_size);
+        buf->len = 0;
+        int bytes = buf->alloc * sizeof(struct modesMessage);
+        buf->msg = cmalloc(bytes);
+        fprintf(stderr, "netUseMessageBuffer alloc: %d size: %d\n", buf->alloc, bytes);
+    }
+
     uat2esnt_initCrcTables();
 
     if (0) {
@@ -1550,7 +1563,6 @@ static void send_raw_heartbeat(struct net_service *service) {
 // Read SBS input from TCP clients
 //
 static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now) {
-    struct modesMessage mm;
     size_t line_len = strlen(line);
     size_t max_len = 200;
 
@@ -1561,17 +1573,17 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now) 
     if (line_len < 20 || line_len >= max_len)
         goto basestation_invalid;
 
-    memset(&mm, 0, sizeof(mm));
-    mm.client = c;
+    struct modesMessage *mm = get_mm();
+    mm->client = c;
 
     char *p = line;
     char *t[23]; // leave 0 indexed entry empty, place 22 tokens into array
 
     MODES_NOTUSED(c);
     if (remote >= 64)
-        mm.source = remote - 64;
+        mm->source = remote - 64;
     else
-        mm.source = SOURCE_SBS;
+        mm->source = SOURCE_SBS;
 
     char *out = NULL;
 
@@ -1585,26 +1597,26 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now) 
     }
 
     out = NULL;
-    switch(mm.source) {
+    switch(mm->source) {
         case SOURCE_SBS:
             out = prepareWrite(&Modes.sbs_out_replay, max_len);
-            mm.addrtype = ADDR_OTHER;
+            mm->addrtype = ADDR_OTHER;
             break;
         case SOURCE_MLAT:
             out = prepareWrite(&Modes.sbs_out_mlat, max_len);
-            mm.addrtype = ADDR_MLAT;
+            mm->addrtype = ADDR_MLAT;
             break;
         case SOURCE_JAERO:
             out = prepareWrite(&Modes.sbs_out_jaero, max_len);
-            mm.addrtype = ADDR_JAERO;
+            mm->addrtype = ADDR_JAERO;
             break;
         case SOURCE_PRIO:
             out = prepareWrite(&Modes.sbs_out_prio, max_len);
-            mm.addrtype = ADDR_OTHER;
+            mm->addrtype = ADDR_OTHER;
             break;
 
         default:
-            mm.addrtype = ADDR_OTHER;
+            mm->addrtype = ADDR_OTHER;
     }
 
     if (out) {
@@ -1615,9 +1627,9 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now) 
 
     // Mark messages received over the internet as remote so that we don't try to
     // pass them off as being received by this instance when forwarding them
-    mm.remote = 1;
-    mm.signalLevel = 0;
-    mm.sbs_in = 1;
+    mm->remote = 1;
+    mm->signalLevel = 0;
+    mm->sbs_in = 1;
 
     // sample message from mlat-client basestation output
     //MSG,3,1,1,4AC8B3,1,2019/12/10,19:10:46.320,2019/12/10,19:10:47.789,,36017,,,51.1001,10.1915,,,,,,
@@ -1640,7 +1652,7 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now) 
         goto basestation_invalid;
 
     char *icao = t[5];
-    unsigned char *chars = (unsigned char *) &(mm.addr);
+    unsigned char *chars = (unsigned char *) &(mm->addr);
     for (int j = 0; j < 6; j += 2) {
         int high = hexDigitVal(icao[j]);
         int low = hexDigitVal(icao[j + 1]);
@@ -1651,128 +1663,128 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now) 
         chars[2 - j / 2] = (high << 4) | low;
     }
 
-    //fprintf(stderr, "%x type %s: ", mm.addr, t[2]);
-    //fprintf(stderr, "%x: %d, %0.5f, %0.5f\n", mm.addr, mm.baro_alt, mm.decoded_lat, mm.decoded_lon);
+    //fprintf(stderr, "%x type %s: ", mm->addr, t[2]);
+    //fprintf(stderr, "%x: %d, %0.5f, %0.5f\n", mm->addr, mm->baro_alt, mm->decoded_lat, mm->decoded_lon);
     //field 11, callsign
     if (t[11] && strlen(t[11]) > 0) {
-        strncpy(mm.callsign, t[11], 9);
-        mm.callsign[8] = '\0';
-        mm.callsign_valid = 1;
+        strncpy(mm->callsign, t[11], 9);
+        mm->callsign[8] = '\0';
+        mm->callsign_valid = 1;
         for (unsigned i = 0; i < 8; ++i) {
-            if (mm.callsign[i] == '\0')
-                mm.callsign[i] = ' ';
-            if (!(mm.callsign[i] >= 'A' && mm.callsign[i] <= 'Z') &&
-                    !(mm.callsign[i] >= '0' && mm.callsign[i] <= '9') &&
-                    mm.callsign[i] != ' ') {
+            if (mm->callsign[i] == '\0')
+                mm->callsign[i] = ' ';
+            if (!(mm->callsign[i] >= 'A' && mm->callsign[i] <= 'Z') &&
+                    !(mm->callsign[i] >= '0' && mm->callsign[i] <= '9') &&
+                    mm->callsign[i] != ' ') {
                 // Bad callsign, ignore it
-                mm.callsign_valid = 0;
+                mm->callsign_valid = 0;
                 break;
             }
         }
-        //fprintf(stderr, "call: %s, ", mm.callsign);
+        //fprintf(stderr, "call: %s, ", mm->callsign);
     }
     // field 12, altitude
     if (t[12] && strlen(t[12]) > 0) {
-        mm.baro_alt = atoi(t[12]);
-        if (mm.baro_alt > -5000 && mm.baro_alt < 100000) {
-            mm.baro_alt_valid = 1;
-            mm.baro_alt_unit = UNIT_FEET;
+        mm->baro_alt = atoi(t[12]);
+        if (mm->baro_alt > -5000 && mm->baro_alt < 100000) {
+            mm->baro_alt_valid = 1;
+            mm->baro_alt_unit = UNIT_FEET;
         }
-        //fprintf(stderr, "alt: %d, ", mm.baro_alt);
+        //fprintf(stderr, "alt: %d, ", mm->baro_alt);
     }
     // field 13, groundspeed
     if (t[13] && strlen(t[13]) > 0) {
-        mm.gs.v0 = strtod(t[13], NULL);
-        if (mm.gs.v0 > 0)
-            mm.gs_valid = 1;
-        //fprintf(stderr, "gs: %.1f, ", mm.gs.selected);
+        mm->gs.v0 = strtod(t[13], NULL);
+        if (mm->gs.v0 > 0)
+            mm->gs_valid = 1;
+        //fprintf(stderr, "gs: %.1f, ", mm->gs.selected);
     }
     //field 14, heading
     if (t[14] && strlen(t[14]) > 0) {
-        mm.heading_valid = 1;
-        mm.heading = strtod(t[14], NULL);
-        mm.heading_type = HEADING_GROUND_TRACK;
-        //fprintf(stderr, "track: %.1f, ", mm.heading);
+        mm->heading_valid = 1;
+        mm->heading = strtod(t[14], NULL);
+        mm->heading_type = HEADING_GROUND_TRACK;
+        //fprintf(stderr, "track: %.1f, ", mm->heading);
     }
     // field 15 and 16, position
     if (t[15] && strlen(t[15]) && t[16] && strlen(t[16])) {
-        mm.decoded_lat = strtod(t[15], NULL);
-        mm.decoded_lon = strtod(t[16], NULL);
-        if (mm.decoded_lat != 0 && mm.decoded_lon != 0)
-            mm.sbs_pos_valid = 1;
-        //fprintf(stderr, "pos: (%.2f, %.2f)\n", mm.decoded_lat, mm.decoded_lon);
+        mm->decoded_lat = strtod(t[15], NULL);
+        mm->decoded_lon = strtod(t[16], NULL);
+        if (mm->decoded_lat != 0 && mm->decoded_lon != 0)
+            mm->sbs_pos_valid = 1;
+        //fprintf(stderr, "pos: (%.2f, %.2f)\n", mm->decoded_lat, mm->decoded_lon);
     }
     // field 17 vertical rate, assume baro
     if (t[17] && strlen(t[17]) > 0) {
-        mm.baro_rate = atoi(t[17]);
-        mm.baro_rate_valid = 1;
-        //fprintf(stderr, "vRate: %d, ", mm.baro_rate);
+        mm->baro_rate = atoi(t[17]);
+        mm->baro_rate_valid = 1;
+        //fprintf(stderr, "vRate: %d, ", mm->baro_rate);
     }
     // field 18 squawk
     if (t[18] && strlen(t[18]) > 0) {
         long int tmp = strtol(t[18], NULL, 10);
         if (tmp > 0) {
-            mm.squawk = (tmp / 1000) * 16*16*16 + (tmp / 100 % 10) * 16*16 + (tmp / 10 % 10) * 16 + (tmp % 10);
-            mm.squawk_valid = 1;
-            //fprintf(stderr, "squawk: %04x %s, ", mm.squawk, t[18]);
+            mm->squawk = (tmp / 1000) * 16*16*16 + (tmp / 100 % 10) * 16*16 + (tmp / 10 % 10) * 16 + (tmp % 10);
+            mm->squawk_valid = 1;
+            //fprintf(stderr, "squawk: %04x %s, ", mm->squawk, t[18]);
         }
     }
     // field 19 (originally squawk change) used to indicate by some versions of mlat-server the number of receivers which contributed to the postiions
-    if (mm.source == SOURCE_MLAT && t[19] && strlen(t[19]) > 0) {
+    if (mm->source == SOURCE_MLAT && t[19] && strlen(t[19]) > 0) {
         long int tmp = strtol(t[19], NULL, 10);
         if (tmp > 0) {
-            mm.receiverCountMlat = tmp;
+            mm->receiverCountMlat = tmp;
         }
     }
     // field 20 (originally emergency status) used to indicate by some versions of mlat-server the estimated error in km
-    if (mm.source == SOURCE_MLAT && t[20] && strlen(t[20]) > 0) {
+    if (mm->source == SOURCE_MLAT && t[20] && strlen(t[20]) > 0) {
         long tmp = strtol(t[20], NULL, 10);
         if (tmp > 0) {
-            mm.mlatEPU = tmp;
+            mm->mlatEPU = tmp;
             if (tmp > UINT16_MAX)
-                mm.mlatEPU = UINT16_MAX;
+                mm->mlatEPU = UINT16_MAX;
 
-            //fprintf(stderr, "mlatEPU: %d\n", mm.mlatEPU);
+            //fprintf(stderr, "mlatEPU: %d\n", mm->mlatEPU);
         }
     }
 
     // field 22 ground status
     if (t[22] && strlen(t[22]) > 0) {
         if (atoi(t[22]) > 0) {
-            mm.airground = AG_GROUND;
+            mm->airground = AG_GROUND;
         } else if (strcmp(t[22], "0")) {
-            mm.airground = AG_AIRBORNE;
+            mm->airground = AG_AIRBORNE;
         }
         //fprintf(stderr, "onground, ");
     }
 
 
     // set nic / rc to 0 / unknown
-    mm.decoded_nic = 0;
-    mm.decoded_rc = RC_UNKNOWN;
+    mm->decoded_nic = 0;
+    mm->decoded_rc = RC_UNKNOWN;
 
     //fprintf(stderr, "\n");
 
     // record reception time as the time we read it.
-    mm.sysTimestampMsg = now;
+    mm->sysTimestampMsg = now;
 
-    useModesMessage(&mm);
+    netUseMessage(mm);
 
     Modes.stats_current.remote_received_basestation_valid++;
 
     // don't write SBS message if sbsReduce is active and this message didn't have useful data
-    if (out && (!Modes.sbsReduce || mm.reduce_forward)) {
+    if (out && (!Modes.sbsReduce || mm->reduce_forward)) {
         out += line_len;
         *out++ = '\r';
         *out++ = '\n';
 
-        if (mm.source == SOURCE_SBS)
+        if (mm->source == SOURCE_SBS)
             completeWrite(&Modes.sbs_out_replay, out);
-        if (mm.source == SOURCE_MLAT)
+        if (mm->source == SOURCE_MLAT)
             completeWrite(&Modes.sbs_out_mlat, out);
-        if (mm.source == SOURCE_JAERO)
+        if (mm->source == SOURCE_JAERO)
             completeWrite(&Modes.sbs_out_jaero, out);
-        if (mm.source == SOURCE_PRIO)
+        if (mm->source == SOURCE_PRIO)
             completeWrite(&Modes.sbs_out_prio, out);
     }
 
@@ -2378,15 +2390,14 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now) 
     int msgLen = 0;
     int j;
     unsigned char ch;
-    struct modesMessage mm;
-    unsigned char *msg = mm.msg;
+    struct modesMessage *mm = get_mm();
+    unsigned char *msg = mm->msg;
 
-    memset(&mm, 0, sizeof(mm));
-    mm.client = c;
+    mm->client = c;
 
     ch = *p++; /// Get the message type
 
-    mm.receiverId = c->receiverId;
+    mm->receiverId = c->receiverId;
 
     if (ch == '2') {
         msgLen = MODES_SHORT_MSG_BYTES;
@@ -2436,31 +2447,31 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now) 
      * remote so that we don't try to pass them off as being received by this instance
      * when forwarding them.
      */
-    mm.remote = remote;
+    mm->remote = remote;
 
-    mm.timestampMsg = 0;
+    mm->timestampMsg = 0;
     // Grab the timestamp (big endian format)
     for (j = 0; j < 6; j++) {
         ch = *p++;
-        mm.timestampMsg = mm.timestampMsg << 8 | (ch & 255);
+        mm->timestampMsg = mm->timestampMsg << 8 | (ch & 255);
     }
 
     // record reception time as the time we read it.
-    mm.sysTimestampMsg = now;
+    mm->sysTimestampMsg = now;
 
 
     ch = *p++; // Grab the signal level
-    mm.signalLevel = ((unsigned char) ch / 255.0);
-    mm.signalLevel = mm.signalLevel * mm.signalLevel;
+    mm->signalLevel = ((unsigned char) ch / 255.0);
+    mm->signalLevel = mm->signalLevel * mm->signalLevel;
 
     /* In case of Mode-S Beast use the signal level per message for statistics */
     if (Modes.sdr_type == SDR_MODESBEAST) {
-        Modes.stats_current.signal_power_sum += mm.signalLevel;
+        Modes.stats_current.signal_power_sum += mm->signalLevel;
         Modes.stats_current.signal_power_count += 1;
 
-        if (mm.signalLevel > Modes.stats_current.peak_signal_power)
-            Modes.stats_current.peak_signal_power = mm.signalLevel;
-        if (mm.signalLevel > 0.50119)
+        if (mm->signalLevel > Modes.stats_current.peak_signal_power)
+            Modes.stats_current.peak_signal_power = mm->signalLevel;
+        if (mm->signalLevel > 0.50119)
             Modes.stats_current.strong_signal_count++; // signal power above -3dBFS
     }
 
@@ -2475,7 +2486,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now) 
         } else {
             Modes.stats_current.demod_modeac++;
         }
-        decodeModeAMessage(&mm, ((msg[0] << 8) | msg[1]));
+        decodeModeAMessage(mm, ((msg[0] << 8) | msg[1]));
         result = 0;
     } else {
         if (remote) {
@@ -2483,7 +2494,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now) 
         } else {
             Modes.stats_current.demod_preambles++;
         }
-        result = decodeModesMessage(&mm);
+        result = decodeModesMessage(mm);
         if (result < 0) {
             if (result == -1) {
                 if (remote) {
@@ -2500,9 +2511,9 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now) 
             }
         } else {
             if (remote) {
-                Modes.stats_current.remote_accepted[mm.correctedbits]++;
+                Modes.stats_current.remote_accepted[mm->correctedbits]++;
             } else {
-                Modes.stats_current.demod_accepted[mm.correctedbits]++;
+                Modes.stats_current.demod_accepted[mm->correctedbits]++;
             }
         }
     }
@@ -2514,17 +2525,17 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now) 
         // don't discard CPRs, if we have better data speed_check generally will take care of delayed CPR messages
         // this way we get basic data even from high latency receivers
         // super high latency receivers are getting disconnected in pongReceived()
-        if (!mm.cpr_valid) {
+        if (!mm->cpr_valid) {
             Modes.stats_current.remote_rejected_delayed++;
             return 0; // discard
         }
     }
 
-    if ((Modes.garbage_ports || Modes.netReceiverId) && receiverCheckBad(mm.receiverId, now)) {
-        mm.garbage = 1;
+    if ((Modes.garbage_ports || Modes.netReceiverId) && receiverCheckBad(mm->receiverId, now)) {
+        mm->garbage = 1;
     }
 
-    useModesMessage(&mm);
+    netUseMessage(mm);
     return 0;
 }
 
@@ -2733,13 +2744,12 @@ static int decodeHexMessage(struct client *c, char *hex, int64_t now, struct mod
 static int processHexMessage(struct client *c, char *hex, int remote, int64_t now) {
     MODES_NOTUSED(remote);
 
-    struct modesMessage mm;
-    memset(&mm, 0, sizeof(mm));
+    struct modesMessage *mm = get_mm();
 
-    int success = decodeHexMessage(c, hex, now, &mm);
+    int success = decodeHexMessage(c, hex, now, mm);
 
     if (success) {
-        useModesMessage(&mm);
+        netUseMessage(mm);
     }
 
     return (0);
@@ -2760,9 +2770,7 @@ static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now
     while (((p = memchr(som, '\n', eod - som)) != NULL)) {
         *p = '\0';
 
-        struct modesMessage mm_back;
-        struct modesMessage *mm = &mm_back;
-        memset(mm, 0, sizeof(struct modesMessage));
+        struct modesMessage *mm = get_mm();
 
         int success = decodeHexMessage(c, som, now, mm);
 
@@ -2777,7 +2785,7 @@ static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now
                 a->seen = now;
                 return 0;
             }
-            useModesMessage(mm);
+            netUseMessage(mm);
         }
         som = p + 1;
     }
@@ -2833,6 +2841,7 @@ static void modesReadFromClient(struct client *c, int64_t now) {
     int bContinue = 1;
     int discard = 0;
 
+    //fprintf(stderr, "modesReadFromClient\n");
     for (int loop = 0; bContinue && loop < 32; loop++) {
         now = mstime();
         if (!discard && now > Modes.network_time_limit) {
@@ -3348,7 +3357,7 @@ static void handleEpoll(struct net_service_group *group, int count) {
 
         if (!cl->service) {
             // client is closed
-            fprintf(stderr, "handleEpoll(): client closed\n");
+            //fprintf(stderr, "handleEpoll(): client closed\n");
             continue;
         }
 
@@ -3419,6 +3428,7 @@ void modesNetPeriodicWork(void) {
     // unlock decode mutex for waiting in handleEpoll
     pthread_mutex_unlock(&Threads.decode.mutex);
 
+    //sched_yield();
     int count = epoll_wait(Modes.net_epfd, Modes.net_events, Modes.net_maxEvents, wait_ms);
 
     pthread_mutex_lock(&Threads.decode.mutex);
@@ -3612,6 +3622,11 @@ static void serviceGroupCleanup(struct net_service_group *group) {
 }
 
 void cleanupNetwork(void) {
+    struct messageBuffer *buf = &Modes.netUseMessageBuffer;
+    sfree(buf->msg);
+    buf->len = 0;
+    buf->alloc = 0;
+
     if (!Modes.net) {
         return;
     }
@@ -3714,4 +3729,28 @@ static char *read_uuid(struct client *c, char *p, char *eod) {
     }
     return p;
 }
+static void drainUseMessageBuffer() {
+    struct messageBuffer *buf = &Modes.netUseMessageBuffer;
+    for (int k = 0; k < buf->len; k++) {
+        useModesMessage(&buf->msg[k]);
+    }
+    buf->len = 0;
+}
 
+static void netUseMessage(struct modesMessage *mm) {
+    struct messageBuffer *buf = &Modes.netUseMessageBuffer;
+    if (mm != &buf->msg[buf->len]) {
+        fprintf(stderr, "FATAL: fix netUseMessage / get_mm\n");
+        exit(2);
+    }
+    buf->len++;
+    if (buf->len == buf->alloc) {
+        drainUseMessageBuffer();
+    }
+}
+static struct modesMessage *get_mm() {
+    struct messageBuffer *buf = &Modes.netUseMessageBuffer;
+    struct modesMessage *mm = &buf->msg[buf->len];
+    memset(mm, 0x0, sizeof(struct modesMessage));
+    return mm;
+}
