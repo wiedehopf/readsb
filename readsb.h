@@ -498,8 +498,13 @@ struct _Modes
 
     struct epoll_event *net_events;
 
-    struct messageBuffer *netUseMessageBuffer;
-    int decodeTasks;
+    struct messageBuffer *netMessageBuffer;
+    int decodeCount;
+    threadpool_t *decodePool;
+    task_group_t *decodeTasks;
+    pthread_mutex_t decodeLock;
+    pthread_mutex_t trackLock;
+    pthread_mutex_t outputLock;
 
     int max_fds;
     int modesClientCount;

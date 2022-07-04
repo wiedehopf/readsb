@@ -97,9 +97,9 @@ static void *pthreadGetaddrinfo(void *param);
 static void modesCloseClient(struct client *c);
 static int flushClient(struct client *c, int64_t now);
 static char *read_uuid(struct client *c, char *p, char *eod);
-static void modesReadFromClient(struct client *c, int64_t start);
+static void modesReadFromClient(struct client *c);
 
-static void drainUseMessageBuffer(struct messageBuffer *buf);
+static void drainMessageBuffer(struct messageBuffer *buf);
 
 //
 //=========================================================================
@@ -692,18 +692,34 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
         }
     }
 }
+static void initMessageBuffers() {
+    if (Modes.netIngest || Modes.netReceiverId) {
+        Modes.decodeCount = 2;
+    } else {
+        Modes.decodeCount = 1;
+    }
+    if (Modes.decodeCount > 1) {
+        pthread_mutex_init(&Modes.decodeLock, NULL);
+        pthread_mutex_init(&Modes.trackLock, NULL);
+        pthread_mutex_init(&Modes.outputLock, NULL);
 
-void modesInitNet(void) {
-    Modes.decodeTasks = 1;
-    Modes.netUseMessageBuffer = cmalloc(Modes.decodeTasks * sizeof(struct messageBuffer));
-    for (int k = 0; k < Modes.decodeTasks; k++) {
-        struct messageBuffer *buf = &Modes.netUseMessageBuffer[k];
-        buf->alloc = 1024;
+        Modes.decodeTasks = allocate_task_group(Modes.decodeCount);
+        Modes.decodePool = threadpool_create(Modes.decodeCount, 0);
+    }
+
+    Modes.netMessageBuffer = cmalloc(Modes.decodeCount * sizeof(struct messageBuffer));
+    for (int k = 0; k < Modes.decodeCount; k++) {
+        struct messageBuffer *buf = &Modes.netMessageBuffer[k];
+        buf->alloc = 24 * 1024;
         buf->len = 0;
         int bytes = buf->alloc * sizeof(struct modesMessage);
         buf->msg = cmalloc(bytes);
-        //fprintf(stderr, "netUseMessageBuffer alloc: %d size: %d\n", buf->alloc, bytes);
+        //fprintf(stderr, "netMessageBuffer alloc: %d size: %d\n", buf->alloc, bytes);
     }
+}
+
+void modesInitNet(void) {
+    initMessageBuffers();
 
     uat2esnt_initCrcTables();
 
@@ -2786,7 +2802,7 @@ static const char *hexEscapeString(const char *str, char *buf, int len) {
 // The handler returns 0 on success, or 1 to signal this function we should
 // close the connection with the client in case of non-recoverable errors.
 //
-static void modesReadFromClient(struct client *c, int64_t now) {
+static void modesReadFromClient(struct client *c) {
     if (!c->service) {
         fprintf(stderr, "c->service null jahFuN3e\n");
         return;
@@ -2798,7 +2814,7 @@ static void modesReadFromClient(struct client *c, int64_t now) {
     int discard = 0;
 
     for (int loop = 0; bContinue && loop < 32; loop++) {
-        now = mstime();
+        int64_t now = mstime();
         if (now > Modes.network_time_limit) {
             return;
         }
@@ -3321,16 +3337,15 @@ static void netFreeClients() {
 }
 
 static void handleEpoll(struct net_service_group *group, struct messageBuffer *mb) {
-    int64_t now = mstime();
-    int count = Modes.net_event_count;
+    while (group->event_progress < Modes.net_event_count) {
+        int k = group->event_progress;
+        group->event_progress += 1;
 
-    int i;
-    for (i = 0; i < count; i++) {
-        struct epoll_event event = Modes.net_events[i];
+        struct epoll_event event = Modes.net_events[k];
         if (event.data.ptr == &Modes.exitEventfd)
             return;
 
-        struct client *cl = (struct client *) Modes.net_events[i].data.ptr;
+        struct client *cl = (struct client *) Modes.net_events[k].data.ptr;
         if (!cl) { fprintf(stderr, "handleEpoll: epollEvent.data.ptr == NULL\n"); continue; }
 
         if (!cl->service) {
@@ -3346,22 +3361,22 @@ static void handleEpoll(struct net_service_group *group, struct messageBuffer *m
 
         if (cl->acceptSocket || cl->net_connector_dummyClient) {
             if (cl->acceptSocket) {
-                modesAcceptClients(cl, now);
+                modesAcceptClients(cl, mstime());
             }
             if (cl->net_connector_dummyClient) {
-                checkServiceConnected(cl->con, now);
+                checkServiceConnected(cl->con, mstime());
             }
         } else {
             if ((event.events & EPOLLOUT)) {
                 // check if we need to flush a client because the send buffer was full previously
-                if (flushClient(cl, now) < 0) {
+                if (flushClient(cl, mstime()) < 0) {
                     continue;
                 }
             }
 
             if ((event.events & (EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP))) {
                 cl->messageBuffer = mb;
-                modesReadFromClient(cl, now);
+                modesReadFromClient(cl);
             }
         }
     }
@@ -3382,6 +3397,25 @@ static void flushService(struct net_service *service, int64_t now) {
     if (writer->dataUsed && (force_flush || now > writer->lastWrite + Modes.net_output_flush_interval)) {
         flushWrites(writer);
     }
+}
+
+static void decodeTask(void *arg, threadpool_threadbuffers_t *buffer_group) {
+    MODES_NOTUSED(buffer_group);
+
+    task_info_t *info = (task_info_t *) arg;
+    struct messageBuffer *buf = &Modes.netMessageBuffer[info->from];
+    //fprintf(stderr, "%d\n", info->from);
+    pthread_mutex_lock(&Modes.decodeLock);
+
+    handleEpoll(&Modes.services_in, buf);
+    drainMessageBuffer(buf);
+    //fprintf(stderr, "buf->len %d\n", buf->len);
+
+    pthread_mutex_unlock(&Modes.decodeLock);
+
+    pthread_mutex_lock(&Modes.outputLock);
+    handleEpoll(&Modes.services_out, buf);
+    pthread_mutex_unlock(&Modes.outputLock);
 }
 
 //
@@ -3411,6 +3445,8 @@ void modesNetPeriodicWork(void) {
         sched_yield();
     }
     Modes.net_event_count = epoll_wait(Modes.net_epfd, Modes.net_events, Modes.net_maxEvents, wait_ms);
+    Modes.services_in.event_progress = 0;
+    Modes.services_out.event_progress = 0;
 
     pthread_mutex_lock(&Threads.decode.mutex);
 
@@ -3419,12 +3455,31 @@ void modesNetPeriodicWork(void) {
     int64_t now = mstime();
     Modes.network_time_limit = now + ms_until_priority();
 
-    if (Modes.decodeTasks < 2) {
-        struct messageBuffer *buf = &Modes.netUseMessageBuffer[0];
+    if (Modes.decodeCount == 1) {
+        struct messageBuffer *buf = &Modes.netMessageBuffer[0];
         handleEpoll(&Modes.services_in, buf);
-        drainUseMessageBuffer(buf);
+        drainMessageBuffer(buf);
         handleEpoll(&Modes.services_out, buf);
     } else {
+        task_info_t *infos = Modes.decodeTasks->infos;
+        threadpool_task_t *tasks = Modes.decodeTasks->tasks;
+        int taskCount = 0;
+
+        for (int kt = 0; kt < 1; kt++) {
+            threadpool_task_t *task = &tasks[kt];
+            task_info_t *range = &infos[kt];
+
+            range->from = kt;
+
+            task->function = decodeTask;
+            task->argument = range;
+            taskCount++;
+        }
+
+        struct timespec before = threadpool_get_cumulative_thread_time(Modes.decodePool);
+        threadpool_run(Modes.decodePool, tasks, taskCount);
+        struct timespec after = threadpool_get_cumulative_thread_time(Modes.decodePool);
+        timespec_add_elapsed(&before, &after, &Modes.stats_current.background_cpu);
     }
 
     if (Modes.net_event_count == Modes.net_maxEvents) {
@@ -3607,13 +3662,23 @@ static void serviceGroupCleanup(struct net_service_group *group) {
 }
 
 static void cleanupMessageBuffers() {
-    for (int k = 0; k < Modes.decodeTasks; k++) {
-        struct messageBuffer *buf = &Modes.netUseMessageBuffer[k];
+
+    if (Modes.decodeCount > 1) {
+        pthread_mutex_destroy(&Modes.decodeLock);
+        pthread_mutex_destroy(&Modes.trackLock);
+        pthread_mutex_destroy(&Modes.outputLock);
+
+        threadpool_destroy(Modes.decodePool);
+        destroy_task_group(Modes.decodeTasks);
+    }
+
+    for (int k = 0; k < Modes.decodeCount; k++) {
+        struct messageBuffer *buf = &Modes.netMessageBuffer[k];
         sfree(buf->msg);
         buf->len = 0;
         buf->alloc = 0;
     }
-    sfree(Modes.netUseMessageBuffer);
+    sfree(Modes.netMessageBuffer);
 }
 
 void cleanupNetwork(void) {
@@ -3799,16 +3864,51 @@ static void outputMessage(struct modesMessage *mm) {
     }
 }
 
-static void drainUseMessageBuffer(struct messageBuffer *buf) {
-    for (int k = 0; k < buf->len; k++) {
-        struct modesMessage *mm = &buf->msg[k];
-        if (Modes.debug_yeet && mm->addr % 0x100 != 0xd) {
-            continue;
+static void drainMessageBuffer(struct messageBuffer *buf) {
+    if (Modes.decodeCount < 2) {
+        for (int k = 0; k < buf->len; k++) {
+            struct modesMessage *mm = &buf->msg[k];
+            if (Modes.debug_yeet && mm->addr % 0x100 != 0xd) {
+                continue;
+            }
+            trackUpdateFromMessage(mm);
         }
-        trackUpdateFromMessage(mm);
-        outputMessage(mm);
+        for (int k = 0; k < buf->len; k++) {
+            struct modesMessage *mm = &buf->msg[k];
+            if (Modes.debug_yeet && mm->addr % 0x100 != 0xd) {
+                continue;
+            }
+            outputMessage(mm);
+        }
+        buf->len = 0;
+    } else {
+
+        pthread_mutex_unlock(&Modes.decodeLock);
+
+        pthread_mutex_lock(&Modes.trackLock);
+        for (int k = 0; k < buf->len; k++) {
+            struct modesMessage *mm = &buf->msg[k];
+            if (Modes.debug_yeet && mm->addr % 0x100 != 0xd) {
+                continue;
+            }
+            trackUpdateFromMessage(mm);
+        }
+        pthread_mutex_unlock(&Modes.trackLock);
+
+        pthread_mutex_lock(&Modes.outputLock);
+        for (int k = 0; k < buf->len; k++) {
+            struct modesMessage *mm = &buf->msg[k];
+            if (Modes.debug_yeet && mm->addr % 0x100 != 0xd) {
+                continue;
+            }
+            outputMessage(mm);
+        }
+        pthread_mutex_unlock(&Modes.outputLock);
+
+        buf->len = 0;
+
+        pthread_mutex_lock(&Modes.decodeLock);
     }
-    buf->len = 0;
 }
 
 // get a zeroed spot in in the message buffer, only messages from this buffer may be passed to netUseMessage
@@ -3839,6 +3939,6 @@ void netUseMessage(struct modesMessage *mm) {
     }
     buf->len++;
     if (buf->len == buf->alloc) {
-        drainUseMessageBuffer(buf);
+        drainMessageBuffer(buf);
     }
 }

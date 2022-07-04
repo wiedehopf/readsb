@@ -81,6 +81,7 @@ struct net_service_group {
     struct net_service *services;
     int len;
     int alloc;
+    int event_progress;
 };
 
 // Structure used to describe a networking client
