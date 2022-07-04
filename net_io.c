@@ -99,8 +99,7 @@ static int flushClient(struct client *c, int64_t now);
 static char *read_uuid(struct client *c, char *p, char *eod);
 static void modesReadFromClient(struct client *c, int64_t start);
 
-static void netUseMessage(struct modesMessage *mm);
-static struct modesMessage *get_mm();
+static void drainUseMessageBuffer();
 
 //
 //=========================================================================
@@ -708,11 +707,11 @@ void modesInitNet(void) {
     {
         struct messageBuffer *buf = &Modes.netUseMessageBuffer;
 
-        buf->alloc = 4 * (1 << Modes.net_sndbuf_size);
+        buf->alloc = 1024;
         buf->len = 0;
         int bytes = buf->alloc * sizeof(struct modesMessage);
         buf->msg = cmalloc(bytes);
-        fprintf(stderr, "netUseMessageBuffer alloc: %d size: %d\n", buf->alloc, bytes);
+        //fprintf(stderr, "netUseMessageBuffer alloc: %d size: %d\n", buf->alloc, bytes);
     }
 
     uat2esnt_initCrcTables();
@@ -1573,7 +1572,7 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now) 
     if (line_len < 20 || line_len >= max_len)
         goto basestation_invalid;
 
-    struct modesMessage *mm = get_mm();
+    struct modesMessage *mm = netGetMM();
     mm->client = c;
 
     char *p = line;
@@ -2051,44 +2050,6 @@ void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a) {
         fprintf(stderr, "buffer insufficient jsonPositionOutput()\n");
     }
 }
-//
-//=========================================================================
-//
-void modesQueueOutput(struct modesMessage *mm) {
-    struct aircraft *ac = mm->aircraft;
-    int is_mlat = (mm->source == SOURCE_MLAT);
-
-    if (mm->jsonPositionOutputEmit && Modes.json_out.connections) {
-        jsonPositionOutput(mm, ac);
-    }
-
-    if (Modes.garbage_ports && (mm->garbage || mm->pos_bad) && !mm->pos_old && Modes.garbage_out.connections) {
-        modesSendBeastOutput(mm, &Modes.garbage_out);
-    }
-
-    if (ac && (!Modes.sbsReduce || mm->reduce_forward)) {
-        if (Modes.sbs_out.connections)
-            modesSendSBSOutput(mm, ac, &Modes.sbs_out);
-        if (is_mlat && Modes.sbs_out_mlat.connections)
-            modesSendSBSOutput(mm, ac, &Modes.sbs_out_mlat);
-    }
-
-    if (!is_mlat && (Modes.net_verbatim || mm->correctedbits < 2) && Modes.raw_out.connections) {
-        // Forward 2-bit-corrected messages via raw output only if --net-verbatim is set
-        // Don't ever forward mlat messages via raw output.
-        modesSendRawOutput(mm);
-    }
-
-    if ((!is_mlat || Modes.forward_mlat) && (Modes.net_verbatim || mm->correctedbits < 2)) {
-        // Forward 2-bit-corrected messages via beast output only if --net-verbatim is set
-        // Forward mlat messages via beast output only if --forward-mlat is set
-        if (Modes.beast_out.connections)
-            modesSendBeastOutput(mm, &Modes.beast_out);
-        if (mm->reduce_forward && Modes.beast_reduce_out.connections) {
-            modesSendBeastOutput(mm, &Modes.beast_reduce_out);
-        }
-    }
-}
 
 // Decode a little-endian IEEE754 float (binary32)
 float ieee754_binary32_le_to_float(uint8_t *data) {
@@ -2395,7 +2356,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now) 
     int msgLen = 0;
     int j;
     unsigned char ch;
-    struct modesMessage *mm = get_mm();
+    struct modesMessage *mm = netGetMM();
     unsigned char *msg = mm->msg;
 
     mm->client = c;
@@ -2749,7 +2710,7 @@ static int decodeHexMessage(struct client *c, char *hex, int64_t now, struct mod
 static int processHexMessage(struct client *c, char *hex, int remote, int64_t now) {
     MODES_NOTUSED(remote);
 
-    struct modesMessage *mm = get_mm();
+    struct modesMessage *mm = netGetMM();
 
     int success = decodeHexMessage(c, hex, now, mm);
 
@@ -2775,7 +2736,7 @@ static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now
     while (((p = memchr(som, '\n', eod - som)) != NULL)) {
         *p = '\0';
 
-        struct modesMessage *mm = get_mm();
+        struct modesMessage *mm = netGetMM();
 
         int success = decodeHexMessage(c, som, now, mm);
 
@@ -3433,7 +3394,9 @@ void modesNetPeriodicWork(void) {
     // unlock decode mutex for waiting in handleEpoll
     pthread_mutex_unlock(&Threads.decode.mutex);
 
-    //sched_yield();
+    if (priorityTasksPending()) {
+        sched_yield();
+    }
     int count = epoll_wait(Modes.net_epfd, Modes.net_events, Modes.net_maxEvents, wait_ms);
 
     pthread_mutex_lock(&Threads.decode.mutex);
@@ -3444,6 +3407,8 @@ void modesNetPeriodicWork(void) {
     Modes.network_time_limit = now + 500; // limit 1 network read to 500 ms
 
     handleEpoll(&Modes.services_in, count);
+
+    drainUseMessageBuffer();
 
     handleEpoll(&Modes.services_out, count);
 
@@ -3734,17 +3699,126 @@ static char *read_uuid(struct client *c, char *p, char *eod) {
     }
     return p;
 }
+
+static void outputMessage(struct modesMessage *mm) {
+    struct aircraft *ac = mm->aircraft;
+    // In non-interactive non-quiet mode, display messages on standard output
+    if (
+            !Modes.quiet
+            || (Modes.show_only != BADDR && (mm->addr == Modes.show_only || mm->maybe_addr == Modes.show_only))
+            || (Modes.debug_7700 && ac && ac->squawk == 0x7700 && trackDataValid(&ac->squawk_valid))
+       ) {
+        displayModesMessage(mm);
+    }
+
+    if (Modes.debug_bogus) {
+        if (!Modes.synthetic_now) {
+            Modes.startup_time = mstime() - mm->timestampMsg / 12000U;
+        }
+        Modes.synthetic_now = Modes.startup_time + mm->timestampMsg / 12000U;
+
+        if (mm->addr != HEX_UNKNOWN && !(mm->addr & MODES_NON_ICAO_ADDRESS)) {
+            ac = aircraftCreate(mm->addr);
+        }
+        if (ac && ac->messages == 1 && ac->registration[0] == 0) {
+            fprintf(stdout, "%6llx %5.1f not in DB: %06x\n",
+                    (long long) mm->timestampMsg % 0x1000000,
+                    10 * log10(mm->signalLevel),
+                    mm->addr);
+            //displayModesMessage(mm);
+        } else if (0 && !ac) {
+            if (mm->addr != HEX_UNKNOWN && !dbGet(mm->addr, Modes.dbIndex))
+                displayModesMessage(mm);
+            if (mm->addr == HEX_UNKNOWN && !dbGet(mm->maybe_addr, Modes.dbIndex))
+                displayModesMessage(mm);
+        }
+    }
+
+
+    // filter messages with unwanted DF types
+    if (Modes.filterDF && !(Modes.filterDFbitset & (1 << mm->msgtype))) {
+        return;
+    }
+
+        // Suppress the first message when using an SDR
+    if (Modes.net && !mm->sbs_in && (Modes.net_only || Modes.net_verbatim || !ac || ac->messages > 1)) {
+        int is_mlat = (mm->source == SOURCE_MLAT);
+
+        if (mm->jsonPositionOutputEmit && Modes.json_out.connections) {
+            jsonPositionOutput(mm, ac);
+        }
+
+        if (Modes.garbage_ports && (mm->garbage || mm->pos_bad) && !mm->pos_old && Modes.garbage_out.connections) {
+            modesSendBeastOutput(mm, &Modes.garbage_out);
+        }
+
+        if (ac && (!Modes.sbsReduce || mm->reduce_forward)) {
+            if (Modes.sbs_out.connections)
+                modesSendSBSOutput(mm, ac, &Modes.sbs_out);
+            if (is_mlat && Modes.sbs_out_mlat.connections)
+                modesSendSBSOutput(mm, ac, &Modes.sbs_out_mlat);
+        }
+
+        if (!is_mlat && (Modes.net_verbatim || mm->correctedbits < 2) && Modes.raw_out.connections) {
+            // Forward 2-bit-corrected messages via raw output only if --net-verbatim is set
+            // Don't ever forward mlat messages via raw output.
+            modesSendRawOutput(mm);
+        }
+
+        if ((!is_mlat || Modes.forward_mlat) && (Modes.net_verbatim || mm->correctedbits < 2)) {
+            // Forward 2-bit-corrected messages via beast output only if --net-verbatim is set
+            // Forward mlat messages via beast output only if --forward-mlat is set
+            if (Modes.beast_out.connections)
+                modesSendBeastOutput(mm, &Modes.beast_out);
+            if (mm->reduce_forward && Modes.beast_reduce_out.connections) {
+                modesSendBeastOutput(mm, &Modes.beast_reduce_out);
+            }
+        }
+    }
+}
+
 static void drainUseMessageBuffer() {
     struct messageBuffer *buf = &Modes.netUseMessageBuffer;
     for (int k = 0; k < buf->len; k++) {
-        useModesMessage(&buf->msg[k]);
+        struct modesMessage *mm = &buf->msg[k];
+        if (Modes.debug_yeet && mm->addr % 0x100 != 0xd) {
+            continue;
+        }
+        trackUpdateFromMessage(mm);
+    }
+    for (int k = 0; k < buf->len; k++) {
+        struct modesMessage *mm = &buf->msg[k];
+        if (Modes.debug_yeet && mm->addr % 0x100 != 0xd) {
+            continue;
+        }
+        outputMessage(mm);
     }
     buf->len = 0;
 }
 
-static void netUseMessage(struct modesMessage *mm) {
+// get a zeroed spot in in the message buffer, only messages from this buffer may be passed to netUseMessage
+
+struct modesMessage *netGetMM() {
     struct messageBuffer *buf = &Modes.netUseMessageBuffer;
-    if (mm != &buf->msg[buf->len]) {
+    struct modesMessage *mm = &buf->msg[buf->len];
+    memset(mm, 0x0, sizeof(struct modesMessage));
+    return mm;
+}
+
+//
+//=========================================================================
+//
+// When a new message is available, because it was decoded from the RTL device,
+// file, or received in the TCP input port, or any other way we can receive a
+// decoded message, we call this function in order to use the message.
+//
+// Basically this function passes a raw message to the upper layers for further
+// processing and visualization
+//
+
+void netUseMessage(struct modesMessage *mm) {
+    struct messageBuffer *buf = &Modes.netUseMessageBuffer;
+    if (0 && mm != &buf->msg[buf->len]) {
         fprintf(stderr, "FATAL: fix netUseMessage / get_mm\n");
         exit(2);
     }
@@ -3752,10 +3826,4 @@ static void netUseMessage(struct modesMessage *mm) {
     if (buf->len == buf->alloc) {
         drainUseMessageBuffer();
     }
-}
-static struct modesMessage *get_mm() {
-    struct messageBuffer *buf = &Modes.netUseMessageBuffer;
-    struct modesMessage *mm = &buf->msg[buf->len];
-    memset(mm, 0x0, sizeof(struct modesMessage));
-    return mm;
 }

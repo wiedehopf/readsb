@@ -33,7 +33,6 @@
 int scoreModesMessage (unsigned char *msg, int validbits);
 int decodeModesMessage (struct modesMessage *mm);
 void displayModesMessage (struct modesMessage *mm);
-void useModesMessage (struct modesMessage *mm);
 
 // datafield extraction helpers
 

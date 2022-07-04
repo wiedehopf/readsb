@@ -262,8 +262,6 @@ static void score_phase(int try_phase, uint16_t *pa, unsigned char **bestmsg, in
 // try to demodulate some Mode S messages.
 //
 void demodulate2400(struct mag_buf *mag) {
-    static struct modesMessage zeroMessage;
-    struct modesMessage mm;
     unsigned char msg1[MODES_LONG_MSG_BYTES], msg2[MODES_LONG_MSG_BYTES], *msg;
 
     unsigned char *bestmsg = NULL;
@@ -399,27 +397,26 @@ after_pre:
 
         msglen = modesMessageLenByType(getbits(bestmsg, 1, 5));
 
-        // Set initial mm structure details
-        mm = zeroMessage;
+        struct modesMessage *mm = netGetMM();
 
         // For consistency with how the Beast / Radarcape does it,
         // we report the timestamp at the end of bit 56 (even if
         // the frame is a 112-bit frame)
-        mm.timestampMsg = mag->sampleTimestamp + (pa -m) * 5 + (8 + 56) * 12 + bestphase;
+        mm->timestampMsg = mag->sampleTimestamp + (pa -m) * 5 + (8 + 56) * 12 + bestphase;
 
         // compute message receive time as block-start-time + difference in the 12MHz clock
-        mm.sysTimestampMsg = mag->sysTimestamp + receiveclock_ms_elapsed(mag->sampleTimestamp, mm.timestampMsg);
+        mm->sysTimestampMsg = mag->sysTimestamp + receiveclock_ms_elapsed(mag->sampleTimestamp, mm->timestampMsg);
 
         // advance ifile artifical clock for every message received
         if (Modes.sdr_type == SDR_IFILE)
-            Modes.synthetic_now = mm.sysTimestampMsg;
+            Modes.synthetic_now = mm->sysTimestampMsg;
 
-        mm.score = bestscore;
+        mm->score = bestscore;
 
         // Decode the received message
         {
-            memcpy(mm.msg, bestmsg, MODES_LONG_MSG_BYTES);
-            int result = decodeModesMessage(&mm);
+            memcpy(mm->msg, bestmsg, MODES_LONG_MSG_BYTES);
+            int result = decodeModesMessage(mm);
             if (result < 0) {
                 if (result == -1)
                     Modes.stats_current.demod_rejected_unknown_icao++;
@@ -427,7 +424,7 @@ after_pre:
                     Modes.stats_current.demod_rejected_bad++;
                 continue;
             } else {
-                Modes.stats_current.demod_accepted[mm.correctedbits]++;
+                Modes.stats_current.demod_accepted[mm->correctedbits]++;
             }
         }
 
@@ -446,14 +443,14 @@ after_pre:
             }
 
             signal_power = scaled_signal_power / 65535.0 / 65535.0;
-            mm.signalLevel = signal_power / signal_len;
+            mm->signalLevel = signal_power / signal_len;
             Modes.stats_current.signal_power_sum += signal_power;
             Modes.stats_current.signal_power_count += signal_len;
             sum_scaled_signal_power += scaled_signal_power;
 
-            if (mm.signalLevel > Modes.stats_current.peak_signal_power)
-                Modes.stats_current.peak_signal_power = mm.signalLevel;
-            if (mm.signalLevel > 0.50119)
+            if (mm->signalLevel > Modes.stats_current.peak_signal_power)
+                Modes.stats_current.peak_signal_power = mm->signalLevel;
+            if (mm->signalLevel > 0.50119)
                 Modes.stats_current.strong_signal_count++; // signal power above -3dBFS
         }
 
@@ -469,7 +466,7 @@ after_pre:
         pa += msglen * 8 / 4;
 
         // Pass data to the next layer
-        useModesMessage(&mm);
+        netUseMessage(mm);
     }
 
     /* update noise power */
@@ -572,12 +569,10 @@ static void draw_modeac(uint16_t *m, unsigned modeac, unsigned f1_clock, unsigne
 //
 // one 2.4MHz sample = 25 cycles
 void demodulate2400AC(struct mag_buf *mag) {
-    struct modesMessage mm;
+    struct modesMessage *mm = netGetMM();
     uint16_t *m = mag->data;
     uint32_t mlen = mag->length;
     unsigned f1_sample;
-
-    memset(&mm, 0, sizeof (mm));
 
     double noise_stddev = sqrt(mag->mean_power - mag->mean_level * mag->mean_level); // Var(X) = E[(X-E[X])^2] = E[X^2] - (E[X])^2
     unsigned noise_level = (unsigned) ((mag->mean_power + noise_stddev) * 65535 + 0.5);
@@ -744,15 +739,15 @@ void demodulate2400AC(struct mag_buf *mag) {
 
         // For consistency with how the Beast / Radarcape does it,
         // we report the timestamp at the second framing pulse (F2)
-        mm.timestampMsg = mag->sampleTimestamp + f2_clock / 5; // 60MHz -> 12MHz
+        mm->timestampMsg = mag->sampleTimestamp + f2_clock / 5; // 60MHz -> 12MHz
 
         // compute message receive time as block-start-time + difference in the 12MHz clock
-        mm.sysTimestampMsg = mag->sysTimestamp + receiveclock_ms_elapsed(mag->sampleTimestamp, mm.timestampMsg);
+        mm->sysTimestampMsg = mag->sysTimestamp + receiveclock_ms_elapsed(mag->sampleTimestamp, mm->timestampMsg);
 
-        decodeModeAMessage(&mm, modeac);
+        decodeModeAMessage(mm, modeac);
 
         // Pass data to the next layer
-        useModesMessage(&mm);
+        netUseMessage(mm);
 
         f1_sample += (20 * 87 / 25);
         Modes.stats_current.demod_modeac++;

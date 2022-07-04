@@ -208,4 +208,8 @@ typedef union __packed {
     } status;
 } hulc_status_msg_t;
 
+void netUseMessage(struct modesMessage *mm);
+struct modesMessage *netGetMM();
+
+
 #endif
