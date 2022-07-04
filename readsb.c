@@ -1558,6 +1558,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         break;
                     case 'D': Modes.debug_send_uuid = 1;
                         break;
+                    case 'd': Modes.debug_no_discard = 1;
+                        break;
                     case 'Z': Modes.debug_provoke_segfault = 1;
                         break;
 

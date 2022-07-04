@@ -453,7 +453,6 @@ struct messageBuffer {
 struct _Modes
 { // Internal state
     pthread_mutex_t traceDebugMutex;
-    struct messageBuffer netUseMessageBuffer;
 
     int num_procs;
     int allPoolSize;
@@ -492,9 +491,16 @@ struct _Modes
     struct net_service_group services_in; // Active services which primarily receive data
     struct net_service_group services_out; // Active services which primarily send data
     int exitEventfd;
+
     int net_epfd; // epoll fd used for most network stuff
+    int net_event_count;
     int net_maxEvents;
+
     struct epoll_event *net_events;
+
+    struct messageBuffer *netUseMessageBuffer;
+    int decodeTasks;
+
     int max_fds;
     int modesClientCount;
     int api_fds_per_thread;
@@ -567,6 +573,7 @@ struct _Modes
     int8_t mode_ac; // Enable decoding of SSR Modes A & C
     int8_t mode_ac_auto; // allow toggling of A/C by Beast commands
     int8_t debug_net;
+    int8_t debug_no_discard;
     int8_t debug_nextra;
     int8_t debug_cpr;
     int8_t debug_speed_check;
@@ -758,6 +765,7 @@ struct modesMessage
     double signalLevel; // RSSI, in the range [0..1], as a fraction of full-scale power
     struct client *client; // network client this message came from, NULL otherwise
     struct aircraft *aircraft; // tracked aircraft associated with this message or NULL
+    struct messageBuffer *messageBuffer;
 
     int64_t timestampMsg; // Timestamp of the message (12MHz clock)
     int64_t sysTimestampMsg; // Timestamp of the message (system time)

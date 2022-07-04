@@ -397,7 +397,7 @@ after_pre:
 
         msglen = modesMessageLenByType(getbits(bestmsg, 1, 5));
 
-        struct modesMessage *mm = netGetMM();
+        struct modesMessage *mm = netGetMM(&Modes.netUseMessageBuffer[0]);
 
         // For consistency with how the Beast / Radarcape does it,
         // we report the timestamp at the end of bit 56 (even if
@@ -569,7 +569,7 @@ static void draw_modeac(uint16_t *m, unsigned modeac, unsigned f1_clock, unsigne
 //
 // one 2.4MHz sample = 25 cycles
 void demodulate2400AC(struct mag_buf *mag) {
-    struct modesMessage *mm = netGetMM();
+    struct modesMessage *mm = netGetMM(&Modes.netUseMessageBuffer[0]);
     uint16_t *m = mag->data;
     uint32_t mlen = mag->length;
     unsigned f1_sample;

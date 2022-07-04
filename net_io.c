@@ -99,7 +99,7 @@ static int flushClient(struct client *c, int64_t now);
 static char *read_uuid(struct client *c, char *p, char *eod);
 static void modesReadFromClient(struct client *c, int64_t start);
 
-static void drainUseMessageBuffer();
+static void drainUseMessageBuffer(struct messageBuffer *buf);
 
 //
 //=========================================================================
@@ -694,9 +694,10 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
 }
 
 void modesInitNet(void) {
-    {
-        struct messageBuffer *buf = &Modes.netUseMessageBuffer;
-
+    Modes.decodeTasks = 1;
+    Modes.netUseMessageBuffer = cmalloc(Modes.decodeTasks * sizeof(struct messageBuffer));
+    for (int k = 0; k < Modes.decodeTasks; k++) {
+        struct messageBuffer *buf = &Modes.netUseMessageBuffer[k];
         buf->alloc = 1024;
         buf->len = 0;
         int bytes = buf->alloc * sizeof(struct modesMessage);
@@ -1559,7 +1560,7 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now) 
     if (line_len < 20 || line_len >= max_len)
         goto basestation_invalid;
 
-    struct modesMessage *mm = netGetMM();
+    struct modesMessage *mm = netGetMM(c->messageBuffer);
     mm->client = c;
 
     char *p = line;
@@ -2343,7 +2344,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now) 
     int msgLen = 0;
     int j;
     unsigned char ch;
-    struct modesMessage *mm = netGetMM();
+    struct modesMessage *mm = netGetMM(c->messageBuffer);
     unsigned char *msg = mm->msg;
 
     mm->client = c;
@@ -2699,7 +2700,7 @@ static int decodeHexMessage(struct client *c, char *hex, int64_t now, struct mod
 static int processHexMessage(struct client *c, char *hex, int remote, int64_t now) {
     MODES_NOTUSED(remote);
 
-    struct modesMessage *mm = netGetMM();
+    struct modesMessage *mm = netGetMM(c->messageBuffer);
 
     int success = decodeHexMessage(c, hex, now, mm);
 
@@ -2725,7 +2726,7 @@ static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now
     while (((p = memchr(som, '\n', eod - som)) != NULL)) {
         *p = '\0';
 
-        struct modesMessage *mm = netGetMM();
+        struct modesMessage *mm = netGetMM(c->messageBuffer);
 
         int success = decodeHexMessage(c, som, now, mm);
 
@@ -2795,7 +2796,6 @@ static void modesReadFromClient(struct client *c, int64_t now) {
     int nread;
     int bContinue = 1;
     int discard = 0;
-
 
     for (int loop = 0; bContinue && loop < 32; loop++) {
         now = mstime();
@@ -2881,7 +2881,7 @@ static void modesReadFromClient(struct client *c, int64_t now) {
             }
         }
 
-        if (!discard && now - c->last_read < 100 && now - c->last_read_flush > 3 * SECONDS) {
+        if (!Modes.debug_no_discard && !discard && now - c->last_read < 100 && now - c->last_read_flush > 3 * SECONDS) {
             discard = 1;
             if (Modes.netIngest && c->proxy_string[0] != '\0') {
                 fprintf(stderr, "<3>ERROR, not enough CPU: Discarding data from: %s\n", c->proxy_string);
@@ -3320,8 +3320,9 @@ static void netFreeClients() {
     }
 }
 
-static void handleEpoll(struct net_service_group *group, int count) {
+static void handleEpoll(struct net_service_group *group, struct messageBuffer *mb) {
     int64_t now = mstime();
+    int count = Modes.net_event_count;
 
     int i;
     for (i = 0; i < count; i++) {
@@ -3359,6 +3360,7 @@ static void handleEpoll(struct net_service_group *group, int count) {
             }
 
             if ((event.events & (EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP))) {
+                cl->messageBuffer = mb;
                 modesReadFromClient(cl, now);
             }
         }
@@ -3408,7 +3410,7 @@ void modesNetPeriodicWork(void) {
     if (priorityTasksPending()) {
         sched_yield();
     }
-    int count = epoll_wait(Modes.net_epfd, Modes.net_events, Modes.net_maxEvents, wait_ms);
+    Modes.net_event_count = epoll_wait(Modes.net_epfd, Modes.net_events, Modes.net_maxEvents, wait_ms);
 
     pthread_mutex_lock(&Threads.decode.mutex);
 
@@ -3417,13 +3419,15 @@ void modesNetPeriodicWork(void) {
     int64_t now = mstime();
     Modes.network_time_limit = now + ms_until_priority();
 
-    handleEpoll(&Modes.services_in, count);
+    if (Modes.decodeTasks < 2) {
+        struct messageBuffer *buf = &Modes.netUseMessageBuffer[0];
+        handleEpoll(&Modes.services_in, buf);
+        drainUseMessageBuffer(buf);
+        handleEpoll(&Modes.services_out, buf);
+    } else {
+    }
 
-    drainUseMessageBuffer();
-
-    handleEpoll(&Modes.services_out, count);
-
-    if (count == Modes.net_maxEvents) {
+    if (Modes.net_event_count == Modes.net_maxEvents) {
         epollAllocEvents(&Modes.net_events, &Modes.net_maxEvents);
     }
 
@@ -3602,11 +3606,18 @@ static void serviceGroupCleanup(struct net_service_group *group) {
     memset(group, 0x0, sizeof(struct net_service_group));
 }
 
+static void cleanupMessageBuffers() {
+    for (int k = 0; k < Modes.decodeTasks; k++) {
+        struct messageBuffer *buf = &Modes.netUseMessageBuffer[k];
+        sfree(buf->msg);
+        buf->len = 0;
+        buf->alloc = 0;
+    }
+    sfree(Modes.netUseMessageBuffer);
+}
+
 void cleanupNetwork(void) {
-    struct messageBuffer *buf = &Modes.netUseMessageBuffer;
-    sfree(buf->msg);
-    buf->len = 0;
-    buf->alloc = 0;
+    cleanupMessageBuffers();
 
     if (!Modes.net) {
         return;
@@ -3788,8 +3799,7 @@ static void outputMessage(struct modesMessage *mm) {
     }
 }
 
-static void drainUseMessageBuffer() {
-    struct messageBuffer *buf = &Modes.netUseMessageBuffer;
+static void drainUseMessageBuffer(struct messageBuffer *buf) {
     for (int k = 0; k < buf->len; k++) {
         struct modesMessage *mm = &buf->msg[k];
         if (Modes.debug_yeet && mm->addr % 0x100 != 0xd) {
@@ -3803,10 +3813,10 @@ static void drainUseMessageBuffer() {
 
 // get a zeroed spot in in the message buffer, only messages from this buffer may be passed to netUseMessage
 
-struct modesMessage *netGetMM() {
-    struct messageBuffer *buf = &Modes.netUseMessageBuffer;
+struct modesMessage *netGetMM(struct messageBuffer *buf) {
     struct modesMessage *mm = &buf->msg[buf->len];
     memset(mm, 0x0, sizeof(struct modesMessage));
+    mm->messageBuffer = buf;
     return mm;
 }
 
@@ -3822,13 +3832,13 @@ struct modesMessage *netGetMM() {
 //
 
 void netUseMessage(struct modesMessage *mm) {
-    struct messageBuffer *buf = &Modes.netUseMessageBuffer;
+    struct messageBuffer *buf = mm->messageBuffer;
     if (0 && mm != &buf->msg[buf->len]) {
         fprintf(stderr, "FATAL: fix netUseMessage / get_mm\n");
         exit(2);
     }
     buf->len++;
     if (buf->len == buf->alloc) {
-        drainUseMessageBuffer();
+        drainUseMessageBuffer(buf);
     }
 }

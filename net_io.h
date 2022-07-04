@@ -93,6 +93,7 @@ struct client
     int buflen; // Amount of data on read buffer
     int bufmax; // size of the read buffer
     char *buf; // read buffer
+    struct messageBuffer *messageBuffer;
     int8_t acceptSocket; // not really a client but rather an accept Socket ... only fd and epollEvent will be valid
     int8_t net_connector_dummyClient; // dummy client used by net_connector
     int8_t pingEnabled;
