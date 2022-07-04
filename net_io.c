@@ -197,19 +197,13 @@ static void setBuffers(int fd, int sndsize, int rcvsize) {
     }
 }
 
-// Create a client attached to the given service using the provided socket FD
-struct client *createSocketClient(struct net_service *service, int fd) {
-    return createGenericClient(service, fd);
-}
-
-// Create a client attached to the given service using the provided FD (might not be a socket!)
-
-struct client *createGenericClient(struct net_service *service, int fd) {
+// Create a client attached to the given service using the provided socket FD ... not a socket in some exceptions
+static struct client *createSocketClient(struct net_service *service, int fd) {
     struct client *c;
     int64_t now = mstime();
 
     if (!service || fd == -1) {
-        fprintf(stderr, "<3> FATAL: createGenericClient called with invalid parameters!\n");
+        fprintf(stderr, "<3> FATAL: createSocketClient called with invalid parameters!\n");
         exit(1);
     }
     if (!(c = (struct client *) cmalloc(sizeof (struct client)))) {
@@ -224,6 +218,7 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     c->last_send = now;
     c->last_read = now;
     c->connectedSince = now;
+    c->last_read_flush = now;
 
 
     c->proxy_string[0] = '\0';
@@ -244,14 +239,11 @@ struct client *createGenericClient(struct net_service *service, int fd) {
     //fprintf(stderr, "c->receiverId: %016"PRIx64"\n", c->receiverId);
 
     c->bufmax = MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size;
-    // hard limit RCVBUF for ingest server, lots of connections
-    if (Modes.netIngest) {
-        c->bufmax = MODES_NET_SNDBUF_SIZE;
+    if (service->sendqOverrideSize) {
+        c->bufmax = service->sendqOverrideSize;
     }
-    if (!(c->buf = cmalloc(c->bufmax))) {
-        fprintf(stderr, "Out of memory allocating client SendQ\n");
-        exit(1);
-    }
+
+    c->buf = cmalloc(c->bufmax);
 
     if (service->writer) {
         c->sendq_max = MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size;
@@ -661,12 +653,10 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
             }
         }
         static int listenerCount;
-        if (listenerCount && listenerCount % 2 == 0)
-            fprintf(stderr, "\n");
         listenerCount++;
         char listenString[1024];
         snprintf(listenString, 1023, "%5s: %s port", buf, service->descr);
-        fprintf(stderr, "%-38s", listenString);
+        fprintf(stderr, "%-38s\n", listenString);
 
         fds = realloc(fds, (n + nfds) * sizeof (int));
         if (!fds) {
@@ -865,12 +855,9 @@ void modesInitNet(void) {
     }
     serviceListen(Modes.beast_in_service, Modes.net_bind_address, Modes.net_input_beast_ports, Modes.net_epfd);
 
-    // print newline after all the listen announcements in serviceListen
-    fprintf(stderr, "\n");
-
     /* Beast input from local Modes-S Beast via USB */
     if (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS) {
-        createGenericClient(Modes.beast_in_service, Modes.beast_fd);
+        createSocketClient(Modes.beast_in_service, Modes.beast_fd);
     }
 
     Modes.uat_in_service = serviceInit(&Modes.services_in, "UAT TCP input", NULL, NULL, READ_MODE_ASCII, "\n", decodeUatMessage);
@@ -961,7 +948,7 @@ static void modesAcceptClients(struct client *c, int64_t now) {
                     NI_NUMERICHOST | NI_NUMERICSERV);
 
             setProxyString(c);
-            if (!Modes.netIngest && Modes.debug_net) {
+            if (Modes.debug_net && (!Modes.netIngest || c->service->group == &Modes.services_out)) {
                 fprintf(stderr, "%s: new c from %s port %s (fd %d)\n",
                         c->service->descr, c->host, c->port, fd);
             }
@@ -988,7 +975,7 @@ static void modesCloseClient(struct client *c) {
         fprintf(stderr, "warning: double close of net client\n");
         return;
     }
-    if (Modes.netIngest) {
+    if (Modes.netIngest || Modes.netReceiverId) {
         double elapsed = (mstime() - c->connectedSince + 1) / 1000.0;
         double kbitpersecond = c->bytesReceived / 128.0 / elapsed;
 
@@ -2807,21 +2794,13 @@ static void modesReadFromClient(struct client *c, int64_t now) {
     int bContinue = 1;
     int discard = 0;
 
-    //fprintf(stderr, "modesReadFromClient\n");
+
     for (int loop = 0; bContinue && loop < 32; loop++) {
         now = mstime();
-        if (!discard && now > Modes.network_time_limit) {
-            discard = 1;
-            static int64_t antiSpam;
-            if (now > antiSpam + 5 * SECONDS) {
-                antiSpam = now;
-                if (Modes.netIngest && c->proxy_string[0] != '\0')
-                    fprintf(stderr, "<3>ERROR, not enough CPU: Discarding data from: %s (suppressing for 5 seconds)\n", c->proxy_string);
-                else
-                    fprintf(stderr, "<3>%s: ERROR, not enough CPU: Discarding data from: %s port %s (fd %d) (suppressing for 5 seconds)\n",
-                            c->service->descr, c->host, c->port, c->fd);
-            }
+        if (now > Modes.network_time_limit) {
+            return;
         }
+
         if (discard)
             c->buflen = 0;
 
@@ -2842,10 +2821,8 @@ static void modesReadFromClient(struct client *c, int64_t now) {
         // If we didn't get all the data we asked for, then return once we've processed what we did get.
         if (nread != left) {
             bContinue = 0;
-        }
-
-        if (nread > 0) {
-            c->last_read = now;
+            // also note that we (likely) emptied the system network buffer
+            c->last_read_flush = now;
         }
 
         if (nread < 0) {
@@ -2881,6 +2858,19 @@ static void modesReadFromClient(struct client *c, int64_t now) {
             modesCloseClient(c);
             return;
         }
+
+        // nread > 0 here
+
+        if (!discard && now - c->last_read < 100 && now - c->last_read_flush > 3 * SECONDS) {
+            discard = 1;
+            if (Modes.netIngest && c->proxy_string[0] != '\0')
+                fprintf(stderr, "<3>ERROR, not enough CPU: Discarding data from: %s (suppressing for 5 seconds)\n", c->proxy_string);
+            else
+                fprintf(stderr, "<3>%s: ERROR, not enough CPU: Discarding data from: %s port %s (fd %d) (suppressing for 5 seconds)\n",
+                        c->service->descr, c->host, c->port, c->fd);
+        }
+
+        c->last_read = now;
 
         if (discard)
             continue;
@@ -3404,7 +3394,7 @@ void modesNetPeriodicWork(void) {
     int64_t interval = lapWatch(&watch);
 
     int64_t now = mstime();
-    Modes.network_time_limit = now + 500; // limit 1 network read to 500 ms
+    Modes.network_time_limit = now + ms_until_priority();
 
     handleEpoll(&Modes.services_in, count);
 
@@ -3785,12 +3775,6 @@ static void drainUseMessageBuffer() {
             continue;
         }
         trackUpdateFromMessage(mm);
-    }
-    for (int k = 0; k < buf->len; k++) {
-        struct modesMessage *mm = &buf->msg[k];
-        if (Modes.debug_yeet && mm->addr % 0x100 != 0xd) {
-            continue;
-        }
         outputMessage(mm);
     }
     buf->len = 0;

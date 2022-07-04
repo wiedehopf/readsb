@@ -111,6 +111,7 @@ struct client
     int64_t last_flush;
     int64_t last_send;
     int64_t last_read;  // This is used on write-only clients to help check for dead connections
+    int64_t last_read_flush;
     int64_t connectedSince;
     uint64_t messageCounter; // counter for incoming data
     uint64_t positionCounter; // counter for incoming data
@@ -177,8 +178,6 @@ struct net_writer
 
 void serviceListen (struct net_service *service, char *bind_addr, char *bind_ports, int epfd);
 void serviceClose(struct net_service *s);
-struct client *createSocketClient (struct net_service *service, int fd);
-struct client *createGenericClient (struct net_service *service, int fd);
 
 void sendBeastSettings (int fd, const char *settings);
 

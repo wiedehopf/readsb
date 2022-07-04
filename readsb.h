@@ -347,6 +347,7 @@ typedef enum {
 
 void setExit(int arg);
 int priorityTasksPending();
+int64_t ms_until_priority();
 
 #define MemoryAlignment 32
 #define ALIGNED __attribute__((aligned(MemoryAlignment)))

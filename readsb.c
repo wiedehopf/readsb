@@ -272,7 +272,7 @@ static void unlockThreads() {
     }
 }
 
-static int64_t ms_until_priority() {
+int64_t ms_until_priority() {
     int64_t now = mstime();
     int64_t mono = mono_milli_seconds();
     int64_t ms_until_run = imin(
