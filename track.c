@@ -982,7 +982,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
         }
         if (now > a->nextJsonPortOutput) {
             a->nextJsonPortOutput = now + Modes.net_output_json_interval;
-            jsonPositionOutput(mm, a);
+            mm->jsonPositionOutputEmit = 1;
         }
     }
 
@@ -2226,7 +2226,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         if (Modes.net_output_json_include_nopos && now > a->nextJsonPortOutput
                 && now - a->seenPosReliable > 10 * SECONDS && now - a->seenPosReliable > 2 * Modes.net_output_json_interval) {
             a->nextJsonPortOutput = now + Modes.net_output_json_interval;
-            jsonPositionOutput(mm, a);
+            mm->jsonPositionOutputEmit = 1;
         }
         // forward DF0/DF11 every 2 * beast_reduce_interval for beast_reduce
         if (now > a->next_reduce_forward_DF11 && !(Modes.doubleBeastReduceIntervalUntil > now)) {
@@ -2307,6 +2307,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         mm->reduce_forward = 1;
     }
 
+    mm->aircraft = a;
     return (a);
 }
 

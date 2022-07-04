@@ -183,7 +183,7 @@ struct client *createGenericClient (struct net_service *service, int fd);
 void sendBeastSettings (int fd, const char *settings);
 
 void modesInitNet (void);
-void modesQueueOutput (struct modesMessage *mm, struct aircraft *a);
+void modesQueueOutput (struct modesMessage *mm);
 void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a);
 void modesNetPeriodicWork (void);
 void cleanupNetwork(void);

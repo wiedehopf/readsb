@@ -2300,10 +2300,10 @@ void useModesMessage(struct modesMessage *mm) {
     if (Modes.net && !mm->sbs_in) {
         if (Modes.net_verbatim || !a || Modes.net_only) {
             // Unconditionally send
-            modesQueueOutput(mm, a);
+            modesQueueOutput(mm);
         } else if (a->messages > 1) {
             // Suppress the first message when using an SDR
-            modesQueueOutput(mm, a);
+            modesQueueOutput(mm);
         }
     }
 }

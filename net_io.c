@@ -2054,18 +2054,23 @@ void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a) {
 //
 //=========================================================================
 //
-void modesQueueOutput(struct modesMessage *mm, struct aircraft *a) {
+void modesQueueOutput(struct modesMessage *mm) {
+    struct aircraft *ac = mm->aircraft;
     int is_mlat = (mm->source == SOURCE_MLAT);
+
+    if (mm->jsonPositionOutputEmit && Modes.json_out.connections) {
+        jsonPositionOutput(mm, ac);
+    }
 
     if (Modes.garbage_ports && (mm->garbage || mm->pos_bad) && !mm->pos_old && Modes.garbage_out.connections) {
         modesSendBeastOutput(mm, &Modes.garbage_out);
     }
 
-    if (a && (!Modes.sbsReduce || mm->reduce_forward)) {
+    if (ac && (!Modes.sbsReduce || mm->reduce_forward)) {
         if (Modes.sbs_out.connections)
-            modesSendSBSOutput(mm, a, &Modes.sbs_out);
+            modesSendSBSOutput(mm, ac, &Modes.sbs_out);
         if (is_mlat && Modes.sbs_out_mlat.connections)
-            modesSendSBSOutput(mm, a, &Modes.sbs_out_mlat);
+            modesSendSBSOutput(mm, ac, &Modes.sbs_out_mlat);
     }
 
     if (!is_mlat && (Modes.net_verbatim || mm->correctedbits < 2) && Modes.raw_out.connections) {

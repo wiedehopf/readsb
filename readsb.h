@@ -756,6 +756,7 @@ struct modesMessage
     unsigned char verbatim[MODES_LONG_MSG_BYTES]; // Binary message, as originally received before correction
     double signalLevel; // RSSI, in the range [0..1], as a fraction of full-scale power
     struct client *client; // network client this message came from, NULL otherwise
+    struct aircraft *aircraft; // tracked aircraft associated with this message or NULL
 
     int64_t timestampMsg; // Timestamp of the message (12MHz clock)
     int64_t sysTimestampMsg; // Timestamp of the message (system time)
@@ -783,6 +784,7 @@ struct modesMessage
     int8_t trackUnreliable;
     int8_t speedUnreliable;
     int8_t in_disc_cache;
+    int8_t jsonPositionOutputEmit;
     datasource_t source; // Characterizes the overall message source
     // Raw data, just extracted directly from the message
     // The names reflect the field names in Annex 4
