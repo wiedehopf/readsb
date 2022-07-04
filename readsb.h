@@ -448,6 +448,7 @@ struct messageBuffer {
     struct modesMessage *msg;
     int len;
     int alloc;
+    int id;
 };
 
 struct _Modes
@@ -500,6 +501,7 @@ struct _Modes
 
     struct messageBuffer *netMessageBuffer;
     int decodeCount;
+    struct client *activeClient;
     threadpool_t *decodePool;
     task_group_t *decodeTasks;
     pthread_mutex_t decodeLock;

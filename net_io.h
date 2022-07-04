@@ -33,7 +33,9 @@ struct modesMessage;
 struct client;
 struct net_service;
 struct net_service_group;
-typedef int (*read_fn)(struct client *, char *, int, int64_t);
+struct messageBuffer;
+
+typedef int (*read_fn)(struct client *, char *, int, int64_t, struct messageBuffer *);
 typedef void (*heartbeat_fn)(struct net_service *);
 
 typedef enum
@@ -90,11 +92,17 @@ struct client
 {
     struct client* next; // Pointer to next client
     struct net_service *service; // Service this client is part of
-    int fd; // File descriptor
+    char *buf; // read buffer
+    char *som;
+    char *eod;
     int buflen; // Amount of data on read buffer
     int bufmax; // size of the read buffer
-    char *buf; // read buffer
-    struct messageBuffer *messageBuffer;
+    int fd; // File descriptor
+    int8_t bufferToProcess;
+    int8_t remote;
+    int8_t bContinue;
+    int8_t discard;
+    int8_t processing;
     int8_t acceptSocket; // not really a client but rather an accept Socket ... only fd and epollEvent will be valid
     int8_t net_connector_dummyClient; // dummy client used by net_connector
     int8_t pingEnabled;

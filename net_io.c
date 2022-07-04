@@ -67,25 +67,27 @@
 // ============================= Networking =============================
 //
 
-static int handle_gpsd(struct client *c, char *p, int remote, int64_t now);
-static int handleCommandSocket(struct client *c, char *p, int remote, int64_t now);
-static int handleBeastCommand(struct client *c, char *p, int remote, int64_t now);
-static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now);
-static int processHexMessage(struct client *c, char *hex, int remote, int64_t now);
-static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now);
-static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now);
-static int decodeSbsLineMlat(struct client *c, char *line, int remote, int64_t now) {
+// read_fn typedef read_handler functions
+static int handle_gpsd(struct client *c, char *p, int remote, int64_t now, struct messageBuffer *mb);
+static int handleCommandSocket(struct client *c, char *p, int remote, int64_t now, struct messageBuffer *mb);
+static int handleBeastCommand(struct client *c, char *p, int remote, int64_t now, struct messageBuffer *mb);
+static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now, struct messageBuffer *mb);
+static int processHexMessage(struct client *c, char *hex, int remote, int64_t now, struct messageBuffer *mb);
+static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now, struct messageBuffer *mb);
+static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now, struct messageBuffer *mb);
+static int decodeSbsLineMlat(struct client *c, char *line, int remote, int64_t now, struct messageBuffer *mb) {
     MODES_NOTUSED(remote);
-    return decodeSbsLine(c, line, 64 + SOURCE_MLAT, now);
+    return decodeSbsLine(c, line, 64 + SOURCE_MLAT, now, mb);
 }
-static int decodeSbsLinePrio(struct client *c, char *line, int remote, int64_t now) {
+static int decodeSbsLinePrio(struct client *c, char *line, int remote, int64_t now, struct messageBuffer *mb) {
     MODES_NOTUSED(remote);
-    return decodeSbsLine(c, line, 64 + SOURCE_PRIO, now);
+    return decodeSbsLine(c, line, 64 + SOURCE_PRIO, now, mb);
 }
-static int decodeSbsLineJaero(struct client *c, char *line, int remote, int64_t now) {
+static int decodeSbsLineJaero(struct client *c, char *line, int remote, int64_t now, struct messageBuffer *mb) {
     MODES_NOTUSED(remote);
-    return decodeSbsLine(c, line, 64 + SOURCE_JAERO, now);
+    return decodeSbsLine(c, line, 64 + SOURCE_JAERO, now, mb);
 }
+// end read handlers
 
 static void send_raw_heartbeat(struct net_service *service);
 static void send_beast_heartbeat(struct net_service *service);
@@ -97,7 +99,7 @@ static void *pthreadGetaddrinfo(void *param);
 static void modesCloseClient(struct client *c);
 static int flushClient(struct client *c, int64_t now);
 static char *read_uuid(struct client *c, char *p, char *eod);
-static void modesReadFromClient(struct client *c);
+static void modesReadFromClient(struct client *c, struct messageBuffer *mb);
 
 static void drainMessageBuffer(struct messageBuffer *buf);
 
@@ -235,6 +237,12 @@ static struct client *createSocketClient(struct net_service *service, int fd) {
     c->receiverIdLocked = 0;
 
     c->recent_rtt = -1;
+
+    c->remote = 1; // Messages will be marked remote by default
+    if ((c->fd == Modes.beast_fd) && (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS)) {
+        /* Message from a local connected Modes-S beast or GNS5894 are passed off the internet */
+        c->remote = 0;
+    }
 
     //fprintf(stderr, "c->receiverId: %016"PRIx64"\n", c->receiverId);
 
@@ -693,7 +701,7 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
     }
 }
 static void initMessageBuffers() {
-    if (Modes.netIngest || Modes.netReceiverId) {
+    if (Modes.netReceiverId) {
         Modes.decodeCount = 2;
     } else {
         Modes.decodeCount = 1;
@@ -710,8 +718,9 @@ static void initMessageBuffers() {
     Modes.netMessageBuffer = cmalloc(Modes.decodeCount * sizeof(struct messageBuffer));
     for (int k = 0; k < Modes.decodeCount; k++) {
         struct messageBuffer *buf = &Modes.netMessageBuffer[k];
-        buf->alloc = 24 * 1024;
+        buf->alloc = 128 * imin(3, Modes.net_sndbuf_size);
         buf->len = 0;
+        buf->id = k;
         int bytes = buf->alloc * sizeof(struct modesMessage);
         buf->msg = cmalloc(bytes);
         //fprintf(stderr, "netMessageBuffer alloc: %d size: %d\n", buf->alloc, bytes);
@@ -992,7 +1001,7 @@ static void modesCloseClient(struct client *c) {
         fprintf(stderr, "warning: double close of net client\n");
         return;
     }
-    if (Modes.netIngest || Modes.netReceiverId) {
+    if (Modes.netIngest || Modes.netReceiverId || Modes.debug_no_discard) {
         double elapsed = (mstime() - c->connectedSince + 1) / 1000.0;
         double kbitpersecond = c->bytesReceived / 128.0 / elapsed;
 
@@ -1565,7 +1574,7 @@ static void send_raw_heartbeat(struct net_service *service) {
 //
 // Read SBS input from TCP clients
 //
-static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now) {
+static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now, struct messageBuffer *mb) {
     size_t line_len = strlen(line);
     size_t max_len = 200;
 
@@ -1576,7 +1585,7 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now) 
     if (line_len < 20 || line_len >= max_len)
         goto basestation_invalid;
 
-    struct modesMessage *mm = netGetMM(c->messageBuffer);
+    struct modesMessage *mm = netGetMM(mb);
     mm->client = c;
 
     char *p = line;
@@ -2217,10 +2226,11 @@ void sendBeastSettings(int fd, const char *settings) {
     anetWrite(fd, buf, len);
 }
 
-static int handle_gpsd(struct client *c, char *p, int remote, int64_t now) {
+static int handle_gpsd(struct client *c, char *p, int remote, int64_t now, struct messageBuffer *mb) {
     MODES_NOTUSED(c);
     MODES_NOTUSED(remote);
     MODES_NOTUSED(now);
+    MODES_NOTUSED(mb);
     // remove spaces in place
     char *d = p;
     char *s = p;
@@ -2272,10 +2282,11 @@ static int handle_gpsd(struct client *c, char *p, int remote, int64_t now) {
     return 0;
 }
 
-static int handleCommandSocket(struct client *c, char *p, int remote, int64_t now) {
+static int handleCommandSocket(struct client *c, char *p, int remote, int64_t now, struct messageBuffer *mb) {
     MODES_NOTUSED(c);
     MODES_NOTUSED(remote);
     MODES_NOTUSED(now);
+    MODES_NOTUSED(mb);
     char *saveptr = NULL;
     char *cmd = strtok_r(p, " ", &saveptr);
     if (strcmp(cmd, "deleteTrace") == 0) {
@@ -2303,9 +2314,10 @@ static int handleCommandSocket(struct client *c, char *p, int remote, int64_t no
 // Currently, we just look for the Mode A/C command message
 // and ignore everything else.
 //
-static int handleBeastCommand(struct client *c, char *p, int remote, int64_t now) {
+static int handleBeastCommand(struct client *c, char *p, int remote, int64_t now, struct messageBuffer *mb) {
     MODES_NOTUSED(remote);
     MODES_NOTUSED(now);
+    MODES_NOTUSED(mb);
     if (p[0] == 'P') {
         // got ping
         c->ping = readPingEscaped(p+1);
@@ -2356,11 +2368,11 @@ static int handleBeastCommand(struct client *c, char *p, int remote, int64_t now
 // case where we want broken messages here to close the client connection.
 //
 // to save a couple cycles we remove the escapes in the calling function and expect nonescaped messages here
-static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now) {
+static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now, struct messageBuffer *mb) {
     int msgLen = 0;
     int j;
     unsigned char ch;
-    struct modesMessage *mm = netGetMM(c->messageBuffer);
+    struct modesMessage *mm = netGetMM(mb);
     unsigned char *msg = mm->msg;
 
     mm->client = c;
@@ -2713,10 +2725,10 @@ static int decodeHexMessage(struct client *c, char *hex, int64_t now, struct mod
 // case where we want broken messages here to close the client connection.
 //
 
-static int processHexMessage(struct client *c, char *hex, int remote, int64_t now) {
+static int processHexMessage(struct client *c, char *hex, int remote, int64_t now, struct messageBuffer *mb) {
     MODES_NOTUSED(remote);
 
-    struct modesMessage *mm = netGetMM(c->messageBuffer);
+    struct modesMessage *mm = netGetMM(mb);
 
     int success = decodeHexMessage(c, hex, now, mm);
 
@@ -2727,7 +2739,7 @@ static int processHexMessage(struct client *c, char *hex, int remote, int64_t no
     return (0);
 }
 
-static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now) {
+static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now, struct messageBuffer *mb) {
     MODES_NOTUSED(remote);
 
     char *end = msg + strlen(msg);
@@ -2742,7 +2754,7 @@ static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now
     while (((p = memchr(som, '\n', eod - som)) != NULL)) {
         *p = '\0';
 
-        struct modesMessage *mm = netGetMM(c->messageBuffer);
+        struct modesMessage *mm = netGetMM(mb);
 
         int success = decodeHexMessage(c, som, now, mm);
 
@@ -2793,6 +2805,466 @@ static const char *hexEscapeString(const char *str, char *buf, int len) {
 // This function polls the clients using read() in order to receive new
 // messages from the net.
 //
+static int readClient(struct client *c, int64_t now) {
+    int nread = 0;
+    if (c->discard)
+        c->buflen = 0;
+
+    int left = c->bufmax - c->buflen - 4; // leave 4 extra byte for NUL termination in the ASCII case
+
+    // If our buffer is full discard it, this is some badly formatted shit
+    if (left <= 0) {
+        c->garbage += c->buflen;
+        Modes.stats_current.remote_malformed_beast += c->buflen;
+        c->buflen = 0;
+        left = c->bufmax - c->buflen - 4; // leave 4 extra byte for NUL termination in the ASCII case
+                                          // If there is garbage, read more to discard it ASAP
+    }
+    if (c->remote) {
+        nread = recv(c->fd, c->buf + c->buflen, left, 0);
+    } else {
+        // read instead of recv for modesbeast / gns-hulc ....
+        nread = read(c->fd, c->buf + c->buflen, left);
+    }
+    int err = errno;
+
+    // If we didn't get all the data we asked for, then return once we've processed what we did get.
+    if (nread != left) {
+        c->bContinue = 0;
+        // also note that we (likely) emptied the system network buffer
+        c->last_read_flush = now;
+    }
+
+    if (nread < 0) {
+        if (err == EAGAIN || err == EWOULDBLOCK) {
+            // No data available, check later!
+            return 0;
+        }
+        // Other errors
+        if (Modes.debug_net) {
+            fprintf(stderr, "%s: Socket Error: %s: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
+                    c->service->descr, strerror(err), c->host, c->port,
+                    c->fd, c->sendq_len, c->buflen);
+        }
+        modesCloseClient(c);
+        return 0;
+    }
+
+    // End of file
+    if (nread == 0) {
+        if (c->con) {
+            if (Modes.synthetic_now) {
+                Modes.synthetic_now = 0;
+            }
+            fprintf(stderr, "%s: Remote server disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
+                    c->service->descr, c->con->address, c->con->port, c->fd, c->sendq_len, c->buflen);
+        } else if (Modes.debug_net && !Modes.netIngest) {
+            fprintf(stderr, "%s: Listen client disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
+                    c->service->descr, c->host, c->port, c->fd, c->sendq_len, c->buflen);
+        }
+        if (!c->con && Modes.debug_bogus) {
+            setExit(1);
+        }
+        modesCloseClient(c);
+        return 0;
+    }
+
+    // nread > 0 here
+
+
+    // disable for the time being
+    if (0 && Modes.netIngest && !Modes.debug_no_discard) {
+        if (now - c->recentMessagesReset > 1 * SECONDS) {
+            c->recentMessagesReset = now;
+            c->recentMessages = 0;
+            c->unreasonable_messagerate = 0;
+        }
+
+        if (c->recentMessages > 4000) {
+            c->unreasonable_messagerate = 1;
+            if (now > c->recentMessagesReset) {
+                c->recentMessagesReset = now + 30 * SECONDS; // don't reset for 60 seconds to keep discarding this client
+                char uuid[64]; // needs 36 chars and null byte
+                sprint_uuid(c->receiverId, c->receiverId2, uuid);
+                fprintf(stderr, "GARBAGE for 60 seconds: message rate > 4000 rId %s %s\n", uuid, c->proxy_string);
+            }
+        }
+    }
+
+    if (!Modes.debug_no_discard && !c->discard && now - c->last_read < 100 && now - c->last_read_flush > 3 * SECONDS) {
+        c->discard = 1;
+        if (Modes.netIngest && c->proxy_string[0] != '\0') {
+            fprintf(stderr, "<3>ERROR, not enough CPU: Discarding data from: %s\n", c->proxy_string);
+        } else {
+            fprintf(stderr, "<3>%s: ERROR, not enough CPU: Discarding data from: %s port %s (fd %d)\n",
+                    c->service->descr, c->host, c->port, c->fd);
+        }
+    }
+
+    c->last_read = now;
+
+    if (c->discard) {
+        return nread;
+    }
+
+    c->buflen += nread;
+    c->bytesReceived += nread;
+
+    return nread;
+}
+
+static int readBeastcommand(struct client *c, int64_t now, struct messageBuffer *mb) {
+    char *p;
+
+    while (c->som < c->eod && ((p = memchr(c->som, (char) 0x1a, c->eod - c->som)) != NULL)) { // The first byte of buffer 'should' be 0x1a
+        char *eom; // one byte past end of message
+
+        c->som = p; // consume garbage up to the 0x1a
+        ++p; // skip 0x1a
+
+        if (p >= c->eod) {
+            // Incomplete message in buffer, retry later
+            break;
+        }
+
+        if (*p == '1') {
+            eom = p + 2;
+        } else if (*p == 'W') { // W command
+            eom = p + 2;
+        } else if (*p == 'P') { // ping from the receiver
+            eom = p + 4;
+        } else {
+            // Not a valid beast command, skip 0x1a and try again
+            ++c->som;
+            continue;
+        }
+
+        // we need to be careful of double escape characters in the message body
+        for (p = c->som + 1; p < c->eod && p < eom; p++) {
+            if (0x1A == *p) {
+                p++;
+                eom++;
+            }
+        }
+
+        if (eom > c->eod) { // Incomplete message in buffer, retry later
+            break;
+        }
+
+        char *start = c->som + 1;
+
+        // advance to next message
+        c->som = eom;
+
+        // Pass message to handler.
+        if (c->service->read_handler(c, start, c->remote, now, mb)) {
+            modesCloseClient(c);
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int readAscii(struct client *c, int64_t now, struct messageBuffer *mb) {
+    //
+    // This is the ASCII scanning case, AVR RAW or HTTP at present
+    // If there is a complete message still in the buffer, there must be the separator 'sep'
+    // in the buffer, note that we full-scan the buffer at every read for simplicity.
+    //
+    char *p;
+
+    while (c->som < c->eod && (p = strstr(c->som, c->service->read_sep)) != NULL) { // end of first message if found
+        *p = '\0'; // The handler expects null terminated strings
+                   // remove \r for strings that still have it at the end
+        if (p - 1 > c->som && *(p - 1) == '\r') {
+            *(p - 1) = '\0';
+        }
+        char *start = c->som;
+        c->som = p + c->service->read_sep_len; // Move to start of next message
+        if (c->service->read_handler(c, start, c->remote, now, mb)) { // Pass message to handler.
+            if (Modes.debug_net) {
+                fprintf(stderr, "%s: Closing connection from %s port %s\n", c->service->descr, c->host, c->port);
+            }
+            modesCloseClient(c); // Handler returns 1 on error to signal we .
+            return -1; // should close the client connection
+        }
+    }
+    return 0;
+}
+
+static int readBeast(struct client *c, int64_t now, struct messageBuffer *mb) {
+    // This is the Beast Binary scanning case.
+    // If there is a complete message still in the buffer, there must be the separator 'sep'
+    // in the buffer, note that we full-scan the buffer at every read for simplicity.
+
+    char *p;
+
+    //fprintf(stderr, "readBeast\n");
+
+    // disconnect garbage feeds
+    if (c->garbage >= GARBAGE_THRESHOLD) {
+
+        *c->eod = '\0';
+        char sample[64];
+        hexEscapeString(c->som, sample, sizeof(sample));
+        sample[sizeof(sample) - 1] = '\0';
+        if (c->proxy_string[0] != '\0')
+            fprintf(stderr, "Garbage: Close: %s sample: %s\n", c->proxy_string, sample);
+        else
+            fprintf(stderr, "Garbage: Close: %s port %s sample: %s\n", c->host, c->port, sample);
+
+        modesCloseClient(c);
+        return -1;
+    }
+    while (c->som < c->eod && ((p = memchr(c->som, (char) 0x1a, c->eod - c->som)) != NULL)) { // The first byte of buffer 'should' be 0x1a
+
+        c->garbage += p - c->som;
+        Modes.stats_current.remote_malformed_beast += p - c->som;
+
+        //lastSom = p;
+        c->som = p; // consume garbage up to the 0x1a
+        ++p; // skip 0x1a
+
+        if (p >= c->eod) {
+            // Incomplete message in buffer, retry later
+            break;
+        }
+
+        char *eom; // one byte past end of message
+        unsigned char ch;
+
+        if (!c->service) { fprintf(stderr, "c->service null ohThee9u\n"); }
+
+        // Check for message with receiverId prepended
+        ch = *p;
+        if (ch == 0xe3) {
+            p++;
+            uint64_t receiverId = 0;
+            eom = p + 8;
+            // we need to be careful of double escape characters in the receiverId
+            for (int j = 0; j < 8 && p < c->eod && p < eom; j++) {
+                ch = *p++;
+                if (ch == 0x1A) {
+                    ch = *p++;
+                    eom++;
+                    if (p < c->eod && ch != 0x1A) { // check that it's indeed a double escape
+                                                 // might be start of message rather than double escape.
+                        c->garbage += p - 1 - c->som;
+                        Modes.stats_current.remote_malformed_beast += p - 1 - c->som;
+                        c->som = p - 1;
+                        goto beastWhileContinue;
+                    }
+                }
+                // Grab the receiver id (big endian format)
+                receiverId = receiverId << 8 | (ch & 255);
+            }
+            if (!Modes.netIngest) {
+                c->receiverId = receiverId;
+            }
+
+            if (eom + 2 > c->eod)// Incomplete message in buffer, retry later
+                break;
+
+            c->som = p; // set start of next message
+            p++; // skip 0x1a
+        }
+
+        if (!c->service) { fprintf(stderr, "c->service null waevem0E\n"); }
+
+        ch = *p;
+        if (ch == '2') {
+            eom = p + 1 + 6 + 1 + MODES_SHORT_MSG_BYTES;
+        } else if (ch == '3') {
+            eom = p + 1 + 6 + 1 + MODES_LONG_MSG_BYTES;
+        } else if (ch == '1') {
+            eom = p + 1 + 6 + 1 + MODEAC_MSG_BYTES;
+            if (0) {
+                char sample[256];
+                char *sampleStart = c->som - 32;
+                if (sampleStart < c->buf)
+                    sampleStart = c->buf;
+                *c->som = 'X';
+                hexEscapeString(sampleStart, sample, sizeof(sample));
+                *c->som = 0x1a;
+                sample[sizeof(sample) - 1] = '\0';
+                fprintf(stderr, "modeAC: som pos %d, sample %s, eom > c->eod %d\n", (int) (c->som - c->buf), sample, eom > c->eod);
+            }
+        } else if (ch == '5') {
+            eom = p + MODES_LONG_MSG_BYTES + 8;
+        } else if (ch == 0xe4) {
+            // read UUID and continue with next message
+            p++;
+            c->som = read_uuid(c, p, c->eod);
+            continue;
+        } else if (ch == 'P') {
+            //unsigned char *pu = (unsigned char*) p;
+            //fprintf(stderr, "%x %x %x %x %x\n", pu[0], pu[1], pu[2], pu[3], pu[4]);
+            eom = p + 4;
+        } else if (ch == 'W') {
+            // read command
+            p++;
+            ch = *p;
+            if (ch == 'O') {
+                // O for high resolution timer, both P and p already used for previous iterations
+                // explicitely enable ping for this client
+                c->pingEnabled = 1;
+                uint32_t newPing = now & ((1 << 24) - 1);
+                if (Modes.debug_ping)
+                    fprintf(stderr, "Initial Ping: %d\n", newPing);
+                pingClient(c, newPing);
+                if (!c->service) {
+                    fprintf(stderr, "c->service null Ieseey5s\n");
+                    return -1;
+                }
+                if (flushClient(c, now) < 0) {
+                    return -1;
+                }
+                if (!c->service) {
+                    fprintf(stderr, "c->service null EshaeC7n\n");
+                    return -1;
+                }
+            }
+            c->som += 2;
+            continue;
+        } else {
+            // Not a valid beast message, skip 0x1a
+            // Skip following byte as well:
+            // either: 0x1a (likely not a start of message but rather escaped 0x1a)
+            // or: any other char is skipped anyhow when looking for the next 0x1a
+            c->som += 2;
+            Modes.stats_current.remote_malformed_beast += 2;
+            c->garbage += 2;
+            continue;
+        }
+
+        if (!c->service) { fprintf(stderr, "c->service null quooJ1ea\n"); return -1; }
+
+        if (eom > c->eod) // Incomplete message in buffer, retry later
+            break;
+
+        char noEscapeStorage[MODES_LONG_MSG_BYTES + 8 + 16]; // 16 extra for good measure
+        char *noEscape = p;
+
+        // we need to be careful of double escape characters in the message body
+        if (memchr(p, (char) 0x1A, eom - p)) {
+            char *t = noEscapeStorage;
+            while (p < eom) {
+                if (*p == (char) 0x1A) {
+                    p++;
+                    eom++;
+                    if (eom > c->eod) { // Incomplete message in buffer, retry later
+                        goto beastWhileBreak;
+                    }
+                    if (*p != (char) 0x1A) { // check that it's indeed a double escape
+                                             // might be start of message rather than double escape.
+                                             //
+                        c->garbage += p - 1 - c->som;
+                        Modes.stats_current.remote_malformed_beast += p - 1 - c->som;
+                        c->som = p - 1;
+
+                        if (0) {
+                            char sample[256];
+                            char *sampleStart = c->som - 32;
+                            if (sampleStart < c->buf)
+                                sampleStart = c->buf;
+                            *c->som = 'X';
+                            hexEscapeString(sampleStart, sample, sizeof(sample));
+                            *c->som = 0x1a;
+                            sample[sizeof(sample) - 1] = '\0';
+                            fprintf(stderr, "not a double Escape: som pos %d, sample %s, eom - som %d\n", (int) (c->som - c->buf), sample, (int) (eom - c->som));
+
+                        }
+
+                        goto beastWhileContinue;
+                    }
+                }
+                *t++ = *p++;
+            }
+            noEscape = noEscapeStorage;
+        }
+
+        if (eom > c->eod) // Incomplete message in buffer, retry later
+            break;
+
+        if (Modes.receiver_focus && c->receiverId != Modes.receiver_focus && noEscape[0] != 'P') {
+            // advance to next message
+            c->som = eom;
+            continue;
+        }
+
+        if (!c->service) {
+            fprintf(stderr, "c->service null hahGh1Sh\n");
+            return -1;
+        }
+
+        // if we get some valid data, reduce the garbage counter.
+        if (c->garbage > 128)
+            c->garbage -= 128;
+
+        // advance to next message
+        c->som = eom;
+
+        // Have a 0x1a followed by 1/2/3/4/5 - pass message to handler.
+        int res = c->service->read_handler(c, noEscape, c->remote, now, mb);
+
+        if (!c->service) {
+            return -1;
+        }
+        if (res) {
+            modesCloseClient(c);
+            return -1;
+        }
+
+
+beastWhileContinue:
+        ;
+    }
+beastWhileBreak:
+
+    if (c->eod - c->som > 256) {
+        //fprintf(stderr, "beastWhile too much data remaining, garbage?!\n");
+        c->garbage += c->eod - c->som;
+        Modes.stats_current.remote_malformed_beast += c->eod - c->som;
+        c->som = c->eod;
+    }
+
+    return 0;
+}
+
+static int readProxy(struct client *c) {
+    char *proxy = strstr(c->som, "PROXY ");
+    char *eop = strstr(c->som, "\r\n");
+    if (proxy && proxy == c->som) {
+        if (!eop) {
+            // incomplete proxy string (shouldn't happen but let's check anyhow)
+            return -2;
+        }
+        *eop = '\0';
+        strncpy(c->proxy_string, proxy + 6, sizeof(c->proxy_string));
+        c->proxy_string[sizeof(c->proxy_string) - 1] = '\0'; // make sure it's null terminated
+                                                             //fprintf(stderr, "%s\n", c->proxy_string);
+        *eop = '\r';
+
+        // expected string example: "PROXY TCP4 172.12.2.132 172.191.123.45 40223 30005"
+
+        char *space = proxy;
+        space = memchr(space + 1, ' ', eop - space - 1);
+        space = memchr(space + 1, ' ', eop - space - 1);
+        space = memchr(space + 1, ' ', eop - space - 1);
+        // hash up to 3rd space
+        if (eop - proxy > 10) {
+            //fprintf(stderr, "%ld %ld %s\n", eop - proxy, space - proxy, space);
+            c->receiverId = fasthash64(proxy, space - proxy, 0x2127599bf4325c37ULL);
+        }
+
+        c->som = eop + 2;
+    }
+    return 0;
+}
+
+//
+//=========================================================================
+//
 // The message is supposed to be separated from the next message by the
 // separator 'sep', which is a null-terminated C string.
 //
@@ -2802,489 +3274,113 @@ static const char *hexEscapeString(const char *str, char *buf, int len) {
 // The handler returns 0 on success, or 1 to signal this function we should
 // close the connection with the client in case of non-recoverable errors.
 //
-static void modesReadFromClient(struct client *c) {
+//
+//
+//
+
+static int processClient(struct client *c, int64_t now, struct messageBuffer *mb) {
+
+    //fprintf(stderr, "processing count %d, buf->id %d\n", c->processing, mb->id);
+
+    // check for PROXY v1 header if connection is new / low bytes received
+    if (Modes.netIngest && c->som - c->buf == 0 && c->bytesReceived <= 128 * 1024) {
+        if (c->buflen > 5 && c->som[0] == 'P' && c->som[1] == 'R') {
+            int res = readProxy(c);
+            if (res != 0) {
+                return res;
+            }
+        }
+    }
+
+    if (c->service->read_mode == READ_MODE_BEAST) {
+        int res = readBeast(c, now, mb);
+        if (res != 0) {
+            return res;
+        }
+
+    } else if (c->service->read_mode == READ_MODE_ASCII) {
+        int res = readAscii(c, now, mb);
+        if (res != 0) {
+            return res;
+        }
+
+    } else if (c->service->read_mode == READ_MODE_IGNORE) {
+        // drop the bytes on the floor
+        c->som = c->eod;
+
+    } else if (c->service->read_mode == READ_MODE_BEAST_COMMAND) {
+        int res = readBeastcommand(c, now, mb);
+        if (res != 0) {
+            return res;
+        }
+    }
+
+    if (!c->receiverIdLocked && (c->bytesReceived > 512 || now > c->connectedSince + 10000)) {
+        lockReceiverId(c);
+    }
+
+    return 0;
+}
+static void modesReadFromClient(struct client *c, struct messageBuffer *mb) {
     if (!c->service) {
         fprintf(stderr, "c->service null jahFuN3e\n");
         return;
     }
 
-    int left;
-    int nread;
-    int bContinue = 1;
-    int discard = 0;
-
-    for (int loop = 0; bContinue && loop < 32; loop++) {
+    c->bContinue = 1;
+    for (int loop = 0; c->bContinue && loop < 32; loop++) {
         int64_t now = mstime();
         if (now > Modes.network_time_limit) {
             return;
         }
 
-        if (discard)
-            c->buflen = 0;
-
-        left = c->bufmax - c->buflen - 4; // leave 4 extra byte for NUL termination in the ASCII case
-
-        // If our buffer is full discard it, this is some badly formatted shit
-        if (left <= 0) {
-            c->garbage += c->buflen;
-            Modes.stats_current.remote_malformed_beast += c->buflen;
-            c->buflen = 0;
-            left = c->bufmax - c->buflen - 4; // leave 4 extra byte for NUL termination in the ASCII case
-            // If there is garbage, read more to discard it ASAP
-        }
-        // read instead of recv for modesbeast / gns-hulc ....
-        nread = read(c->fd, c->buf + c->buflen, left);
-        int err = errno;
-
-        // If we didn't get all the data we asked for, then return once we've processed what we did get.
-        if (nread != left) {
-            bContinue = 0;
-            // also note that we (likely) emptied the system network buffer
-            c->last_read_flush = now;
-        }
-
-        if (nread < 0) {
-            if (err == EAGAIN || err == EWOULDBLOCK) {
-                // No data available, check later!
-                return;
-            }
-            // Other errors
-            if (Modes.debug_net) {
-                fprintf(stderr, "%s: Socket Error: %s: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
-                        c->service->descr, strerror(err), c->host, c->port,
-                        c->fd, c->sendq_len, c->buflen);
-            }
-            modesCloseClient(c);
+        if (!c->service) {
             return;
         }
 
-        // End of file
-        if (nread == 0) {
-            if (c->con) {
-                if (Modes.synthetic_now) {
-                    Modes.synthetic_now = 0;
-                }
-                fprintf(stderr, "%s: Remote server disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
-                        c->service->descr, c->con->address, c->con->port, c->fd, c->sendq_len, c->buflen);
-            } else if (Modes.debug_net && !Modes.netIngest) {
-                fprintf(stderr, "%s: Listen client disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
-                        c->service->descr, c->host, c->port, c->fd, c->sendq_len, c->buflen);
-            }
-            if (!c->con && Modes.debug_bogus) {
-                setExit(1);
-            }
-            modesCloseClient(c);
-            return;
-        }
-
-        // nread > 0 here
-
-        if (Modes.netIngest) {
-            if (now - c->recentMessagesReset > 1 * SECONDS) {
-                c->recentMessagesReset = now;
-                c->recentMessages = 0;
-                c->unreasonable_messagerate = 0;
-            }
-
-            if (c->recentMessages > 4000) {
-                c->unreasonable_messagerate = 1;
-                if (now > c->recentMessagesReset) {
-                    c->recentMessagesReset = now + 30 * SECONDS; // don't reset for 60 seconds to keep discarding this client
-                    char uuid[64]; // needs 36 chars and null byte
-                    sprint_uuid(c->receiverId, c->receiverId2, uuid);
-                    fprintf(stderr, "GARBAGE for 60 seconds: message rate > 4000 rId %s %s\n", uuid, c->proxy_string);
-                }
-            }
-        }
-
-        if (!Modes.debug_no_discard && !discard && now - c->last_read < 100 && now - c->last_read_flush > 3 * SECONDS) {
-            discard = 1;
-            if (Modes.netIngest && c->proxy_string[0] != '\0') {
-                fprintf(stderr, "<3>ERROR, not enough CPU: Discarding data from: %s\n", c->proxy_string);
-            } else {
-                fprintf(stderr, "<3>%s: ERROR, not enough CPU: Discarding data from: %s port %s (fd %d)\n",
-                        c->service->descr, c->host, c->port, c->fd);
-            }
-        }
-
-        c->last_read = now;
-
-        if (discard)
-            continue;
-
-        c->buflen += nread;
-        c->bytesReceived += nread;
-
-        char *som = c->buf; // first byte of next message
-        char *eod = c->buf + c->buflen; // one byte past end of data
-        // NUL-terminate so we are free to use strstr()
-        // nb: we never fill the last byte of the buffer with read data (see above) so this is safe
-        *eod = '\0';
-        char *p;
-        int remote = 1; // Messages will be marked remote by default
-        if ((c->fd == Modes.beast_fd) && (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS)) {
-            /* Message from a local connected Modes-S beast or GNS5894 are passed off the internet */
-            remote = 0;
-        }
-
-        //char *lastSom = som;
-
-        // check for PROXY v1 header if connection is new / low bytes received
-        if (Modes.netIngest && c->bytesReceived <= 128 * 1024) {
-            // disable this for the time being
-            if (c->buflen > 5 && som[0] == 'P' && som[1] == 'R') {
-                char *proxy = strstr(som, "PROXY ");
-                char *eop = strstr(som, "\r\n");
-                if (proxy && proxy == som) {
-                    if (!eop) // incomplete proxy string (shouldn't happen but let's check anyhow)
-                        break;
-                    *eop = '\0';
-                    strncpy(c->proxy_string, proxy + 6, sizeof(c->proxy_string));
-                    c->proxy_string[sizeof(c->proxy_string) - 1] = '\0'; // make sure it's null terminated
-                    //fprintf(stderr, "%s\n", c->proxy_string);
-                    *eop = '\r';
-
-                    // expected string example: "PROXY TCP4 172.12.2.132 172.191.123.45 40223 30005"
-
-                    char *space = proxy;
-                    space = memchr(space + 1, ' ', eop - space - 1);
-                    space = memchr(space + 1, ' ', eop - space - 1);
-                    space = memchr(space + 1, ' ', eop - space - 1);
-                    // hash up to 3rd space
-                    if (eop - proxy > 10) {
-                        //fprintf(stderr, "%ld %ld %s\n", eop - proxy, space - proxy, space);
-                        c->receiverId = fasthash64(proxy, space - proxy, 0x2127599bf4325c37ULL);
-                    }
-
-                    som = eop + 2;
-                }
-            }
-        }
-
-        if (c->service->read_mode == READ_MODE_BEAST) {
-            // This is the Beast Binary scanning case.
-            // If there is a complete message still in the buffer, there must be the separator 'sep'
-            // in the buffer, note that we full-scan the buffer at every read for simplicity.
-
-
-            // disconnect garbage feeds
-            if (c->garbage >= GARBAGE_THRESHOLD) {
-
-                *eod = '\0';
-                char sample[64];
-                hexEscapeString(som, sample, sizeof(sample));
-                sample[sizeof(sample) - 1] = '\0';
-                if (c->proxy_string[0] != '\0')
-                    fprintf(stderr, "Garbage: Close: %s sample: %s\n", c->proxy_string, sample);
-                else
-                    fprintf(stderr, "Garbage: Close: %s port %s sample: %s\n", c->host, c->port, sample);
-
-                modesCloseClient(c);
+        if (!c->bufferToProcess) {
+            int read = readClient(c, now);
+            //fprintf(stderr, "readClient returned: %d\n", read);
+            if (!read) {
                 return;
             }
-            while (som < eod && ((p = memchr(som, (char) 0x1a, eod - som)) != NULL)) { // The first byte of buffer 'should' be 0x1a
-
-                c->garbage += p - som;
-                Modes.stats_current.remote_malformed_beast += p - som;
-
-                //lastSom = p;
-                som = p; // consume garbage up to the 0x1a
-                ++p; // skip 0x1a
-
-                if (p >= eod) {
-                    // Incomplete message in buffer, retry later
-                    break;
-                }
-
-                char *eom; // one byte past end of message
-                unsigned char ch;
-
-                if (!c->service) { fprintf(stderr, "c->service null ohThee9u\n"); }
-
-                // Check for message with receiverId prepended
-                ch = *p;
-                if (ch == 0xe3) {
-                    p++;
-                    uint64_t receiverId = 0;
-                    eom = p + 8;
-                    // we need to be careful of double escape characters in the receiverId
-                    for (int j = 0; j < 8 && p < eod && p < eom; j++) {
-                        ch = *p++;
-                        if (ch == 0x1A) {
-                            ch = *p++;
-                            eom++;
-                            if (p < eod && ch != 0x1A) { // check that it's indeed a double escape
-                                // might be start of message rather than double escape.
-                                c->garbage += p - 1 - som;
-                                Modes.stats_current.remote_malformed_beast += p - 1 - som;
-                                som = p - 1;
-                                goto beastWhileContinue;
-                            }
-                        }
-                        // Grab the receiver id (big endian format)
-                        receiverId = receiverId << 8 | (ch & 255);
-                    }
-                    if (!Modes.netIngest) {
-                        c->receiverId = receiverId;
-                    }
-
-                    if (eom + 2 > eod)// Incomplete message in buffer, retry later
-                        break;
-
-                    som = p; // set start of next message
-                    p++; // skip 0x1a
-                }
-
-                if (!c->service) { fprintf(stderr, "c->service null waevem0E\n"); }
-
-                ch = *p;
-                if (ch == '2') {
-                    eom = p + 1 + 6 + 1 + MODES_SHORT_MSG_BYTES;
-                } else if (ch == '3') {
-                    eom = p + 1 + 6 + 1 + MODES_LONG_MSG_BYTES;
-                } else if (ch == '1') {
-                    eom = p + 1 + 6 + 1 + MODEAC_MSG_BYTES;
-                    if (0) {
-                        char sample[256];
-                        char *sampleStart = som - 32;
-                        if (sampleStart < c->buf)
-                            sampleStart = c->buf;
-                        *som = 'X';
-                        hexEscapeString(sampleStart, sample, sizeof(sample));
-                        *som = 0x1a;
-                        sample[sizeof(sample) - 1] = '\0';
-                        fprintf(stderr, "modeAC: som pos %d, sample %s, eom > eod %d\n", (int) (som - c->buf), sample, eom > eod);
-                    }
-                } else if (ch == '5') {
-                    eom = p + MODES_LONG_MSG_BYTES + 8;
-                } else if (ch == 0xe4) {
-                    // read UUID and continue with next message
-                    p++;
-                    som = read_uuid(c, p, eod);
-                    continue;
-                } else if (ch == 'P') {
-                    //unsigned char *pu = (unsigned char*) p;
-                    //fprintf(stderr, "%x %x %x %x %x\n", pu[0], pu[1], pu[2], pu[3], pu[4]);
-                    eom = p + 4;
-                } else if (ch == 'W') {
-                    // read command
-                    p++;
-                    ch = *p;
-                    if (ch == 'O') {
-                        // O for high resolution timer, both P and p already used for previous iterations
-                        // explicitely enable ping for this client
-                        c->pingEnabled = 1;
-                        uint32_t newPing = now & ((1 << 24) - 1);
-                        if (Modes.debug_ping)
-                            fprintf(stderr, "Initial Ping: %d\n", newPing);
-                        pingClient(c, newPing);
-                        if (!c->service) {
-                            fprintf(stderr, "c->service null Ieseey5s\n");
-                            return;
-                        }
-                        if (flushClient(c, now) < 0) {
-                            return;
-                        }
-                        if (!c->service) {
-                            fprintf(stderr, "c->service null EshaeC7n\n");
-                            return;
-                        }
-                    }
-                    som += 2;
-                    continue;
-                } else {
-                    // Not a valid beast message, skip 0x1a
-                    // Skip following byte as well:
-                    // either: 0x1a (likely not a start of message but rather escaped 0x1a)
-                    // or: any other char is skipped anyhow when looking for the next 0x1a
-                    som += 2;
-                    Modes.stats_current.remote_malformed_beast += 2;
-                    c->garbage += 2;
-                    continue;
-                }
-
-                if (!c->service) { fprintf(stderr, "c->service null quooJ1ea\n"); return; }
-
-                if (eom > eod) // Incomplete message in buffer, retry later
-                    break;
-
-                char noEscapeStorage[MODES_LONG_MSG_BYTES + 8 + 16]; // 16 extra for good measure
-                char *noEscape = p;
-
-                // we need to be careful of double escape characters in the message body
-                if (memchr(p, (char) 0x1A, eom - p)) {
-                    char *t = noEscapeStorage;
-                    while (p < eom) {
-                        if (*p == (char) 0x1A) {
-                            p++;
-                            eom++;
-                            if (eom > eod) { // Incomplete message in buffer, retry later
-                                goto beastWhileBreak;
-                            }
-                            if (*p != (char) 0x1A) { // check that it's indeed a double escape
-                                // might be start of message rather than double escape.
-                                //
-                                c->garbage += p - 1 - som;
-                                Modes.stats_current.remote_malformed_beast += p - 1 - som;
-                                som = p - 1;
-
-                                if (0) {
-                                    char sample[256];
-                                    char *sampleStart = som - 32;
-                                    if (sampleStart < c->buf)
-                                        sampleStart = c->buf;
-                                    *som = 'X';
-                                    hexEscapeString(sampleStart, sample, sizeof(sample));
-                                    *som = 0x1a;
-                                    sample[sizeof(sample) - 1] = '\0';
-                                    fprintf(stderr, "not a double Escape: som pos %d, sample %s, eom - som %d\n", (int) (som - c->buf), sample, (int) (eom - som));
-
-                                }
-
-                                goto beastWhileContinue;
-                            }
-                        }
-                        *t++ = *p++;
-                    }
-                    noEscape = noEscapeStorage;
-                }
-
-                if (eom > eod) // Incomplete message in buffer, retry later
-                    break;
-
-                if (Modes.receiver_focus && c->receiverId != Modes.receiver_focus && noEscape[0] != 'P') {
-                    // advance to next message
-                    som = eom;
-                    continue;
-                }
-
-                if (!c->service) {
-                    fprintf(stderr, "c->service null hahGh1Sh\n");
-                    return;
-                }
-                // Have a 0x1a followed by 1/2/3/4/5 - pass message to handler.
-                int res = c->service->read_handler(c, noEscape, remote, now);
-                if (!c->service) {
-                    return;
-                }
-                if (res) {
-                    modesCloseClient(c);
-                    return;
-                }
-
-
-                // if we get some valid data, reduce the garbage counter.
-                if (c->garbage > 128)
-                    c->garbage -= 128;
-
-                // advance to next message
-                som = eom;
-
-beastWhileContinue:
-                ;
+            if (c->discard) {
+                continue;
             }
-beastWhileBreak:
-
-            if (eod - som > 256) {
-                //fprintf(stderr, "beastWhile too much data remaining, garbage?!\n");
-                c->garbage += eod - som;
-                Modes.stats_current.remote_malformed_beast += eod - som;
-                som = eod;
-            }
-
-        } else if (c->service->read_mode == READ_MODE_IGNORE) {
-            // drop the bytes on the floor
-            som = eod;
-
-        } else if (c->service->read_mode == READ_MODE_BEAST_COMMAND) {
-            while (som < eod && ((p = memchr(som, (char) 0x1a, eod - som)) != NULL)) { // The first byte of buffer 'should' be 0x1a
-                char *eom; // one byte past end of message
-
-                som = p; // consume garbage up to the 0x1a
-                ++p; // skip 0x1a
-
-                if (p >= eod) {
-                    // Incomplete message in buffer, retry later
-                    break;
-                }
-
-                if (*p == '1') {
-                    eom = p + 2;
-                } else if (*p == 'W') { // W command
-                    eom = p + 2;
-                } else if (*p == 'P') { // ping from the receiver
-                    eom = p + 4;
-                } else {
-                    // Not a valid beast command, skip 0x1a and try again
-                    ++som;
-                    continue;
-                }
-
-                // we need to be careful of double escape characters in the message body
-                for (p = som + 1; p < eod && p < eom; p++) {
-                    if (0x1A == *p) {
-                        p++;
-                        eom++;
-                    }
-                }
-
-                if (eom > eod) { // Incomplete message in buffer, retry later
-                    break;
-                }
-
-                // Pass message to handler.
-                if (c->service->read_handler(c, som + 1, remote, now)) {
-                    modesCloseClient(c);
-                    return;
-                }
-
-                // advance to next message
-                som = eom;
-            }
-
-        } else if (c->service->read_mode == READ_MODE_ASCII) {
-            //
-            // This is the ASCII scanning case, AVR RAW or HTTP at present
-            // If there is a complete message still in the buffer, there must be the separator 'sep'
-            // in the buffer, note that we full-scan the buffer at every read for simplicity.
-
+            c->som = c->buf;
+            c->eod = c->buf + c->buflen; // one byte past end of data
             // Always NUL-terminate so we are free to use strstr()
             // nb: we never fill the last byte of the buffer with read data (see above) so this is safe
-            *eod = '\0';
-
-            while (som < eod && (p = strstr(som, c->service->read_sep)) != NULL) { // end of first message if found
-                *p = '\0'; // The handler expects null terminated strings
-                // remove \r for strings that still have it at the end
-                if (p - 1 > som && *(p - 1) == '\r') {
-                    *(p - 1) = '\0';
-                }
-                if (c->service->read_handler(c, som, remote, now)) { // Pass message to handler.
-                    if (Modes.debug_net) {
-                        fprintf(stderr, "%s: Closing connection from %s port %s\n", c->service->descr, c->host, c->port);
-                    }
-                    modesCloseClient(c); // Handler returns 1 on error to signal we .
-                    return; // should close the client connection
-                }
-                som = p + c->service->read_sep_len; // Move to start of next message
-            }
+            *c->eod = '\0';
+            c->bufferToProcess = 1;
         }
 
-        if (!c->receiverIdLocked && (c->bytesReceived > 512 || now > c->connectedSince + 10000)) {
-            lockReceiverId(c);
-        }
+        Modes.activeClient = c;
 
-        if (som > c->buf) { // We processed something - so
-            //som = lastSom;
-            c->buflen = eod - som; //     Update the unprocessed buffer length
-            if (c->buflen <= 0) {
-                if (c->buflen < 0)
-                    fprintf(stderr, "codepoint Si0wereH\n");
-                c->buflen = 0;
-            } else {
-                memmove(c->buf, som, c->buflen); //     Move what's remaining to the start of the buffer
-            }
-        } else { // If no message was decoded process the next client
+        c->processing++;
+        int res = processClient(c, now, mb);
+        c->processing--;
+        c->bufferToProcess = 0;
+
+        if (res < 0) {
             return;
+        }
+
+        if (c->som > c->buf) { // We processed something - so
+            c->buflen = c->eod - c->som; //     Update the unprocessed buffer length
+            if (c->buflen > 0) {
+                memmove(c->buf, c->som, c->buflen); //     Move what's remaining to the start of the buffer
+            } else {
+                if (c->buflen < 0) {
+                    c->buflen = 0;
+                    fprintf(stderr, "codepoint Si0wereH\n");
+                }
+            }
+            c->som = c->buf;
+            c->eod = c->buf + c->buflen; // one byte past end of data
+                                         // Always NUL-terminate so we are free to use strstr()
+                                         // nb: we never fill the last byte of the buffer with read data (see above) so this is safe
+            *c->eod = '\0';
         }
     }
 }
@@ -3337,9 +3433,13 @@ static void netFreeClients() {
 }
 
 static void handleEpoll(struct net_service_group *group, struct messageBuffer *mb) {
+#if 0
     while (group->event_progress < Modes.net_event_count) {
         int k = group->event_progress;
         group->event_progress += 1;
+#else
+    for (int k = 0; k < Modes.net_event_count; k++) {
+#endif
 
         struct epoll_event event = Modes.net_events[k];
         if (event.data.ptr == &Modes.exitEventfd)
@@ -3375,8 +3475,7 @@ static void handleEpoll(struct net_service_group *group, struct messageBuffer *m
             }
 
             if ((event.events & (EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP))) {
-                cl->messageBuffer = mb;
-                modesReadFromClient(cl);
+                modesReadFromClient(cl, mb);
             }
         }
     }
@@ -3403,18 +3502,24 @@ static void decodeTask(void *arg, threadpool_threadbuffers_t *buffer_group) {
     MODES_NOTUSED(buffer_group);
 
     task_info_t *info = (task_info_t *) arg;
-    struct messageBuffer *buf = &Modes.netMessageBuffer[info->from];
-    //fprintf(stderr, "%d\n", info->from);
-    pthread_mutex_lock(&Modes.decodeLock);
+    struct messageBuffer *mb = &Modes.netMessageBuffer[info->from];
 
-    handleEpoll(&Modes.services_in, buf);
-    drainMessageBuffer(buf);
-    //fprintf(stderr, "buf->len %d\n", buf->len);
+    //fprintf(stderr, "%.3f decodeTask %d\n", mstime()/1000.0, mb->id);
+
+    pthread_mutex_lock(&Modes.decodeLock);
+    //fprintf(stderr, "%.3f decoding %d\n", mstime()/1000.0, mb->id);
+
+    handleEpoll(&Modes.services_in, mb);
+    if (Modes.activeClient && Modes.activeClient->service) {
+        modesReadFromClient(Modes.activeClient, mb);
+    }
+    drainMessageBuffer(mb);
+    Modes.activeClient = NULL;
 
     pthread_mutex_unlock(&Modes.decodeLock);
 
     pthread_mutex_lock(&Modes.outputLock);
-    handleEpoll(&Modes.services_out, buf);
+    handleEpoll(&Modes.services_out, mb);
     pthread_mutex_unlock(&Modes.outputLock);
 }
 
@@ -3465,7 +3570,7 @@ void modesNetPeriodicWork(void) {
         threadpool_task_t *tasks = Modes.decodeTasks->tasks;
         int taskCount = 0;
 
-        for (int kt = 0; kt < 1; kt++) {
+        for (int kt = 0; kt < Modes.decodeCount; kt++) {
             threadpool_task_t *task = &tasks[kt];
             task_info_t *range = &infos[kt];
 
@@ -3885,6 +3990,10 @@ static void drainMessageBuffer(struct messageBuffer *buf) {
 
         pthread_mutex_unlock(&Modes.decodeLock);
 
+
+        sched_yield();
+        //fprintf(stderr, "thread %d draining\n", buf->id);
+
         pthread_mutex_lock(&Modes.trackLock);
         for (int k = 0; k < buf->len; k++) {
             struct modesMessage *mm = &buf->msg[k];
@@ -3908,6 +4017,7 @@ static void drainMessageBuffer(struct messageBuffer *buf) {
         buf->len = 0;
 
         pthread_mutex_lock(&Modes.decodeLock);
+        //fprintf(stderr, "thread %d drain done, back to decoding\n", buf->id);
     }
 }
 
@@ -3933,7 +4043,7 @@ struct modesMessage *netGetMM(struct messageBuffer *buf) {
 
 void netUseMessage(struct modesMessage *mm) {
     struct messageBuffer *buf = mm->messageBuffer;
-    if (0 && mm != &buf->msg[buf->len]) {
+    if (mm != &buf->msg[buf->len]) {
         fprintf(stderr, "FATAL: fix netUseMessage / get_mm\n");
         exit(2);
     }
