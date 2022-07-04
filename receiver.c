@@ -47,6 +47,8 @@ struct receiver *receiverCreate(uint64_t id) {
         fprintf(stderr, "receiverCount: %"PRIu64"\n", Modes.receiverCount);
     return r;
 }
+//static void receiverMaintenance(struct receiver *re) {
+//}
 void receiverTimeout(int part, int nParts, int64_t now) {
     if (!Modes.receiverTable) {
         return;
@@ -76,6 +78,7 @@ void receiverTimeout(int part, int nParts, int64_t now) {
                 Modes.receiverCount--;
                 free(del);
             } else {
+                //receiverMaintenance(*r);
                 r = &(*r)->next;
             }
         }

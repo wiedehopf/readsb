@@ -2483,7 +2483,9 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now) 
             return 0; // discard
         }
     }
-
+    if (c->unreasonable_messagerate) {
+        mm->garbage = 1;
+    }
     if ((Modes.garbage_ports || Modes.netReceiverId) && receiverCheckBad(mm->receiverId, now)) {
         mm->garbage = 1;
     }
@@ -2860,6 +2862,24 @@ static void modesReadFromClient(struct client *c, int64_t now) {
         }
 
         // nread > 0 here
+
+        if (Modes.netIngest) {
+            if (now - c->recentMessagesReset > 1 * SECONDS) {
+                c->recentMessagesReset = now;
+                c->recentMessages = 0;
+                c->unreasonable_messagerate = 0;
+            }
+
+            if (c->recentMessages > 4000) {
+                c->unreasonable_messagerate = 1;
+                if (now > c->recentMessagesReset) {
+                    c->recentMessagesReset = now + 30 * SECONDS; // don't reset for 60 seconds to keep discarding this client
+                    char uuid[64]; // needs 36 chars and null byte
+                    sprint_uuid(c->receiverId, c->receiverId2, uuid);
+                    fprintf(stderr, "GARBAGE for 60 seconds: message rate > 4000 rId %s %s\n", uuid, c->proxy_string);
+                }
+            }
+        }
 
         if (!discard && now - c->last_read < 100 && now - c->last_read_flush > 3 * SECONDS) {
             discard = 1;

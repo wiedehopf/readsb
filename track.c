@@ -1649,8 +1649,11 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
     a->messages++;
 
-    if (mm->client && !mm->garbage) {
-        mm->client->messageCounter++;
+    if (mm->client) {
+        if (!mm->garbage) {
+            mm->client->messageCounter++;
+        }
+        mm->client->recentMessages++;
     }
 
     // update addrtype

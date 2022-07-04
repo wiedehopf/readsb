@@ -98,11 +98,14 @@ struct client
     int8_t pingEnabled;
     int8_t modeac_requested; // 1 if this Beast output connection has asked for A/C
     int8_t receiverIdLocked; // receiverId has been transmitted by other side.
+    int8_t unreasonable_messagerate;
     char *sendq;  // Write buffer - allocated later
     int sendq_len; // Amount of data in SendQ
     int sendq_max; // Max size of SendQ
     uint32_t ping; // only 24 bit are ever sent
     uint32_t pong; // only 24 bit are ever sent
+    int32_t recentMessages;
+    int64_t recentMessagesReset;
     int64_t pingReceived;
     int64_t pongReceived;
     uint64_t bytesReceived;
