@@ -513,7 +513,11 @@ void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuff
     traceBuffer tb = { 0 };
 
     if (buffer_group->buffer_count < 2) {
-        fprintf(stderr, "<3> FATAL: traceWrite: insufficient buffer_count\n");
+        static int64_t antiSpam;
+        if (now > antiSpam) {
+            antiSpam = now + 5 * SECONDS;
+            fprintf(stderr, "<3> FATAL: traceWrite: insufficient buffer_count\n");
+        }
         exit(1);
     }
 
