@@ -1288,6 +1288,7 @@ static inline int flushClient(struct client *c, int64_t now) {
         return -1;
     }
     if (bytesWritten > 0) {
+        Modes.stats_current.network_bytes_out += bytesWritten;
         // Advance buffer
         psendq += bytesWritten;
         toWrite -= bytesWritten;
@@ -2907,7 +2908,7 @@ static int readClient(struct client *c, int64_t now) {
     }
 
     // nread > 0 here
-
+    Modes.stats_current.network_bytes_in += nread;
 
     // disable for the time being
     if (0 && Modes.netIngest && !Modes.debug_no_discard) {

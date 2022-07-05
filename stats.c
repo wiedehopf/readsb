@@ -125,7 +125,11 @@ void display_stats(struct stats *st) {
     }
 
     if (Modes.net) {
+        printf("Network:\n");
+        printf("  %.6f MBytes received\n", st->network_bytes_in / 1e6);
+        printf("  %.6f MBytes sent\n", st->network_bytes_out / 1e6);
         printf("Messages from network clients:\n");
+        printf("  %u Mode A/C messages received\n", st->remote_received_modeac);
         printf("  %u Mode A/C messages received\n", st->remote_received_modeac);
         printf("  %u Mode S messages received\n", st->remote_received_modes);
         printf("    %u with bad message format or invalid CRC\n", st->remote_rejected_bad);
@@ -349,6 +353,9 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
         }
     }
 
+    target->network_bytes_in = st1->network_bytes_in + st2->network_bytes_in;
+    target->network_bytes_out = st1->network_bytes_out + st2->network_bytes_out;
+
     target->remote_rejected_unknown_icao = st1->remote_rejected_unknown_icao + st2->remote_rejected_unknown_icao;
     for (i = 0; i < MODES_MAX_BITERRORS + 1; ++i)
         target->remote_accepted[i] = st1->remote_accepted[i] + st2->remote_accepted[i];
@@ -563,6 +570,8 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
             if (i == 0) p = safe_snprintf(p, end, ",\"accepted\":[%u", st->remote_accepted[i]);
             else p = safe_snprintf(p, end, ",%u", st->remote_accepted[i]);
         }
+        p = safe_snprintf(p, end, ",\"bytes_in\": %lu", (long) st->network_bytes_in);
+        p = safe_snprintf(p, end, ",\"bytes_out\": %lu", (long) st->network_bytes_out);
 
         p = safe_snprintf(p, end, "]}");
     }
@@ -816,6 +825,8 @@ struct char_buffer generatePromFile(int64_t now) {
 
     p = safe_snprintf(p, end, "readsb_messages_modeac_valid %u\n", st->remote_received_modeac + st->demod_modeac);
 
+    p = safe_snprintf(p, end, "readsb_network_bytes_in %lu\n", (long) st->network_bytes_in);
+    p = safe_snprintf(p, end, "readsb_network_bytes_out %lu\n", (long) st->network_bytes_out);
     p = safe_snprintf(p, end, "readsb_network_malformed_beast_bytes %u\n", st->remote_malformed_beast);
 
     if (Modes.ping) {

@@ -103,6 +103,8 @@ struct stats
   uint32_t remote_accepted[MODES_MAX_BITERRORS + 1];
   uint32_t remote_malformed_beast;
   uint32_t remote_ping_rtt[PING_BUCKETS];
+  uint64_t network_bytes_in;
+  uint64_t network_bytes_out;
   // total messages:
   uint32_t messages_total;
   // CPR decoding:
