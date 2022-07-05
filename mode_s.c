@@ -1804,11 +1804,6 @@ static const char *esTypeName(unsigned metype, unsigned mesub) {
 void displayModesMessage(struct modesMessage *mm) {
     int j;
 
-
-    if (Modes.filterDF && !(Modes.filterDFbitset & (1 << mm->msgtype))) {
-        return;
-    }
-
     if (0 && mm->cpr_valid && mm->cpr_decoded) {
         printf("systemTime: %.3fs\n", (mm->sysTimestampMsg % (5*MINUTES)) / 1000.0);
         printf("  CPR odd flag:  %s\n",

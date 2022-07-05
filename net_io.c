@@ -294,6 +294,10 @@ static struct client *createSocketClient(struct net_service *service, int fd) {
 
 static void checkServiceConnected(struct net_connector *con, int64_t now) {
 
+    if (!con->connecting) {
+        return;
+    }
+
     //fprintf(stderr, "checkServiceConnected fd: %d\n", con->fd);
     // delete dummyClient epollEvent for connection that is being established
     epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, con->fd, &con->dummyClient.epollEvent);
@@ -716,11 +720,13 @@ static void initMessageBuffers() {
     }
 
     Modes.netMessageBuffer = cmalloc(Modes.decodeCount * sizeof(struct messageBuffer));
+    memset(Modes.netMessageBuffer, 0x0, Modes.decodeCount * sizeof(struct messageBuffer));
     for (int k = 0; k < Modes.decodeCount; k++) {
         struct messageBuffer *buf = &Modes.netMessageBuffer[k];
         buf->alloc = 128 * imin(3, Modes.net_sndbuf_size);
         buf->len = 0;
         buf->id = k;
+        buf->activeClient = NULL;
         int bytes = buf->alloc * sizeof(struct modesMessage);
         buf->msg = cmalloc(bytes);
         //fprintf(stderr, "netMessageBuffer alloc: %d size: %d\n", buf->alloc, bytes);
@@ -1597,43 +1603,55 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now, 
     else
         mm->source = SOURCE_SBS;
 
-    char *out = NULL;
-
-    out = prepareWrite(&Modes.sbs_out, max_len);
-    if (out) {
-        memcpy(out, line, line_len);
-        //fprintf(stderr, "%s", out);
-        out += line_len;
-        out += sprintf(out, "\r\n");
-        completeWrite(&Modes.sbs_out, out);
-    }
-
-    out = NULL;
+    struct net_writer *extra_writer = NULL;
     switch(mm->source) {
         case SOURCE_SBS:
-            out = prepareWrite(&Modes.sbs_out_replay, max_len);
+            extra_writer = &Modes.sbs_out_replay;
             mm->addrtype = ADDR_OTHER;
             break;
         case SOURCE_MLAT:
-            out = prepareWrite(&Modes.sbs_out_mlat, max_len);
+            extra_writer = &Modes.sbs_out_mlat;
             mm->addrtype = ADDR_MLAT;
             break;
         case SOURCE_JAERO:
-            out = prepareWrite(&Modes.sbs_out_jaero, max_len);
+            extra_writer = &Modes.sbs_out_jaero;
             mm->addrtype = ADDR_JAERO;
             break;
         case SOURCE_PRIO:
-            out = prepareWrite(&Modes.sbs_out_prio, max_len);
+            extra_writer = &Modes.sbs_out_prio;
             mm->addrtype = ADDR_OTHER;
             break;
 
         default:
+            extra_writer = NULL;
             mm->addrtype = ADDR_OTHER;
     }
 
-    if (out) {
-        memcpy(out, line, line_len);
-        // completeWrite happens at end of function
+    // don't write SBS message if sbsReduce is active
+    // sbs reduce recreates the message from struct modesMessage details while this copies it verbatim
+    if (!Modes.sbsReduce) {
+        char *out = prepareWrite(&Modes.sbs_out, max_len);
+        if (out) {
+            memcpy(out, line, line_len);
+            //fprintf(stderr, "%s", out);
+            out += line_len;
+            *out++ = '\r';
+            *out++ = '\n';
+            completeWrite(&Modes.sbs_out, out);
+        }
+
+        if (extra_writer) {
+            char *out = prepareWrite(extra_writer, max_len);
+
+            if (out) {
+                memcpy(out, line, line_len);
+                out += line_len;
+                *out++ = '\r';
+                *out++ = '\n';
+
+                completeWrite(extra_writer, out);
+            }
+        }
     }
 
 
@@ -1658,7 +1676,8 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now, 
 
     if (!t[2] || strlen(t[2]) != 1)
         goto basestation_invalid;
-    //int msg_type = atoi(t[2]);
+
+    mm->sbsMsgType = atoi(t[2]);
 
     if (!t[5] || strlen(t[5]) != 6) // icao must be 6 characters
         goto basestation_invalid;
@@ -1746,8 +1765,12 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now, 
         long int tmp = strtol(t[19], NULL, 10);
         if (tmp > 0) {
             mm->receiverCountMlat = tmp;
+        } else if (tmp == -1) {
+            mm->alert = 1;
+            mm->alert_valid = 1;
         }
     }
+
     // field 20 (originally emergency status) used to indicate by some versions of mlat-server the estimated error in km
     if (mm->source == SOURCE_MLAT && t[20] && strlen(t[20]) > 0) {
         long tmp = strtol(t[20], NULL, 10);
@@ -1783,22 +1806,6 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now, 
     netUseMessage(mm);
 
     Modes.stats_current.remote_received_basestation_valid++;
-
-    // don't write SBS message if sbsReduce is active and this message didn't have useful data
-    if (out && (!Modes.sbsReduce || mm->reduce_forward)) {
-        out += line_len;
-        *out++ = '\r';
-        *out++ = '\n';
-
-        if (mm->source == SOURCE_SBS)
-            completeWrite(&Modes.sbs_out_replay, out);
-        if (mm->source == SOURCE_MLAT)
-            completeWrite(&Modes.sbs_out_mlat, out);
-        if (mm->source == SOURCE_JAERO)
-            completeWrite(&Modes.sbs_out_jaero, out);
-        if (mm->source == SOURCE_PRIO)
-            completeWrite(&Modes.sbs_out_prio, out);
-    }
 
     return 0;
 
@@ -1836,45 +1843,49 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, stru
     // http://www.homepages.mcb.net/bones/SBS/Article/Barebones42_Socket_Data.htm - seems comprehensive
     //
 
-    // Decide on the basic SBS Message Type
-    switch (mm->msgtype) {
-        case 4:
-        case 20:
-            msgType = 5;
-            break;
-            break;
+    if (mm->sbs_in) {
+        msgType = mm->sbsMsgType;
+    } else {
+        // Decide on the basic SBS Message Type
+        switch (mm->msgtype) {
+            case 4:
+            case 20:
+                msgType = 5;
+                break;
+                break;
 
-        case 5:
-        case 21:
-            msgType = 6;
-            break;
+            case 5:
+            case 21:
+                msgType = 6;
+                break;
 
-        case 0:
-        case 16:
-            msgType = 7;
-            break;
+            case 0:
+            case 16:
+                msgType = 7;
+                break;
 
-        case 11:
-            msgType = 8;
-            break;
+            case 11:
+                msgType = 8;
+                break;
 
-        case 17:
-        case 18:
-            if (mm->metype >= 1 && mm->metype <= 4) {
-                msgType = 1;
-            } else if (mm->metype >= 5 && mm->metype <= 8) {
-                msgType = 2;
-            } else if (mm->metype >= 9 && mm->metype <= 18) {
-                msgType = 3;
-            } else if (mm->metype == 19) {
-                msgType = 4;
-            } else {
+            case 17:
+            case 18:
+                if (mm->metype >= 1 && mm->metype <= 4) {
+                    msgType = 1;
+                } else if (mm->metype >= 5 && mm->metype <= 8) {
+                    msgType = 2;
+                } else if (mm->metype >= 9 && mm->metype <= 18) {
+                    msgType = 3;
+                } else if (mm->metype == 19) {
+                    msgType = 4;
+                } else {
+                    return;
+                }
+                break;
+
+            default:
                 return;
-            }
-            break;
-
-        default:
-            return;
+        }
     }
 
     // Fields 1 to 6 : SBS message type and ICAO address of the aircraft and some other stuff
@@ -1939,8 +1950,8 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, stru
     }
 
     // Fields 15 and 16 are the Lat/Lon (if we have it)
-    if (mm->cpr_decoded) {
-        p += sprintf(p, ",%1.5f,%1.5f", mm->decoded_lat, mm->decoded_lon);
+    if (mm->cpr_decoded || mm->sbs_pos_valid) {
+        p += sprintf(p, ",%1.6f,%1.6f", mm->decoded_lat, mm->decoded_lon);
     } else {
         p += sprintf(p, ",,");
     }
@@ -1971,8 +1982,10 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, stru
         p += sprintf(p, ",");
     }
 
-    // Field 19 is the Squawk Changing Alert flag (if we have it)
-    if (mm->alert_valid) {
+    if (mm->receiverCountMlat) {
+        p += sprintf(p, ",%d", mm->receiverCountMlat);
+    } else if (mm->alert_valid) {
+        // Field 19 is the Squawk Changing Alert flag (if we have it)
         if (mm->alert) {
             p += sprintf(p, ",-1");
         } else {
@@ -1982,8 +1995,10 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, stru
         p += sprintf(p, ",");
     }
 
-    // Field 20 is the Squawk Emergency flag (if we have it)
-    if (mm->squawk_valid) {
+    if (mm->mlatEPU) {
+        p += sprintf(p, ",%d", mm->mlatEPU);
+    } else if (mm->squawk_valid) {
+        // Field 20 is the Squawk Emergency flag (if we have it)
         if ((mm->squawk == 0x7500) || (mm->squawk == 0x7600) || (mm->squawk == 0x7700)) {
             p += sprintf(p, ",-1");
         } else {
@@ -3327,8 +3342,10 @@ static void modesReadFromClient(struct client *c, struct messageBuffer *mb) {
         return;
     }
 
-    c->bContinue = 1;
-    for (int loop = 0; c->bContinue && loop < 32; loop++) {
+    if (!c->bufferToProcess) {
+        c->bContinue = 1;
+    }
+    while (c->bContinue) {
         int64_t now = mstime();
         if (now > Modes.network_time_limit) {
             return;
@@ -3353,14 +3370,17 @@ static void modesReadFromClient(struct client *c, struct messageBuffer *mb) {
             // nb: we never fill the last byte of the buffer with read data (see above) so this is safe
             *c->eod = '\0';
             c->bufferToProcess = 1;
+
+            mb->activeClient = c;
         }
 
-        Modes.activeClient = c;
-
         c->processing++;
+        //fprintf(stderr, "%d", c->processing);
         int res = processClient(c, now, mb);
         c->processing--;
         c->bufferToProcess = 0;
+
+        mb->activeClient = NULL;
 
         if (res < 0) {
             return;
@@ -3433,17 +3453,19 @@ static void netFreeClients() {
 }
 
 static void handleEpoll(struct net_service_group *group, struct messageBuffer *mb) {
-#if 0
+    // Only process each epoll even in one thread
+    // the variables for this are specific to the service group,
+    // using locking each group can only be processed by one thread at a time
+    // modesReadFromClient can unlock this lock which is fine as the while head
+    // is lock protected
     while (group->event_progress < Modes.net_event_count) {
         int k = group->event_progress;
         group->event_progress += 1;
-#else
-    for (int k = 0; k < Modes.net_event_count; k++) {
-#endif
 
         struct epoll_event event = Modes.net_events[k];
-        if (event.data.ptr == &Modes.exitEventfd)
+        if (event.data.ptr == &Modes.exitEventfd) {
             return;
+        }
 
         struct client *cl = (struct client *) Modes.net_events[k].data.ptr;
         if (!cl) { fprintf(stderr, "handleEpoll: epollEvent.data.ptr == NULL\n"); continue; }
@@ -3510,11 +3532,15 @@ static void decodeTask(void *arg, threadpool_threadbuffers_t *buffer_group) {
     //fprintf(stderr, "%.3f decoding %d\n", mstime()/1000.0, mb->id);
 
     handleEpoll(&Modes.services_in, mb);
-    if (Modes.activeClient && Modes.activeClient->service) {
-        modesReadFromClient(Modes.activeClient, mb);
+
+    for (int kt = 0; kt < Modes.decodeCount; kt++) {
+        struct messageBuffer *otherbuf = &Modes.netMessageBuffer[kt];
+        struct client *cl = otherbuf->activeClient;
+        if (cl && cl->service) {
+            modesReadFromClient(cl, mb);
+        }
     }
     drainMessageBuffer(mb);
-    Modes.activeClient = NULL;
 
     pthread_mutex_unlock(&Modes.decodeLock);
 
@@ -3893,7 +3919,52 @@ static char *read_uuid(struct client *c, char *p, char *eod) {
 }
 
 static void outputMessage(struct modesMessage *mm) {
+    // filter messages with unwanted DF types (sbs_in are unknown DF type, filter them all, this is arbitrary but no one cares anyway)
+    if (Modes.filterDF && (mm->sbs_in || !(Modes.filterDFbitset & (1 << mm->msgtype)))) {
+        return;
+    }
+
     struct aircraft *ac = mm->aircraft;
+
+    // Suppress the first message when using an SDR
+    if (Modes.net && !mm->sbs_in && (Modes.net_only || Modes.net_verbatim || !ac || ac->messages > 1)) {
+        int is_mlat = (mm->source == SOURCE_MLAT);
+
+        if (mm->jsonPositionOutputEmit && Modes.json_out.connections) {
+            jsonPositionOutput(mm, ac);
+        }
+
+        if (Modes.garbage_ports && (mm->garbage || mm->pos_bad) && !mm->pos_old && Modes.garbage_out.connections) {
+            modesSendBeastOutput(mm, &Modes.garbage_out);
+        }
+
+        if (ac && (!Modes.sbsReduce || mm->reduce_forward)) {
+            if (Modes.sbs_out.connections) {
+                modesSendSBSOutput(mm, ac, &Modes.sbs_out);
+            }
+            if (is_mlat && Modes.sbs_out_mlat.connections) {
+                modesSendSBSOutput(mm, ac, &Modes.sbs_out_mlat);
+            }
+        }
+
+        if (!is_mlat && (Modes.net_verbatim || mm->correctedbits < 2) && Modes.raw_out.connections) {
+            // Forward 2-bit-corrected messages via raw output only if --net-verbatim is set
+            // Don't ever forward mlat messages via raw output.
+            modesSendRawOutput(mm);
+        }
+
+        if ((!is_mlat || Modes.forward_mlat) && (mm->correctedbits < 2 || Modes.net_verbatim)) {
+            // Forward 2-bit-corrected messages via beast output only if --net-verbatim is set
+            // Forward mlat messages via beast output only if --forward-mlat is set
+            if (Modes.beast_out.connections) {
+                modesSendBeastOutput(mm, &Modes.beast_out);
+            }
+            if (mm->reduce_forward && Modes.beast_reduce_out.connections) {
+                modesSendBeastOutput(mm, &Modes.beast_reduce_out);
+            }
+        }
+    }
+
     // In non-interactive non-quiet mode, display messages on standard output
     if (
             !Modes.quiet
@@ -3926,47 +3997,38 @@ static void outputMessage(struct modesMessage *mm) {
         }
     }
 
-
-    // filter messages with unwanted DF types
-    if (Modes.filterDF && !(Modes.filterDFbitset & (1 << mm->msgtype))) {
-        return;
-    }
-
-        // Suppress the first message when using an SDR
-    if (Modes.net && !mm->sbs_in && (Modes.net_only || Modes.net_verbatim || !ac || ac->messages > 1)) {
-        int is_mlat = (mm->source == SOURCE_MLAT);
-
-        if (mm->jsonPositionOutputEmit && Modes.json_out.connections) {
-            jsonPositionOutput(mm, ac);
+    if (mm->reduce_forward && mm->sbs_in && Modes.net && Modes.sbsReduce && ac) {
+        if (Modes.sbs_out.connections) {
+            modesSendSBSOutput(mm, ac, &Modes.sbs_out);
         }
+        struct net_writer *extra_writer = NULL;
+        switch(mm->source) {
+            case SOURCE_SBS:
+                extra_writer = &Modes.sbs_out_replay;
+                mm->addrtype = ADDR_OTHER;
+                break;
+            case SOURCE_MLAT:
+                extra_writer = &Modes.sbs_out_mlat;
+                mm->addrtype = ADDR_MLAT;
+                break;
+            case SOURCE_JAERO:
+                extra_writer = &Modes.sbs_out_jaero;
+                mm->addrtype = ADDR_JAERO;
+                break;
+            case SOURCE_PRIO:
+                extra_writer = &Modes.sbs_out_prio;
+                mm->addrtype = ADDR_OTHER;
+                break;
 
-        if (Modes.garbage_ports && (mm->garbage || mm->pos_bad) && !mm->pos_old && Modes.garbage_out.connections) {
-            modesSendBeastOutput(mm, &Modes.garbage_out);
+            default:
+                extra_writer = NULL;
+                mm->addrtype = ADDR_OTHER;
         }
-
-        if (ac && (!Modes.sbsReduce || mm->reduce_forward)) {
-            if (Modes.sbs_out.connections)
-                modesSendSBSOutput(mm, ac, &Modes.sbs_out);
-            if (is_mlat && Modes.sbs_out_mlat.connections)
-                modesSendSBSOutput(mm, ac, &Modes.sbs_out_mlat);
-        }
-
-        if (!is_mlat && (Modes.net_verbatim || mm->correctedbits < 2) && Modes.raw_out.connections) {
-            // Forward 2-bit-corrected messages via raw output only if --net-verbatim is set
-            // Don't ever forward mlat messages via raw output.
-            modesSendRawOutput(mm);
-        }
-
-        if ((!is_mlat || Modes.forward_mlat) && (Modes.net_verbatim || mm->correctedbits < 2)) {
-            // Forward 2-bit-corrected messages via beast output only if --net-verbatim is set
-            // Forward mlat messages via beast output only if --forward-mlat is set
-            if (Modes.beast_out.connections)
-                modesSendBeastOutput(mm, &Modes.beast_out);
-            if (mm->reduce_forward && Modes.beast_reduce_out.connections) {
-                modesSendBeastOutput(mm, &Modes.beast_reduce_out);
-            }
+        if (extra_writer && extra_writer->connections) {
+            modesSendSBSOutput(mm, ac, extra_writer);
         }
     }
+
 }
 
 static void drainMessageBuffer(struct messageBuffer *buf) {

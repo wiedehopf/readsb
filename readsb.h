@@ -449,6 +449,7 @@ struct messageBuffer {
     int len;
     int alloc;
     int id;
+    struct client *activeClient;
 };
 
 struct _Modes
@@ -501,7 +502,6 @@ struct _Modes
 
     struct messageBuffer *netMessageBuffer;
     int decodeCount;
-    struct client *activeClient;
     threadpool_t *decodePool;
     task_group_t *decodeTasks;
     pthread_mutex_t decodeLock;
@@ -790,6 +790,7 @@ struct modesMessage
     addrtype_t addrtype; // address format / source
     int8_t remote; // If set this message is from a remote station
     int8_t sbs_in; // Signifies this message is coming from basestation input
+    int8_t sbsMsgType; // SBS message type
     int8_t reduce_forward; // forward this message for reduced beast output
     int8_t garbage; // from garbage receiver
     int8_t duplicate; // associated position is a duplicate
