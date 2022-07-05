@@ -137,6 +137,7 @@ static struct argp_option optionsReadsb[] = {
     {"net-receiver-id", OptNetReceiverId, 0, 0, "forward receiver ID", 2},
     {"net-ingest", OptNetIngest, 0, 0, "primary ingest node", 2},
     {"net-garbage", OptGarbage, "<ports>", 0, "timeout receivers, output messages from timed out receivers as beast on <ports>", 2},
+    {"decode-threads", OptDecodeThreads, "<n>", 0, "Number of decode threads, either 1 or 2 (default: 1). Only use 2 when you have beast traffic > 200 MBit/s, expect 1.4x speedup for 2x CPU", 2},
     {"uuid-file", OptUuidFile, "<path>", 0, "path to UUID file", 2},
     {"net-ro-size", OptNetRoSize, "<size>", 0, "TCP output flush size (maximum amount of internally buffered data before writing to network) (default: 1200)", 2},
     {"net-ro-interval", OptNetRoIntervall, "<rate>", 0, "TCP output flush interval in seconds (maximum interval between two network writes of accumulated data)(default: 0.05, valid values 0.005 - 1.0)", 2},

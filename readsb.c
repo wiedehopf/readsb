@@ -163,6 +163,8 @@ static void configSetDefaults(void) {
     Modes.state_chunk_size = 12 * 1024 * 1024;
     Modes.state_chunk_size_read = Modes.state_chunk_size;
 
+    Modes.decodeThreads = 1;
+
     Modes.filterDF = 0;
     Modes.filterDFbitset = 0;
     Modes.cpr_focus = BADDR;
@@ -1453,6 +1455,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptGarbage:
             Modes.garbage_ports = strdup(arg);
+            break;
+        case OptDecodeThreads:
+            Modes.decodeThreads = imax(1, atoi(arg));
             break;
         case OptNetIngest:
             Modes.netIngest = 1;

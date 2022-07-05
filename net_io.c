@@ -705,23 +705,18 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
     }
 }
 static void initMessageBuffers() {
-    if (Modes.netReceiverId) {
-        Modes.decodeCount = 2;
-    } else {
-        Modes.decodeCount = 1;
-    }
-    if (Modes.decodeCount > 1) {
+    if (Modes.decodeThreads > 1) {
         pthread_mutex_init(&Modes.decodeLock, NULL);
         pthread_mutex_init(&Modes.trackLock, NULL);
         pthread_mutex_init(&Modes.outputLock, NULL);
 
-        Modes.decodeTasks = allocate_task_group(Modes.decodeCount);
-        Modes.decodePool = threadpool_create(Modes.decodeCount, 0);
+        Modes.decodeTasks = allocate_task_group(Modes.decodeThreads);
+        Modes.decodePool = threadpool_create(Modes.decodeThreads, 0);
     }
 
-    Modes.netMessageBuffer = cmalloc(Modes.decodeCount * sizeof(struct messageBuffer));
-    memset(Modes.netMessageBuffer, 0x0, Modes.decodeCount * sizeof(struct messageBuffer));
-    for (int k = 0; k < Modes.decodeCount; k++) {
+    Modes.netMessageBuffer = cmalloc(Modes.decodeThreads * sizeof(struct messageBuffer));
+    memset(Modes.netMessageBuffer, 0x0, Modes.decodeThreads * sizeof(struct messageBuffer));
+    for (int k = 0; k < Modes.decodeThreads; k++) {
         struct messageBuffer *buf = &Modes.netMessageBuffer[k];
         buf->alloc = 128 * imin(3, Modes.net_sndbuf_size);
         buf->len = 0;
@@ -3560,7 +3555,7 @@ static void decodeTask(void *arg, threadpool_threadbuffers_t *buffer_group) {
 
     handleEpoll(&Modes.services_in, mb);
 
-    for (int kt = 0; kt < Modes.decodeCount; kt++) {
+    for (int kt = 0; kt < Modes.decodeThreads; kt++) {
         struct messageBuffer *otherbuf = &Modes.netMessageBuffer[kt];
         struct client *cl = otherbuf->activeClient;
         if (cl && cl->service) {
@@ -3613,7 +3608,7 @@ void modesNetPeriodicWork(void) {
     int64_t now = mstime();
     Modes.network_time_limit = now + ms_until_priority();
 
-    if (Modes.decodeCount == 1) {
+    if (Modes.decodeThreads == 1) {
         struct messageBuffer *buf = &Modes.netMessageBuffer[0];
         handleEpoll(&Modes.services_in, buf);
         drainMessageBuffer(buf);
@@ -3623,7 +3618,7 @@ void modesNetPeriodicWork(void) {
         threadpool_task_t *tasks = Modes.decodeTasks->tasks;
         int taskCount = 0;
 
-        for (int kt = 0; kt < Modes.decodeCount; kt++) {
+        for (int kt = 0; kt < Modes.decodeThreads; kt++) {
             threadpool_task_t *task = &tasks[kt];
             task_info_t *range = &infos[kt];
 
@@ -3684,7 +3679,7 @@ void modesNetPeriodicWork(void) {
     int64_t elapsed3 = lapWatch(&watch);
 
     static int64_t antiSpam;
-    if ((elapsed1 > 150 || elapsed2 > 150 || elapsed3 > 150 || interval > 1100) && now > antiSpam + 5 * SECONDS) {
+    if ((elapsed1 > 2 * SECONDS || elapsed2 > 150 || elapsed3 > 150 || interval > 1 * SECONDS + Modes.net_output_flush_interval) && now > antiSpam + 5 * SECONDS) {
         antiSpam = now;
         fprintf(stderr, "<3>High load: modesNetPeriodicWork() elapsed1/2/3/interval %"PRId64"/%"PRId64"/%"PRId64"/%"PRId64" ms, suppressing for 5 seconds!\n",
                 elapsed1, elapsed2, elapsed3, interval);
@@ -3821,7 +3816,7 @@ static void serviceGroupCleanup(struct net_service_group *group) {
 
 static void cleanupMessageBuffers() {
 
-    if (Modes.decodeCount > 1) {
+    if (Modes.decodeThreads > 1) {
         pthread_mutex_destroy(&Modes.decodeLock);
         pthread_mutex_destroy(&Modes.trackLock);
         pthread_mutex_destroy(&Modes.outputLock);
@@ -3830,7 +3825,7 @@ static void cleanupMessageBuffers() {
         destroy_task_group(Modes.decodeTasks);
     }
 
-    for (int k = 0; k < Modes.decodeCount; k++) {
+    for (int k = 0; k < Modes.decodeThreads; k++) {
         struct messageBuffer *buf = &Modes.netMessageBuffer[k];
         sfree(buf->msg);
         buf->len = 0;
@@ -4059,7 +4054,7 @@ static void outputMessage(struct modesMessage *mm) {
 }
 
 static void drainMessageBuffer(struct messageBuffer *buf) {
-    if (Modes.decodeCount < 2) {
+    if (Modes.decodeThreads < 2) {
         for (int k = 0; k < buf->len; k++) {
             struct modesMessage *mm = &buf->msg[k];
             if (Modes.debug_yeet && mm->addr % 0x100 != 0xd) {

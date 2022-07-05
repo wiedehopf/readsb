@@ -501,7 +501,7 @@ struct _Modes
     struct epoll_event *net_events;
 
     struct messageBuffer *netMessageBuffer;
-    int decodeCount;
+    int decodeThreads;
     threadpool_t *decodePool;
     task_group_t *decodeTasks;
     pthread_mutex_t decodeLock;
@@ -1098,6 +1098,7 @@ enum {
     OptNetReceiverIdJson,
     OptNetIngest,
     OptGarbage,
+    OptDecodeThreads,
     OptUuidFile,
     OptRtlSdrEnableAgc,
     OptRtlSdrPpm,
