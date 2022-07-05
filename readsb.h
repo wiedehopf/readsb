@@ -861,6 +861,9 @@ struct modesMessage
     bool acas_ra_valid;
     bool geom_alt_derived;
 
+    bool squawk_emergency_valid;
+    bool squawk_emergency;
+
     // valid if baro_alt_valid:
     int baro_alt; // Altitude in either feet or meters
     altitude_unit_t baro_alt_unit; // the unit used for altitude

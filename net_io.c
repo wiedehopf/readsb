@@ -1761,33 +1761,53 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now, 
         }
     }
     // field 19 (originally squawk change) used to indicate by some versions of mlat-server the number of receivers which contributed to the postiions
-    if (mm->source == SOURCE_MLAT && t[19] && strlen(t[19]) > 0) {
+    if (t[19] && strlen(t[19]) > 0) {
         long int tmp = strtol(t[19], NULL, 10);
-        if (tmp > 0) {
+        if (tmp > 0 && mm->source == SOURCE_MLAT) {
             mm->receiverCountMlat = tmp;
-        } else if (tmp == -1) {
-            mm->alert = 1;
+        } else if (!strcmp(t[19], "0")) {
             mm->alert_valid = 1;
+            mm->alert = 0;
+        } else if (!strcmp(t[19], "-1")) {
+            mm->alert_valid = 1;
+            mm->alert = 1;
         }
     }
 
     // field 20 (originally emergency status) used to indicate by some versions of mlat-server the estimated error in km
-    if (mm->source == SOURCE_MLAT && t[20] && strlen(t[20]) > 0) {
+    if (t[20] && strlen(t[20]) > 0) {
         long tmp = strtol(t[20], NULL, 10);
-        if (tmp > 0) {
+        if (tmp > 0 && mm->source == SOURCE_MLAT) {
             mm->mlatEPU = tmp;
             if (tmp > UINT16_MAX)
                 mm->mlatEPU = UINT16_MAX;
 
             //fprintf(stderr, "mlatEPU: %d\n", mm->mlatEPU);
+        } else if (!strcmp(t[21], "0")) {
+            mm->squawk_emergency_valid = 1;
+            mm->squawk_emergency = 0;
+        } else if (!strcmp(t[21], "-1")) {
+            mm->squawk_emergency_valid = 1;
+            mm->squawk_emergency = 1;
+        }
+    }
+
+    // Field 21 is the Squawk Ident flag
+    if (t[21] && strlen(t[21]) > 0) {
+        if (!strcmp(t[21], "1")) {
+            mm->spi_valid = 1;
+            mm->spi = 1;
+        } else if (!strcmp(t[21], "0")) {
+            mm->spi_valid = 1;
+            mm->spi = 0;
         }
     }
 
     // field 22 ground status
     if (t[22] && strlen(t[22]) > 0) {
-        if (atoi(t[22]) > 0) {
+        if (!strncmp(t[22], "-1", 2)) {
             mm->airground = AG_GROUND;
-        } else if (strcmp(t[22], "0")) {
+        } else if (!strncmp(t[22], "0", 1)) {
             mm->airground = AG_AIRBORNE;
         }
         //fprintf(stderr, "onground, ");
@@ -1997,6 +2017,13 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, stru
 
     if (mm->mlatEPU) {
         p += sprintf(p, ",%d", mm->mlatEPU);
+    } else if (mm->squawk_emergency_valid) {
+        // Field 20 is the Squawk Emergency flag (if we have it)
+        if (mm->squawk_emergency) {
+            p += sprintf(p, ",-1");
+        } else {
+            p += sprintf(p, ",0");
+        }
     } else if (mm->squawk_valid) {
         // Field 20 is the Squawk Emergency flag (if we have it)
         if ((mm->squawk == 0x7500) || (mm->squawk == 0x7600) || (mm->squawk == 0x7700)) {
