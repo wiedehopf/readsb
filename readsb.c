@@ -1467,8 +1467,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.uuidFile = strdup(arg);
             break;
         case OptNetConnector:
-            if (make_net_connector(arg))
-                return 1;
+            if (make_net_connector(arg)) {
+                return ARGP_ERR_UNKNOWN;
+            }
             break;
         case OptNetConnectorDelay:
             Modes.net_connector_delay = (int64_t) (1000 * atof(arg));
