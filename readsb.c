@@ -462,6 +462,9 @@ static void *jsonEntryPoint(void *arg) {
     pthread_mutex_lock(&Threads.json.mutex);
 
     threadpool_buffer_t pass_buffer = { 0 };
+    threadpool_buffer_t zstd_buffer = { 0 };
+
+    ZSTD_CCtx* cctx = ZSTD_createCCtx();
 
     while (!Modes.exit) {
 
@@ -504,6 +507,10 @@ static void *jsonEntryPoint(void *arg) {
         }
 
         struct char_buffer cb3 = generateAircraftBin(&pass_buffer);
+
+        //fprintf(stderr, "uncompressed size %ld\n", (long) cb3.len);
+        writeJsonToFile(Modes.json_dir, "aircraft.binCraft.zst", ident(generateZstd(cctx, &zstd_buffer, cb3, 1)));
+
         writeJsonToGzip(Modes.json_dir, "aircraft.binCraft", cb3, 1);
 
         if (Modes.json_globe_index) {
@@ -511,14 +518,14 @@ static void *jsonEntryPoint(void *arg) {
             writeJsonToGzip(Modes.json_dir, "globeMil_42777.binCraft", cb2, 5);
         }
 
-        sfree(pass_buffer.buf);
-
         end_cpu_timing(&start_time, &Modes.stats_current.aircraft_json_cpu);
 
         // we should exit this wait early due to a cond_signal from api.c
         threadTimedWait(&Threads.json, &ts, Modes.json_interval * 3);
     }
 
+    ZSTD_freeCCtx(cctx);
+    sfree(zstd_buffer.buf);
     sfree(pass_buffer.buf);
 
     pthread_mutex_unlock(&Threads.json.mutex);

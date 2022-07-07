@@ -755,3 +755,64 @@ void gzipFile(char *filename) {
         return;
     }
 }
+
+void check_grow_buffer_t(buffer_t *buffer, ssize_t newSize) {
+    if (buffer->bufSize < newSize) {
+        sfree(buffer->buf);
+        buffer->buf = cmalloc(newSize);
+    }
+}
+
+void *check_grow_threadpool_buffer_t(threadpool_buffer_t *buffer, ssize_t newSize) {
+    if (buffer->size < newSize || !buffer->buf) {
+        //fprintf(stderr, "check_grow_threadpool_buffer: buffer->size %ld requested size %ld\n", (long) buffer->size, (long) newSize);
+        sfree(buffer->buf);
+        newSize = newSize * 9 / 8; // avoid super many mallocs when the size of something grows slowly
+        buffer->buf = cmalloc(newSize);
+        if (!buffer->buf) {
+            fprintf(stderr, "<3>FATAL: check_grow_threadpool_buffer_t no enough memory allocating %ld bytes!\n", (long) newSize);
+            abort();
+        }
+        buffer->size = newSize;
+    }
+    return buffer->buf;
+}
+
+
+struct char_buffer generateZstd(ZSTD_CCtx* cctx, threadpool_buffer_t *pbuffer, struct char_buffer src, int level) {
+    struct char_buffer cb;
+
+    check_grow_threadpool_buffer_t(pbuffer, ZSTD_compressBound(src.len));
+
+    //fprintf(stderr, "pbuffer->size: %ld src.len %ld\n", (long) pbuffer->size, (long) src.len);
+
+    /*
+     * size_t ZSTD_compressCCtx(ZSTD_CCtx* cctx,
+                                void* dst, size_t dstCapacity,
+                                const void* src, size_t srcSize,
+                                int compressionLevel);
+     */
+
+    size_t compressedSize = ZSTD_compressCCtx(cctx,
+            pbuffer->buf, pbuffer->size,
+            src.buffer, src.len,
+            level);
+
+    if (ZSTD_isError(compressedSize)) {
+        fprintf(stderr, "zstd error: %s\n", ZSTD_getErrorName(compressedSize));
+        cb.buffer = NULL;
+        cb.len = 0;
+        return cb;
+    }
+
+    cb.len = compressedSize;
+    cb.buffer = pbuffer->buf;
+    return cb;
+}
+
+
+struct char_buffer ident(struct char_buffer target) {
+    return target;
+}
+
+

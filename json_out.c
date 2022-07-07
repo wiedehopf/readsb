@@ -1734,7 +1734,6 @@ struct char_buffer generateReceiverJson() {
 
         p = safe_snprintf(p, end, ", \"json_trace_interval\": %.1f", ((double) Modes.json_trace_interval) / (1 * SECONDS));
 
-        p = safe_snprintf(p, end, ", \"binCraft\": true");
         p = safe_snprintf(p, end, ", \"globeIndexGrid\": %d", GLOBE_INDEX_GRID);
 
         p = safe_snprintf(p, end, ", \"globeIndexSpecialTiles\": [ ");
@@ -1751,8 +1750,9 @@ struct char_buffer generateReceiverJson() {
         p = safe_snprintf(p, end, " ]");
     }
 
+    p = safe_snprintf(p, end, ", \"binCraft\": true");
+    p = safe_snprintf(p, end, ", \"zstd\": true");
 
-    p = safe_snprintf(p, end, ", \"aircraft_binCraft\": true");
     if (Modes.outline_json) {
         p = safe_snprintf(p, end, ", \"outlineJson\": true");
     }

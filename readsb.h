@@ -100,6 +100,7 @@
 #include "minilzo/minilzo.h"
 #include "threadpool.h"
 #include <stdatomic.h>
+#include <zstd.h>
 
 
 #include "compat/compat.h"
