@@ -228,13 +228,15 @@ static inline void check_grow_buffer_t(buffer_t *buffer, ssize_t newSize) {
 }
 
 static inline void *check_grow_threadpool_buffer_t(threadpool_buffer_t *buffer, ssize_t newSize) {
-    if (buffer->size < newSize) {
+    //fprintf(stderr, "buffer->size %ld newSize %ld\n", (long) buffer->size, (long) newSize);
+    if (buffer->size < newSize || !buffer->buf) {
         sfree(buffer->buf);
         buffer->buf = cmalloc(newSize);
         if (!buffer->buf) {
             fprintf(stderr, "<3>FATAL: check_grow_threadpool_buffer_t no enough memory allocating %ld bytes!\n", (long) newSize);
             abort();
         }
+        buffer->size = newSize;
     }
     return buffer->buf;
 }
