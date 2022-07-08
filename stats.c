@@ -570,10 +570,12 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
             if (i == 0) p = safe_snprintf(p, end, ",\"accepted\":[%u", st->remote_accepted[i]);
             else p = safe_snprintf(p, end, ",%u", st->remote_accepted[i]);
         }
+        p = safe_snprintf(p, end, "]");
+
         p = safe_snprintf(p, end, ",\"bytes_in\": %lu", (long) st->network_bytes_in);
         p = safe_snprintf(p, end, ",\"bytes_out\": %lu", (long) st->network_bytes_out);
 
-        p = safe_snprintf(p, end, "]}");
+        p = safe_snprintf(p, end, "}");
     }
 
     {
