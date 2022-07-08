@@ -516,6 +516,7 @@ static void *jsonEntryPoint(void *arg) {
         if (Modes.json_globe_index) {
             struct char_buffer cb2 = generateGlobeBin(-1, 1, &pass_buffer);
             writeJsonToGzip(Modes.json_dir, "globeMil_42777.binCraft", cb2, 5);
+            writeJsonToFile(Modes.json_dir, "globeMil_42777.binCraft.zst", ident(generateZstd(cctx, &zstd_buffer, cb2, 1)));
         }
 
         end_cpu_timing(&start_time, &Modes.stats_current.aircraft_json_cpu);
@@ -584,6 +585,9 @@ static void *globeBinEntryPoint(void *arg) {
     pthread_mutex_lock(&Threads.globeBin.mutex);
 
     threadpool_buffer_t pass_buffer = { 0 };
+    threadpool_buffer_t zstd_buffer = { 0 };
+
+    ZSTD_CCtx* cctx = ZSTD_createCCtx();
 
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
@@ -599,13 +603,21 @@ static void *globeBinEntryPoint(void *arg) {
 
             int index = Modes.json_globe_indexes[j];
 
-            snprintf(filename, 31, "globe_%04d.binCraft", index);
             struct char_buffer cb2 = generateGlobeBin(index, 0, &pass_buffer);
+
+            snprintf(filename, 31, "globe_%04d.binCraft", index);
             writeJsonToGzip(Modes.json_dir, filename, cb2, 5);
 
-            snprintf(filename, 31, "globeMil_%04d.binCraft", index);
+            snprintf(filename, 31, "globe_%04d.binCraft.zst", index);
+            writeJsonToFile(Modes.json_dir, filename, ident(generateZstd(cctx, &zstd_buffer, cb2, 1)));
+
             struct char_buffer cb3 = generateGlobeBin(index, 1, &pass_buffer);
+
+            snprintf(filename, 31, "globeMil_%04d.binCraft", index);
             writeJsonToGzip(Modes.json_dir, filename, cb3, 2);
+
+            snprintf(filename, 31, "globeMil_%04d.binCraft.zst", index);
+            writeJsonToFile(Modes.json_dir, filename, ident(generateZstd(cctx, &zstd_buffer, cb3, 1)));
         }
 
         part++;
@@ -615,6 +627,8 @@ static void *globeBinEntryPoint(void *arg) {
         threadTimedWait(&Threads.globeBin, &ts, sleep_ms);
     }
 
+    ZSTD_freeCCtx(cctx);
+    sfree(zstd_buffer.buf);
     sfree(pass_buffer.buf);
 
     pthread_mutex_unlock(&Threads.globeBin.mutex);
