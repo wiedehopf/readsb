@@ -1,7 +1,7 @@
 #ifndef API_H
 #define API_H
 
-#define API_REQ_PADSTART (192)
+#define API_REQ_PADSTART (256)
 
 #define API_REQ_LIST_MAX 1024
 
@@ -15,6 +15,7 @@ struct apiCon {
     int open;
     int wakeups;
     int64_t connected_since; // milliseconds
+    char *content_type;
 };
 
 struct apiCircle {
@@ -41,6 +42,8 @@ struct apiOptions {
     int all_with_pos;
     int jamesv2;
     int filter_squawk;
+    int binCraft;
+    int zstd;
     unsigned squawk;
     int filter_dbFlag;
     int filter_mil;
@@ -95,7 +98,7 @@ struct apiBuffer {
     struct apiEntry *list_flag;
     struct range list_pos_range;
     struct range list_flag_pos_range;
-    uint64_t timestamp;
+    int64_t timestamp;
     char *json;
     int jsonLen;
     struct apiEntry **hexHash;
@@ -115,6 +118,7 @@ struct apiThread {
     struct apiCon *cons;
     int nextCon;
     int64_t antiSpam[8];
+    ZSTD_CCtx* cctx;
 };
 
 void apiBufferInit();

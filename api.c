@@ -1,6 +1,5 @@
 #include "readsb.h"
 
-
 #define API_HASH_BITS (16)
 #define API_BUCKETS (1 << API_HASH_BITS)
 
@@ -542,66 +541,169 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *op
         if (doFree) { sfree(matches); }; doFree = 1; matches = filtered;
     }
 
+    // elementSize only applies to binCraft output
+    uint32_t elementSize = sizeof(struct binCraft);
+    if (options->binCraft) {
+        alloc = API_REQ_PADSTART + 2 * elementSize + count * elementSize;
+    }
+
     cb.buffer = cmalloc(alloc);
     if (!cb.buffer)
         return cb;
 
-    char *p = cb.buffer + API_REQ_PADSTART;
+    char *payload = cb.buffer + API_REQ_PADSTART;
+    char *p = payload;
     char *end = cb.buffer + alloc;
 
 
-    if (options->jamesv2) {
-        p = safe_snprintf(p, end, "{\"ac\":[");
+    if (options->binCraft) {
+        memset(p, 0, elementSize);
+
+#define memWrite(p, var) do { if (p + sizeof(var) > end) { break; }; memcpy(p, &var, sizeof(var)); p += sizeof(var); } while(0)
+
+        int64_t now = buffer->timestamp;
+        memWrite(p, now);
+
+        memWrite(p, elementSize);
+
+        uint32_t ac_count_pos = Modes.globalStatsCount.readsb_aircraft_with_position;
+        memWrite(p, ac_count_pos);
+
+        uint32_t index = 0;
+        memWrite(p, index);
+
+        int16_t south = -90;
+        int16_t west = -180;
+        int16_t north = 90;
+        int16_t east = 180;
+        if (options->is_box) {
+            south = nearbyint(options->box[0]);
+            north = nearbyint(options->box[1]);
+            west = nearbyint(options->box[2]);
+            east = nearbyint(options->box[3]);
+        }
+
+        memWrite(p, south);
+        memWrite(p, west);
+        memWrite(p, north);
+        memWrite(p, east);
+
+        uint32_t messageCount = Modes.stats_current.messages_total + Modes.stats_alltime.messages_total;
+        memWrite(p, messageCount);
+
+        uint32_t resultCount = count;
+        memWrite(p, resultCount);
+
+#undef memWrite
+        if (p - payload > (int) elementSize) {
+            fprintf(stderr, "apiBin: too many details in first element\n");
+        }
+
+        p = payload + elementSize;
+
+        for (int i = 0; i < count; i++) {
+            if (unlikely(p + elementSize > end)) {
+                fprintf(stderr, "search code deeK9OoR: count: %d need: %ld alloc: %ld\n", count, (long) ((count + 1) * elementSize), (long) alloc);
+                break;
+            }
+            struct apiEntry *e = &matches[i];
+            memcpy(p, &e->bin, elementSize);
+            p += elementSize;
+        }
+
     } else {
-        p = safe_snprintf(p, end, "{\"now\": %.3f", buffer->timestamp / 1000.0);
-        p = safe_snprintf(p, end, "\n,\"aircraft\":[");
+        if (options->jamesv2) {
+            p = safe_snprintf(p, end, "{\"ac\":[");
+        } else {
+            p = safe_snprintf(p, end, "{\"now\": %.3f", buffer->timestamp / 1000.0);
+            p = safe_snprintf(p, end, "\n,\"aircraft\":[");
+        }
+
+        char *json = buffer->json;
+
+        for (int i = 0; i < count; i++) {
+            struct apiEntry *e = &matches[i];
+            struct offset off = e->jsonOffset; // READ-ONLY here
+            if (unlikely(p + off.len + 100 >= end)) {
+                fprintf(stderr, "search code ieva2aeV: count: %d need: %ld alloc: %ld\n", count, (long) ((p + off.len + 100) - payload), (long) alloc);
+                break;
+            }
+            memcpy(p, json + off.offset, off.len);
+            p += off.len;
+            if (options->is_circle) {
+                // json objects in cache are terminated by a comma: \n{ .... },
+                p -= 2; // remove \} and , and make sure printf puts those back
+                p = safe_snprintf(p, end, ",\"dst\":%.3f,\"dir\":%.1f},", e->distance / 1852.0, e->direction);
+            }
+        }
+
+        // json objects in cache are terminated by a comma: \n{ .... },
+        if (*(p - 1) == ',')
+            p--; // remove trailing comma if necessary
+
+        options->request_processed = microtime();
+        p = safe_snprintf(p, end, "\n]");
+
+        if (options->jamesv2) {
+            p = safe_snprintf(p, end, "\n,\"msg\": \"No error\"");
+            p = safe_snprintf(p, end, "\n,\"now\": %lld", (long long) buffer->timestamp);
+            p = safe_snprintf(p, end, "\n,\"total\": %d", count);
+            p = safe_snprintf(p, end, "\n,\"ctime\": %lld", (long long) buffer->timestamp);
+            p = safe_snprintf(p, end, "\n,\"ptime\": %lld", (long long) nearbyint((options->request_processed - options->request_received) / 1000.0));
+        } else {
+            p = safe_snprintf(p, end, "\n,\"resultCount\": %d", count);
+            p = safe_snprintf(p, end, "\n,\"ptime\": %.3f", (options->request_processed - options->request_received) / 1000.0);
+        }
+        p = safe_snprintf(p, end, "\n}\n");
     }
 
-    char *json = buffer->json;
+    cb.len = p - cb.buffer;
+    size_t payload_len = p - payload;
 
-    for (int i = 0; i < count; i++) {
-        struct apiEntry *e = &matches[i];
-        struct offset off = e->jsonOffset; // READ-ONLY here
-        if (p + off.len + 100 >= end) {
-            fprintf(stderr, "search code ieva2aeV: count: %d need: %d alloc: %d\n", count, (int) ((p + off.len + 100) - cb.buffer), (int) alloc);
-            break;
-        }
-        memcpy(p, json + off.offset, off.len);
-        p += off.len;
-        if (options->is_circle) {
-            // json objects in cache are terminated by a comma: \n{ .... },
-            p -= 2; // remove \} and , and make sure printf puts those back
-            p = safe_snprintf(p, end, ",\"dst\":%.3f,\"dir\":%.1f},", e->distance / 1852.0, e->direction);
-        }
+    if (cb.len > alloc) {
+        fprintf(stderr, "apiReq buffer insufficient\n");
     }
+
 
     if (doFree) {
         sfree(matches);
     }
 
-    // json objects in cache are terminated by a comma: \n{ .... },
-    if (*(p - 1) == ',')
-        p--; // remove trailing comma if necessary
+    if (options->zstd) {
+        struct char_buffer new = { 0 };
+        size_t new_alloc = API_REQ_PADSTART + ZSTD_compressBound(alloc);
+        new.buffer = cmalloc(new_alloc);
+        memset(new.buffer, 0x0, new_alloc);
 
-    options->request_processed = microtime();
-    p = safe_snprintf(p, end, "\n]");
+        struct char_buffer dst;
+        dst.buffer = new.buffer + API_REQ_PADSTART;
+        dst.len = new_alloc - API_REQ_PADSTART;
 
-    if (options->jamesv2) {
-        p = safe_snprintf(p, end, "\n,\"msg\": \"No error\"");
-        p = safe_snprintf(p, end, "\n,\"now\": %lld", (long long) buffer->timestamp);
-        p = safe_snprintf(p, end, "\n,\"total\": %d", count);
-        p = safe_snprintf(p, end, "\n,\"ctime\": %lld", (long long) buffer->timestamp);
-        p = safe_snprintf(p, end, "\n,\"ptime\": %lld", (long long) nearbyint((options->request_processed - options->request_received) / 1000.0));
-    } else {
-        p = safe_snprintf(p, end, "\n,\"resultCount\": %d", count);
-        p = safe_snprintf(p, end, "\n,\"ptime\": %.3f", (options->request_processed - options->request_received) / 1000.0);
+        //fprintf(stderr, "payload_len %ld\n", (long) payload_len);
+
+        size_t compressedSize = ZSTD_compressCCtx(thread->cctx,
+                dst.buffer, dst.len,
+                payload, payload_len,
+                1);
+
+        dst.len = compressedSize;
+        new.len = API_REQ_PADSTART + compressedSize;
+        ident(dst);
+
+        //free uncompressed buffer
+        sfree(cb.buffer);
+
+        cb = new;
+
+        if (ZSTD_isError(compressedSize)) {
+            fprintf(stderr, "API zstd error: %s\n", ZSTD_getErrorName(compressedSize));
+            sfree(cb.buffer);
+            cb.buffer = NULL;
+            cb.len = 0;
+            return cb;
+        }
+        //fprintf(stderr, "first 4 bytes: %08x len: %ld\n", *((uint32_t *) cb.buffer), (long) cb.len);
     }
-    p = safe_snprintf(p, end, "\n}\n");
-
-    cb.len = p - cb.buffer;
-
-    if (cb.len >= alloc)
-        fprintf(stderr, "apiReq buffer insufficient\n");
 
     return cb;
 }
@@ -876,7 +978,7 @@ static int parseDoubles(char *p, double *results, int max) {
     return count;
 }
 
-static struct char_buffer parseFetch(struct char_buffer *request, struct apiThread *thread) {
+static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *request, struct apiThread *thread) {
     struct char_buffer invalid = { 0 };
     char *p;
     char *saveptr;
@@ -1060,8 +1162,14 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
             }
         } else {
             // handle parameters WITHOUT associated value
-            if (strcasecmp(option, "jv2") == 0) {
+            if (strcasecmp(option, "json") == 0) {
+                // this is the default
+            } else if (strcasecmp(option, "jv2") == 0) {
                 options->jamesv2 = 1;
+            } else if (strcasecmp(option, "zstd") == 0) {
+                options->zstd = 1;
+            } else if (strcasecmp(option, "binCraft") == 0) {
+                options->binCraft = 1;
             } else if (strcasecmp(option, "all") == 0) {
                 options->all = 1;
             } else if (strcasecmp(option, "all_with_pos") == 0) {
@@ -1102,6 +1210,15 @@ static struct char_buffer parseFetch(struct char_buffer *request, struct apiThre
     }
 
     //fprintf(stderr, "parseFetch calling apiReq\n");
+
+
+    if (options->zstd) {
+         con->content_type = "application/zstd";
+    } else if (options->binCraft) {
+         con->content_type = "application/octet-stream";
+    } else {
+         con->content_type = "application/json";
+    }
 
     return apiReq(thread, options);
 }
@@ -1251,7 +1368,8 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
 
     //fprintf(stderr, "%s\n", req);
 
-    struct char_buffer reply = parseFetch(request, thread);
+    con->content_type = "multipart/mixed";
+    struct char_buffer reply = parseFetch(con, request, thread);
     if (reply.len == 0) {
         //fprintf(stderr, "parseFetch retunred invalid\n");
         send400(fd);
@@ -1272,13 +1390,15 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
             "HTTP/1.1 200 OK\r\n"
             "Server: readsb/3.1442\r\n"
             "Connection: close\r\n"
-            "Content-Type: application/json\r\n"
+            "Content-Type: %s\r\n"
             "Content-Length: %d\r\n\r\n",
-            content_len);
+            con->content_type, content_len);
 
     int hlen = p - header;
-    if (hlen == API_REQ_PADSTART)
+    //fprintf(stderr, "hlen %d\n", hlen);
+    if (hlen >= API_REQ_PADSTART) {
         fprintf(stderr, "API_REQ_PADSTART insufficient\n");
+    }
 
     // increase bytesSent counter so we don't transmit the empty buffer before the header
     con->bytesSent = API_REQ_PADSTART - hlen;
@@ -1386,6 +1506,9 @@ static void *apiThreadEntryPoint(void *arg) {
     struct apiThread *thread = (struct apiThread *) arg;
     srandom(get_seed());
 
+
+    thread->cctx = ZSTD_createCCtx();
+
     thread->epfd = my_epoll_create();
 
     for (int i = 0; i < Modes.apiService.listener_count; ++i) {
@@ -1468,6 +1591,7 @@ static void *apiThreadEntryPoint(void *arg) {
         }
     }
 
+    ZSTD_freeCCtx(thread->cctx);
     close(thread->epfd);
     sfree(events);
     return NULL;

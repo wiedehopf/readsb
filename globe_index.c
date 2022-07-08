@@ -867,8 +867,8 @@ static int load_aircraft(char **p, char *end, int64_t now) {
 
     if (a->trace_next_perm < now) {
         a->trace_next_perm = now + 1 * MINUTES + random() % (5 * MINUTES);
-    } else if (a->trace_next_perm > now + GLOBE_PERM_IVAL * 3 / 2) {
-        a->trace_next_perm = now + 10 * MINUTES + random() % GLOBE_PERM_IVAL;
+    } else if (a->trace_next_perm - now > GLOBE_PERM_IVAL) {
+        a->trace_next_perm = now + 5 * MINUTES + random() % GLOBE_PERM_IVAL;
     }
 
     int new_index = a->globe_index;
@@ -951,7 +951,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
             scheduleMemBothWrite(a, now); // write traces for aircraft with valid positions as quickly as possible
             a->trace_write = 1;
         } else {
-            scheduleMemBothWrite(a, now + 60 * SECONDS + (now - a->seen_pos) / (24 * 60 / 5)); // condense 24h into 4 minutes
+            scheduleMemBothWrite(a, now + 60 * SECONDS + (now - a->seen_pos) / (24 * 60) * 4); // condense 24h into 4 minutes
         }
     } else {
         traceCleanupNoUnlink(a);
