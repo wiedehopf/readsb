@@ -1589,6 +1589,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         break;
                     case 'Z': Modes.debug_provoke_segfault = 1;
                         break;
+                    case 'W': Modes.debug_enable_reapi = 1;
+                        break;
+
 
                     default:
                         fprintf(stderr, "Unknown debugging flag: %c\n", *arg);

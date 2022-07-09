@@ -1729,8 +1729,9 @@ struct char_buffer generateReceiverJson() {
 
 
     if (Modes.json_globe_index) {
-        if (Modes.db || Modes.db2)
+        if (Modes.db || Modes.db2) {
             p = safe_snprintf(p, end, ", \"dbServer\": true");
+        }
 
         p = safe_snprintf(p, end, ", \"json_trace_interval\": %.1f", ((double) Modes.json_trace_interval) / (1 * SECONDS));
 
@@ -1750,6 +1751,9 @@ struct char_buffer generateReceiverJson() {
         p = safe_snprintf(p, end, " ]");
     }
 
+    if (Modes.debug_enable_reapi) {
+        p = safe_snprintf(p, end, ", \"reapi\": true");
+    }
     p = safe_snprintf(p, end, ", \"binCraft\": true");
     p = safe_snprintf(p, end, ", \"zstd\": true");
 
