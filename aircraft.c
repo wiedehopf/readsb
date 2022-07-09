@@ -272,7 +272,7 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now) {
     new->receiverId = (uint32_t) (a->receiverId >> 32);
 #endif
 
-    if (Modes.json_globe_index) {
+    if (Modes.json_globe_index || Modes.netReceiverId) {
         if (a->pos_reliable_valid.source == SOURCE_MLAT) {
             new->receiverCount = a->receiverCountMlat;
         } else if (a->pos_reliable_valid.source >= SOURCE_TISB) {
