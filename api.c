@@ -1062,9 +1062,17 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                 char *endptr = NULL;
                 char *tok = strtok_r(value, ",", &saveptr);
                 while (tok && hexCount < maxCount) {
-                    hexList[hexCount] = (uint32_t) strtol(tok, &endptr, 16);
-                    if (tok != endptr)
+                    int other = 0;
+                    if (tok[0] == '~' && tok[0] != '\0') {
+                        other = 1;
+                        tok++; // skip over ~
+                    }
+                    uint32_t hex = (uint32_t) strtol(tok, &endptr, 16);
+                    if (tok != endptr) {
+                        hex |= (other ? MODES_NON_ICAO_ADDRESS : 0);
+                        hexList[hexCount] = hex;
                         hexCount++;
+                    }
                     tok = strtok_r(NULL, ",", &saveptr);
                 }
                 if (hexCount == 0)
