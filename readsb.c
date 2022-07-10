@@ -269,7 +269,7 @@ static void lockThreads() {
 }
 
 static void unlockThreads() {
-    for (int i = 0; i < Modes.lockThreadsCount; i++) {
+    for (int i = Modes.lockThreadsCount - 1; i >= 0; i--) {
         pthread_mutex_unlock(&Modes.lockThreads[i]->mutex);
     }
 }
@@ -810,6 +810,15 @@ static void traceWriteTask(void *arg, threadpool_threadbuffers_t *buffer_group) 
     }
 }
 
+
+static void setLowPriorityTask(void *arg, threadpool_threadbuffers_t *buffer_group) {
+    MODES_NOTUSED(arg);
+    MODES_NOTUSED(buffer_group);
+
+    setLowestPriorityPthread();
+}
+
+
 static void writeTraces(int64_t mono) {
     static int lastRunFinished;
     static int part;
@@ -821,6 +830,16 @@ static void writeTraces(int64_t mono) {
         Modes.traceTasks = allocate_task_group(6 * Modes.tracePoolSize);
         lastRunFinished = 1;
         lastCompletion = mono;
+        // set low priority for this trace pool
+        int taskCount = Modes.tracePoolSize;
+        threadpool_task_t *tasks = Modes.traceTasks->tasks;
+        for (int i = 0; i < taskCount; i++) {
+            threadpool_task_t *task = &tasks[i];
+
+            task->function = setLowPriorityTask;
+            task->argument = NULL;
+        }
+        threadpool_run(Modes.tracePool, tasks, taskCount);
     }
 
     int taskCount = Modes.traceTasks->task_count;
@@ -861,7 +880,7 @@ static void writeTraces(int64_t mono) {
 
                 int64_t elapsed = mono - lastCompletion;
                 if (elapsed > 30 * SECONDS && mstime() - Modes.startup_time > 10 * MINUTES) {
-                    fprintf(stderr, "trace writing iteration took %.1f seconds (roughly %.1f minutes), traces might not be up to date, "
+                    fprintf(stderr, "trace writing iteration took %.1f seconds (roughly %.1f minutes), live traces will lag behind (historic traces are fine), "
                             "consider alloting more CPU cores or increasing json-trace-interval!\n",
                             elapsed / 1000.0, elapsed / (double) MINUTES);
                 }
@@ -2000,6 +2019,9 @@ static void miscStuff(int64_t now) {
 
 static void *miscEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
+
+    // this is a low priority thread
+    setLowestPriorityPthread();
 
     pthread_mutex_lock(&Threads.misc.mutex);
 

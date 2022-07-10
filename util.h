@@ -228,4 +228,6 @@ void gzipFile(char *file);
 struct char_buffer generateZstd(ZSTD_CCtx* cctx, threadpool_buffer_t *pbuffer, struct char_buffer src, int level);
 struct char_buffer ident(struct char_buffer target);
 
+void setLowestPriorityPthread();
+
 #endif

@@ -815,4 +815,27 @@ struct char_buffer ident(struct char_buffer target) {
     return target;
 }
 
+void setLowestPriorityPthread() {
+    int policy;
+    struct sched_param param = { 0 };
+
+    pthread_setschedparam(pthread_self(), SCHED_IDLE, &param);
+
+    return;
+
+    pthread_getschedparam(pthread_self(), &policy, &param);
+    fprintf(stderr, "priority before: %d\n", (int) param.sched_priority);
+
+    policy=SCHED_FIFO;
+    int priority_max = sched_get_priority_max(policy);
+    int priority_min = sched_get_priority_min(policy);
+    fprintf(stderr, "min prio: %d max prio: %d\n", priority_min, priority_max);
+
+    param.sched_priority = priority_min;
+
+    pthread_setschedparam(pthread_self(), policy, &param);
+
+    pthread_getschedparam(pthread_self(), &policy, &param);
+    fprintf(stderr, "priority after: %d\n", (int) param.sched_priority);
+}
 
