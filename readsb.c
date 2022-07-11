@@ -940,14 +940,14 @@ static void *upkeepEntryPoint(void *arg) {
         if (priorityTasksPending()) {
             priorityTasksRun();
         }
-
-        if (Modes.json_globe_index) {
+        int64_t mono = mono_milli_seconds();
+        int replace_state_in_progress = mono < Modes.replace_state_inhibit_traces_until;
+        if (Modes.json_globe_index && !replace_state_in_progress) {
             // writing a trace takes some time, to increase timing precision the priority tasks, allot a little less time than available
             // this isn't critical though
             int64_t time_alloted = ms_until_priority() - PERIODIC_UPDATE / 10;
             if (time_alloted > 0) {
 
-                int64_t mono = mono_milli_seconds();
                 Modes.traceWriteTimelimit = mono + time_alloted;
 
                 struct timespec watch;
@@ -969,6 +969,10 @@ static void *upkeepEntryPoint(void *arg) {
         } else {
             wait = ms_until_priority();
         }
+        if (replace_state_in_progress) {
+            wait = imin(20, wait);
+        }
+
         if (0) {
             fprintf(stderr, "upkeep wait: %ld ms\n", (long) wait);
         }
@@ -1904,6 +1908,9 @@ static void loadReplaceState() {
     sfree(pbuffer.buf);
     free(Modes.replace_state_blob);
     Modes.replace_state_blob = NULL;
+
+    int64_t mono = mono_milli_seconds();
+    Modes.replace_state_inhibit_traces_until = mono + 30 * SECONDS;
 }
 
 static void checkReplaceState() {

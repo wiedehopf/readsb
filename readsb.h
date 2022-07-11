@@ -555,6 +555,7 @@ struct _Modes
     int write_state_blob;
     int writeInternalState;
     char *replace_state_blob;
+    int64_t replace_state_inhibit_traces_until;
     int64_t network_time_limit;
     uint32_t currentPing;
 
