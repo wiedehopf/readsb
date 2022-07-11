@@ -825,7 +825,7 @@ static void writeTraces(int64_t mono) {
     static int64_t lastCompletion;
 
     if (!Modes.tracePool) {
-        Modes.tracePoolSize = imax(1, Modes.num_procs);
+        Modes.tracePoolSize = imax(1, Modes.num_procs - 1);
         Modes.tracePool = threadpool_create(Modes.tracePoolSize, 4);
         Modes.traceTasks = allocate_task_group(6 * Modes.tracePoolSize);
         lastRunFinished = 1;
@@ -941,7 +941,7 @@ static void *upkeepEntryPoint(void *arg) {
             priorityTasksRun();
         }
         int64_t mono = mono_milli_seconds();
-        int replace_state_in_progress = mono < Modes.replace_state_inhibit_traces_until;
+        int replace_state_in_progress = (mono < Modes.replace_state_inhibit_traces_until);
         if (Modes.json_globe_index && !replace_state_in_progress) {
             // writing a trace takes some time, to increase timing precision the priority tasks, allot a little less time than available
             // this isn't critical though
@@ -1910,7 +1910,7 @@ static void loadReplaceState() {
     Modes.replace_state_blob = NULL;
 
     int64_t mono = mono_milli_seconds();
-    Modes.replace_state_inhibit_traces_until = mono + 30 * SECONDS;
+    Modes.replace_state_inhibit_traces_until = mono + 10 * SECONDS;
 }
 
 static void checkReplaceState() {
