@@ -663,7 +663,7 @@ static void *decodeEntryPoint(void *arg) {
 
             // in case we're not waiting in backgroundTasks and priorityTasks doesn't have a chance to schedule
             if (mono > Modes.next_remove_stale + 5 * SECONDS) {
-                threadTimedWait(&Threads.decode, &ts, 15);
+                threadTimedWait(&Threads.decode, &ts, 1);
             }
             start_cpu_timing(&start_time);
 
@@ -772,7 +772,7 @@ static void *decodeEntryPoint(void *arg) {
                 threadTimedWait(&Threads.decode, &ts, 80);
             }
             if (mono > Modes.next_remove_stale + 5 * SECONDS) {
-                threadTimedWait(&Threads.decode, &ts, 5);
+                threadTimedWait(&Threads.decode, &ts, 1);
             }
         }
         sdrCancel();
@@ -1011,6 +1011,10 @@ static void snipMode(int level) {
 // from the net, refreshing the screen in interactive mode, and so forth
 //
 static void backgroundTasks(int64_t now) {
+    if (Modes.net) {
+        modesNetPeriodicWork();
+    }
+
     // Refresh screen when in interactive mode
     static int64_t next_interactive;
     if (Modes.interactive && now > next_interactive) {
@@ -1022,10 +1026,6 @@ static void backgroundTasks(int64_t now) {
     if (now >= next_flip) {
         icaoFilterExpire(now);
         next_flip = now + MODES_ICAO_FILTER_TTL;
-    }
-
-    if (Modes.net) {
-        modesNetPeriodicWork();
     }
 
     static int64_t next_every_second;

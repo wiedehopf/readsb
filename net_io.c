@@ -4130,7 +4130,7 @@ void netUseMessage(struct modesMessage *mm) {
     struct messageBuffer *buf = mm->messageBuffer;
     if (mm != &buf->msg[buf->len]) {
         fprintf(stderr, "FATAL: fix netUseMessage / get_mm\n");
-        exit(2);
+        exit(1);
     }
     buf->len++;
     if (buf->len == buf->alloc) {
