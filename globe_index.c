@@ -1685,6 +1685,7 @@ static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t af
 
     traceBuffer tb = { 0 };
 
+    //fprintf(stderr, "allocLen %ld fourStates %ld stateBytes %ld\n", (long) allocLen, (long) getFourStates(allocLen), (long) stateBytes(allocLen));
     tb.trace = check_grow_threadpool_buffer_t(buffer, stateBytes(allocLen));
 
     fourState *tp = tb.trace;
@@ -1764,14 +1765,15 @@ static void setTrace(struct aircraft *a, fourState *source, int len) {
     }
     int64_t now = mstime();
 
-    fprintf(stderr, "%06x setTrace\n", a->addr);
+    //fprintf(stderr, "%06x setTrace, len %ld fourStates %ld stateBytes %ld\n", a->addr, (long) len, (long) getFourStates(len), (long) stateBytes(len));
 
     traceCleanupNoUnlink(a);
 
 
     fourState *p = source;
-    int chunkSize = Modes.traceChunkPoints;
-    while (len > chunkSize) {
+    int chunkSize = alignSFOUR(Modes.traceChunkPoints);
+    int keep = alignSFOUR(8);
+    while (len > chunkSize + keep) {
         stateChunk *new = resizeTraceChunks(a, a->trace_chunk_len + 1);
 
         if (!new) {
@@ -1787,13 +1789,19 @@ static void setTrace(struct aircraft *a, fourState *source, int len) {
 
         a->trace_chunk_overall_bytes += new->compressed_size;
 
-        len -= new->numStates;
+        len -= chunkSize;
+        p += chunkSize / SFOUR;
+        fprintf(stderr, "setTrace reduce len: %ld\n", (long) len);
     }
 
     a->trace_current_len = len;
     resizeTraceCurrent(a, now, 0);
-    if (a->trace_current_len) {
-        memcpy(a->trace_current, p, stateBytes(len));
+    if (a->trace_current_max < a->trace_current_len) {
+        fprintf(stderr, "%06x setTrace error, insufficient current trace, discarding some data\n", a->addr);
+        a->trace_current_len = 0;
+    } else if (a->trace_current_len > 0) {
+        //fprintf(stderr, "%06x setTrace current memcpy, len %ld fourStates %ld stateBytes %ld\n", a->addr, (long) len, (long) getFourStates(len), (long) stateBytes(len));
+        memcpy(a->trace_current, p, stateBytes(a->trace_current_len));
     }
 
     traceMaintenance(a, now);
@@ -2002,7 +2010,7 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
         }
     }
 
-    if (a->trace_current_len == 0 )
+    if (a->trace_current_len == 0)
         goto save_state;
 
     struct state *last = getState(a->trace_current, a->trace_current_len - 1);
@@ -3162,13 +3170,15 @@ void traceDelete() {
         fourState *trace = tb.trace;
         int trace_len = tb.len;
 
+        int old_len = trace_len;
+
         int start = 0;
-        int end = trace_len; // exclusive
+        int end = trace_len + SFOUR; // point well past the end if not found
 
         int64_t from = curr->from * 1000;
         int64_t to = curr->to * 1000;
 
-        for (int i = 0; i < trace_len; i++) {
+        for (int i = 0; i < trace_len; i += SFOUR) {
             int64_t timestamp = getState(trace, i)->timestamp;
             if (timestamp <= from) {
                 start = i;
@@ -3181,20 +3191,20 @@ void traceDelete() {
 
         // align to fourState, delete whole fourState tuple if stuff we want to delete is contained
         start = start / SFOUR; // round down
-        end = (end + SFOUR - 1) / SFOUR;
+        end = getFourStates(end);
 
         // end points past the last point to be deleted
-        if (end >= (int)(stateBytes(trace_len) / sizeof(fourState))) {
-            end = stateBytes(trace_len) / sizeof(fourState);
-        } else {
-            memmove(trace + start, trace + end, (end - start) * sizeof(fourState));
+        if (end >= getFourStates(trace_len)) {
+            trace_len = imax(0, (start - 1) * SFOUR);
+        } else if (end - start > 0) {
+            memmove(trace + start, trace + end, (getFourStates(trace_len) - end) * sizeof(fourState));
+            trace_len -= (end - start) * SFOUR;
         }
 
-        trace_len -= (end - start) * SFOUR;
 
-        setTrace(a, trace + start, trace_len);
+        setTrace(a, trace, trace_len);
 
-        fprintf(stderr, "Deleted %06x from %lld to %lld\n", curr->hex, (long long) curr->from, (long long) curr->to);
+        fprintf(stderr, "Deleted %06x from %lld to %lld trace_len %ld -> %ld\n", curr->hex, (long long) curr->from, (long long) curr->to, (long) old_len, (long) trace_len);
 
 next:
         entry = entry->next;
