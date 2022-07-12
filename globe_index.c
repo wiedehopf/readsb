@@ -3150,8 +3150,10 @@ void traceDelete() {
     while (entry) {
         struct hexInterval* curr = entry;
         struct aircraft *a = aircraftGet(curr->hex);
-        if (!a || a->trace_len == 0)
-            continue;
+        if (!a || a->trace_len == 0) {
+            goto next;
+        }
+
 
         traceUsePosBuffered(a);
 
@@ -3192,8 +3194,10 @@ void traceDelete() {
 
         setTrace(a, trace + start, trace_len);
 
-        entry = entry->next;
         fprintf(stderr, "Deleted %06x from %lld to %lld\n", curr->hex, (long long) curr->from, (long long) curr->to);
+
+next:
+        entry = entry->next;
         sfree(curr);
     }
     Modes.deleteTrace = NULL;
