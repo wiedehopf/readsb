@@ -1516,7 +1516,7 @@ static void updateAltitude(int64_t now, struct aircraft *a, struct modesMessage 
     goto discard_alt;
     int score_add;
 accept_alt:
-    if (Modes.netReceiverId && now - a->baro_alt_valid.updated > 10 * SECONDS) {
+    if (Modes.netReceiverId && mm->source == SOURCE_MODE_S && now - a->baro_alt_valid.updated > 10 * SECONDS) {
         score_add = 0;
     } else {
         score_add = good_crc + 1;

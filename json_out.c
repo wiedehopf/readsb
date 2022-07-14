@@ -1501,8 +1501,8 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
                     entries[x].offset -= moveDist;
                 }
             } else {
-                fprintf(stderr, "%06x in checkTraceCache: prevented illegal memmove: cacheIndex: %ld moveIndexes: %ld newEntryCount: %ld jsonLen: %ld moveDist: %ld\n",
-                        a->addr, (long) cacheIndex, (long) moveIndexes, (long) newEntryCount, (long) jsonLen, (long) moveDist);
+                fprintf(stderr, "%06x in checkTraceCache: prevented illegal memmove: cacheIndex: %ld moveIndexes: %ld newEntryCount: %ld jsonLen: %ld moveDist: %ld json_max: %ld\n",
+                        a->addr, (long) cacheIndex, (long) moveIndexes, (long) newEntryCount, (long) jsonLen, (long) moveDist, (long) cache->json_max);
                 destroyTraceCache(cache);
                 return;
             }
