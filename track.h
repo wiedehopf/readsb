@@ -609,7 +609,7 @@ static inline int altBaroReliable(struct aircraft *a) {
         return 0;
     if (a->position_valid.source == SOURCE_JAERO)
         return 1;
-    if (a->alt_reliable >= Modes.json_reliable + 1)
+    if (a->alt_reliable >= 2 * Modes.json_reliable)
         return 1;
 
     return 0;

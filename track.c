@@ -1514,12 +1514,15 @@ static void updateAltitude(int64_t now, struct aircraft *a, struct modesMessage 
         goto accept_alt;
 
     goto discard_alt;
+    int score_add;
 accept_alt:
+    if (Modes.netReceiverId && now - a->baro_alt_valid.updated > 10 * SECONDS) {
+        score_add = 0;
+    } else {
+        score_add = good_crc + 1;
+    }
     if (accept_data(&a->baro_alt_valid, mm->source, mm, a, 2)) {
-        a->alt_reliable = imin(ALTITUDE_BARO_RELIABLE_MAX , a->alt_reliable + (good_crc+1));
-        if (mm->source == SOURCE_MODE_S && a->baro_alt_valid.last_source != mm->source) {
-            a->alt_reliable = 0;
-        }
+        a->alt_reliable = imin(ALTITUDE_BARO_RELIABLE_MAX , a->alt_reliable + score_add);
         if (a->addr == Modes.trace_focus && abs(delta) > -1) {
             fprintf(stdout, "Alt check S: %06x: %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
                     a->addr, a->alt_reliable, a->baro_alt, alt,
@@ -3129,11 +3132,13 @@ void updateValidities(struct aircraft *a, int64_t now) {
         traceUsePosBuffered(a);
     }
 
-    if (a->alt_reliable != 0 && a->baro_alt_valid.source == SOURCE_INVALID)
+    updateValidity(&a->baro_alt_valid, now, TRACK_EXPIRE);
+
+    if (a->alt_reliable != 0 && a->baro_alt_valid.source == SOURCE_INVALID) {
         a->alt_reliable = 0;
+    }
 
     updateValidity(&a->callsign_valid, now, TRACK_EXPIRE_LONG);
-    updateValidity(&a->baro_alt_valid, now, TRACK_EXPIRE);
     updateValidity(&a->geom_alt_valid, now, TRACK_EXPIRE);
     updateValidity(&a->geom_delta_valid, now, TRACK_EXPIRE);
     updateValidity(&a->gs_valid, now, TRACK_EXPIRE);
