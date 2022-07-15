@@ -973,9 +973,16 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
     int high = 0;
     int low = 100000;
 
+
+    int last_five_init_alt = -1000;
+    struct state *startState = getState(tb.trace, start);
+    if (startState->baro_alt_valid) {
+        last_five_init_alt = startState->baro_alt / _alt_factor;
+    }
+
     int last_five[5];
-    for (int i = 0; i < 5; i++) { last_five[i] = -1000; }
     uint32_t five_pos = 0;
+    for (int i = 0; i < 5; i++) { last_five[i] = last_five_init_alt; }
 
     int32_t last_air_alt = INT32_MIN;
 
@@ -989,15 +996,16 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
     if (tb.len > 256 * SFOUR) {
         increment = 4 * SFOUR;
     }
+    int approx_inverse_alt_factor = 1 / _alt_factor;
     for (int i = start - (start % SFOUR); i < tb.len; i += increment) {
         struct state *curr = getState(tb.trace, i);
         int on_ground = curr->on_ground;
         int altitude_valid = curr->baro_alt_valid;
-        int altitude = curr->baro_alt / _alt_factor;
+        int altitude = curr->baro_alt * approx_inverse_alt_factor;
 
         if (!altitude_valid && curr->geom_alt_valid) {
             altitude_valid = 1;
-            altitude = curr->geom_alt / _alt_factor;
+            altitude = curr->geom_alt * approx_inverse_alt_factor;
         }
 
         if (curr->leg_marker) {
@@ -1016,13 +1024,8 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
             altitude = last_air_alt;
         } else {
             last_air_alt = INT32_MIN;
-            if (five_pos == 0) {
-                for (int i = 0; i < 5; i++)
-                    last_five[i] = altitude;
-            } else {
-                last_five[five_pos % 5] = altitude;
-            }
-            five_pos++;
+            last_five[five_pos] = altitude;
+            five_pos = (five_pos + 1) % 5;
         }
 
         sum += altitude;
@@ -1065,7 +1068,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
     int was_ground = 0;
 
     last_air_alt = INT32_MIN;
-    for (int i = 0; i < 5; i++) { last_five[i] = -1000; }
+    for (int i = 0; i < 5; i++) { last_five[i] = last_five_init_alt; }
     five_pos = 0;
 
     if (start < 1) {
@@ -1090,11 +1093,11 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
 
         int on_ground = state->on_ground;
         int altitude_valid = state->baro_alt_valid;
-        int altitude = state->baro_alt / _alt_factor;
+        int altitude = state->baro_alt * approx_inverse_alt_factor;
 
         if (!altitude_valid && state->geom_alt_valid) {
             altitude_valid = 1;
-            altitude = state->geom_alt / _alt_factor;
+            altitude = state->geom_alt * approx_inverse_alt_factor;
         }
 
         if (on_ground || !altitude_valid) {
@@ -1107,13 +1110,8 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
             altitude = last_air_alt;
         } else {
             last_air_alt = INT32_MIN;
-            if (five_pos == 0) {
-                for (int i = 0; i < 5; i++)
-                    last_five[i] = altitude;
-            } else {
-                last_five[five_pos % 5] = altitude;
-            }
-            five_pos++;
+            last_five[five_pos] = altitude;
+            five_pos = (five_pos + 1) % 5;
         }
 
         if (on_ground || was_ground) {
@@ -1226,20 +1224,22 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
                 fprintf(stderr, "ground leg (on ground and time between reception > 25 min)\n");
             leg_now = 1;
         }
-        double distance = greatcircle(
-                (double) state->lat * 1e-6,
-                (double) state->lon * 1e-6,
-                (double) prev->lat * 1e-6,
-                (double) prev->lon * 1e-6,
-                0
-                );
 
         int max_leg_alt = 20000;
-        if (elapsed > 30 * 60 * 1000 && distance < 10E3 * (elapsed / (30 * 60 * 1000.0)) && distance > 1
-                && (state->on_ground || !state->baro_alt_valid || (state->baro_alt_valid && state->baro_alt / _alt_factor < max_leg_alt))) {
-            leg_now = 1;
-            if (a->addr == Modes.leg_focus)
-                fprintf(stderr, "time/distance leg, elapsed: %0.fmin, distance: %0.f\n", elapsed / (60 * 1000.0), distance / 1000.0);
+        if (elapsed > 30 * 60 * 1000 && (state->on_ground || !state->baro_alt_valid || (state->baro_alt_valid && state->baro_alt / _alt_factor < max_leg_alt))) {
+            double distance = greatcircle(
+                    (double) state->lat * 1e-6,
+                    (double) state->lon * 1e-6,
+                    (double) prev->lat * 1e-6,
+                    (double) prev->lon * 1e-6,
+                    0
+                    );
+            if (distance < 10E3 * (elapsed / (30 * 60 * 1000.0)) && distance > 1) {
+                leg_now = 1;
+                if (a->addr == Modes.leg_focus) {
+                    fprintf(stderr, "time/distance leg, elapsed: %0.fmin, distance: %0.f\n", elapsed / (60 * 1000.0), distance / 1000.0);
+                }
+            }
         }
 
         int leg_float = 0;
