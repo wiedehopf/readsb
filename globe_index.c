@@ -1006,10 +1006,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
             last_leg = curr;
         }
 
-        if (!altitude_valid)
-            continue;
-
-        if (on_ground) {
+        if (on_ground || !altitude_valid) {
             if (last_air_alt == INT32_MIN) {
                 int avg = 0;
                 for (int i = 0; i < 5; i++) avg += last_five[i];
@@ -1100,15 +1097,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
             altitude = state->geom_alt / _alt_factor;
         }
 
-        if (!on_ground && !altitude_valid)
-            continue;
-
-        if (0 && a->addr == Modes.leg_focus) {
-            fprintf(stderr, "state: %d %d %d %d\n", index, altitude, altitude_valid, on_ground);
-        }
-
-
-        if (on_ground) {
+        if (on_ground || !altitude_valid) {
             if (last_air_alt == INT32_MIN) {
                 int avg = 0;
                 for (int i = 0; i < 5; i++) avg += last_five[i];
@@ -1247,7 +1236,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
 
         int max_leg_alt = 20000;
         if (elapsed > 30 * 60 * 1000 && distance < 10E3 * (elapsed / (30 * 60 * 1000.0)) && distance > 1
-                && (state->on_ground || (state->baro_alt_valid && state->baro_alt / _alt_factor < max_leg_alt))) {
+                && (state->on_ground || !state->baro_alt_valid || (state->baro_alt_valid && state->baro_alt / _alt_factor < max_leg_alt))) {
             leg_now = 1;
             if (a->addr == Modes.leg_focus)
                 fprintf(stderr, "time/distance leg, elapsed: %0.fmin, distance: %0.f\n", elapsed / (60 * 1000.0), distance / 1000.0);
@@ -1258,7 +1247,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
             for (int i = major_descent_index + 1; i <= major_climb_index; i++) {
                 struct state *st = getState(tb.trace, i);
                 if (st->timestamp > getState(tb.trace, i - 1)->timestamp + 5 * MINUTES
-                        && (st->on_ground || (st->baro_alt_valid && st->baro_alt / _alt_factor < max_leg_alt))) {
+                        && (st->on_ground || !st->baro_alt_valid || (st->baro_alt_valid && st->baro_alt / _alt_factor < max_leg_alt))) {
                     leg_float = 1;
                     if (a->addr == Modes.leg_focus)
                         fprintf(stderr, "float leg: 8 minutes between descent / climb, 5 minute reception gap in between somewhere\n");
