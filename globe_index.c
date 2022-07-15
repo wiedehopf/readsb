@@ -650,7 +650,9 @@ void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuff
                     && a->trace_perm_last_timestamp != endStamp
                ) {
 
-                if (fiftyfive.tm_hour == 23 && fiftyfive.tm_min > 50) {
+                static int64_t antiSpam;
+                if (fiftyfive.tm_hour == 23 && fiftyfive.tm_min > 50 && now > antiSpam) {
+                    antiSpam = now + 30 * SECONDS;
                     fprintf(stderr, "<3>%06x permanent trace written for yesterday was written successfully but a bit late,"
                             "persistent traces for the previous UTC day are in danger of not all getting done!"
                             "consider alloting more CPU cores or increasing json-trace-interval!\n",
