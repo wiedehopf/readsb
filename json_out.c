@@ -1564,6 +1564,8 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
 
         struct state *state = getState(tb.trace, i);
         struct state_all *state_all = getStateAll(tb.trace, i);
+
+        char *stringStart = p;
         p = sprintTracePoint(p, end, state, state_all, cache->referenceTs);
         if (p >= end) {
             fprintf(stderr, "traceCache full, not an issue but fix it!\n");
@@ -1573,8 +1575,8 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
         sprintCount++;
 
         entries[cacheIndex].ts = state->timestamp;
-        entries[cacheIndex].offset = p - cache->json;
-        entries[cacheIndex].len = p - cache->json - entries[cacheIndex].offset;
+        entries[cacheIndex].offset = stringStart - cache->json;
+        entries[cacheIndex].len = p - stringStart;
         entries[cacheIndex].leg_marker = state->leg_marker;
 
         cacheIndex++;
