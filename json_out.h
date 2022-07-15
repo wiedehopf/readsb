@@ -26,6 +26,7 @@
 
 typedef struct traceBuffer traceBuffer;
 
+
 int includeAircraftJson(int64_t now, struct aircraft *a);
 
 void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, int64_t now);

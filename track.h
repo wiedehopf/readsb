@@ -277,7 +277,7 @@ struct discarded {
 };
 
 struct traceCacheEntry {
-    int32_t stateIndex;
+    int64_t ts;
     int32_t offset;
     int32_t len;
     int32_t leg_marker;
@@ -286,15 +286,17 @@ struct traceCacheEntry {
 struct traceCache {
     int32_t entriesLen;
     int json_max;
-    int64_t startStamp;
+    int64_t referenceTs;
     struct traceCacheEntry *entries;
     char *json;
 };
 
 static inline void destroyTraceCache(struct traceCache *cache) {
     sfree(cache->entries);
+    sfree(cache->json);
     memset(cache, 0x0, sizeof(struct traceCache));
 }
+
 
 /* Structure used to describe the state of one tracked aircraft */
 struct aircraft
