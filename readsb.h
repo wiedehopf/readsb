@@ -668,6 +668,7 @@ struct _Modes
     int64_t json_interval; // Interval between rewriting the json aircraft file, in milliseconds; also the advertised map refresh interval
     int64_t stats_display_interval; // Interval (millis) between stats dumps,
     int64_t range_outline_duration;
+    int64_t writeTracesActualDuration; // how long the trace writing cycle took
     char *db_file;
     char *net_output_raw_ports; // List of raw output TCP ports
     char *net_input_raw_ports; // List of raw input TCP ports

@@ -281,6 +281,10 @@ int64_t ms_until_priority() {
             Modes.next_stats_update - now,
             Modes.next_remove_stale - mono
             );
+
+    if (Modes.replace_state_inhibit_traces_until && ms_until_run > 100) {
+        ms_until_run = 80;
+    }
     if (ms_until_run > 0 && Modes.replace_state_blob) {
         ms_until_run = 0;
     }
@@ -884,10 +888,17 @@ static void writeTraces(int64_t mono) {
 
             //fprintf(stderr, "%d %d\n", thread_start, thread_end);
 
+            int64_t elapsed = mono - lastCompletion;
+
+            if (elapsed > Modes.writeTracesActualDuration) {
+                Modes.writeTracesActualDuration = elapsed;
+            }
+
             if (++part >= n_parts) {
                 part = 0;
 
-                int64_t elapsed = mono - lastCompletion;
+                Modes.writeTracesActualDuration = elapsed;
+
                 if (elapsed > 30 * SECONDS && mstime() - Modes.startup_time > 10 * MINUTES) {
                     fprintf(stderr, "trace writing iteration took %.1f seconds (roughly %.1f minutes), live traces will lag behind (historic traces are fine), "
                             "consider alloting more CPU cores or increasing json-trace-interval!\n",
@@ -946,15 +957,16 @@ static void *upkeepEntryPoint(void *arg) {
     while (!Modes.exit) {
 
         checkReplaceState();
-        if (priorityTasksPending()) {
-            priorityTasksRun();
-        }
+        priorityTasksRun();
+
         int64_t mono = mono_milli_seconds();
-        int replace_state_in_progress = (mono < Modes.replace_state_inhibit_traces_until);
-        if (Modes.json_globe_index && !replace_state_in_progress) {
+        if (Modes.replace_state_inhibit_traces_until && mono > Modes.replace_state_inhibit_traces_until) {
+            Modes.replace_state_inhibit_traces_until = 0;
+        }
+        if (Modes.json_globe_index) {
             // writing a trace takes some time, to increase timing precision the priority tasks, allot a little less time than available
             // this isn't critical though
-            int64_t time_alloted = ms_until_priority() - PERIODIC_UPDATE / 10;
+            int64_t time_alloted = ms_until_priority();
             if (time_alloted > 0) {
 
                 Modes.traceWriteTimelimit = mono + time_alloted;
@@ -972,22 +984,17 @@ static void *upkeepEntryPoint(void *arg) {
                 }
             }
         }
-        int64_t wait = PERIODIC_UPDATE;
-        if (Modes.synthetic_now) {
-            wait = 20;
-        } else {
-            wait = ms_until_priority();
-        }
-        if (replace_state_in_progress) {
-            wait = imin(20, wait);
-        }
 
-        if (0) {
+        int64_t wait = ms_until_priority();
+
+        if (1) {
             fprintf(stderr, "upkeep wait: %ld ms\n", (long) wait);
         }
 
-        clock_gettime(CLOCK_REALTIME, &ts);
-        threadTimedWait(&Threads.upkeep, &ts, wait);
+        if (wait > 0) {
+            clock_gettime(CLOCK_REALTIME, &ts);
+            threadTimedWait(&Threads.upkeep, &ts, wait);
+        }
     }
 
     pthread_mutex_unlock(&Threads.upkeep.mutex);

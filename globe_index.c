@@ -468,7 +468,13 @@ void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuff
     hist.len = 0;
 
     int trace_write = a->trace_write;
-    a->trace_write = 0;
+
+    if (Modes.replace_state_inhibit_traces_until) {
+        trace_write &= WRECENT;
+        a->trace_write &= ~WRECENT;
+    } else {
+        a->trace_write = 0;
+    }
 
     if (a->trace_len == 0) {
         return;

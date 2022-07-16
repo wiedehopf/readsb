@@ -802,6 +802,7 @@ struct char_buffer generatePromFile(int64_t now) {
     p = safe_snprintf(p, end, "readsb_tracewrites_recent %u\n", st->recentTraceWrites);
     p = safe_snprintf(p, end, "readsb_tracewrites_full %u\n", st->fullTraceWrites);
     p = safe_snprintf(p, end, "readsb_tracewrites_perm %u\n", st->permTraceWrites);
+    p = safe_snprintf(p, end, "readsb_tracewrites_cycle_duration %lld\n", (long long) Modes.writeTracesActualDuration);
 
 
     p = safe_snprintf(p, end, "readsb_distance_max %u\n", (uint32_t) st->distance_max);
