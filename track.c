@@ -453,7 +453,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         range += 30;
     }
 
-    // same TCP packet, two positions from same receiver id, allow plenty of extra range
+    // same TCP packet (2 ms), two positions from same receiver id, allow plenty of extra range
     if (elapsed < 2 && a->receiverId == mm->receiverId) {
         range += 500; // 500 m extra in this case
     }
@@ -478,9 +478,16 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     range += (((float) elapsed + 200.0f) * (1.0f / 1000.0f)) * (speed * (1852.0f / 3600.0f));
     inrange = (distance <= range);
 
+    // don't allow going backwards in the air contrary to good track information
+    // when only a short time has elapsed
+    // when the receiverId differs
+    // this mostly happens due to static range allowed
+    if (!surface && track_diff > 135 && elapsed < 2 * SECONDS && trackDataAge(now, &a->track_valid) < 2 * SECONDS && a->receiverId != mm->receiverId) {
+        inrange = 0;
+    }
 
     float backInTimeSeconds = 0;
-    if (a->gs > 10 && track_diff > 160 && trackDataAge(now, &a->gs_valid) < 10 * SECONDS) {
+    if (a->gs > 10 && track_diff > 135 && trackDataAge(now, &a->gs_valid) < 10 * SECONDS) {
         backInTimeSeconds = distance / (a->gs * (1852.0f / 3600.0f));
     }
 
