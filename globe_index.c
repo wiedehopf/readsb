@@ -1000,29 +1000,22 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
     double sum = 0;
     int count = 0;
 
-    struct state *last_leg = NULL;
     struct state *new_leg = NULL;
 
     int increment = SFOUR;
     if (tb.len > 256 * SFOUR) {
         increment = 4 * SFOUR;
     }
-    int approx_inverse_alt_factor = 1 / _alt_factor;
+    float inverse_alt_factor = 1 / _alt_factor;
     for (int i = start - (start % SFOUR); i < tb.len; i += increment) {
         struct state *curr = getState(tb.trace, i);
         int on_ground = curr->on_ground;
         int altitude_valid = curr->baro_alt_valid;
-        int altitude = curr->baro_alt * approx_inverse_alt_factor;
+        int altitude = curr->baro_alt * inverse_alt_factor;
 
         if (!altitude_valid && curr->geom_alt_valid) {
             altitude_valid = 1;
-            altitude = curr->geom_alt * approx_inverse_alt_factor;
-        }
-
-        if (curr->leg_marker) {
-            curr->leg_marker = 0;
-            // reset leg marker
-            last_leg = curr;
+            altitude = curr->geom_alt * inverse_alt_factor;
         }
 
         if (on_ground || !altitude_valid) {
@@ -1104,11 +1097,11 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
 
         int on_ground = state->on_ground;
         int altitude_valid = state->baro_alt_valid;
-        int altitude = state->baro_alt * approx_inverse_alt_factor;
+        int altitude = state->baro_alt * inverse_alt_factor;
 
         if (!altitude_valid && state->geom_alt_valid) {
             altitude_valid = 1;
-            altitude = state->geom_alt * approx_inverse_alt_factor;
+            altitude = state->geom_alt * inverse_alt_factor;
         }
 
         if (on_ground || !altitude_valid) {
@@ -1359,10 +1352,6 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
         }
 
         was_ground = on_ground;
-    }
-    if (last_leg != new_leg) {
-        //a->trace_next_mw = 0;
-        //fprintf(stderr, "%06x\n", a->addr);
     }
 }
 
