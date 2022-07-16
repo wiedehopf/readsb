@@ -82,6 +82,7 @@
 #define RECEIVERIDBUFFER (12)
 
 #define DISCARD_CACHE (4)
+#define CPR_CACHE (4)
 
 // data moves through three states:
 //  fresh: data is valid. Updates from a less reliable source are not accepted.
@@ -269,9 +270,9 @@ typedef struct stateChunk {
     int64_t lastTimestamp;
 } stateChunk;
 
-struct discarded {
-  unsigned cpr_lat;
-  unsigned cpr_lon;
+struct cpr_cache {
+  uint32_t cpr_lat;
+  uint32_t cpr_lon;
   int64_t ts;
   uint64_t receiverId;
 };
@@ -542,7 +543,10 @@ struct aircraft
   // keep this at the end of the aircraft struct as save / restore shouldn't matter for this:
   // recent discarded positions which led to decrementing reliability (position_bad() / speed_check())
   uint32_t disc_cache_index;
-  struct discarded disc_cache[DISCARD_CACHE];
+  struct cpr_cache disc_cache[DISCARD_CACHE];
+
+  uint32_t cpr_cache_index;
+  struct cpr_cache cpr_cache[CPR_CACHE];
 
   struct traceCache traceCache;
   uint32_t trace_chunk_overall_bytes;

@@ -797,6 +797,7 @@ struct modesMessage
     int8_t reduce_forward; // forward this message for reduced beast output
     int8_t garbage; // from garbage receiver
     int8_t duplicate; // associated position is a duplicate
+    int8_t duplicate_checked; // duplicate check done
     int8_t pos_bad; // speed_check failed
     int8_t pos_ignore; // associated position is old / delayed / misc error
     int8_t pos_old; // associated position is old / delayed / misc error
@@ -903,9 +904,9 @@ struct modesMessage
 
     // valid if cpr_valid
     cpr_type_t cpr_type; // The encoding type used (surface, airborne, coarse TIS-B)
-    unsigned cpr_lat; // Non decoded latitude.
-    unsigned cpr_lon; // Non decoded longitude.
-    unsigned cpr_nucp; // NUCp/NIC value implied by message type
+    uint32_t cpr_lat; // Non decoded latitude.
+    uint32_t cpr_lon; // Non decoded longitude.
+    uint32_t cpr_nucp; // NUCp/NIC value implied by message type
 
     airground_t airground; // air/ground state
 

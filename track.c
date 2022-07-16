@@ -256,22 +256,101 @@ static void update_range_histogram(struct aircraft *a, int64_t now) {
     ++Modes.stats_current.range_histogram[bucket];
 }
 
-static inline int duplicate_check(int64_t now, struct aircraft *a, double new_lat, double new_lon) {
+static int duplicate_check(int64_t now, struct aircraft *a, double new_lat, double new_lon, struct modesMessage *mm) {
+    if (mm->duplicate_checked) {
+        // already checked
+        return mm->duplicate;
+    }
+    mm->duplicate_checked = 1;
+
+    if (mm->cpr_valid) {
+        struct cpr_cache *cpr;
+        uint32_t inCache = 0;
+        uint32_t cpr_lat = mm->cpr_lat;
+        uint32_t cpr_lon = mm->cpr_lon;
+        uint64_t receiverId = mm->receiverId;
+        for (int i = 0; i < CPR_CACHE; i++) {
+            cpr = &a->cpr_cache[i];
+            if (
+                    (
+                     now - cpr->ts < 2 * SECONDS
+                     && cpr->cpr_lat == cpr_lat
+                     && cpr->cpr_lon == cpr_lon
+                     && cpr->receiverId != receiverId
+                    )
+               ) {
+                inCache += 1;
+            }
+        }
+        if (inCache > 0) {
+            mm->duplicate = 1;
+            return 1;
+        } else {
+            // CPR not yet known to cpr cache
+
+            a->cpr_cache_index = (a->cpr_cache_index + 1) % CPR_CACHE;
+
+            cpr = &a->cpr_cache[a->cpr_cache_index];
+            cpr->ts = now;
+            cpr->cpr_lat = cpr_lat;
+            cpr->cpr_lon = cpr_lon;
+            cpr->receiverId = receiverId;
+        }
+    }
+
     // if the last position is older than 2 seconds we don't consider it a duplicate
-    if (now > a->seen_pos + 2 * SECONDS)
+    if (now > a->seen_pos + 2 * SECONDS) {
         return 0;
+    }
     // duplicate
-    if (a->lat == new_lat && a->lon == new_lon)
+    if (a->lat == new_lat && a->lon == new_lon) {
+        mm->duplicate = 1;
         return 1;
+    }
 
     // if the previous position is older than 2 seconds we don't consider it a duplicate
-    if (now > a->prev_pos_time + 2 * SECONDS)
+    if (now > a->prev_pos_time + 2 * SECONDS) {
         return 0;
+    }
     // duplicate (this happens either with some transponder or delayed data arrival due to odd / even CPR, not certain)
-    if (a->prev_lat == new_lat && a->prev_lon == new_lon)
+    if (a->prev_lat == new_lat && a->prev_lon == new_lon) {
+        mm->duplicate = 1;
         return 1;
+    }
 
     return 0;
+}
+
+static int inDiscCache(int64_t now, struct aircraft *a, struct modesMessage *mm) {
+    struct cpr_cache *disc;
+    uint32_t inCache = 0;
+    uint32_t cpr_lat = mm->cpr_lat;
+    uint32_t cpr_lon = mm->cpr_lon;
+    uint64_t receiverId = mm->receiverId;
+    for (int i = 0; i < DISCARD_CACHE; i++) {
+        disc = &a->disc_cache[i];
+        // don't decrement pos_reliable if we already got the same bad position within the last second
+        // rate limit reliable decrement per receiver
+        if (
+                (
+                 now - disc->ts < 4 * SECONDS
+                 && disc->cpr_lat == cpr_lat
+                 && disc->cpr_lon == cpr_lon
+                )
+                ||
+                (
+                 now - disc->ts < 300
+                 && disc->receiverId == receiverId
+                )
+           ) {
+            inCache += 1;
+        }
+    }
+    if (inCache > 0) {
+        return 1;
+    } else {
+        return 0;
+    }
 }
 
 // return true if it's OK for the aircraft to have travelled from its last known position
@@ -282,9 +361,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     int64_t elapsed = trackDataAge(now, &a->position_valid);
     int receiverRangeExceeded = 0;
 
-    if (duplicate_check(now, a, lat, lon)) {
+    if (duplicate_check(now, a, lat, lon, mm)) {
         // don't use duplicate positions
-        mm->duplicate = 1;
         mm->pos_ignore = 1;
         // but count it as a received position towards receiver heuristics
         if (!Modes.userLocationValid) {
@@ -305,27 +383,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                );
     }
 
-    if (mm->cpr_valid) {
-        struct discarded *disc;
-        for (int i = 0; i < DISCARD_CACHE; i++) {
-            disc = &a->disc_cache[i];
-            // don't decrement pos_reliable if we already got the same bad position within the last second
-            // rate limit reliable decrement per receiver
-            if (
-                    (
-                     now - disc->ts < 4 * SECONDS
-                     && disc->cpr_lat == mm->cpr_lat
-                     && disc->cpr_lon == mm->cpr_lon
-                    )
-                    ||
-                    (
-                     (now - disc->ts < 0.3 * SECONDS || now < disc->ts)
-                     && disc->receiverId == mm->receiverId
-                    )
-               ) {
-                mm->in_disc_cache = 1;
-            }
-        }
+    if (mm->cpr_valid && inDiscCache(now, a, mm)) {
+        mm->in_disc_cache = 1;
     }
 
     float distance = -1;
@@ -482,12 +541,12 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     // when only a short time has elapsed
     // when the receiverId differs
     // this mostly happens due to static range allowed
-    if (!surface && track_diff > 135 && elapsed < 2 * SECONDS && trackDataAge(now, &a->track_valid) < 2 * SECONDS && a->receiverId != mm->receiverId) {
+    if (!surface && a->gs > 10 && track_diff > 135 && elapsed < 2 * SECONDS && trackDataAge(now, &a->track_valid) < 2 * SECONDS && a->receiverId != mm->receiverId) {
         inrange = 0;
     }
 
     float backInTimeSeconds = 0;
-    if (a->gs > 10 && track_diff > 135 && trackDataAge(now, &a->gs_valid) < 10 * SECONDS) {
+    if (!inrange && a->gs > 10 && track_diff > 135 && trackDataAge(now, &a->gs_valid) < 10 * SECONDS) {
         backInTimeSeconds = distance / (a->gs * (1852.0f / 3600.0f));
     }
 
@@ -841,9 +900,8 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
         mm->duplicate = 1;
         mm->pos_ignore = 1;
     }
-    if (duplicate_check(now, a, mm->decoded_lat, mm->decoded_lon)) {
+    if (duplicate_check(now, a, mm->decoded_lat, mm->decoded_lon, mm)) {
         // don't use duplicate positions
-        mm->duplicate = 1;
         mm->pos_ignore = 1;
     }
 
@@ -3285,7 +3343,7 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
     int64_t now = mm->sysTimestampMsg;
 
     if (mm->cpr_valid) {
-        struct discarded *disc;
+        struct cpr_cache *disc;
         a->disc_cache_index = (a->disc_cache_index + 1) % DISCARD_CACHE;
 
         // most recent discarded position which led to decrementing reliability and timestamp (speed_check)
