@@ -456,7 +456,7 @@ static int first_index_ge_timestamp(traceBuffer tb, int64_t timestamp) {
     return tb.len;
 }
 
-void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuffers_t *buffer_group) {
+void traceWrite(struct aircraft *a, int init, threadpool_threadbuffers_t *buffer_group) {
     struct char_buffer recent;
     struct char_buffer full;
     struct char_buffer hist;
@@ -479,6 +479,8 @@ void traceWrite(struct aircraft *a, int64_t now, int init, threadpool_threadbuff
     if (a->trace_len == 0) {
         return;
     }
+
+    int64_t now = mstime();
 
     int recent_points = Modes.traceRecentPoints;
     if (a->trace_writeCounter >= recent_points - 2) {

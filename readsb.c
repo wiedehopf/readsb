@@ -282,9 +282,14 @@ int64_t ms_until_priority() {
             Modes.next_remove_stale - mono
             );
 
-    if (Modes.replace_state_inhibit_traces_until && ms_until_run > 100) {
-        ms_until_run = 80;
+    if (Modes.replace_state_inhibit_traces_until) {
+        if (mono > Modes.replace_state_inhibit_traces_until) {
+            Modes.replace_state_inhibit_traces_until = 0;
+        } else if (ms_until_run > 100) {
+            ms_until_run = 80;
+        }
     }
+
     if (ms_until_run > 0 && Modes.replace_state_blob) {
         ms_until_run = 0;
     }
@@ -798,8 +803,6 @@ static void traceWriteTask(void *arg, threadpool_threadbuffers_t *buffer_group) 
         return;
     }
 
-    int64_t now = mstime();
-
     struct aircraft *a;
     // increment info->from to mark this part of the task as finshed
     for (int j = info->from; j < info->to; j++, info->from++) {
@@ -809,7 +812,7 @@ static void traceWriteTask(void *arg, threadpool_threadbuffers_t *buffer_group) 
                 if (before > Modes.traceWriteTimelimit) {
                     return;
                 }
-                traceWrite(a, now, 0, buffer_group);
+                traceWrite(a, 0, buffer_group);
                 int64_t elapsed = mono_milli_seconds() - before;
                 if (elapsed > 4 * SECONDS) {
                     fprintf(stderr, "<3>traceWrite() for %06x took %.1f s!\n", a->addr, elapsed / 1000.0);
@@ -832,11 +835,12 @@ static void writeTraces(int64_t mono) {
     static int lastRunFinished;
     static int part;
     static int64_t lastCompletion;
+    static int64_t nextResetCycleDuration;
 
     if (!Modes.tracePool) {
         Modes.tracePoolSize = imax(1, Modes.num_procs - 2);
         Modes.tracePool = threadpool_create(Modes.tracePoolSize, 4);
-        Modes.traceTasks = allocate_task_group(6 * Modes.tracePoolSize);
+        Modes.traceTasks = allocate_task_group(8 * Modes.tracePoolSize);
         lastRunFinished = 1;
         lastCompletion = mono;
 
@@ -891,13 +895,17 @@ static void writeTraces(int64_t mono) {
             int64_t elapsed = mono - lastCompletion;
 
             if (elapsed > Modes.writeTracesActualDuration) {
+                nextResetCycleDuration = mono + 60 * SECONDS;
                 Modes.writeTracesActualDuration = elapsed;
             }
 
             if (++part >= n_parts) {
                 part = 0;
 
-                Modes.writeTracesActualDuration = elapsed;
+                if (mono > nextResetCycleDuration) {
+                    nextResetCycleDuration = mono + 60 * SECONDS;
+                    Modes.writeTracesActualDuration = elapsed;
+                }
 
                 if (elapsed > 30 * SECONDS && mstime() - Modes.startup_time > 10 * MINUTES) {
                     fprintf(stderr, "trace writing iteration took %.1f seconds (roughly %.1f minutes), live traces will lag behind (historic traces are fine), "
@@ -956,19 +964,15 @@ static void *upkeepEntryPoint(void *arg) {
 
     while (!Modes.exit) {
 
-        checkReplaceState();
         priorityTasksRun();
 
-        int64_t mono = mono_milli_seconds();
-        if (Modes.replace_state_inhibit_traces_until && mono > Modes.replace_state_inhibit_traces_until) {
-            Modes.replace_state_inhibit_traces_until = 0;
-        }
         if (Modes.json_globe_index) {
             // writing a trace takes some time, to increase timing precision the priority tasks, allot a little less time than available
             // this isn't critical though
             int64_t time_alloted = ms_until_priority();
-            if (time_alloted > 0) {
+            if (time_alloted > 50) {
 
+                int64_t mono = mono_milli_seconds();
                 Modes.traceWriteTimelimit = mono + time_alloted;
 
                 struct timespec watch;
@@ -985,9 +989,11 @@ static void *upkeepEntryPoint(void *arg) {
             }
         }
 
+        checkReplaceState();
+
         int64_t wait = ms_until_priority();
 
-        if (1) {
+        if (0) {
             fprintf(stderr, "upkeep wait: %ld ms\n", (long) wait);
         }
 
@@ -1924,9 +1930,6 @@ static void loadReplaceState() {
     sfree(pbuffer.buf);
     free(Modes.replace_state_blob);
     Modes.replace_state_blob = NULL;
-
-    int64_t mono = mono_milli_seconds();
-    Modes.replace_state_inhibit_traces_until = mono + 10 * SECONDS;
 }
 
 static void checkReplaceState() {
@@ -1946,6 +1949,8 @@ static void checkReplaceState() {
             if (access(blob, R_OK) == 0) {
                 snprintf(blob, 1024, "%s/blob_%02x", filename, j);
                 Modes.replace_state_blob = strdup(blob);
+                int64_t mono = mono_milli_seconds();
+                Modes.replace_state_inhibit_traces_until = mono + 10 * SECONDS;
                 break;
             }
         }
