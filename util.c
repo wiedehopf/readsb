@@ -839,3 +839,11 @@ void setLowestPriorityPthread() {
     fprintf(stderr, "priority after: %d\n", (int) param.sched_priority);
 }
 
+void setPriorityPthread() {
+    int policy = SCHED_FIFO;
+    struct sched_param param = { 0 };
+
+    param.sched_priority = sched_get_priority_min(policy);
+
+    pthread_setschedparam(pthread_self(), policy, &param);
+}

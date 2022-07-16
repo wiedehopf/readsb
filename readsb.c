@@ -637,6 +637,11 @@ static void *globeBinEntryPoint(void *arg) {
 }
 
 static void *decodeEntryPoint(void *arg) {
+    // only go higher priority if we have multiple processors
+    if (Modes.num_procs > 1 && Modes.num_procs > Modes.decodeThreads) {
+        setPriorityPthread();
+    }
+
     MODES_NOTUSED(arg);
     srandom(get_seed());
 
@@ -830,16 +835,20 @@ static void writeTraces(int64_t mono) {
         Modes.traceTasks = allocate_task_group(6 * Modes.tracePoolSize);
         lastRunFinished = 1;
         lastCompletion = mono;
-        // set low priority for this trace pool
-        int taskCount = Modes.tracePoolSize;
-        threadpool_task_t *tasks = Modes.traceTasks->tasks;
-        for (int i = 0; i < taskCount; i++) {
-            threadpool_task_t *task = &tasks[i];
 
-            task->function = setLowPriorityTask;
-            task->argument = NULL;
+
+        // set low priority for this trace pool
+        if (0) {
+            int taskCount = Modes.tracePoolSize;
+            threadpool_task_t *tasks = Modes.traceTasks->tasks;
+            for (int i = 0; i < taskCount; i++) {
+                threadpool_task_t *task = &tasks[i];
+
+                task->function = setLowPriorityTask;
+                task->argument = NULL;
+            }
+            threadpool_run(Modes.tracePool, tasks, taskCount);
         }
-        threadpool_run(Modes.tracePool, tasks, taskCount);
     }
 
     int taskCount = Modes.traceTasks->task_count;
@@ -2027,8 +2036,10 @@ static void miscStuff(int64_t now) {
 static void *miscEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
 
-    // this is a low priority thread
-    setLowestPriorityPthread();
+    if (0) {
+        // this is a low priority thread
+        setLowestPriorityPthread();
+    }
 
     pthread_mutex_lock(&Threads.misc.mutex);
 
