@@ -626,8 +626,17 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
             if (a->dbFlags)
                 p = safe_snprintf(p, end, ",\"dbFlags\":%u", a->dbFlags);
 
-            if (Modes.jsonLongtype && a->typeLong[0])
-                p = safe_snprintf(p, end, ",\"desc\":\"%.*s\"", (int) sizeof(a->typeLong), a->typeLong);
+            if (Modes.jsonLongtype) {
+                dbEntry *e = dbGet(a->addr, Modes.dbIndex);
+                if (e) {
+                    if (e->typeLong[0])
+                        p = safe_snprintf(p, end, ",\"desc\":\"%.*s\"", (int) sizeof(e->typeLong), e->typeLong);
+                    if (e->ownOp[0])
+                        p = safe_snprintf(p, end, ",\n\"ownOp\":\"%.*s\"", (int) sizeof(e->ownOp), e->ownOp);
+                    if (e->year[0])
+                        p = safe_snprintf(p, end, ",\n\"year\":\"%.*s\"", (int) sizeof(e->year), e->year);
+                }
+            }
         }
 
         if (trackDataValid(&a->airground_valid) && a->airground == AG_GROUND) {
@@ -1613,14 +1622,13 @@ struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int sta
         if (a->typeCode[0]) {
             p = safe_snprintf(p, end, ",\n\"t\":\"%.*s\"", (int) sizeof(a->typeCode), a->typeCode);
         }
-        if (a->typeLong[0]) {
-            p = safe_snprintf(p, end, ",\n\"desc\":\"%.*s\"", (int) sizeof(a->typeLong), a->typeLong);
-        }
         if (a->typeCode[0] || a->registration[0] || a->dbFlags) {
             p = safe_snprintf(p, end, ",\n\"dbFlags\":%u", a->dbFlags);
         }
         dbEntry *e = dbGet(a->addr, Modes.dbIndex);
         if (e) {
+            if (e->typeLong[0])
+                p = safe_snprintf(p, end, ",\n\"desc\":\"%.*s\"", (int) sizeof(e->typeLong), e->typeLong);
             if (e->ownOp[0])
                 p = safe_snprintf(p, end, ",\n\"ownOp\":\"%.*s\"", (int) sizeof(e->ownOp), e->ownOp);
             if (e->year[0])

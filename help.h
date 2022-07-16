@@ -109,7 +109,7 @@ static struct argp_option optionsReadsb[] = {
     {"position-persistence", OptPositionPersistence,"<n>", 0, "Position persistence against outliers (default: 4), incremented by json-reliable minus 1", 1},
     {"jaero-timeout", OptJaeroTimeout,"<n>", 0, "How long in minutes JAERO positions remain valid and on the map in tar1090 (default:33)", 1},
     {"db-file", OptDbFile, "<file.csv.gz>", 0, "Default: \"none\" (as of writing a compatible file is available here: https://github.com/wiedehopf/tar1090-db/tree/csv)", 1},
-    {"db-file-lt", OptDbFileLongtype, 0, 0, "Write long type to aircraft.json as field desc", 1},
+    {"db-file-lt", OptDbFileLongtype, 0, 0, "aircraft.json: add long type as field desc, add field ownOp for the owner, add field year", 1},
     {0,0,0,0, "Network options:", 2},
     {"net-connector", OptNetConnector, "<ip,port,protocol>", 0, "Establish connection, can be specified multiple times (e.g. 127.0.0.1,23004,beast_out) Protocols: beast_out, beast_in, raw_out, raw_in, sbs_in, sbs_in_jaero, sbs_out, sbs_out_jaero, vrs_out, json_out, gpsd_in, uat_in (one failover ip/address,port can be specified: primary-address,primary-port,protocol,failover-address,failover-port)", 2},
     {"net", OptNet, 0, 0, "Enable networking", 2},
