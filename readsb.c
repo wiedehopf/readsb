@@ -825,7 +825,7 @@ static void writeTraces(int64_t mono) {
     static int64_t lastCompletion;
 
     if (!Modes.tracePool) {
-        Modes.tracePoolSize = imax(1, Modes.num_procs - 1);
+        Modes.tracePoolSize = imax(1, Modes.num_procs - 2);
         Modes.tracePool = threadpool_create(Modes.tracePoolSize, 4);
         Modes.traceTasks = allocate_task_group(6 * Modes.tracePoolSize);
         lastRunFinished = 1;
