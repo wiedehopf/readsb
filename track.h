@@ -286,7 +286,7 @@ struct traceCacheEntry {
 
 struct traceCache {
     int32_t entriesLen;
-    int json_max;
+    int32_t json_max;
     int64_t referenceTs;
     struct traceCacheEntry *entries;
     char *json;

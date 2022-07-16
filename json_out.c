@@ -1444,9 +1444,14 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
         if (now - a->seenPosReliable > TRACE_CACHE_LIFETIME / 2 || tb.len == 0) {
             return;
         }
+
+        // reset cache for good measure
+        memset(cache, 0x0, sizeof(struct traceCache));
+
         ssize_t size_entries = Modes.traceCachePoints * sizeof(struct traceCacheEntry);
         cache->json_max = Modes.traceCachePoints * 17 * 16; // 272 per entry
 
+        // allocate memory
         cache->entries = cmalloc(size_entries);
         cache->json = cmalloc(cache->json_max);
 

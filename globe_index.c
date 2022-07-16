@@ -809,8 +809,9 @@ static int load_aircraft(char **p, char *end, int64_t now) {
 
     struct aircraft *a = aircraftGet(source->addr);
     if (a) {
-        if (oldSize != newSize) {
+        if (0 && oldSize != newSize) {
             fprintf(stderr, "%06x size mismatch when replacing aircraft data, aborting!\n", source->addr);
+            return -1;
         }
         //fprintf(stderr, "%06x aircraft already exists, overwriting old data\n", source->addr);
         //freeAircraft(a);
