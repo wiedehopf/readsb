@@ -2992,43 +2992,11 @@ void checkNewDayAcas(int64_t now) {
     }
 }
 
-void writeInternalState() {
-    struct timespec watch;
+static void writeInternalMiscTask(void *arg, threadpool_threadbuffers_t * buffers) {
+    MODES_NOTUSED(arg);
+    MODES_NOTUSED(buffers);
 
-    if (Modes.state_dir) {
-        fprintf(stderr, "saving state .....\n");
-        startWatch(&watch);
-    }
-
-    int64_t now = mstime();
-
-    threadpool_t *pool = threadpool_create(imax(1, Modes.num_procs), 4);
-    task_group_t *group = allocate_task_group(STATE_BLOBS + 1);
-    threadpool_task_t *tasks = group->tasks;
-    task_info_t *infos = group->infos;
-
-    int parts = group->task_count - 1;
-    int stride = STATE_BLOBS / parts + 1;
-
-    // assign tasks
-    for (int i = 0; i < parts; i++) {
-        threadpool_task_t *task = &tasks[i];
-        task_info_t *range = &infos[i];
-
-        range->now = now;
-        range->from = i * stride;
-        range->to = imin(STATE_BLOBS, range->from + stride);
-
-        task->function = save_blobs;
-        task->argument = range;
-    }
-    // run tasks
-    threadpool_run(pool, tasks, parts);
-
-    threadpool_destroy(pool);
-    destroy_task_group(group);
-
-    if (Modes.outline_json) {
+    if (Modes.state_dir && Modes.outline_json) {
         char pathbuf[PATH_MAX];
         snprintf(pathbuf, PATH_MAX, "%s/rangeDirs.gz", Modes.state_dir);
         gzFile gzfp = gzopen(pathbuf, "wb");
@@ -3038,19 +3006,14 @@ void writeInternalState() {
             gzclose(gzfp);
         }
     }
-
-    if (Modes.state_dir) {
-        double elapsed = stopWatch(&watch) / 1000.0;
-        fprintf(stderr, " .......... done, saved %llu aircraft in %.3f seconds!\n", (unsigned long long) Modes.total_aircraft_count, elapsed);
-    }
 }
 
 static void readInternalMiscTask(void *arg, threadpool_threadbuffers_t * buffers) {
     MODES_NOTUSED(arg);
     MODES_NOTUSED(buffers);
-    char pathbuf[PATH_MAX];
 
-    if (Modes.outline_json) {
+    if (Modes.state_dir && Modes.outline_json) {
+        char pathbuf[PATH_MAX];
         struct char_buffer cb;
         snprintf(pathbuf, PATH_MAX, "%s/rangeDirs.gz", Modes.state_dir);
         gzFile gzfp = gzopen(pathbuf, "r");
@@ -3069,6 +3032,63 @@ static void readInternalMiscTask(void *arg, threadpool_threadbuffers_t * buffers
         }
     }
 }
+
+void writeInternalState() {
+    struct timespec watch;
+
+    if (Modes.state_dir) {
+        fprintf(stderr, "saving state .....\n");
+        startWatch(&watch);
+    }
+
+    int64_t now = mstime();
+
+    int parts = STATE_BLOBS;
+    int stride = 1;
+
+    threadpool_t *pool = threadpool_create(imax(1, Modes.num_procs), 4);
+    task_group_t *group = allocate_task_group(parts + 1);
+    threadpool_task_t *tasks = group->tasks;
+    task_info_t *infos = group->infos;
+
+    // assign tasks
+    int taskCount = 0;
+    {
+        threadpool_task_t *task = &tasks[taskCount];
+        task->function = writeInternalMiscTask;
+        task->argument = NULL;
+        taskCount++;
+    }
+
+    for (int i = 0; i < parts; i++) {
+        threadpool_task_t *task = &tasks[taskCount];
+        task_info_t *range = &infos[taskCount];
+
+        range->now = now;
+        range->from = i * stride;
+        range->to = imin(STATE_BLOBS, range->from + stride);
+
+        //fprintf(stderr, "from %d to %d\n", range->from, range->to);
+
+        task->function = save_blobs;
+        task->argument = range;
+
+        taskCount++;
+    }
+
+    // run tasks
+    threadpool_run(pool, tasks, taskCount);
+
+    threadpool_destroy(pool);
+    destroy_task_group(group);
+
+
+    if (Modes.state_dir) {
+        double elapsed = stopWatch(&watch) / 1000.0;
+        fprintf(stderr, " .......... done, saved %llu aircraft in %.3f seconds!\n", (unsigned long long) Modes.total_aircraft_count, elapsed);
+    }
+}
+
 
 void readInternalState() {
     int retval = mkdir(Modes.state_dir, 0755);
@@ -3090,8 +3110,11 @@ void readInternalState() {
 
     int64_t now = mstime();
 
+    int parts = STATE_BLOBS;
+    int stride = 1;
+
     threadpool_t *pool = threadpool_create(imax(1, Modes.num_procs), 4);
-    task_group_t *group = allocate_task_group(STATE_BLOBS + 1);
+    task_group_t *group = allocate_task_group(parts + 1);
     threadpool_task_t *tasks = group->tasks;
     task_info_t *infos = group->infos;
 
@@ -3104,24 +3127,22 @@ void readInternalState() {
         taskCount++;
     }
 
-    int parts = group->task_count - 1;
-    int stride = STATE_BLOBS / parts + 1;
-
     for (int i = 0; i < parts; i++) {
         threadpool_task_t *task = &tasks[taskCount];
         task_info_t *range = &infos[taskCount];
 
-        //fprintf(stderr, "%d\n", i);
-
         range->now = now;
         range->from = i * stride;
         range->to = imin(STATE_BLOBS, range->from + stride);
+
+        //fprintf(stderr, "from %d to %d\n", range->from, range->to);
 
         task->function = load_blobs;
         task->argument = range;
 
         taskCount++;
     }
+
     // run tasks
     threadpool_run(pool, tasks, taskCount);
 
