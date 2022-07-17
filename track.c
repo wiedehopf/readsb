@@ -256,47 +256,50 @@ static void update_range_histogram(struct aircraft *a, int64_t now) {
     ++Modes.stats_current.range_histogram[bucket];
 }
 
+static int cpr_duplicate_check(int64_t now, struct aircraft *a, struct modesMessage *mm) {
+
+    struct cpr_cache *cpr;
+    uint32_t inCache = 0;
+    uint32_t cpr_lat = mm->cpr_lat;
+    uint32_t cpr_lon = mm->cpr_lon;
+    uint64_t receiverId = mm->receiverId;
+    for (int i = 0; i < CPR_CACHE; i++) {
+        cpr = &a->cpr_cache[i];
+        if (
+                (
+                 now - cpr->ts < 2 * SECONDS
+                 && cpr->cpr_lat == cpr_lat
+                 && cpr->cpr_lon == cpr_lon
+                 && cpr->receiverId != receiverId
+                )
+           ) {
+            inCache += 1;
+        }
+    }
+    if (inCache > 0) {
+        mm->duplicate = 1;
+        return 1;
+    } else {
+        // CPR not yet known to cpr cache
+
+        a->cpr_cache_index = (a->cpr_cache_index + 1) % CPR_CACHE;
+
+        cpr = &a->cpr_cache[a->cpr_cache_index];
+        cpr->ts = now;
+        cpr->cpr_lat = cpr_lat;
+        cpr->cpr_lon = cpr_lon;
+        cpr->receiverId = receiverId;
+
+        return 0;
+    }
+}
+
 static int duplicate_check(int64_t now, struct aircraft *a, double new_lat, double new_lon, struct modesMessage *mm) {
-    if (mm->duplicate_checked) {
+    if (mm->duplicate_checked || mm->duplicate) {
         // already checked
         return mm->duplicate;
     }
     mm->duplicate_checked = 1;
-
-    if (mm->cpr_valid) {
-        struct cpr_cache *cpr;
-        uint32_t inCache = 0;
-        uint32_t cpr_lat = mm->cpr_lat;
-        uint32_t cpr_lon = mm->cpr_lon;
-        uint64_t receiverId = mm->receiverId;
-        for (int i = 0; i < CPR_CACHE; i++) {
-            cpr = &a->cpr_cache[i];
-            if (
-                    (
-                     now - cpr->ts < 2 * SECONDS
-                     && cpr->cpr_lat == cpr_lat
-                     && cpr->cpr_lon == cpr_lon
-                     && cpr->receiverId != receiverId
-                    )
-               ) {
-                inCache += 1;
-            }
-        }
-        if (inCache > 0) {
-            mm->duplicate = 1;
-            return 1;
-        } else {
-            // CPR not yet known to cpr cache
-
-            a->cpr_cache_index = (a->cpr_cache_index + 1) % CPR_CACHE;
-
-            cpr = &a->cpr_cache[a->cpr_cache_index];
-            cpr->ts = now;
-            cpr->cpr_lat = cpr_lat;
-            cpr->cpr_lon = cpr_lon;
-            cpr->receiverId = receiverId;
-        }
-    }
 
     // if the last position is older than 2 seconds we don't consider it a duplicate
     if (now > a->seen_pos + 2 * SECONDS) {
@@ -722,7 +725,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
     }
 
     if (result < 0) {
-        if (a->addr == Modes.cpr_focus || Modes.debug_cpr) {
+        if (!mm->duplicate && (a->addr == Modes.cpr_focus || Modes.debug_cpr)) {
             fprintf(stderr, "CPR: decode failure for %06x (%d): even: %d %d   odd: %d %d  fflag: %s\n",
                     a->addr, result,
                     a->cpr_even_lat, a->cpr_even_lon,
@@ -1182,7 +1185,7 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, int64_t 
             incrementReliable(a, mm, now, mm->cpr_odd);
 
         setPosition(a, mm, now);
-    } else if (location_result == -1 && a->addr == Modes.cpr_focus) {
+    } else if (location_result == -1 && a->addr == Modes.cpr_focus && !mm->duplicate) {
         fprintf(stderr, "%5.1fs %d: mm->cpr: (%d) (%d) %s %s, %s age: %0.1f sources o: %s %s e: %s %s lpos src: %s \n",
                 (now % (600 * SECONDS)) / 1000.0,
                 location_result,
@@ -2037,6 +2040,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         cpr_new = 1;
         if (0 && a->addr == Modes.cpr_focus)
             fprintf(stderr, "O \n");
+    }
+
+    if (mm->cpr_valid) {
+        cpr_duplicate_check(now, a, mm);
     }
 
 
