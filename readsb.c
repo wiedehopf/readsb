@@ -263,6 +263,7 @@ static void modesInit(void) {
 
 static void lockThreads() {
     for (int i = 0; i < Modes.lockThreadsCount; i++) {
+        //fprintf(stderr, "locking %s\n", Modes.lockThreads[i]->name);
         Modes.currentTask = Modes.lockThreads[i]->name;
         pthread_mutex_lock(&Modes.lockThreads[i]->mutex);
     }
@@ -270,6 +271,7 @@ static void lockThreads() {
 
 static void unlockThreads() {
     for (int i = Modes.lockThreadsCount - 1; i >= 0; i--) {
+        //fprintf(stderr, "unlocking %s\n", Modes.lockThreads[i]->name);
         pthread_mutex_unlock(&Modes.lockThreads[i]->mutex);
     }
 }

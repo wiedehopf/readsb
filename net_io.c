@@ -3368,9 +3368,11 @@ static void modesReadFromClient(struct client *c, struct messageBuffer *mb) {
     if (!c->bufferToProcess) {
         c->bContinue = 1;
     }
-    while (c->bContinue) {
+    for (int k = 0; c->bContinue; k++) {
         int64_t now = mstime();
-        if (now > Modes.network_time_limit) {
+
+        // guarantee at least one read before obeying the network time limit
+        if (k > 0 && now > Modes.network_time_limit) {
             return;
         }
 
@@ -3607,7 +3609,7 @@ void modesNetPeriodicWork(void) {
     int64_t interval = lapWatch(&watch);
 
     int64_t now = mstime();
-    Modes.network_time_limit = now + ms_until_priority();
+    Modes.network_time_limit = now + 100;
 
     if (Modes.decodeThreads == 1) {
         struct messageBuffer *buf = &Modes.netMessageBuffer[0];
