@@ -1776,17 +1776,7 @@ struct char_buffer apiGenerateGlobeJson(int globe_index, threadpool_buffer_t *pb
 
     struct apiBuffer *buffer = &Modes.apiBuffer[flip];
 
-
-    ssize_t alloc = 16 * 1024;
-    // only used to estimate allocation size
-    struct craftArray *ca = &Modes.globeLists[globe_index];
-    if (!ca) {
-        return cb;
-    }
-
-    ca_lock_read(ca);
-    alloc += ca->len * 1200;
-    ca_unlock_read(ca);
+    ssize_t alloc = 16 * 1024 + buffer->jsonLen;
 
     char *buf = check_grow_threadpool_buffer_t(pbuffer, alloc);
     char *p = buf;
