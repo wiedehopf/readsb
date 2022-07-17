@@ -83,36 +83,29 @@ static uint16_t simpleHash(uint64_t receiverId) {
 
 static int accept_data(data_validity *d, datasource_t source, struct modesMessage *mm, struct aircraft *a, int reduce_often) {
     int64_t now = mm->sysTimestampMsg;
-
-    if (source == SOURCE_INVALID)
+    if (source == SOURCE_INVALID) {
         return 0;
+    }
 
-    if (now < d->updated)
+    if (now < d->updated) {
         return 0;
+    }
 
-    if (source < d->source && now < d->updated + TRACK_STALE)
+    if (source < d->source && now < d->updated + TRACK_STALE) {
         return 0;
+    }
 
     // this is a position and will be wholly reverted if it's not accepted
-    int is_pos = (mm->sbs_pos_valid || mm->cpr_valid || d == &a->pos_reliable_valid || d == &a->position_valid || d == &a->cpr_odd_valid || d == &a->cpr_even_valid || d == &a->mlat_pos_valid);
+    //int is_pos = (mm->sbs_pos_valid || mm->cpr_valid || d == &a->pos_reliable_valid || d == &a->position_valid || d == &a->cpr_odd_valid || d == &a->cpr_even_valid || d == &a->mlat_pos_valid);
+    int is_pos = (mm->sbs_pos_valid || mm->cpr_valid);
 
     // if we have a jaero position, don't allow non-position data to have a lesser source
-    if (!is_pos && a->pos_reliable_valid.source == SOURCE_JAERO && source < SOURCE_JAERO)
+    if (!is_pos && a->pos_reliable_valid.source == SOURCE_JAERO && source < SOURCE_JAERO) {
         return 0;
+    }
 
     // prevent JAERO from disrupting other data sources too quickly
-    if (a->pos_reliable_valid.last_source != SOURCE_JAERO && source == SOURCE_JAERO && now < d->updated + 7 * MINUTES)
-        return 0;
-
-
-    // don't allow crappy SBS / MLAT data to add non position details (track from SBS mostly) as long as we have a valid ADS-B or similar position
-    // but allow the position to be overriden normally
-    if (
-            (source == SOURCE_MLAT || source == SOURCE_SBS)
-            && a->pos_reliable_valid.source >= SOURCE_TISB
-            && now - a->seenPosReliable < TRACK_EXPIRE
-            && d != &a->position_valid
-       ) {
+    if (source == SOURCE_JAERO && a->pos_reliable_valid.last_source != SOURCE_JAERO && now < d->updated + 7 * MINUTES) {
         return 0;
     }
 
@@ -122,9 +115,9 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
 
     if (Modes.netReceiverId && !is_pos && a->pos_reliable_valid.source >= SOURCE_TISB && now - d->updated < 5 * SECONDS && now - a->seenPosReliable < 2200 * MS) {
         uint16_t hash = simpleHash(mm->receiverId);
-        int found = 0;
+        uint32_t found = 0;
         for (int i = 0; i < RECEIVERIDBUFFER; i++) {
-            found |= (a->receiverIds[i] == hash);
+            found += (a->receiverIds[i] == hash);
         }
         if (!found) {
             return 0;
@@ -138,18 +131,19 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
 
 
     d->source = source;
-    if (unlikely(source == SOURCE_PRIO))
+    if (unlikely(source == SOURCE_PRIO)) {
         d->source = SOURCE_ADSB;
+    }
 
     d->last_source = d->source;
 
     d->updated = now;
     d->stale = 0;
 
-    int64_t reduceInterval = Modes.net_output_beast_reduce_interval;
-    reduceInterval *= (1 + (Modes.doubleBeastReduceIntervalUntil > now));
-
     if (now > d->next_reduce_forward) {
+        int64_t reduceInterval = Modes.net_output_beast_reduce_interval;
+        reduceInterval *= (1 + (Modes.doubleBeastReduceIntervalUntil > now));
+
         d->next_reduce_forward = now + reduceInterval * 4;
         if (reduce_often == 1)
             d->next_reduce_forward = now + reduceInterval;
