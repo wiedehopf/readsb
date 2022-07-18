@@ -3,7 +3,7 @@
 #define STATE_SAVE_MAGIC_END (STATE_SAVE_MAGIC + 1)
 #define LZO_MAGIC (0xf7413cc6eaf227dbULL)
 
-static void mark_legs(traceBuffer tb, struct aircraft *a, int start);
+static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent);
 static void traceCleanupNoUnlink(struct aircraft *a);
 static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t after_timestamp, threadpool_buffer_t *buffer);
 static void resizeTraceCurrent(struct aircraft *a, int64_t now, int overridePoints);
@@ -456,7 +456,7 @@ static int first_index_ge_timestamp(traceBuffer tb, int64_t timestamp) {
     return tb.len;
 }
 
-void traceWrite(struct aircraft *a, int init, threadpool_threadbuffers_t *buffer_group) {
+void traceWrite(struct aircraft *a, threadpool_threadbuffers_t *buffer_group) {
     struct char_buffer recent;
     struct char_buffer full;
     struct char_buffer hist;
@@ -488,6 +488,8 @@ void traceWrite(struct aircraft *a, int init, threadpool_threadbuffers_t *buffer
         trace_write |= WRECENT;
     }
 
+    int focus = (a->addr == Modes.leg_focus);
+
     if (Modes.trace_hist_only) {
         int hist_only_mask = WPERM | WMEM | WRECENT;
 
@@ -496,6 +498,7 @@ void traceWrite(struct aircraft *a, int init, threadpool_threadbuffers_t *buffer
             if (Modes.trace_hist_only == 10) {
                 if (a->trace_writeCounter > 0 && now > a->trace_next_mw) {
                     a->trace_next_mw = now + 5 * MINUTES;
+                    trace_write |= WRECENT;
                     hist_only_mask |= WRECENT;
                     a->trace_writeCounter = 0;
                 }
@@ -551,10 +554,7 @@ void traceWrite(struct aircraft *a, int init, threadpool_threadbuffers_t *buffer
             start_recent = startFull;
         }
 
-        if (!init) {
-            mark_legs(tb, a, imax(0, tb.len - 4 * recent_points));
-        }
-
+        mark_legs(tb, a, imax(0, tb.len - 4 * recent_points), 1);
 
         // statistics
         atomic_fetch_add(&Modes.recentTraceWrites, 1);
@@ -588,7 +588,14 @@ void traceWrite(struct aircraft *a, int init, threadpool_threadbuffers_t *buffer
             if (a->addr == TRACE_FOCUS)
                 fprintf(stderr, "full\n");
 
-            mark_legs(tb, a, 0);
+            int64_t before = mono_milli_seconds();
+
+            mark_legs(tb, a, 0, 0);
+
+            int64_t elapsed = mono_milli_seconds() - before;
+            if (elapsed > 2 * SECONDS || focus) {
+                fprintf(stderr, "%06x mark_legs() took %.1f s!\n", a->addr, elapsed / 1000.0);
+            }
 
             // statistics
             atomic_fetch_add(&Modes.fullTraceWrites, 1);
@@ -669,11 +676,11 @@ void traceWrite(struct aircraft *a, int init, threadpool_threadbuffers_t *buffer
 
                 int64_t before = mono_milli_seconds();
 
-                mark_legs(tb, a, 0);
+                mark_legs(tb, a, 0, 0);
 
                 int64_t elapsed = mono_milli_seconds() - before;
-                if (elapsed > 2 * SECONDS) {
-                    fprintf(stderr, "<3>mark_legs() for %06x took %.1f s!\n", a->addr, elapsed / 1000.0);
+                if (elapsed > 2 * SECONDS || focus) {
+                    fprintf(stderr, "%06x mark_legs() took %.1f s!\n", a->addr, elapsed / 1000.0);
                 }
 
                 // statistics
@@ -804,7 +811,6 @@ static int load_aircraft(char **p, char *end, int64_t now) {
     if (end - *p < newSize / 2) {
         return -1;
     }
-
 
     ssize_t oldSize = *((uint64_t *) *p);
     *p += sizeof(uint64_t);
@@ -954,6 +960,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
         traceMaintenance(a, now);
 
         if (a->addr == Modes.leg_focus) {
+            a->trace_next_perm = now;
             scheduleMemBothWrite(a, now);
             fprintf(stderr, "leg_focus: %06x trace len: %d\n", a->addr, a->trace_len);
             a->trace_write = 1;
@@ -961,7 +968,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
 
         // schedule writing all the traces into run so they are present for the webinterface
         if (a->pos_reliable_valid.source != SOURCE_INVALID || (now - a->seen_pos) < 30 * MINUTES) {
-            scheduleMemBothWrite(a, now); // write traces for aircraft with valid positions as quickly as possible
+            scheduleMemBothWrite(a, now + 15 * SECONDS); // write traces for aircraft with valid positions as quickly as possible
             a->trace_write = 1;
         } else {
             scheduleMemBothWrite(a, now + 60 * SECONDS + (now - a->seen_pos) / (24 * 60) * 3); // condense 24h into 3 minutes
@@ -976,7 +983,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
     return 0;
 }
 
-static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
+static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent) {
     if (tb.len < 20)
         return;
     if (start < 0) {
@@ -986,6 +993,15 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
     int high = 0;
     int low = 100000;
 
+    struct timespec watch = { 0 };
+    int64_t elapsed1 = 0;
+    int64_t elapsed2 = 0;
+
+    int focus = (a->addr == Modes.leg_focus && !recent);
+
+    if (focus) {
+        startWatch(&watch);
+    }
 
     int last_five_init_alt = -1000;
     struct state *startState = getState(tb.trace, start);
@@ -1040,7 +1056,10 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
 
     int threshold = (int) (sum / (double) (count * 3));
 
-    if (a->addr == Modes.leg_focus) {
+
+    if (focus) {
+        elapsed1 = lapWatch(&watch);
+
         fprintf(stderr, "--------------------------\n");
         fprintf(stderr, "start: %d\n", start);
         fprintf(stderr, "trace_len: %d\n", tb.len);
@@ -1136,7 +1155,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
 
         if (altitude >= high) {
             high = altitude;
-            if (0 && a->addr == Modes.leg_focus) {
+            if (0 && focus) {
                 time_t nowish = state->timestamp/1000;
                 struct tm utc;
                 gmtime_r(&nowish, &utc);
@@ -1165,7 +1184,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
         }
         if (abs(high - altitude) < threshold * 1 / 3) {
             last_high = state->timestamp;
-            if (0 && a->addr == Modes.leg_focus) {
+            if (0 && focus) {
                 time_t nowish = state->timestamp/1000;
                 struct tm utc;
                 gmtime_r(&nowish, &utc);
@@ -1185,7 +1204,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
                     major_climb = getState(tb.trace, bla)->timestamp;
                     major_climb_index = bla;
                 }
-                if (a->addr == Modes.leg_focus) {
+                if (focus) {
                     time_t nowish = major_climb/1000;
                     struct tm utc;
                     gmtime_r(&nowish, &utc);
@@ -1197,7 +1216,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
             } else if (last_high < last_low) {
                 int bla = imax(0, last_low_index - 3);
                 while(bla > 0) {
-                    if (0 && a->addr == Modes.leg_focus) {
+                    if (0 && focus) {
                         fprintf(stderr, "bla: %d %d %d %d\n", bla, (int) (getState(tb.trace, bla)->baro_alt / _alt_factor),
                                 getState(tb.trace, bla)->baro_alt_valid,
                                 getState(tb.trace, bla)->on_ground
@@ -1212,7 +1231,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
                     fprintf(stderr, "wat asdf bla? %d\n", bla);
                 major_descent = getState(tb.trace, bla)->timestamp;
                 major_descent_index = bla;
-                if (a->addr == Modes.leg_focus) {
+                if (focus) {
                     time_t nowish = major_descent/1000;
                     struct tm utc;
                     gmtime_r(&nowish, &utc);
@@ -1228,8 +1247,9 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
                 (major_descent && (on_ground || was_ground) && state->timestamp > last_airborne + 45 * 60 * 1000)
            )
         {
-            if (a->addr == Modes.leg_focus)
+            if (focus) {
                 fprintf(stderr, "ground leg (on ground and time between reception > 25 min)\n");
+            }
             leg_now = 1;
         }
 
@@ -1244,7 +1264,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
                     );
             if (distance < 10E3 * (elapsed / (30 * 60 * 1000.0)) && distance > 1) {
                 leg_now = 1;
-                if (a->addr == Modes.leg_focus) {
+                if (focus) {
                     fprintf(stderr, "time/distance leg, elapsed: %0.fmin, distance: %0.f\n", elapsed / (60 * 1000.0), distance / 1000.0);
                 }
             }
@@ -1257,8 +1277,9 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
                 if (st->timestamp > getState(tb.trace, i - 1)->timestamp + 5 * MINUTES
                         && (st->on_ground || !st->baro_alt_valid || (st->baro_alt_valid && st->baro_alt / _alt_factor < max_leg_alt))) {
                     leg_float = 1;
-                    if (a->addr == Modes.leg_focus)
+                    if (focus) {
                         fprintf(stderr, "float leg: 8 minutes between descent / climb, 5 minute reception gap in between somewhere\n");
+                    }
                 }
             }
         }
@@ -1268,8 +1289,9 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
                 && last_ground > first_ground + 1 * MINUTES
            ) {
             leg_float = 1;
-            if (a->addr == Modes.leg_focus)
+            if (focus) {
                 fprintf(stderr, "float leg: 1 minutes between descent / climb, 1 minute on ground\n");
+            }
         }
 
 
@@ -1336,7 +1358,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
             low += threshold;
             high -= threshold;
 
-            if (a->addr == Modes.leg_focus) {
+            if (focus) {
                 if (new_leg) {
                     time_t nowish = leg_ts/1000;
                     struct tm utc;
@@ -1356,6 +1378,10 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start) {
         }
 
         was_ground = on_ground;
+    }
+    if (focus) {
+        elapsed2 = lapWatch(&watch);
+        fprintf(stderr, "%06x mark_legs loop1: %.3f loop2: %.3f\n", a->addr, elapsed1 / 1000.0, elapsed2 / 1000.0);
     }
 }
 

@@ -814,7 +814,7 @@ static void traceWriteTask(void *arg, threadpool_threadbuffers_t *buffer_group) 
                 if (before > Modes.traceWriteTimelimit) {
                     return;
                 }
-                traceWrite(a, 0, buffer_group);
+                traceWrite(a, buffer_group);
                 int64_t elapsed = mono_milli_seconds() - before;
                 if (elapsed > 4 * SECONDS) {
                     fprintf(stderr, "<3>traceWrite() for %06x took %.1f s!\n", a->addr, elapsed / 1000.0);
@@ -2139,6 +2139,10 @@ int main(int argc, char **argv) {
         //fprintf(stderr, "%zu\n", sizeof(struct state_flags));
         fprintf(stderr, "modesMessage: %zu\n", sizeof(struct modesMessage));
         fprintf(stderr, "stateChunk: %zu\n", sizeof(stateChunk));
+
+        //struct aircraft dummy;
+        //fprintf(stderr, "dbFlags offset %zu\n", (char*) &dummy.dbFlags - (char*) &dummy);
+
         exit(0);
     }
 

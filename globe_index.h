@@ -47,7 +47,7 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
 void load_blob(char *blob, threadpool_buffer_t *passbuffer);
 void writeInternalState();
 void readInternalState();
-void traceWrite(struct aircraft *a, int init, threadpool_threadbuffers_t *buffer_group);
+void traceWrite(struct aircraft *a, threadpool_threadbuffers_t *buffer_group);
 void traceCleanup(struct aircraft *a);
 int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale);
 int traceUsePosBuffered();
