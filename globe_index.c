@@ -856,13 +856,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
         a->trace_perm_last_timestamp = 0;
     }
 
-    // make sure we set anything allocated to null pointers
-    a->trace_current = NULL;
-    a->trace_chunks = NULL;
-    a->trace_chunk_overall_bytes = 0;
-    memset(&a->traceCache, 0x0, sizeof(struct traceCache));
-
-    a->disc_cache_index = 0;
+    aircraftZeroTail(a);
 
     // just in case we have bogus values saved, make sure they time out
     if (a->seen_pos > now + 1 * MINUTES)
@@ -896,6 +890,14 @@ static int load_aircraft(char **p, char *end, int64_t now) {
     // make sure we don't think an extra position is still buffered in the trace memory
     a->tracePosBuffered = 0;
 
+
+    // set trace pointers to zero before loading the trace
+    a->trace_current = NULL;
+    a->trace_chunks = NULL;
+
+    // recalculate overall trace chunk size
+    a->trace_chunk_overall_bytes = 0;
+
     int discard_trace = 0;
 
     // check that the trace meta data make sense before loading it
@@ -915,7 +917,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
 #define checkSize(size) if (++checkNo && end - *p < (ssize_t) size) { fprintf(stderr, "loadAircraft: checkSize failed for hex %06x checkNo %d\n", a->addr, checkNo); traceCleanupNoUnlink(a); return -1; }
 
         if (a->trace_chunk_len > 0) {
-            a->trace_chunks = malloc(a->trace_chunk_len * sizeof(stateChunk));
+            a->trace_chunks = cmalloc(a->trace_chunk_len * sizeof(stateChunk));
         } else {
             a->trace_chunk_len = 0;
         }
@@ -925,7 +927,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
             *p += memcpySize(chunk, *p, sizeof(stateChunk));
 
             checkSize(chunk->compressed_size);
-            chunk->compressed = malloc(chunk->compressed_size);
+            chunk->compressed = cmalloc(chunk->compressed_size);
             a->trace_chunk_overall_bytes += chunk->compressed_size;
             *p += memcpySize(chunk->compressed, *p, chunk->compressed_size);
 
@@ -1528,10 +1530,9 @@ static stateChunk *resizeTraceChunks(struct aircraft *a, int newLen) {
     int newBytes = newLen * sizeof(stateChunk);
     int oldBytes = oldLen * sizeof(stateChunk);
 
-    stateChunk *new = malloc(newBytes);
+    stateChunk *new = cmalloc(newBytes);
     if (!new) {
-        fprintf(stderr, "malloc fail: yeiPho0va\n");
-        exit(1);
+        return NULL;
     }
 
     if (oldLen > newLen) {
@@ -1729,7 +1730,7 @@ static void compressChunk(stateChunk *target, fourState *source, int pointCount)
     int chunkBytes = stateBytes(pointCount);
     int lzo_out_alloc = chunkBytes + chunkBytes / 16 + 64 + 3; // from mini lzo example
     unsigned char lzo_work[LZO1X_1_MEM_COMPRESS];
-    unsigned char *lzo_out = malloc(lzo_out_alloc);
+    unsigned char *lzo_out = cmalloc(lzo_out_alloc);
     if (!lzo_out) { fprintf(stderr, "malloc fail: ieshee7G\n"); exit(1); }
 
     lzo_uint compressed_len = 0;
@@ -1741,7 +1742,7 @@ static void compressChunk(stateChunk *target, fourState *source, int pointCount)
 
     target->compressed_size = compressed_len;
 
-    target->compressed = malloc(target->compressed_size);
+    target->compressed = cmalloc(target->compressed_size);
     if (!target->compressed) { fprintf(stderr, "malloc fail: ieshee7G\n"); exit(1); }
 
     memcpy(target->compressed, lzo_out, target->compressed_size);
@@ -1769,7 +1770,8 @@ static void setTrace(struct aircraft *a, fourState *source, int len) {
 
         if (!new) {
             fprintf(stderr, "%06x setTrace error, resizeTraceChunks returned NULL, treat this as fatal and exit.\n", a->addr);
-            exit(1);
+            setExit(2);
+            break;
         }
 
         new->numStates = chunkSize;
@@ -1864,12 +1866,12 @@ static void resizeTraceCurrent(struct aircraft *a, int64_t now, int overridePoin
         newPoints = get_nominal_trace_current_points(a, now);
     }
     int newBytes = stateBytes(newPoints);
-    fourState *new = malloc(newBytes);
+    fourState *new = cmalloc(newBytes);
 
     if (!new) {
-        fprintf(stderr, "FATAL: malloc fail oceiFa7d\n");
-        exit(1);
+        return;
     }
+
     memset(new, 0x0, newBytes);
 
     if (a->trace_current) {
@@ -2450,6 +2452,7 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
             uint64_t size_aircraft = sizeof(struct aircraft);
             p += memcpySize(p, &size_aircraft, sizeof(size_aircraft));
 
+            aircraftZeroTail(copy);
             p += memcpySize(p, copy, sizeof(struct aircraft));
             if (copy->trace_len > 0) {
 
@@ -2782,20 +2785,20 @@ int handleHeatmap(int64_t now) {
         }
     }
 
+    sfree(passbuffer.buf);
+
+    struct heatEntry *buffer2 = cmalloc(alloc * sizeof(struct heatEntry));
+    ssize_t indexSize = num_slices * sizeof(struct heatEntry);
+    struct heatEntry *index = cmalloc(indexSize);
+
+    if (!buffer2 || !index) {
+        return 0;
+    }
+
     //////////// UNLOCK MISC
     pthread_mutex_unlock(&Threads.misc.mutex);
     //////////// UNLOCK MISC
 
-    sfree(passbuffer.buf);
-
-    struct heatEntry *buffer2 = malloc(alloc * sizeof(struct heatEntry));
-    if (!buffer2) {
-        fprintf(stderr, "<3> FATAL: handleHeatmap not enough memory, trying to allocate %lld bytes\n",
-                (long long) alloc * sizeof(struct heatEntry));
-        exit(1);
-    }
-    ssize_t indexSize = num_slices * sizeof(struct heatEntry);
-    struct heatEntry *index = malloc(indexSize);
     memset(index, 0, indexSize); // avoid having to set zero individually
 
     for (int i = 0; i < num_slices; i++) {

@@ -128,6 +128,10 @@ void freeAircraft(struct aircraft *a) {
     free(a);
 }
 
+void aircraftZeroTail(struct aircraft *a) {
+    memset(&a->zeroStart, 0x0, &a->zeroEnd - &a->zeroStart);
+}
+
 struct aircraft *aircraftCreate(uint32_t addr) {
     struct aircraft *a = aircraftGet(addr);
     if (a)

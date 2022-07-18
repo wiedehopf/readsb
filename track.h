@@ -540,16 +540,21 @@ struct aircraft
 
   data_validity pos_reliable_valid;
 
-  // keep this at the end of the aircraft struct as save / restore shouldn't matter for this:
-  // recent discarded positions which led to decrementing reliability (position_bad() / speed_check())
+  // DANGER, this section is zeroed when saving and loading data
+
+  char zeroStart;
+
   uint32_t disc_cache_index;
   struct cpr_cache disc_cache[DISCARD_CACHE];
+
+  uint32_t trace_chunk_overall_bytes;
 
   uint32_t cpr_cache_index;
   struct cpr_cache cpr_cache[CPR_CACHE];
 
   struct traceCache traceCache;
-  uint32_t trace_chunk_overall_bytes;
+
+  char zeroEnd;
 };
 
 /* Mode A/C tracking is done separately, not via the aircraft list,

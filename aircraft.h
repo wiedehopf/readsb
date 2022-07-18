@@ -31,6 +31,7 @@ void quickDestroy();
 void quickAdd(struct aircraft *a);
 void quickRemove(struct aircraft *a);
 
+void aircraftZeroTail(struct aircraft *a);
 struct aircraft *aircraftGet(uint32_t addr);
 struct aircraft *aircraftCreate(uint32_t addr);
 void freeAircraft(struct aircraft *a);
