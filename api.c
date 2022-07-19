@@ -438,19 +438,30 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *op
 
     int doFree = 0;
 
-    if (options->is_box || options->is_circle) {
+    if (options->is_box) {
+        int combined_len = haylen;
+        if (options->is_hexList) {
+            // this is a special case, in addition to the box, also return results for the hexList
+            // we don't bother deduplicating, so this can return results more than once
+            // thus allocate haylen and then also the number of hexes queried in addition
+            combined_len += options->hexCount;
+        }
+
+        doFree = 1; matches = apiAlloc(combined_len); if (!matches) { return cb; };
+
+        // first get matches for the box
+        count = findInBox(haystack, haylen, options->box, matches, &alloc);
+
+        if (options->is_hexList) {
+            // optionally add matches for &find_hex
+            count += findHexList(buffer->hexHash, options->hexList, options->hexCount, matches + count, &alloc);
+        }
+    } else if (options->is_circle) {
         doFree = 1; matches = apiAlloc(haylen); if (!matches) { return cb; };
 
-        if (options->is_box) {
-            count = findInBox(haystack, haylen, options->box, matches, &alloc);
-        } else if (options->is_circle) {
-            count = findInCircle(haystack, haylen, &options->circle, matches, &alloc);
-            alloc += count * 30; // adding 27 characters per entry: ,"dst":1000.000, "dir":357
-        } else {
-            fprintf(stderr, "FATAL: unreachable EeB4leiy\n");
-            setExit(2);
-            return cb;
-        }
+        count = findInCircle(haystack, haylen, &options->circle, matches, &alloc);
+
+        alloc += count * 30; // adding 27 characters per entry: ,"dst":1000.000, "dir":357
     } else if (options->is_hexList) {
         doFree = 1; matches = apiAlloc(options->hexCount); if (!matches) { return cb; };
 
@@ -1201,18 +1212,23 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
             }
         }
     }
-    if ((
-                options->is_box
-                + options->is_circle
-                + options->is_hexList
-                + options->is_callsignList
-                + options->is_regList
-                + options->is_typeList
-                + options->all
-                + options->all_with_pos
-        ) != 1) {
-        return invalid;
+    int mainOptionCount = options->is_box
+        + options->is_circle
+        + options->is_hexList
+        + options->is_callsignList
+        + options->is_regList
+        + options->is_typeList
+        + options->all
+        + options->all_with_pos;
+
+    if (mainOptionCount != 1) {
+        if (mainOptionCount == 2 && options->is_hexList && options->is_box) {
+            // this is ok
+        } else {
+            return invalid;
+        }
     }
+
     if (options->is_typeList && options->filter_typeList) {
         return invalid;
     }
