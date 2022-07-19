@@ -1566,8 +1566,9 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
 
     struct traceCacheEntry *prev = NULL;
     struct traceCacheEntry *entry = NULL;
+    struct state *state = NULL;
     for (int i = firstRecent, k = firstRecentCache; i < tb.len && k < Modes.traceCachePoints; i++, k++, prev = entry) {
-        struct state *state = getState(tb.trace, i);
+        state = getState(tb.trace, i);
         entry = &entries[k];
 
         if (k < cache->entriesLen && entry->ts == state->timestamp && state->leg_marker == entry->leg_marker) {

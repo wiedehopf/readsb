@@ -23,7 +23,7 @@
 #define TRACE_STALE (15 * SECONDS)
 
 #ifndef TRACE_RECENT_POINTS
-#define TRACE_RECENT_POINTS (84)
+#define TRACE_RECENT_POINTS (92)
 #endif
 
 
