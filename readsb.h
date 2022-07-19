@@ -734,6 +734,7 @@ struct _Modes
     int8_t acasDay;
     int8_t traceDay;
     int8_t onlyBin; // only write binCraft for globe (1) and also aircraft.json (2)
+    int8_t enableBinGz;
 
     int8_t updateStats;
     int8_t staleStop;

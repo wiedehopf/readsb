@@ -490,8 +490,9 @@ static void *jsonEntryPoint(void *arg) {
         if (Modes.onlyBin < 2) {
             // new way: use the apiBuffer of json fragments
             struct char_buffer cb = apiGenerateAircraftJson(&pass_buffer);
-            if (Modes.json_gzip)
-                writeJsonToGzip(Modes.json_dir, "aircraft.json.gz", cb, 3);
+            if (Modes.json_gzip) {
+                writeJsonToGzip(Modes.json_dir, "aircraft.json.gz", cb, 2);
+            }
             writeJsonToFile(Modes.json_dir, "aircraft.json", cb);
 
             if ((ALL_JSON) && Modes.onlyBin < 2 && now >= next_history) {
@@ -519,14 +520,18 @@ static void *jsonEntryPoint(void *arg) {
 
         struct char_buffer cb3 = generateAircraftBin(&pass_buffer);
 
+        if (Modes.enableBinGz) {
+            writeJsonToGzip(Modes.json_dir, "aircraft.binCraft", cb3, 1);
+        }
+
         //fprintf(stderr, "uncompressed size %ld\n", (long) cb3.len);
         writeJsonToFile(Modes.json_dir, "aircraft.binCraft.zst", ident(generateZstd(cctx, &zstd_buffer, cb3, 1)));
 
-        writeJsonToGzip(Modes.json_dir, "aircraft.binCraft", cb3, 1);
-
         if (Modes.json_globe_index) {
             struct char_buffer cb2 = generateGlobeBin(-1, 1, &pass_buffer);
-            writeJsonToGzip(Modes.json_dir, "globeMil_42777.binCraft", cb2, 5);
+            if (Modes.enableBinGz) {
+                writeJsonToGzip(Modes.json_dir, "globeMil_42777.binCraft", cb2, 1);
+            }
             writeJsonToFile(Modes.json_dir, "globeMil_42777.binCraft.zst", ident(generateZstd(cctx, &zstd_buffer, cb2, 1)));
         }
 
@@ -568,7 +573,7 @@ static void *globeJsonEntryPoint(void *arg) {
             char filename[32];
             snprintf(filename, 31, "globe_%04d.json", index);
             struct char_buffer cb = apiGenerateGlobeJson(index, &pass_buffer);
-            writeJsonToGzip(Modes.json_dir, filename, cb, 2);
+            writeJsonToGzip(Modes.json_dir, filename, cb, 1);
         }
 
         end_cpu_timing(&start_time, &Modes.stats_current.globe_json_cpu);
@@ -590,8 +595,7 @@ static void *globeBinEntryPoint(void *arg) {
     int part = 0;
     int n_parts = 8; // power of 2
 
-    int64_t sleep_ms = Modes.json_interval / n_parts / 2;
-    // write globe binCraft at double speed
+    int64_t sleep_ms = Modes.json_interval / n_parts;
 
     pthread_mutex_lock(&Threads.globeBin.mutex);
 
@@ -616,16 +620,20 @@ static void *globeBinEntryPoint(void *arg) {
 
             struct char_buffer cb2 = generateGlobeBin(index, 0, &pass_buffer);
 
-            snprintf(filename, 31, "globe_%04d.binCraft", index);
-            writeJsonToGzip(Modes.json_dir, filename, cb2, 5);
+            if (Modes.enableBinGz) {
+                snprintf(filename, 31, "globe_%04d.binCraft", index);
+                writeJsonToGzip(Modes.json_dir, filename, cb2, 1);
+            }
 
             snprintf(filename, 31, "globe_%04d.binCraft.zst", index);
             writeJsonToFile(Modes.json_dir, filename, ident(generateZstd(cctx, &zstd_buffer, cb2, 1)));
 
             struct char_buffer cb3 = generateGlobeBin(index, 1, &pass_buffer);
 
-            snprintf(filename, 31, "globeMil_%04d.binCraft", index);
-            writeJsonToGzip(Modes.json_dir, filename, cb3, 2);
+            if (Modes.enableBinGz) {
+                snprintf(filename, 31, "globeMil_%04d.binCraft", index);
+                writeJsonToGzip(Modes.json_dir, filename, cb3, 1);
+            }
 
             snprintf(filename, 31, "globeMil_%04d.binCraft.zst", index);
             writeJsonToFile(Modes.json_dir, filename, ident(generateZstd(cctx, &zstd_buffer, cb3, 1)));
