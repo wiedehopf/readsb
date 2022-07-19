@@ -553,6 +553,9 @@ void traceWrite(struct aircraft *a, threadpool_threadbuffers_t *buffer_group) {
         if (start_recent < startFull) {
             start_recent = startFull;
         }
+        if (start_recent < 0) {
+            start_recent = 0;
+        }
 
         mark_legs(tb, a, imax(0, tb.len - 4 * recent_points), 1);
 
@@ -605,7 +608,7 @@ void traceWrite(struct aircraft *a, threadpool_threadbuffers_t *buffer_group) {
             if (full.len > 0) {
                 snprintf(filename, 256, "traces/%02x/trace_full_%s%06x.json", a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
 
-                writeJsonToGzip(Modes.json_dir, filename, full, 7);
+                writeJsonToGzip(Modes.json_dir, filename, full, 5);
             }
         }
 
