@@ -1091,6 +1091,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
     int64_t first_ground_index = 0;
 
     int last_5min_gap_index = -1;
+    struct state last_5min_gap_state = { 0 };
     int last_10min_gap_index = -1;
 
     int was_ground = 0;
@@ -1129,6 +1130,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
 
         if (elapsed > 5 * MINUTES) {
             last_5min_gap_index = state_index;
+            last_5min_gap_state = *state;
             if (elapsed > 10 * MINUTES) {
                 last_10min_gap_index++; // shut up unused var
                 last_10min_gap_index = state_index;
@@ -1292,7 +1294,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
         int leg_float = 0;
         if (major_climb && major_descent && major_climb > major_descent + 12 * MINUTES) {
             if (last_5min_gap_index >= 0 && last_5min_gap_index >= major_descent) {
-                struct state *st = getState(tb.trace, last_5min_gap_index);
+                struct state *st = &last_5min_gap_state;
                 if (st->on_ground || !st->baro_alt_valid || (st->baro_alt_valid && st->baro_alt / _alt_factor < max_leg_alt)) {
                     leg_float = 1;
                     if (focus) {
