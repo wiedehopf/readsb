@@ -1090,11 +1090,20 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
     int64_t first_ground = 0;
     int64_t first_ground_index = 0;
 
+    int last_5min_gap_index = -1;
+    int last_10min_gap_index = -1;
+
     int was_ground = 0;
 
     last_air_alt = INT32_MIN;
     for (int i = 0; i < 5; i++) { last_five[i] = last_five_init_alt; }
     five_pos = 0;
+
+    int32_t counter1 = 0;
+    int32_t counter2 = 0;
+    int32_t counter3 = 0;
+    int32_t counter4 = 0;
+    int32_t counter5 = 0;
 
     if (start < 1) {
         start = 1;
@@ -1116,6 +1125,14 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
             state = prev;
             state_index = prev_index;
             continue;
+        }
+
+        if (elapsed > 5 * MINUTES) {
+            last_5min_gap_index = state_index;
+            if (elapsed > 10 * MINUTES) {
+                last_10min_gap_index++; // shut up unused var
+                last_10min_gap_index = state_index;
+            }
         }
 
         int on_ground = state->on_ground;
@@ -1213,24 +1230,26 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
                     fprintf(stderr, "climb: %d %s %d %d\n", altitude, tstring, high, low);
                 }
                 low = high - threshold * 9/10;
-            } else if (last_high < last_low) {
-                int bla = imax(0, last_low_index - 3);
-                while(bla > 0) {
+            } else if (last_low > last_high) {
+                int k = imax(0, last_low_index - 3);
+                for (; k > 0; k--) {
+                    counter1++;
+                    struct state *st = getState(tb.trace, k);
                     if (0 && focus) {
-                        fprintf(stderr, "bla: %d %d %d %d\n", bla, (int) (getState(tb.trace, bla)->baro_alt / _alt_factor),
-                                getState(tb.trace, bla)->baro_alt_valid,
-                                getState(tb.trace, bla)->on_ground
-                               );
+                        fprintf(stderr, "k: %d %d %d %d\n", k, (int) (st->baro_alt / _alt_factor), st->baro_alt_valid, st->on_ground);
                     }
-                    if (getState(tb.trace, bla)->baro_alt_valid && !getState(tb.trace, bla)->on_ground) {
+                    if (st->baro_alt_valid && !st->on_ground) {
                         break;
                     }
-                    bla--;
                 }
-                if (bla < 0)
-                    fprintf(stderr, "wat asdf bla? %d\n", bla);
-                major_descent = getState(tb.trace, bla)->timestamp;
-                major_descent_index = bla;
+                if (k < 0) {
+                    fprintf(stderr, "look screwed up. Thaeth5g\n");
+                    // because it's easy to mess up the logic of k decreasing after the last loop
+                    k = 0;
+                }
+
+                major_descent = getState(tb.trace, k)->timestamp;
+                major_descent_index = k;
                 if (focus) {
                     time_t nowish = major_descent/1000;
                     struct tm utc;
@@ -1272,13 +1291,12 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
 
         int leg_float = 0;
         if (major_climb && major_descent && major_climb > major_descent + 12 * MINUTES) {
-            for (int i = major_descent_index + 1; i <= major_climb_index; i++) {
-                struct state *st = getState(tb.trace, i);
-                if (st->timestamp > getState(tb.trace, i - 1)->timestamp + 5 * MINUTES
-                        && (st->on_ground || !st->baro_alt_valid || (st->baro_alt_valid && st->baro_alt / _alt_factor < max_leg_alt))) {
+            if (last_5min_gap_index >= 0 && last_5min_gap_index >= major_descent) {
+                struct state *st = getState(tb.trace, last_5min_gap_index);
+                if (st->on_ground || !st->baro_alt_valid || (st->baro_alt_valid && st->baro_alt / _alt_factor < max_leg_alt)) {
                     leg_float = 1;
                     if (focus) {
-                        fprintf(stderr, "float leg: 8 minutes between descent / climb, 5 minute reception gap in between somewhere\n");
+                        fprintf(stderr, "float leg: 5 minutes between descent / climb, 5 minute reception gap in between somewhere\n");
                     }
                 }
             }
@@ -1302,6 +1320,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
             if (leg_now) {
                 new_leg = state;
                 for (int k = prev_index + 1; k < index; k++) {
+                    counter2++;
                     struct state *state = getState(tb.trace, k);
                     struct state *last = getState(tb.trace, k - 1);
 
@@ -1314,6 +1333,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
                 new_leg = getState(tb.trace, major_climb_index);
             } else {
                 for (int i = major_climb_index; i > major_descent_index; i--) {
+                    counter3++;
                     struct state *state = getState(tb.trace, i);
                     struct state *last = getState(tb.trace, i - 1);
 
@@ -1325,6 +1345,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
                 if (last_ground > major_descent) {
                     int64_t half = first_ground + (last_ground - first_ground) / 2;
                     for (int i = first_ground_index + 1; i <= last_ground_index; i++) {
+                        counter4++;
                         struct state *state = getState(tb.trace, i);
 
                         if (state->timestamp > half) {
@@ -1335,6 +1356,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
                 } else {
                     int64_t half = major_descent + (major_climb - major_descent) / 2;
                     for (int i = major_descent_index + 1; i < major_climb_index; i++) {
+                        counter5++;
                         struct state *state = getState(tb.trace, i);
 
                         if (state->timestamp > half) {
@@ -1381,7 +1403,13 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
     }
     if (focus) {
         elapsed2 = lapWatch(&watch);
-        fprintf(stderr, "%06x mark_legs loop1: %.3f loop2: %.3f\n", a->addr, elapsed1 / 1000.0, elapsed2 / 1000.0);
+        fprintf(stderr, "%06x mark_legs loop1: %.3f loop2: %.3f counter1 %d counter2 %d counter3 %d counter4 %d counter5 %d\n",
+                a->addr, elapsed1 / 1000.0, elapsed2 / 1000.0,
+                counter1,
+                counter2,
+                counter3,
+                counter4,
+                counter5);
     }
 }
 
