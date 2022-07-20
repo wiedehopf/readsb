@@ -611,6 +611,7 @@ struct _Modes
     int8_t debug_send_uuid;
     int8_t debug_provoke_segfault;
     int8_t debug_enable_reapi;
+    int8_t debug_position_timing;
     int8_t verbose;
 
     int8_t net_verbatim; // if true, send the original message, not the CRC-corrected one

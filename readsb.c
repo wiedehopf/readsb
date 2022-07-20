@@ -1646,6 +1646,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         break;
                     case 'W': Modes.debug_enable_reapi = 1;
                         break;
+                    case 'y': Modes.debug_position_timing = 1;
+                        break;
 
 
                     default:

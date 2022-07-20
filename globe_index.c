@@ -1857,7 +1857,7 @@ static void setTrace(struct aircraft *a, fourState *source, int len) {
         a->trace_current_len = 0;
     } else if (a->trace_current_len > 0) {
         //fprintf(stderr, "%06x setTrace current memcpy, len %ld fourStates %ld stateBytes %ld\n", a->addr, (long) len, (long) getFourStates(len), (long) stateBytes(len));
-        memcpy(a->trace_current, p, stateBytes(a->trace_current_len));
+        memcpy(a->trace_current, p, stateBytes(a->trace_current_len + 1));
     }
 
     traceMaintenance(a, now);
@@ -1894,9 +1894,10 @@ static void compressCurrent(struct aircraft *a) {
                 a->addr, new->compressed_size, a->trace_chunk_len, stateBytes(chunkPoints) / (double) new->compressed_size);
     }
 
-    int oldBytes = stateBytes(a->trace_current_len);
+    // current_len + 1 to account for the buffered position
+    int oldBytes = stateBytes(a->trace_current_len + 1);
     a->trace_current_len -= chunkPoints;
-    int newBytes = stateBytes(a->trace_current_len);
+    int newBytes = stateBytes(a->trace_current_len + 1);
 
     int diffBytes = stateBytes(chunkPoints);
     char *src = ((char *) a->trace_current) + diffBytes;
@@ -1924,7 +1925,7 @@ static int get_nominal_trace_current_points(struct aircraft *a, int64_t now) {
 static void resizeTraceCurrent(struct aircraft *a, int64_t now, int overridePoints) {
     int newPoints;
     if (overridePoints > 0) {
-        newPoints = overridePoints;
+        newPoints = alignSFOUR(overridePoints + Modes.traceReserve);
     } else {
         newPoints = get_nominal_trace_current_points(a, now);
     }
@@ -2285,7 +2286,7 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
 save_state:
 
 
-    if (last && elapsed < 10 && max_elapsed < 1 * SECONDS) {
+    if (Modes.debug_position_timing && last && elapsed < 10) {
         fprintf(stderr, "%06x elapsed < 10 ms: %11.6f,%11.6f -> %11.6f,%11.6f %lldms d:%5.0f s: %4.0f sc: %4.0f\n",
                 a->addr,
                 last->lat * 1e-6, last->lon * 1e-6,
@@ -2330,7 +2331,8 @@ no_save_state:
         //fprintf(stderr, "%06x: new trace\n", a->addr);
     }
 
-    if (a->trace_current_len + 2 >= a->trace_current_max) {
+    // current_len still needs to be a usable index after being incremented
+    if (a->trace_current_len + 1 >= a->trace_current_max - 1) {
         //static int64_t antiSpam;
         //if (Modes.debug_traceAlloc || now > antiSpam + 5 * SECONDS) {
         if (Modes.debug_traceAlloc || 1) {
