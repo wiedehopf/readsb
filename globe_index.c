@@ -2086,6 +2086,19 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
         elapsed_buffered = (int64_t) buffered->timestamp - (int64_t) last->timestamp;
     }
 
+    if (elapsed_buffered < 0) {
+        fprintf(stderr, "%06x traceAdd len: %d current_len %d elapsed: %.3f elapsed_buffered %.3f mstime: %.3f now: %.3f last->timesatmp: %.3f\n",
+                a->addr, a->trace_len, a->trace_current_len, elapsed / 1000.0, elapsed_buffered / 1000.0, mstime() / 1000.0, now / 1000.0, last->timestamp / 1000.0);
+        buffered = NULL;
+        a->tracePosBuffered = 0;
+        elapsed_buffered = 0;
+    }
+
+    if (elapsed < 0) {
+        fprintf(stderr, "%06x traceAdd elapsed: %.3f elapsed_buffered %.3f mstime: %.3f now: %.3f last->timesatmp: %.3f\n",
+                a->addr, elapsed / 1000.0, elapsed_buffered / 1000.0, mstime() / 1000.0, now / 1000.0, last->timestamp / 1000.0);
+    }
+
     int32_t new_lat = (int32_t) nearbyint(a->lat * 1E6);
     int32_t new_lon = (int32_t) nearbyint(a->lon * 1E6);
     duplicate = (elapsed < 1 * SECONDS && new_lat == last->lat && new_lon == last->lon);
@@ -2272,10 +2285,10 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
 save_state:
 
 
-    if (last && elapsed < 10) {
-        fprintf(stderr, "%06x elapsed < 10 ms: %d,%d -> %11.6f,%11.6f %lldms d:%5.0f s: %4.0f sc: %4.0f\n",
+    if (last && elapsed < 10 && max_elapsed < 1 * SECONDS) {
+        fprintf(stderr, "%06x elapsed < 10 ms: %11.6f,%11.6f -> %11.6f,%11.6f %lldms d:%5.0f s: %4.0f sc: %4.0f\n",
                 a->addr,
-                last->lat, last->lon,
+                last->lat * 1e-6, last->lon * 1e-6,
                 a->lat, a->lon,
                 (long long) elapsed,
                 distance, a->gs, (distance * 1000 / elapsed) * (3600.0f/1852.0f));

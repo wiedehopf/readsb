@@ -1010,6 +1010,9 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
         a->addrtype = mm->addrtype;
         a->addrtype_updated = now;
 
+        if (now < a->seenPosReliable) {
+            fprintf(stderr, "%06x now < seenPosReliable ??? mstime: %.3f now: %.3f seenPosReliabe: %.3f\n", a->addr, mstime() / 1000.0, now / 1000.0, a->seenPosReliable / 1000.0);
+        }
         int stale = (now > a->seenPosReliable + TRACE_STALE);
         a->seenPosReliable = now;
 

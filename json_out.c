@@ -1594,16 +1594,11 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
 
         char *stringStart = p;
         p = sprintTracePoint(p, end, state, state_all, cache->referenceTs, now, a);
-        if (p >= end) {
+        if (p + 1 >= end) {
             fprintf(stderr, "traceCache full, not an issue but fix it!\n");
             // not enough space to safely write another cache
             break;
         }
-
-        if (state->timestamp < lastTs) {
-            fprintf(stderr, "%06x trace timestamps wrong order: %.3f %.3f\n", a->addr, lastTs / 1000.0, state->timestamp / 1000.0);
-        }
-        lastTs = state->timestamp;
 
         sprintCount++;
 
@@ -1613,6 +1608,12 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
         entry->leg_marker = state->leg_marker;
 
         cache->entriesLen = k + 1;
+
+        p = '\0';
+        if (state->timestamp < lastTs) {
+            fprintf(stderr, "%06x trace timestamps wrong order: %.3f %.3f i: %d k: %d %s\n", a->addr, lastTs / 1000.0, state->timestamp / 1000.0, i, k, stringStart);
+        }
+        lastTs = state->timestamp;
     }
 
     if (cache->entriesLen < tb.len - firstRecent) {
