@@ -1002,7 +1002,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
 
     int focus = (a->addr == Modes.leg_focus && !recent);
 
-    if (focus) {
+    if (!recent) {
         startWatch(&watch);
     }
 
@@ -1060,8 +1060,10 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
     int threshold = (int) (sum / (double) (count * 3));
 
 
-    if (focus) {
+    if (!recent) {
         elapsed1 = lapWatch(&watch);
+    }
+    if (focus) {
 
         fprintf(stderr, "--------------------------\n");
         fprintf(stderr, "start: %d\n", start);
@@ -1406,8 +1408,10 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
 
         was_ground = on_ground;
     }
-    if (focus) {
+    if (!recent) {
         elapsed2 = lapWatch(&watch);
+    }
+    if (focus || elapsed1 > 50 || elapsed2 > 50) {
         fprintf(stderr, "%06x mark_legs loop1: %.3f loop2: %.3f counter1 %d counter2 %d counter3 %d counter4 %d counter5 %d\n",
                 a->addr, elapsed1 / 1000.0, elapsed2 / 1000.0,
                 counter1,
