@@ -1456,7 +1456,7 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
         memset(cache, 0x0, sizeof(struct traceCache));
 
         ssize_t size_entries = Modes.traceCachePoints * sizeof(struct traceCacheEntry);
-        cache->json_max = Modes.traceCachePoints * 17 * 16; // 272 per entry
+        cache->json_max = Modes.traceCachePoints * 35 * 8; // 280 per entry
 
         // allocate memory
         cache->entries = cmalloc(size_entries);
@@ -1571,6 +1571,7 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
     struct traceCacheEntry *prev = NULL;
     struct traceCacheEntry *entry = NULL;
     struct state *state = NULL;
+    int64_t lastTs = 0;
     for (int i = firstRecent, k = firstRecentCache; i < tb.len && k < Modes.traceCachePoints; i++, k++, prev = entry) {
         state = getState(tb.trace, i);
         entry = &entries[k];
@@ -1598,6 +1599,11 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
             // not enough space to safely write another cache
             break;
         }
+
+        if (state->timestamp < lastTs) {
+            fprintf(stderr, "%06x trace timestamps wrong order: %.3f %.3f\n", a->addr, lastTs / 1000.0, state->timestamp / 1000.0);
+        }
+        lastTs = state->timestamp;
 
         sprintCount++;
 

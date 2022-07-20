@@ -1585,7 +1585,7 @@ accept_alt:
     }
     if (accept_data(&a->baro_alt_valid, mm->source, mm, a, 2)) {
         a->alt_reliable = imin(ALTITUDE_BARO_RELIABLE_MAX , a->alt_reliable + score_add);
-        if (a->addr == Modes.trace_focus && abs(delta) > -1) {
+        if (0 && a->addr == Modes.trace_focus && abs(delta) > -1) {
             fprintf(stdout, "Alt check S: %06x: %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
                     a->addr, a->alt_reliable, a->baro_alt, alt,
                     source_string(a->baro_alt_valid.source),
@@ -2186,7 +2186,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         // avoid using already received positions
         if (old_jaero || greatcircle(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon, 1) < 1) {
         } else if (mm->source == SOURCE_MLAT && mm->mlatEPU > a->mlatEPU
-                && imin((int)(6000.0f * logf((float)mm->mlatEPU / (float)a->mlatEPU)), 36000) > (int64_t) trackDataAge(mm->sysTimestampMsg, &a->pos_reliable_valid)
+                && imin((int)(9000.0f * logf((float)mm->mlatEPU / (float)a->mlatEPU)), 36000) > (int64_t) trackDataAge(mm->sysTimestampMsg, &a->pos_reliable_valid)
                 ) {
             // don't use less accurate MLAT positions unless some time has elapsed
             // only works with SBS input MLAT data coming from some versions of mlat-server

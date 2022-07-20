@@ -2022,6 +2022,7 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
     float speed_diff = 0;
     float track_diff = 0;
     float baro_rate_diff = 0;
+    struct state *last = NULL;
 
     int64_t max_elapsed = Modes.json_trace_interval;
     int64_t min_elapsed = imin(250, max_elapsed / 4);
@@ -2039,6 +2040,7 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
     if (Modes.json_trace_interval > 5 * SECONDS) {
         if (a->pos_reliable_valid.source == SOURCE_MLAT) {
             min_elapsed = 1500;
+            max_elapsed /= 2;
         }
     }
     // some towers on MLAT .... create unnecessary data
@@ -2048,8 +2050,10 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
     }
 
     int on_ground = 0;
-    float track = a->track;
-    if (!trackVState(now, &a->track_valid, &a->pos_reliable_valid)) {
+    float track = -1;
+    if (trackVState(now, &a->track_valid, &a->pos_reliable_valid) && a->track_valid.source != SOURCE_MLAT) {
+        track = a->track;
+    } else {
         track = -1;
     }
 
@@ -2069,10 +2073,11 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
     if (a->trace_current_len == 0)
         goto save_state;
 
-    struct state *last = getState(a->trace_current, a->trace_current_len - 1);
+    last = getState(a->trace_current, a->trace_current_len - 1);
 
-    if (now >= last->timestamp)
+    if (now >= last->timestamp) {
         elapsed = now - last->timestamp;
+    }
 
     struct state *buffered = NULL;
 
@@ -2093,11 +2098,11 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
         alt_diff = abs(a->baro_alt - last_alt);
     }
 
-    if (trackDataValid(&a->gs_valid) && last->gs_valid) {
+    if (trackDataValid(&a->gs_valid) && last->gs_valid && a->gs_valid.source != SOURCE_MLAT) {
         speed_diff = fabs(last->gs / _gs_factor - a->gs);
     }
 
-    if (trackDataValid(&a->baro_rate_valid) && last->baro_rate_valid) {
+    if (trackDataValid(&a->baro_rate_valid) && last->baro_rate_valid && a->baro_rate_valid.source != SOURCE_MLAT) {
         baro_rate_diff = fabs(last->baro_rate / _rate_factor - a->baro_rate);
     }
 
@@ -2265,6 +2270,19 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
     goto no_save_state;
 
 save_state:
+
+
+    if (last && elapsed < 10) {
+        fprintf(stderr, "%06x elapsed < 10 ms: %d,%d -> %11.6f,%11.6f %lldms d:%5.0f s: %4.0f sc: %4.0f\n",
+                a->addr,
+                last->lat, last->lon,
+                a->lat, a->lon,
+                (long long) elapsed,
+                distance, a->gs, (distance * 1000 / elapsed) * (3600.0f/1852.0f));
+    }
+    if (elapsed_buffered && elapsed_buffered < 10) {
+    }
+
     // always try using the buffered position instead of the current one
     // this should provide a better picture of changing track / speed / altitude
 
@@ -2338,7 +2356,7 @@ no_save_state:
         a->tracePosBuffered = 1;
     }
 
-    if (traceDebug && !posUsed && !bufferedPosUsed) fprintf(stderr, "none\n");
+    if (traceDebug && !posUsed && !bufferedPosUsed) fprintf(stderr, " none\n");
 
     return posUsed || bufferedPosUsed;
 }
