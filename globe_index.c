@@ -1136,6 +1136,9 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
         if (elapsed > 5 * MINUTES) {
             last_5min_gap_index = state_index;
             last_5min_gap_state = *state;
+            if (focus) {
+                fprintf(stderr, "5 min gap detected with index %d\n", state_index);
+            }
             if (elapsed > 10 * MINUTES) {
                 last_10min_gap_index++; // shut up unused var
                 last_10min_gap_index = state_index;
@@ -1234,7 +1237,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
                     gmtime_r(&nowish, &utc);
                     char tstring[100];
                     strftime (tstring, 100, "%H:%M:%S", &utc);
-                    fprintf(stderr, "climb: %d %s %d %d\n", altitude, tstring, high, low);
+                    fprintf(stderr, "climb: %d %s high: %d low:%d index: %d\n", altitude, tstring, high, low, major_climb_index);
                 }
                 low = high - threshold * 9/10;
             } else if (last_low > last_high) {
@@ -1263,7 +1266,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
                     gmtime_r(&nowish, &utc);
                     char tstring[100];
                     strftime (tstring, 100, "%H:%M:%S", &utc);
-                    fprintf(stderr, "desc: %d %s\n", altitude, tstring);
+                    fprintf(stderr, "desc: %d %s index: %d\n", altitude, tstring, major_descent_index);
                 }
                 high = low + threshold * 9/10;
             }
@@ -1298,8 +1301,11 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
 
         int leg_float = 0;
         if (major_climb && major_descent && major_climb > major_descent + 12 * MINUTES) {
-            if (last_5min_gap_index >= 0 && last_5min_gap_index >= major_descent) {
+            if (last_5min_gap_index >= 0 && last_5min_gap_index >= major_descent_index) {
                 struct state *st = &last_5min_gap_state;
+                if (focus) {
+                    fprintf(stderr, "checking for: float leg: 5 minutes between descent / climb, 5 minute reception gap in between somewhere\n");
+                }
                 if (st->on_ground || !st->baro_alt_valid || (st->baro_alt_valid && st->baro_alt / _alt_factor < max_leg_alt)) {
                     leg_float = 1;
                     if (focus) {
