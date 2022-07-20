@@ -2186,7 +2186,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         // avoid using already received positions
         if (old_jaero || greatcircle(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon, 1) < 1) {
         } else if (mm->source == SOURCE_MLAT && mm->mlatEPU > a->mlatEPU
-                && imin((int)(9000.0f * logf((float)mm->mlatEPU / (float)a->mlatEPU)), 36000) > (int64_t) trackDataAge(mm->sysTimestampMsg, &a->pos_reliable_valid)
+                && imin((int)(8000.0f * logf((float)mm->mlatEPU / (float)a->mlatEPU)), TRACE_STALE * 3 / 4) > (int64_t) trackDataAge(mm->sysTimestampMsg, &a->pos_reliable_valid)
                 ) {
             // don't use less accurate MLAT positions unless some time has elapsed
             // only works with SBS input MLAT data coming from some versions of mlat-server
