@@ -1053,6 +1053,7 @@ enum {
     OptJsonDir,
     OptJsonGzip,
     OptJsonOnlyBin,
+    OptEnableBinGz,
     OptJsonReliable,
     OptPositionPersistence,
     OptJaeroTimeout,

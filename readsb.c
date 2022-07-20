@@ -1412,6 +1412,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptJsonGzip:
             Modes.json_gzip = 1;
             break;
+        case OptEnableBinGz:
+            Modes.enableBinGz = 1;
+            break;
         case OptJsonOnlyBin:
             Modes.onlyBin = (int8_t) atoi(arg);
             break;
