@@ -1523,8 +1523,8 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
 
 
             if (moveDist + moveBytes > cache->json_max || moveBytes <= 0 || moveDist <= 0) {
-                fprintf(stderr, "%06x in checkTraceCache: prevented illegal memmove: firstRecentCache: %ld moveIndexes: %ld newEntryCount: %ld moveBytes: %ld moveDist: %ld json_max: %ld\n",
-                        a->addr, (long) firstRecentCache, (long) moveIndexes, (long) newEntryCount, (long) moveBytes, (long) moveDist, (long) cache->json_max);
+                fprintf(stderr, "%06x in checkTraceCache: prevented illegal memmove: firstRecentCache: %ld moveIndexes: %ld newEntryCount: %ld moveBytes: %ld moveDist: %ld json_max: %ld cache->entriesLen: %ld\n",
+                        a->addr, (long) firstRecentCache, (long) moveIndexes, (long) newEntryCount, (long) moveBytes, (long) moveDist, (long) cache->json_max, (long) cache->entriesLen);
                 resetCache = 1;
             }
 
@@ -1571,11 +1571,10 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
         fprintf(stderr, "%06x sprintCache: %d points firstRecent starting %d (firstRecentCache starting %d, max %d)\n", a->addr, tb.len - firstRecent, firstRecent, firstRecentCache, Modes.traceCachePoints);
     }
 
-    struct traceCacheEntry *prev = NULL;
     struct traceCacheEntry *entry = NULL;
     struct state *state = NULL;
     int64_t lastTs = 0;
-    for (int i = firstRecent, k = firstRecentCache; i < tb.len && k < Modes.traceCachePoints; i++, k++, prev = entry) {
+    for (int i = firstRecent, k = firstRecentCache; i < tb.len && k < Modes.traceCachePoints; i++, k++) {
         state = getState(tb.trace, i);
         entry = &entries[k];
 
@@ -1587,10 +1586,11 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
         // cache needs updating:
         cache->entriesLen = k;
 
-        if (prev) {
-            p = cache->json + prev->offset + prev->len;
-        } else {
+        if (k == 0) {
             p = cache->json;
+        } else {
+            struct traceCacheEntry *prev = &entries[k - 1];
+            p = cache->json + prev->offset + prev->len;
         }
 
         struct state_all *state_all = getStateAll(tb.trace, i);
