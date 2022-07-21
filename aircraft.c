@@ -425,18 +425,31 @@ static inline int nextToken(char delim, char **sot, char **eot, char **eol) {
 }
 
 // meant to be used with this DB: https://raw.githubusercontent.com/wiedehopf/tar1090-db/csv/aircraft.csv.gz
-int dbUpdate() {
+int dbUpdate(int64_t now) {
+    static int64_t next_db_check;
+    if (now < next_db_check) {
+        return 0;
+    }
+    // db update check every 30 seconds
+    next_db_check = now + 30 * SECONDS;
+    // this update only takes effect in dbFinishUpdate with all other threads locked
+
+    char *filename = Modes.db_file;
+    if (!filename) {
+        return 0;
+    }
+
     gzFile gzfp = NULL;
     struct char_buffer cb = {0};
-    char *filename = Modes.db_file;
-    if (!filename || !strlen(filename) || !strcmp(filename, "none"))
-        return 0;
+
     int fd = open(filename, O_RDONLY);
     if (fd == -1) {
         fprintf(stderr, "dbUpdate: open db-file failed:");
         perror(filename);
         return 0;
     }
+
+    //fprintf(stderr, "checking for db Update\n");
 
     struct stat fileinfo = {0};
     if (fstat(fd, &fileinfo)) {
@@ -478,6 +491,8 @@ int dbUpdate() {
         fprintf(stderr, "db update error: malloc failure!\n");
         goto DBU0;
     }
+
+    fprintf(stderr, "Database update in progress!\n");
 
     char *eob = cb.buffer + cb.len;
     char *sol = cb.buffer;
@@ -541,6 +556,8 @@ int dbUpdate() {
     }
     //fflush(stdout);
 
+    //fprintf(stderr, "dbUpdate() done\n");
+
     gzclose(gzfp);
     free(cb.buffer);
     Modes.dbModificationTime = modTime;
@@ -557,30 +574,54 @@ DBU0:
     Modes.db2 = NULL;
     Modes.db2Index = NULL;
     close(fd);
-    return 0;
+    return 1;
+}
+
+static void updateTypeRegRange(void *arg, threadpool_threadbuffers_t *threadbuffers) {
+    MODES_NOTUSED(threadbuffers);
+    task_info_t *info = (task_info_t *) arg;
+    //fprintf(stderr, "%d %d\n", info->from, info->to);
+    for (int j = info->from; j < info->to; j++) {
+        for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
+            updateTypeReg(a);
+        }
+    }
 }
 
 int dbFinishUpdate() {
-    // finish db update
-    if (Modes.db2 && Modes.db2Index) {
-        if (Modes.json_dir && Modes.debug_dbJson)
-            dbToJson();
-        free(Modes.dbIndex);
-        free(Modes.db);
-        Modes.dbIndex = Modes.db2Index;
-        Modes.db = Modes.db2;
-        Modes.db2Index = NULL;
-        Modes.db2 = NULL;
-
-        for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
-            for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
-                updateTypeReg(a);
-            }
-        }
-        fprintf(stderr, "Database update done!\n");
-        return 1;
+    if (!(Modes.db2 && Modes.db2Index)) {
+        return 0;
     }
-    return 0;
+    // finish db update
+
+    if (0 && Modes.json_dir && Modes.debug_dbJson) {
+        dbToJson();
+    }
+
+    free(Modes.dbIndex);
+    free(Modes.db);
+
+    Modes.dbIndex = Modes.db2Index;
+    Modes.db = Modes.db2;
+    Modes.db2Index = NULL;
+    Modes.db2 = NULL;
+
+    /*
+    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
+        for (struct aircraft *a = Modes.aircraft[j]; a; a = a->next) {
+            updateTypeReg(a);
+        }
+    }
+    */
+
+    int64_t now = mstime();
+
+    threadpool_distribute_and_run(Modes.allPool, Modes.allTasks, updateTypeRegRange, AIRCRAFT_BUCKETS, 0, now);
+
+    fprintf(stderr, "Database update done!\n");
+
+
+    return 1;
 }
 
 

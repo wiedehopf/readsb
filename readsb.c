@@ -119,7 +119,7 @@ static void configSetDefaults(void) {
     Modes.check_crc = 1;
     Modes.net_heartbeat_interval = MODES_NET_HEARTBEAT_INTERVAL;
     //Modes.db_file = strdup("/usr/local/share/tar1090/git-db/aircraft.csv.gz");
-    Modes.db_file = strdup("none");
+    Modes.db_file = NULL;
     Modes.net_input_raw_ports = strdup("0");
     Modes.net_output_raw_ports = strdup("0");
     Modes.net_output_sbs_ports = strdup("0");
@@ -213,13 +213,14 @@ static void modesInit(void) {
     threadInit(&Threads.misc, "misc");
     threadInit(&Threads.apiUpdate, "apiUpdate");
 
-    if (Modes.json_globe_index || Modes.netReceiverId) {
+    if (Modes.json_globe_index || Modes.netReceiverId || AIRCRAFT_HASH_BITS > 16) {
         // to keep decoding and the other threads working well, don't use all available processors
         Modes.allPoolSize = imax(1, Modes.num_procs);
     } else {
         Modes.allPoolSize = 1;
     }
-    Modes.allTasks = allocate_task_group(Modes.allPoolSize);
+
+    Modes.allTasks = allocate_task_group(2 * Modes.allPoolSize);
     Modes.allPool = threadpool_create(Modes.allPoolSize, 4);
 
     for (int i = 0; i <= GLOBE_MAX_INDEX; i++) {
@@ -379,6 +380,9 @@ static void priorityTasksRun() {
         statsUpdate(now); // needs to happen under lock
     }
 
+    // finish db update under lock
+    dbFinishUpdate();
+
     int64_t elapsed2 = lapWatch(&watch);
 
     Modes.currentTask = "unlocking";
@@ -386,7 +390,7 @@ static void priorityTasksRun() {
     Modes.currentTask = "unlocked";
 
     static int64_t antiSpam;
-    if ((Modes.debug_removeStaleDuration && Modes.next_remove_stale == mono + 1 * SECONDS) || ((elapsed1 > 150 || elapsed2 > 150) && mono > antiSpam + 30 * SECONDS)) {
+    if ((Modes.debug_removeStaleDuration && removed_stale) || ((elapsed1 > 150 || elapsed2 > 150) && mono > antiSpam + 30 * SECONDS)) {
         fprintf(stderr, "<3>High load: removeStale took %"PRIi64"/%"PRIi64" ms! stats: %d (suppressing for 30 seconds)\n", elapsed1, elapsed2, Modes.updateStats);
         antiSpam = mono;
     }
@@ -1408,6 +1412,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             } else {
                 Modes.db_file = strdup(arg);
             }
+            if (strlen(Modes.db_file) == 0 || strcmp(Modes.db_file, "none") == 0) {
+                sfree(Modes.db_file);
+                Modes.db_file = NULL;
+            }
             break;
         case OptJsonGzip:
             Modes.json_gzip = 1;
@@ -2044,17 +2052,11 @@ static void miscStuff(int64_t now) {
         return;
     }
 
-    // one iteration later, finish db update if db was updated
-    if (dbFinishUpdate()) {
+    if (dbUpdate(now)) {
         return;
     }
-
-
     static int64_t next_db_check;
     if (now > next_db_check) {
-        dbUpdate();
-        // db update check every 5 min
-        next_db_check = now + 5 * MINUTES;
 
         return;
     }
@@ -2219,10 +2221,12 @@ int main(int argc, char **argv) {
         }
     }
     // db update on startup
-    if (!Modes.exit)
-        dbUpdate();
-    if (!Modes.exit)
+    if (!Modes.exit) {
+        dbUpdate(mstime());
+    }
+    if (!Modes.exit) {
         dbFinishUpdate();
+    }
 
     if (Modes.sdr_type != SDR_NONE) {
         threadCreate(&Threads.reader, NULL, readerEntryPoint, NULL);

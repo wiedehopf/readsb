@@ -180,7 +180,7 @@ struct binCraft {
 } __attribute__ ((__packed__));
 
 void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now);
-int dbUpdate();
+int dbUpdate(int64_t now);
 int dbFinishUpdate();
 
 void updateTypeReg(struct aircraft *a);

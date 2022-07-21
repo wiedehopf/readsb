@@ -204,8 +204,6 @@ typedef struct {
     int32_t from;
     int32_t to;
 
-    //uint32_t buffer_count;
-    //buffer_t *buffers;
 } task_info_t;
 
 
@@ -219,6 +217,8 @@ typedef struct {
 task_group_t *allocate_task_group(uint32_t count);
 // destroy a group of tasks
 void destroy_task_group(task_group_t *group);
+
+void threadpool_distribute_and_run(threadpool_t *pool, task_group_t *task_group, threadpool_function_t func, int totalRange, int taskCount, int64_t now);
 
 void check_grow_buffer_t(buffer_t *buffer, ssize_t newSize);
 void *check_grow_threadpool_buffer_t(threadpool_buffer_t *buffer, ssize_t newSize);

@@ -49,9 +49,11 @@ threadpool_t *threadpool_create(uint32_t thread_count, uint32_t buffer_count);
 // destroy the thread pool
 void threadpool_destroy(threadpool_t *pool);
 
+typedef void (* threadpool_function_t)(void *, threadpool_threadbuffers_t *);
+
 typedef struct
 {
-    void (* function)(void *, threadpool_threadbuffers_t *);
+    threadpool_function_t function;
     void *argument;
 } threadpool_task_t;
 

@@ -712,6 +712,52 @@ void destroy_task_group(task_group_t *group) {
     free(group);
 }
 
+void threadpool_distribute_and_run(threadpool_t *pool, task_group_t *task_group, threadpool_function_t func, int totalRange, int taskCount, int64_t now) {
+
+    if (taskCount == 0 || taskCount > (int) task_group->task_count) {
+        taskCount = task_group->task_count;
+    }
+
+    threadpool_task_t *tasks = task_group->tasks;
+    task_info_t *infos = task_group->infos;
+
+    int section_len = totalRange / taskCount;
+    int extra = totalRange % taskCount;
+
+    int p = 0;
+
+    int actualTaskCount = 0;
+    // assign tasks
+    for (int i = 0; i < taskCount; i++) {
+        threadpool_task_t *task = &tasks[i];
+        task_info_t *range = &infos[i];
+
+        range->now = now;
+        range->from = p;
+        p += section_len;
+        if (extra) {
+            p++;
+            extra--;
+        }
+        range->to = p;
+
+        if (range->from == range->to) {
+            break;
+        }
+
+        task->function = func;
+        task->argument = range;
+
+        actualTaskCount++;
+        //fprintf(stderr, "%d %d\n", range->from, range->to);
+    }
+    if (p != totalRange) {
+        fprintf(stderr, "threadpool_distribute_and_run: range distribution error: p: %d totalRange: %d\n", p, totalRange);
+    }
+
+    threadpool_run(pool, tasks, actualTaskCount);
+}
+
 
 void gzipFile(char *filename) {
     int fd;
