@@ -731,7 +731,10 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
             }
         }
         if (a->nogpsCounter >= NOGPS_SHOW && now < a->seenAdsbReliable + NOGPS_DWELL && now > a->seenAdsbReliable + 15 * SECONDS) {
-            p = safe_snprintf(p, end, ",\"gpsOkBefore\":%.1f", a->seenAdsbReliable / 1000.0);
+            p = safe_snprintf(p, end, ",\"gpsOkBefore\":%.1f,\"gpsOkLat\":%f,\"gpsOkLon\":%f",
+                    a->seenAdsbReliable / 1000.0,
+                    a->seenAdsbLat,
+                    a->seenAdsbLon);
         }
     }
 

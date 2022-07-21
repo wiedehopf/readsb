@@ -74,7 +74,7 @@
 
 #define NOGPS_DWELL (15 * MINUTES)
 #define NOGPS_MAX (20)
-#define NOGPS_SHOW (18)
+#define NOGPS_SHOW (17)
 
 // 2.5 seconds maximum between messages used for calculating wind / temperature
 #define TRACK_WT_TIMEOUT (2500)
@@ -540,6 +540,10 @@ struct aircraft
   double mlat_lon;
 
   data_validity pos_reliable_valid;
+
+  // last reliable SOURCE_ADSB positions from this aircraft
+  double seenAdsbLat;
+  double seenAdsbLon;
 
   // DANGER, this section is zeroed when saving and loading data
 

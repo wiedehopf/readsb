@@ -1029,6 +1029,8 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
                 && trackDataValid(&a->nac_p_valid) && a->nac_p >= 4 // 1 nmi
            ) {
             a->seenAdsbReliable = now;
+            a->seenAdsbLat = mm->decoded_lat;
+            a->seenAdsbLon = mm->decoded_lon;
         }
 
         if (Modes.userLocationValid) {
@@ -2494,6 +2496,7 @@ static void removeStaleRange(void *arg, threadpool_threadbuffers_t * buffers) {
     MODES_NOTUSED(buffers);
 
     task_info_t *info = (task_info_t *) arg;
+
     int64_t now = info->now;
     //fprintf(stderr, "%9d %9d %9d\n", info->from, info->to, AIRCRAFT_BUCKETS);
 
@@ -2643,6 +2646,9 @@ void trackRemoveStale(int64_t now) {
     int n_parts = 32 * taskCount;
 
     section_len = AIRCRAFT_BUCKETS / n_parts + 1;
+
+
+    //fprintf(stderr, "part %d\n", part);
 
     // assign tasks
     for (int i = 0; i < taskCount; i++) {
