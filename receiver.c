@@ -85,7 +85,7 @@ void receiverTimeout(int part, int nParts, int64_t now) {
     }
 }
 void receiverInit() {
-    if (Modes.netReceiverId || Modes.netIngest || Modes.debug_no_discard) {
+    if (Modes.netReceiverId || Modes.netIngest || Modes.debug_no_discard || Modes.viewadsb) {
         Modes.receiver_table_hash_bits = 16;
     } else {
         Modes.receiver_table_hash_bits = 8;
