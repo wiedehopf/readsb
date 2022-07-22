@@ -416,7 +416,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         override = 1;
     } else if (now > a->position_valid.updated + POS_RELIABLE_TIMEOUT) {
         override = 1; // no reference or older than 60 minutes, assume OK
-    } else if (source > a->position_valid.last_source) {
+    } else if (source > a->position_valid.source) {
         override = 1; // data is better quality, OVERRIDE
     } else if (source <= SOURCE_MLAT && elapsed > 45 * SECONDS) {
         override = 1;
