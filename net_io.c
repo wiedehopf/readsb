@@ -2869,6 +2869,7 @@ static int readClient(struct client *c, int64_t now) {
     // If we didn't get all the data we asked for, then return once we've processed what we did get.
     if (nread != left) {
         c->bContinue = 0;
+
         // also note that we (likely) emptied the system network buffer
         c->last_read_flush = now;
     }
@@ -2929,7 +2930,7 @@ static int readClient(struct client *c, int64_t now) {
         }
     }
 
-    if (!Modes.debug_no_discard && !c->discard && now - c->last_read < 100 && now - c->last_read_flush > 3 * SECONDS) {
+    if (!Modes.debug_no_discard && !c->discard && now - c->last_read < 1000 && now - c->last_read_flush > 1500) {
         c->discard = 1;
         if (Modes.netIngest && c->proxy_string[0] != '\0') {
             fprintf(stderr, "<3>ERROR, not enough CPU: Discarding data from: %s\n", c->proxy_string);
