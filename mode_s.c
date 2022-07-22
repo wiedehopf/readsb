@@ -2160,6 +2160,10 @@ void displayModesMessage(struct modesMessage *mm) {
         printf("  SDA:           %d\n", mm->accuracy.sda);
     }
 
+    if (mm->mlatEPU) {
+        printf("  mlatEPU:       %d\n", mm->mlatEPU);
+    }
+
     if (mm->opstatus.valid) {
         printf("  Aircraft Operational Status:\n");
         printf("    Version:            %d\n", mm->opstatus.version);

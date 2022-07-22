@@ -414,9 +414,9 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         mm->pos_ignore = 1; // don't decrement pos_reliable
     } else if (a->pos_reliable_odd < 0.9 || a->pos_reliable_even < 0.9) {
         override = 1;
-    } else if (now > a->position_valid.updated + POS_RELIABLE_TIMEOUT) {
+    } else if (now - a->position_valid.updated > POS_RELIABLE_TIMEOUT) {
         override = 1; // no reference or older than 60 minutes, assume OK
-    } else if (source > a->position_valid.source) {
+    } else if (source > a->position_valid.source && source > a->position_valid.last_source && source > a->pos_reliable_valid.source) {
         override = 1; // data is better quality, OVERRIDE
     } else if (source <= SOURCE_MLAT && elapsed > 45 * SECONDS) {
         override = 1;
@@ -518,8 +518,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     speed = fmin(speed, 2000);
 
     if (source == SOURCE_MLAT) {
-        speed = 3000; // fixed allowed speed for MLAT
-        range += 400; // add fixed allowed offset
+        speed *= 1.2;
+        range += 500; // add fixed allowed offset
     }
 
     if (distance > 1 && (track_diff < 70 || track_diff == -1)) {
@@ -924,9 +924,6 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
         return;
     }
 
-    if (mm->mlatEPU) {
-        a->mlatEPU = mm->mlatEPU;
-    }
     if (mm->source == SOURCE_MLAT && mm->receiverCountMlat) {
         a->receiverCountMlat = mm->receiverCountMlat;
     }
@@ -2190,8 +2187,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         }
         // avoid using already received positions
         if (old_jaero || greatcircle(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon, 1) < 1) {
-        } else if (mm->source == SOURCE_MLAT && mm->mlatEPU > a->mlatEPU
-                && imin((int)(8000.0f * logf((float)mm->mlatEPU / (float)a->mlatEPU)), TRACE_STALE * 3 / 4) > (int64_t) trackDataAge(mm->sysTimestampMsg, &a->pos_reliable_valid)
+        } else if (mm->source == SOURCE_MLAT && mm->mlatEPU > 2 * a->mlatEPU
+                && imin((int)(3000.0f * logf((float)mm->mlatEPU / (float)a->mlatEPU)), TRACE_STALE * 3 / 4) > (int64_t) trackDataAge(mm->sysTimestampMsg, &a->pos_reliable_valid)
                 ) {
             // don't use less accurate MLAT positions unless some time has elapsed
             // only works with SBS input MLAT data coming from some versions of mlat-server
@@ -2203,7 +2200,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                 a->mlat_lat = mm->decoded_lat;
                 a->mlat_lon = mm->decoded_lon;
                 if (mm->mlatEPU) {
-                    a->mlatEPU = mm->mlatEPU;
+                    a->mlatEPU += 0.5 * mm->mlatEPU - a->mlatEPU;
                 }
                 if (0 && a->pos_reliable_valid.source > SOURCE_MLAT) {
                     fprintf(stderr, "%06x: %d\n", a->addr, mm->reduce_forward);
