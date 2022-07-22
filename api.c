@@ -209,7 +209,13 @@ static int filterTypeList(struct apiEntry *haystack, int haylen, char *typeList,
     }
     return count;
 }
-static int findInBox(struct apiEntry *haystack, int haylen, double *box, struct apiEntry *matches, size_t *alloc) {
+
+static int inLatRange(struct apiEntry *e, int32_t lat1, int32_t lat2, struct apiOptions *options) {
+    return (e->bin.lat >= lat1 && e->bin.lat <= lat2 && (e->bin.position_valid || options->binCraft));
+}
+
+static int findInBox(struct apiEntry *haystack, int haylen, struct apiOptions *options, struct apiEntry *matches, size_t *alloc) {
+    double *box = options->box;
     struct range r[2];
     memset(r, 0, sizeof(r));
     int count = 0;
@@ -230,7 +236,7 @@ static int findInBox(struct apiEntry *haystack, int haylen, double *box, struct 
     for (int k = 0; k < 2; k++) {
         for (int j = r[k].from; j < r[k].to; j++) {
             struct apiEntry *e = &haystack[j];
-            if (e->bin.lat >= lat1 && e->bin.lat <= lat2) {
+            if (inLatRange(e, lat1, lat2, options)) {
                 matches[count++] = *e;
                 *alloc += e->jsonOffset.len;
             }
@@ -304,7 +310,8 @@ static int findHexList(struct apiEntry **hashList, uint32_t *hexList, int hexCou
     }
     return count;
 }
-static int findInCircle(struct apiEntry *haystack, int haylen, struct apiCircle *circle, struct apiEntry *matches, size_t *alloc) {
+static int findInCircle(struct apiEntry *haystack, int haylen, struct apiOptions *options, struct apiEntry *matches, size_t *alloc) {
+    struct apiCircle *circle = &options->circle;
     struct range r[2];
     memset(r, 0, sizeof(r));
     int count = 0;
@@ -355,7 +362,7 @@ static int findInCircle(struct apiEntry *haystack, int haylen, struct apiCircle 
         for (int k = 0; k < 2; k++) {
             for (int j = r[k].from; j < r[k].to; j++) {
                 struct apiEntry *e = &haystack[j];
-                if (e->bin.lat >= lat1 && e->bin.lat <= lat2) {
+                if (inLatRange(e, lat1, lat2, options)) {
                     double dist = greatcircle(lat, lon, e->bin.lat / 1E6, e->bin.lon / 1E6, 0);
                     if (dist < radius && dist < minDistance) {
                         // first match is overwritten repeatedly
@@ -375,7 +382,7 @@ static int findInCircle(struct apiEntry *haystack, int haylen, struct apiCircle 
         for (int k = 0; k < 2; k++) {
             for (int j = r[k].from; j < r[k].to; j++) {
                 struct apiEntry *e = &haystack[j];
-                if (e->bin.lat >= lat1 && e->bin.lat <= lat2) {
+                if (inLatRange(e, lat1, lat2, options)) {
                     double dist = greatcircle(lat, lon, e->bin.lat / 1E6, e->bin.lon / 1E6, 0);
                     if (dist < radius) {
                         matches[count] = *e;
@@ -450,7 +457,7 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *op
         doFree = 1; matches = apiAlloc(combined_len); if (!matches) { return cb; };
 
         // first get matches for the box
-        count = findInBox(haystack, haylen, options->box, matches, &alloc);
+        count = findInBox(haystack, haylen, options, matches, &alloc);
 
         if (options->is_hexList) {
             // optionally add matches for &find_hex
@@ -459,7 +466,7 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *op
     } else if (options->is_circle) {
         doFree = 1; matches = apiAlloc(haylen); if (!matches) { return cb; };
 
-        count = findInCircle(haystack, haylen, &options->circle, matches, &alloc);
+        count = findInCircle(haystack, haylen, options, matches, &alloc);
 
         alloc += count * 30; // adding 27 characters per entry: ,"dst":1000.000, "dir":357
     } else if (options->is_hexList) {
@@ -511,7 +518,8 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *op
 
         if (doFree) { sfree(matches); }; doFree = 1; matches = filtered;
     }
-    if (options->filter_with_pos) {
+    // filter all_with_pos as pos_range unreliable due do gpsOkBefore f***ery
+    if (options->filter_with_pos || options->all_with_pos) {
         struct apiEntry *filtered = apiAlloc(count); if (!filtered) { return cb; }
 
         size_t alloc = alloc_base;
@@ -730,8 +738,11 @@ static inline void apiAdd(struct apiBuffer *buffer, struct aircraft *a, int64_t 
 
     if (trackDataValid(&a->pos_reliable_valid)) {
         // position valid
+        // else if (trackDataAge(now, &a->pos_reliable_valid) < 30 * MINUTES)
+    } else if (a->nogpsCounter >= NOGPS_SHOW && now - a->seenAdsbReliable < NOGPS_DWELL) {
+        // keep in box
     } else {
-        // position invalid, change lat / lon for sorting purposes
+        // change lat / lon for sorting purposes
         entry->bin.lat = INT32_MAX;
         entry->bin.lon = INT32_MAX;
     }
