@@ -1784,10 +1784,11 @@ struct char_buffer generateReceiverJson() {
     p = safe_snprintf(p, end, ", \"readsb\": true"); // for tar1090 so it can tell it's not dump1090-fa
 
 
+    if (Modes.db || Modes.db2) {
+        p = safe_snprintf(p, end, ", \"dbServer\": true");
+    }
+
     if (Modes.json_globe_index) {
-        if (Modes.db || Modes.db2) {
-            p = safe_snprintf(p, end, ", \"dbServer\": true");
-        }
 
         p = safe_snprintf(p, end, ", \"json_trace_interval\": %.1f", ((double) Modes.json_trace_interval) / (1 * SECONDS));
 
