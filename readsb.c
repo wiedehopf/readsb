@@ -1502,6 +1502,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             sfree(Modes.net_output_json_ports);
             Modes.net_output_json_ports = strdup(arg);
             break;
+        case OptTar1090UseApi:
+            Modes.tar1090_use_api = 1;
+            break;
         case OptNetApiPorts:
             sfree(Modes.net_output_api_ports);
             Modes.net_output_api_ports = strdup(arg);
@@ -1654,8 +1657,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                     case 'd': Modes.debug_no_discard = 1;
                         break;
                     case 'Z': Modes.debug_provoke_segfault = 1;
-                        break;
-                    case 'W': Modes.debug_enable_reapi = 1;
                         break;
                     case 'y': Modes.debug_position_timing = 1;
                         break;

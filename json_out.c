@@ -1808,7 +1808,7 @@ struct char_buffer generateReceiverJson() {
         p = safe_snprintf(p, end, " ]");
     }
 
-    if (Modes.debug_enable_reapi) {
+    if (Modes.tar1090_use_api) {
         p = safe_snprintf(p, end, ", \"reapi\": true");
     }
     p = safe_snprintf(p, end, ", \"binCraft\": true");
