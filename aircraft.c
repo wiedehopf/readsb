@@ -564,6 +564,12 @@ int dbUpdate(int64_t now) {
     if (Modes.json_dir) {
         free(writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson()).buffer);
     }
+
+    // write database to json dir for testing
+    if (Modes.json_dir && Modes.debug_dbJson) {
+        dbToJson();
+    }
+
     return 1;
 DBU0:
     if (gzfp)
@@ -593,10 +599,6 @@ int dbFinishUpdate() {
         return 0;
     }
     // finish db update
-
-    if (0 && Modes.json_dir && Modes.debug_dbJson) {
-        dbToJson();
-    }
 
     free(Modes.dbIndex);
     free(Modes.db);

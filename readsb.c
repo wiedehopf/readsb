@@ -2056,11 +2056,6 @@ static void miscStuff(int64_t now) {
     if (dbUpdate(now)) {
         return;
     }
-    static int64_t next_db_check;
-    if (now > next_db_check) {
-
-        return;
-    }
 }
 
 static void *miscEntryPoint(void *arg) {
