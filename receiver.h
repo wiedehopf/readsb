@@ -3,6 +3,10 @@
 
 #define RECEIVER_BAD_AIRCRAFT (2)
 
+#define RECEIVER_RANGE_GOOD (7)
+#define RECEIVER_RANGE_BAD (-7)
+#define RECEIVER_RANGE_UNCLEAR (-1)
+
 struct bad_ac {
   uint32_t addr;
   int64_t ts;

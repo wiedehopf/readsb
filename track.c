@@ -510,7 +510,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     }
 
     // same TCP packet (2 ms), two positions from same receiver id, allow plenty of extra range
-    if (elapsed < 2 && a->receiverId == mm->receiverId) {
+    if (elapsed < 2 && a->receiverId == mm->receiverId && source > SOURCE_MLAT) {
         range += 500; // 500 m extra in this case
     }
 
@@ -548,7 +548,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     }
 
     if (!Modes.userLocationValid && (inrange || override)) {
-        if (receiverPositionReceived(a, mm, lat, lon, now) == -2) {
+        if (receiverPositionReceived(a, mm, lat, lon, now) == RECEIVER_RANGE_BAD) {
             // far outside receiver area
             receiverRangeExceeded = 1;
             inrange = 0;
@@ -2185,8 +2185,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                     old_jaero = 1;
             }
         }
-        // avoid using already received positions
         if (old_jaero || greatcircle(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon, 1) < 1) {
+            // avoid using already received positions
         } else if (mm->source == SOURCE_MLAT && mm->mlatEPU > 2 * a->mlatEPU
                 && imin((int)(3000.0f * logf((float)mm->mlatEPU / (float)a->mlatEPU)), TRACE_STALE * 3 / 4) > (int64_t) trackDataAge(mm->sysTimestampMsg, &a->pos_reliable_valid)
                 ) {
@@ -3331,6 +3331,9 @@ static void incrementReliable(struct aircraft *a, struct modesMessage *mm, int64
     float increment = 1.0f;
     if (mm->pos_receiver_range_exceeded) {
         increment = 0.25f;
+    }
+    if (mm->source == SOURCE_SBS) {
+        increment = 0.5f;
     }
 
     if (a->pos_reliable_odd < increment || a->pos_reliable_even < increment) {

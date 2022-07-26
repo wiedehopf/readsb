@@ -112,45 +112,46 @@ void receiverCleanup() {
     sfree(Modes.receiverTable);
 }
 int receiverPositionReceived(struct aircraft *a, struct modesMessage *mm, double lat, double lon, int64_t now) {
-    if (lat > 85.0 || lat < -85.0 || lon < -175 || lon > 175)
-        return -1;
+    uint64_t id = mm->receiverId;
+    if (id == 0 || lat > 85.0 || lat < -85.0 || lon < -179.9 || lon > 179.9) {
+        return RECEIVER_RANGE_UNCLEAR;
+    }
     int reliabilityRequired = Modes.position_persistence * 3 / 4;
     if (Modes.viewadsb || Modes.receiver_focus) {
         reliabilityRequired = imin(2, Modes.position_persistence);
     }
-    if (
-            ! (
-                mm->source == SOURCE_ADSB && mm->cpr_type != CPR_SURFACE
-                && a->pos_reliable_odd >= reliabilityRequired
-                && a->pos_reliable_even >= reliabilityRequired
-              )
-       ) {
-        return -1;
-    }
-    double distance = 0;
-    uint64_t id = mm->receiverId;
+
+    // we only use ADS-B positions in the air with sufficient reliability to affect the receiver position / extent
+    int noModifyReceiver = (mm->source != SOURCE_ADSB || mm->cpr_type == CPR_SURFACE
+            || a->pos_reliable_odd < reliabilityRequired || a->pos_reliable_even < reliabilityRequired);
+
     struct receiver *r = receiverGet(id);
 
     if (!r || r->positionCounter == 0) {
+        if (noModifyReceiver) {
+            return RECEIVER_RANGE_UNCLEAR;
+        }
         r = receiverCreate(id);
-        if (!r)
-            return -1;
+        if (!r) {
+            return RECEIVER_RANGE_UNCLEAR;
+        }
         r->lonMin = lon;
         r->lonMax = lon;
         r->latMin = lat;
         r->latMax = lat;
-    } else {
+    }
 
-        // diff before applying new position
-        struct receiver before = *r;
-        double latDiff = before.latMax - before.latMin;
-        double lonDiff = before.lonMax - before.lonMin;
+    // diff before applying new position (we'll just get distance zero for a new receiver, this is fine)
+    struct receiver before = *r;
+    double latDiff = before.latMax - before.latMin;
+    double lonDiff = before.lonMax - before.lonMin;
 
-        double rlat = r->latMin + latDiff / 2;
-        double rlon = r->lonMin + lonDiff / 2;
+    double rlat = r->latMin + latDiff / 2;
+    double rlon = r->lonMin + lonDiff / 2;
 
-        distance = greatcircle(rlat, rlon, lat, lon, 1);
+    double distance = greatcircle(rlat, rlon, lat, lon, 1);
 
+    if (!noModifyReceiver) {
         if (distance < RECEIVER_MAX_RANGE) {
             r->lonMin = fmin(r->lonMin, lon);
             r->latMin = fmin(r->latMin, lat);
@@ -196,14 +197,16 @@ int receiverPositionReceived(struct aircraft *a, struct modesMessage *mm, double
         }
     }
 
-    r->positionCounter++;
-    r->lastSeen = now;
-
-    if (distance > RECEIVER_MAX_RANGE) {
-        return -2;
+    if (!noModifyReceiver) {
+        r->positionCounter++;
+        r->lastSeen = now;
     }
 
-    return 1;
+    if (distance > RECEIVER_MAX_RANGE) {
+        return RECEIVER_RANGE_BAD;
+    }
+
+    return RECEIVER_RANGE_GOOD;
 }
 
 struct receiver *receiverGetReference(uint64_t id, double *lat, double *lon, struct aircraft *a, int noDebug) {
