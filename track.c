@@ -518,8 +518,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     speed = fmin(speed, 2000);
 
     if (source == SOURCE_MLAT) {
-        speed *= 1.2;
-        range += 500; // add fixed allowed offset
+        speed *= 1.4;
+        speed += 50;
     }
 
     if (distance > 1 && (track_diff < 70 || track_diff == -1)) {
