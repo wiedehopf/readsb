@@ -50,6 +50,8 @@ typedef struct dbEntry {
 dbEntry *dbGet(uint32_t addr, dbEntry **index);
 void dbPut(uint32_t addr, dbEntry **index, dbEntry *d);
 
+#define BINCRAFT_ALT_FACTOR (1.0f/25.0f)
+
 struct binCraft {
   uint32_t hex;
   uint16_t seen_pos;

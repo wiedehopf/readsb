@@ -41,6 +41,7 @@ queries+=("?find_type=a320,b788")
 queries+=("?box=10,80,-5,20&filter_type=a320,b788")
 queries+=("?box=10,80,-5,20")
 queries+=("?box=10,80,-5,20&find_hex=4BB267")
+queries+=("?box=10,80,-5,20&above_alt_baro=30000&below_alt_baro=35000")
 
 
 

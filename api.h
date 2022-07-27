@@ -56,6 +56,9 @@ struct apiOptions {
     char callsign_exact[9];
     int filter_callsign_prefix;
     char callsign_prefix[9];
+    int32_t filter_alt_baro;
+    int32_t above_alt_baro;
+    int32_t below_alt_baro;
     int hexCount;
     uint32_t hexList[API_REQ_LIST_MAX];
     int callsignCount;

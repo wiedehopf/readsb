@@ -111,6 +111,25 @@ static struct range findLonRange(int32_t ref_from, int32_t ref_to, struct apiEnt
     return res;
 }
 
+static int filter_alt_baro(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc, struct apiOptions *options) {
+    int count = 0;
+    float reverse_alt_factor = 1.0f / BINCRAFT_ALT_FACTOR;
+    for (int i = 0; i < haylen; i++) {
+        struct apiEntry *e = &haystack[i];
+        int32_t alt = INT32_MIN;
+        if (e->bin.baro_alt_valid) {
+            alt = e->bin.baro_alt * reverse_alt_factor;
+        } else if (e->bin.airground == AG_GROUND) {
+            alt = 0;
+        }
+        if (alt >= options->above_alt_baro && alt <= options->below_alt_baro && alt != INT32_MIN) {
+            matches[count++] = *e;
+            *alloc += e->jsonOffset.len;
+        }
+    }
+    return count;
+}
+
 static int filter_dbFlags(struct apiEntry *haystack, int haylen, struct apiEntry *matches, size_t *alloc, struct apiOptions *options) {
     int count = 0;
     for (int i = 0; i < haylen; i++) {
@@ -532,6 +551,14 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *op
 
         size_t alloc = alloc_base;
         count = filter_dbFlags(matches, count, filtered, &alloc, options);
+
+        if (doFree) { sfree(matches); }; doFree = 1; matches = filtered;
+    }
+    if (options->filter_alt_baro) {
+        struct apiEntry *filtered = apiAlloc(count); if (!filtered) { return cb; }
+
+        size_t alloc = alloc_base;
+        count = filter_alt_baro(matches, count, filtered, &alloc, options);
 
         if (doFree) { sfree(matches); }; doFree = 1; matches = filtered;
     }
@@ -1024,6 +1051,10 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
     struct apiOptions optionsBack = { 0 };
     struct apiOptions *options = &optionsBack;
 
+    // set some option defaults:
+    options->above_alt_baro = INT32_MIN;
+    options->below_alt_baro = INT32_MAX;
+
     options->request_received = microtime();
 
     while ((p = strsep(&query, "&"))) {
@@ -1179,6 +1210,12 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                 memset(options->callsign_prefix, 0x0, sizeof(options->callsign_prefix));
                 strncpy(options->callsign_prefix, value, 8);
 
+            } else if (strcasecmp(option, "above_alt_baro") == 0) {
+                options->filter_alt_baro = 1;
+                options->above_alt_baro = strtol(value, NULL, 10);
+            } else if (strcasecmp(option, "below_alt_baro") == 0) {
+                options->filter_alt_baro = 1;
+                options->below_alt_baro = strtol(value, NULL, 10);
             } else if (strcasecmp(option, "filter_squawk") == 0) {
                 options->filter_squawk = 1;
                 //int dec = strtol(value, NULL, 10);

@@ -1662,11 +1662,12 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         }
     }
 
+    int address_reliable = addressReliable(mm);
 
     // Lookup our aircraft or create a new one
     a = aircraftGet(mm->addr);
     if (!a) { // If it's a currently unknown aircraft....
-        if (addressReliable(mm)) {
+        if (address_reliable) {
             a = aircraftCreate(mm->addr); // ., create a new record for it,
         } else {
             //fprintf(stderr, "%06x: !a && !addressReliable(mm)\n", mm->addr);
@@ -1685,12 +1686,12 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     }
 
     // only count the aircraft as "seen" for reliable messages with CRC
-    if (addressReliable(mm)) {
+    if (address_reliable) {
         a->seen = now;
     }
 
     // don't use messages with unreliable CRC too long after receiving a reliable address from an aircraft
-    if (now > a->seen + 45 * SECONDS) {
+    if (now - a->seen > 45 * SECONDS) {
         return NULL;
     }
 
@@ -1704,7 +1705,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     } else {
         //fprintf(stderr, "signal zero: %06x; %s\n", a->addr, source_string(mm->source));
         // if we haven't received a message with signal level for a bit, set it to zero
-        if (a->lastSignalTimestamp > now + 15 * SECONDS) {
+        if (now - a->lastSignalTimestamp > 15 * SECONDS) {
             a->signalNext = 0;
             //fprintf(stderr, "no_sig_thresh: %06x; %d; %d\n", a->addr, (int) a->no_signal_count, (int) a->signalNext);
         }

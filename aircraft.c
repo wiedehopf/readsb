@@ -198,9 +198,9 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now) {
 
     new->baro_alt_valid = altBaroReliable(a);
 
-    new->baro_alt = (int16_t) nearbyint(a->baro_alt / 25.0);
+    new->baro_alt = (int16_t) nearbyint(a->baro_alt * BINCRAFT_ALT_FACTOR);
 
-    new->geom_alt = (int16_t) nearbyint(a->geom_alt / 25.0);
+    new->geom_alt = (int16_t) nearbyint(a->geom_alt * BINCRAFT_ALT_FACTOR);
     new->baro_rate = (int16_t) nearbyint(a->baro_rate / 8.0);
     new->geom_rate = (int16_t) nearbyint(a->geom_rate / 8.0);
     new->ias = a->ias;
