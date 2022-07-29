@@ -2339,9 +2339,8 @@ no_save_state:
 
     // current_len still needs to be a usable index after being incremented
     if (a->trace_current_len + 1 >= a->trace_current_max - 1) {
-        //static int64_t antiSpam;
-        //if (Modes.debug_traceAlloc || now > antiSpam + 5 * SECONDS) {
-        if (Modes.debug_traceAlloc || 1) {
+        static int64_t antiSpam;
+        if (Modes.debug_traceAlloc || now > antiSpam + 5 * SECONDS) {
             double elapsed_seconds = elapsed * 0.001;
             fprintf(stderr, "%06x trace_current_max insufficient (%d/%d) %11.6f,%11.6f %5.1fs d:%5.0f s: %4.0f sc: %4.0f\n",
                     a->addr,
@@ -2349,7 +2348,7 @@ no_save_state:
                     a->lat, a->lon,
                     elapsed_seconds,
                     distance, a->gs, (distance / elapsed_seconds) * (3600.0f/1852.0f));
-            //antiSpam = now;
+            antiSpam = now;
             //displayModesMessage(mm);
         }
         return 0;
