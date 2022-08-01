@@ -520,6 +520,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     if (source == SOURCE_MLAT) {
         speed *= 1.4;
         speed += 50;
+        range += 250;
     }
 
     if (distance > 1 && (track_diff < 70 || track_diff == -1)) {
