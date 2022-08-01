@@ -552,7 +552,6 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         if (receiverPositionReceived(a, mm, lat, lon, now) == RECEIVER_RANGE_BAD) {
             // far outside receiver area
             receiverRangeExceeded = 1;
-            inrange = 0;
         }
     }
 
@@ -632,7 +631,6 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
     if (receiverRangeExceeded && Modes.netReceiverId) {
         mm->pos_receiver_range_exceeded = 1;
-        // disable acting on exceeded receiver range for the time being
         inrange = 0; // far outside receiver area
         mm->pos_ignore = 1;
         mm->pos_bad = 1;
