@@ -3429,6 +3429,9 @@ static void modesReadFromClient(struct client *c, struct messageBuffer *mb) {
             *c->eod = '\0';
         }
     }
+
+    // reset discard status
+    c->discard = 0;
 }
 
 /*
