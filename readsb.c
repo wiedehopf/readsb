@@ -1595,6 +1595,11 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             }
             break;
 
+        case OptDevel:
+            if (strcmp(arg, "lastStatus") == 0) { Modes.debug_lastStatus = 1; };
+            if (strcmp(arg, "lastStatusOverride") == 0) { Modes.debug_lastStatus = 2; };
+            break;
+
         case OptDebug:
             while (*arg) {
                 switch (*arg) {
@@ -1660,7 +1665,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         break;
                     case 'y': Modes.debug_position_timing = 1;
                         break;
-
 
                     default:
                         fprintf(stderr, "Unknown debugging flag: %c\n", *arg);

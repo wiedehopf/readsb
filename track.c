@@ -626,6 +626,9 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
     // override, this allows for printing stuff instead of returning
     if (override) {
+        if (!inrange) {
+            a->lastOverrideTs = now;
+        }
         inrange = override;
     }
 
@@ -923,10 +926,6 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
         return;
     }
 
-    if (mm->source == SOURCE_MLAT && mm->receiverCountMlat) {
-        a->receiverCountMlat = mm->receiverCountMlat;
-    }
-
     if (mm->client) {
         mm->client->positionCounter++;
     }
@@ -934,16 +933,6 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
     if (mm->duplicate) {
         Modes.stats_current.pos_duplicate++;
         return;
-    }
-
-    // due to accept_data / beast_reduce forwarding we can't put receivers
-    // into the receiver list which aren't the first ones to send us the position
-    if (Modes.netReceiverId) {
-        a->receiverIdsNext = (a->receiverIdsNext + 1) % RECEIVERIDBUFFER;
-        a->receiverIds[a->receiverIdsNext] = simpleHash(mm->receiverId);
-        if (0 && a->addr == Modes.cpr_focus) {
-            fprintf(stderr, "%u\n", simpleHash(mm->receiverId));
-        }
     }
 
     a->receiverId = mm->receiverId;
@@ -980,6 +969,67 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
 
 
     a->pos_surface = trackDataValid(&a->airground_valid) && a->airground == AG_GROUND;
+
+    // due to accept_data / beast_reduce forwarding we can't put receivers
+    // into the receiver list which aren't the first ones to send us the position
+    if (Modes.netReceiverId) {
+        a->receiverIdsNext = (a->receiverIdsNext + 1) % RECEIVERIDBUFFER;
+        a->receiverIds[a->receiverIdsNext] = simpleHash(mm->receiverId);
+        if (0 && a->addr == Modes.cpr_focus) {
+            fprintf(stderr, "%u\n", simpleHash(mm->receiverId));
+        }
+
+
+        if (a->position_valid.source == SOURCE_MLAT && mm->receiverCountMlat) {
+            a->receiverCount = mm->receiverCountMlat;
+        } else if (a->position_valid.source < SOURCE_TISB) {
+            a->receiverCount = 1;
+        } else {
+            uint16_t *set1 = a->receiverIds;
+            uint16_t set2[RECEIVERIDBUFFER] = { 0 };
+            int div = 0;
+            for (int k = 0; k < RECEIVERIDBUFFER; k++) {
+                int unequal = 0;
+                for (int j = 0; j < div; j++) {
+                    unequal += (set1[k] != set2[j]);
+                }
+                if (unequal == div && set1[k]) {
+                    set2[div++] = set1[k];
+                }
+            }
+            a->receiverCount = div;
+        }
+
+        int64_t valid_elapsed = now - a->pos_reliable_valid.updated;
+        int64_t override_elapsed = now - a->lastOverrideTs;
+        int64_t status_elapsed = now - a->lastStatusTs;
+
+        if (posReliable(a)
+                && (valid_elapsed > 10 * MINUTES || override_elapsed < 10 * MINUTES)
+                && mm->msgtype == 17
+                && mm->cpr_valid
+                && status_elapsed > 60 * SECONDS
+           ) {
+            double dist = greatcircle(a->latReliable, a->lonReliable, mm->decoded_lat, mm->decoded_lon, 0);
+            if (dist > 100e3) {
+                if (Modes.debug_lastStatus == 1) {
+                    char uuid[32]; // needs 18 chars and null byte
+                    sprint_uuid1(mm->receiverId, uuid);
+                    fprintf(stderr, "%06x dist: %4d status_e: %4d valid_e: %4d over_e: %4d rCount: %d uuid: %s\n",
+                            a->addr,
+                            (int) imin(9999, (dist / 1000)),
+                            (int) imin(9999, (status_elapsed / 1000)),
+                            (int) imin(9999, (valid_elapsed / 1000)),
+                            (int) imin(9999, (override_elapsed / 1000)),
+                            a->receiverCount,
+                            uuid);
+                }
+                if (Modes.debug_lastStatus != 2) {
+                    return;
+                }
+            }
+        }
+    }
 
     if (posReliable(a) && accept_data(&a->pos_reliable_valid, mm->source, mm, a, 2)) {
 
@@ -2041,6 +2091,23 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (mm->cpr_valid) {
         cpr_duplicate_check(now, a, mm);
     }
+
+    if (!mm->duplicate && !mm->garbage) {
+        if (mm->msgtype == 17) {
+            if ((mm->metype >= 1 && mm->metype <= 4) || mm->metype >= 23) {
+                a->lastStatusTs = now;
+            }
+        }
+        if (mm->msgtype == 11) {
+            a->lastStatusTs = now;
+        }
+        if (!mm->squawk_valid) {
+            if ((mm->msgtype == 0 || mm->msgtype == 4 || mm->msgtype == 20) && a->airground == AG_GROUND) {
+                a->lastStatusTs = now;
+            }
+        }
+    }
+
 
 
     if (mm->acas_ra_valid) {

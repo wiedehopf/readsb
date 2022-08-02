@@ -276,26 +276,10 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now) {
     new->receiverId = (uint32_t) (a->receiverId >> 32);
 #endif
 
-    if (Modes.json_globe_index || Modes.netReceiverId) {
-        if (a->pos_reliable_valid.source == SOURCE_MLAT) {
-            new->receiverCount = a->receiverCountMlat;
-        } else if (a->pos_reliable_valid.source >= SOURCE_TISB) {
-            uint16_t *set1 = a->receiverIds;
-            uint16_t set2[16] = { 0 };
-            int div = 0;
-            for (int k = 0; k < RECEIVERIDBUFFER; k++) {
-                int unequal = 0;
-                for (int j = 0; j < div; j++) {
-                    unequal += (set1[k] != set2[j]);
-                }
-                if (unequal == div && set1[k])
-                    set2[div++] = set1[k];
-            }
-            new->receiverCount = div;
-        } else {
-            new->receiverCount = 1;
-        }
+    if (Modes.netReceiverId) {
+        new->receiverCount = a->receiverCount;
     }
+
 #define F(f) do { new->f##_valid = trackDataValid(&a->f##_valid); new->f *= new->f##_valid; } while (0)
     F(geom_alt);
     F(gs);

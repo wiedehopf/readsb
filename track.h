@@ -311,7 +311,7 @@ struct aircraft
 
   uint32_t messages; // Number of Mode S messages received
   int32_t onActiveList;
-  uint32_t receiverCountMlat;
+  uint32_t receiverCount;
   uint32_t category; // Aircraft category A0 - D7 encoded as a single hex byte. 00 = unset
                      //
   int64_t category_updated;
@@ -528,7 +528,7 @@ struct aircraft
   int64_t prev_pos_time; // time the previous position was received
 
   int32_t speedUnreliable;
-  int32_t padding;
+  uint32_t paddingadf;
 
   int64_t nextJsonPortOutput;
 
@@ -544,6 +544,9 @@ struct aircraft
   // last reliable SOURCE_ADSB positions from this aircraft
   double seenAdsbLat;
   double seenAdsbLon;
+
+  int64_t lastStatusTs;
+  int64_t lastOverrideTs;
 
   // DANGER, this section is zeroed when saving and loading data
 

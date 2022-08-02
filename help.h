@@ -83,6 +83,7 @@ static struct argp_option optionsReadsb[] = {
     {"gnss", OptGnss, 0, 0, "Show altitudes as GNSS when available", 1},
     {"snip", OptSnip, "<level>", 0, "Strip IQ file removing samples < level", 1},
     {"debug", OptDebug, "<flags>", 0, "Debug mode (verbose), n: network, P: CPR, S: speed check", 1},
+    {"devel", OptDevel, "<mode>", 0, "Development debugging mode, see source for options, can be specified more than once", 1},
     {"receiver-focus", OptReceiverFocus, "<receiverId>", 0, "only process messages from receiverId", 1},
     {"cpr-focus", OptCprFocus, "<hex>", 0, "show CPR details for this hex", 1},
     {"leg-focus", OptLegFocus, "<hex>", 0, "show leg marking details for this hex", 1},

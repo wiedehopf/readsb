@@ -611,6 +611,7 @@ struct _Modes
     int8_t debug_send_uuid;
     int8_t debug_provoke_segfault;
     int8_t debug_position_timing;
+    int8_t debug_lastStatus;
     int8_t tar1090_use_api;
     int8_t verbose;
 
@@ -1043,6 +1044,7 @@ enum {
     OptGnss,
     OptSnip,
     OptDebug,
+    OptDevel,
     OptReceiverFocus,
     OptCprFocus,
     OptLegFocus,
