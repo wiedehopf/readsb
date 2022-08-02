@@ -966,13 +966,15 @@ static int load_aircraft(char **p, char *end, int64_t now) {
             a->trace_next_perm = now;
             scheduleMemBothWrite(a, now);
             fprintf(stderr, "leg_focus: %06x trace len: %d\n", a->addr, a->trace_len);
-            a->trace_write = 1;
+            a->trace_write |= WRECENT;
+            a->trace_write |= WPERM;
+            a->trace_write |= WMEM;
         }
 
         // schedule writing all the traces into run so they are present for the webinterface
         if (a->pos_reliable_valid.source != SOURCE_INVALID || (now - a->seen_pos) < 30 * MINUTES) {
             scheduleMemBothWrite(a, now + 15 * SECONDS); // write traces for aircraft with valid positions as quickly as possible
-            a->trace_write = 1;
+            a->trace_write |= WRECENT;
         } else {
             scheduleMemBothWrite(a, now + 60 * SECONDS + (now - a->seen_pos) / (24 * 60) * 3); // condense 24h into 3 minutes
         }
@@ -1830,6 +1832,7 @@ static void setTrace(struct aircraft *a, fourState *source, int len) {
 
     traceCleanupNoUnlink(a);
 
+    a->trace_len = len;
 
     fourState *p = source;
     int chunkSize = alignSFOUR(Modes.traceChunkPoints);
@@ -1853,7 +1856,7 @@ static void setTrace(struct aircraft *a, fourState *source, int len) {
 
         len -= chunkSize;
         p += chunkSize / SFOUR;
-        fprintf(stderr, "setTrace reduce len: %ld\n", (long) len);
+        //fprintf(stderr, "setTrace reduce len: %ld\n", (long) len);
     }
 
     a->trace_current_len = len;
@@ -1866,8 +1869,6 @@ static void setTrace(struct aircraft *a, fourState *source, int len) {
         memcpy(a->trace_current, p, stateBytes(a->trace_current_len + 1));
     }
 
-    traceMaintenance(a, now);
-    scheduleMemBothWrite(a, now);
 }
 
 
@@ -3266,6 +3267,40 @@ void readInternalState() {
     fprintf(stderr, "aircraft table fill: %0.1f\n", aircraftCount / (double) AIRCRAFT_BUCKETS );
 }
 
+void unlinkPerm(struct aircraft *a) {
+    if (!Modes.globe_history_dir) {
+        return;
+    }
+
+    int64_t now = mstime();
+
+    a->trace_perm_last_timestamp = 0;
+
+    // fiftyfive_ago changes day 55 min after midnight: stop writing the previous days traces
+    // fiftysix_ago changes day 56 min after midnight: allow webserver to read the previous days traces (see checkNewDay function)
+    // this is in seconds, not milliseconds
+    time_t fiftyfive_time = now / 1000 - 55 * 60;
+
+    struct tm fiftyfive;
+    gmtime_r(&fiftyfive_time, &fiftyfive);
+
+    // we just use the day of the struct tm in the next lines
+    fiftyfive.tm_sec = 0;
+    fiftyfive.tm_min = 0;
+    fiftyfive.tm_hour = 0;
+
+    char tstring[100];
+    strftime (tstring, 100, TDATE_FORMAT, &fiftyfive);
+
+    char filename[PATH_MAX];
+
+    snprintf(filename, PATH_MAX, "%s/%s/traces/%02x/trace_full_%s%06x.json", Modes.globe_history_dir, tstring, a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
+    filename[PATH_MAX - 101] = 0;
+
+    unlink(filename);
+
+}
+
 void traceDelete() {
 
     threadpool_buffer_t passbuffer = { 0 };
@@ -3274,7 +3309,16 @@ void traceDelete() {
     while (entry) {
         struct hexInterval* curr = entry;
         struct aircraft *a = aircraftGet(curr->hex);
-        if (!a || a->trace_len == 0) {
+        if (!a) {
+            fprintf(stderr, "Deleting trace points, aircraft not found: %06x\n", curr->hex);
+            goto next;
+        }
+
+        traceUnlink(a);
+        unlinkPerm(a);
+
+        if (a->trace_len == 0) {
+            fprintf(stderr, "Deleting trace points, aircraft has no trace: %06x\n", curr->hex);
             goto next;
         }
 
@@ -3319,6 +3363,16 @@ void traceDelete() {
 
 
         setTrace(a, trace, trace_len);
+
+        int64_t now = mstime();
+        a->trace_next_perm = now;
+        scheduleMemBothWrite(a, now);
+        traceMaintenance(a, now);
+
+        // write immediately:
+        a->trace_write |= WRECENT;
+        a->trace_write |= WPERM;
+        a->trace_write |= WMEM;
 
         fprintf(stderr, "Deleted %06x from %lld to %lld trace_len %ld -> %ld\n", curr->hex, (long long) curr->from, (long long) curr->to, (long) old_len, (long) trace_len);
 
