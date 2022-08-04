@@ -564,8 +564,8 @@ static void serviceReconnectCallback(int64_t now) {
         if (!con->connected) {
             // If we've exceeded our connect timeout, close connection.
             if (con->connecting && now >= con->connect_timeout) {
-                fprintf(stderr, "%s: Connection timed out: %s:%s port %s\n",
-                        con->service->descr, con->address, con->port, con->resolved_addr);
+                fprintf(stderr, "%s: Connection to %s%s port %s timed out.\n",
+                        con->service->descr, con->address, con->resolved_addr, con->port);
                 con->connecting = 0;
                 // delete dummyClient epollEvent for connection that is being established
                 epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, con->fd, &con->dummyClient.epollEvent);
