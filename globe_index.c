@@ -971,12 +971,14 @@ static int load_aircraft(char **p, char *end, int64_t now) {
             a->trace_write |= WMEM;
         }
 
-        // schedule writing all the traces into run so they are present for the webinterface
-        if (a->pos_reliable_valid.source != SOURCE_INVALID || (now - a->seen_pos) < 30 * MINUTES) {
-            scheduleMemBothWrite(a, now + 15 * SECONDS); // write traces for aircraft with valid positions as quickly as possible
+        // write traces into /run/readsb so they are present for the webinterface
+        if (a->pos_reliable_valid.source != SOURCE_INVALID || (now - a->seenPosReliable) < 15 * MINUTES) {
+            // write these trace immediately
             a->trace_write |= WRECENT;
+            a->trace_write |= WMEM;
         } else {
-            scheduleMemBothWrite(a, now + 60 * SECONDS + (now - a->seen_pos) / (24 * 60) * 3); // condense 24h into 3 minutes
+            // write these traces within a couple minutes
+            scheduleMemBothWrite(a, now + 60 * SECONDS + (now - a->seen_pos) / (24 * 60) * 2); // condense 24h into 2 minutes
         }
     } else {
         traceCleanupNoUnlink(a);

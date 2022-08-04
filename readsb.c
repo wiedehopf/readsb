@@ -850,9 +850,16 @@ static void writeTraces(int64_t mono) {
     static int part;
     static int64_t lastCompletion;
     static int64_t nextResetCycleDuration;
+    static int firstRunDone;
 
     if (!Modes.tracePool) {
-        Modes.tracePoolSize = imax(1, Modes.num_procs - 2);
+        if (Modes.num_procs <= 1) {
+            Modes.tracePoolSize = 1;
+        } else if (Modes.num_procs <= 4) {
+            Modes.tracePoolSize = Modes.num_procs - 1;
+        } else {
+            Modes.tracePoolSize = Modes.num_procs - 2;
+        }
         Modes.tracePool = threadpool_create(Modes.tracePoolSize, 4);
         Modes.traceTasks = allocate_task_group(8 * Modes.tracePoolSize);
         lastRunFinished = 1;
@@ -883,29 +890,12 @@ static void writeTraces(int64_t mono) {
     int invocations = imax(1, completeTime / PERIODIC_UPDATE);
     // how many parts we want to split the complete workload into
     int n_parts = taskCount * invocations;
-    int thread_section_len = AIRCRAFT_BUCKETS / n_parts + 1;
+    int thread_section_len = AIRCRAFT_BUCKETS / n_parts;
+    int extra = AIRCRAFT_BUCKETS % n_parts;
 
     // only assign new task if we finished the last set of tasks
     if (lastRunFinished) {
         for (int i = 0; i < taskCount; i++) {
-            threadpool_task_t *task = &tasks[i];
-            task_info_t *range = &infos[i];
-
-            int thread_start = part * thread_section_len;
-            int thread_end = thread_start + thread_section_len;
-            if (thread_end > AIRCRAFT_BUCKETS)
-                thread_end = AIRCRAFT_BUCKETS;
-
-            //fprintf(stderr, "%8d %8d\n", thread_start, thread_end);
-
-            range->from = thread_start;
-            range->to = thread_end;
-
-            task->function = traceWriteTask;
-            task->argument = range;
-
-            //fprintf(stderr, "%d %d\n", thread_start, thread_end);
-
             int64_t elapsed = mono - lastCompletion;
 
             if (elapsed > Modes.writeTracesActualDuration) {
@@ -913,7 +903,7 @@ static void writeTraces(int64_t mono) {
                 Modes.writeTracesActualDuration = elapsed;
             }
 
-            if (++part >= n_parts) {
+            if (part >= n_parts) {
                 part = 0;
 
                 if (mono > nextResetCycleDuration) {
@@ -921,13 +911,47 @@ static void writeTraces(int64_t mono) {
                     Modes.writeTracesActualDuration = elapsed;
                 }
 
+                if (!firstRunDone) {
+                    firstRunDone = 1;
+                    fprintf(stderr, "Wrote live traces for aircraft active within the last 15 minutes. This took %.1f seconds (roughly %.0f minutes).\n",
+                            elapsed / 1000.0, elapsed / (double) MINUTES);
+                }
+
                 if (elapsed > 30 * SECONDS && mstime() - Modes.startup_time > 10 * MINUTES) {
-                    fprintf(stderr, "trace writing iteration took %.1f seconds (roughly %.1f minutes), live traces will lag behind (historic traces are fine), "
+                    fprintf(stderr, "trace writing iteration took %.1f seconds (roughly %.0f minutes), live traces will lag behind (historic traces are fine), "
                             "consider alloting more CPU cores or increasing json-trace-interval!\n",
                             elapsed / 1000.0, elapsed / (double) MINUTES);
                 }
 
                 lastCompletion = mono;
+            }
+
+
+            threadpool_task_t *task = &tasks[i];
+            task_info_t *range = &infos[i];
+
+            int thread_start = part * thread_section_len + imin(extra, part);
+            int thread_end = thread_start + thread_section_len + (part < extra ? 1 : 0);
+
+            part++;
+
+            //fprintf(stderr, "%8d %8d %8d\n", thread_start, thread_end, AIRCRAFT_BUCKETS);
+
+            if (thread_end > AIRCRAFT_BUCKETS) {
+                thread_end = AIRCRAFT_BUCKETS;
+                fprintf(stderr, "check traceWriteTask distribution\n");
+            }
+
+            range->from = thread_start;
+            range->to = thread_end;
+
+            task->function = traceWriteTask;
+            task->argument = range;
+
+            if (part >= n_parts) {
+                if (thread_end != AIRCRAFT_BUCKETS || i != taskCount - 1) {
+                    fprintf(stderr, "check traceWriteTask distribution\n");
+                }
             }
         }
     }
