@@ -990,6 +990,13 @@ static int load_aircraft(char **p, char *end, int64_t now) {
     return 0;
 }
 
+static void utc_string_from_ms(int64_t ts, char *target) {
+    time_t time = ts / 1000;
+    struct tm utc;
+    gmtime_r(&time, &utc);
+    strftime (target, 100, "%H:%M:%S", &utc);
+}
+
 static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent) {
     if (tb.len < 20)
         return;
@@ -1010,7 +1017,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
         startWatch(&watch);
     }
 
-    int last_five_init_alt = -1000;
+    int last_five_init_alt = 0;
     struct state *startState = getState(tb.trace, start);
     if (startState->baro_alt_valid) {
         last_five_init_alt = startState->baro_alt / _alt_factor;
@@ -1091,6 +1098,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
     int64_t last_high = 0;
     int64_t last_low = 0;
 
+    int last_high_index = 0;
     int last_low_index = 0;
 
     int64_t last_airborne = 0;
@@ -1184,6 +1192,11 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
             last_airborne = state->timestamp;
         }
 
+        if (was_ground) {
+            low = altitude;
+            high = altitude;
+        }
+
         if (altitude >= high) {
             high = altitude;
             if (0 && focus) {
@@ -1202,6 +1215,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
             // fake major_climb after takeoff ... bit hacky
             high = low + threshold + 1;
             last_high = state->timestamp;
+            last_high_index = index;
             last_low = last_ground;
             last_low_index = last_ground_index;
         }
@@ -1215,6 +1229,8 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
         }
         if (abs(high - altitude) < threshold * 1 / 3) {
             last_high = state->timestamp;
+            last_high_index++;
+            last_high_index = index;
             if (0 && focus) {
                 time_t nowish = state->timestamp/1000;
                 struct tm utc;
@@ -1236,12 +1252,14 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
                     major_climb_index = bla;
                 }
                 if (focus) {
-                    time_t nowish = major_climb/1000;
-                    struct tm utc;
-                    gmtime_r(&nowish, &utc);
+
+                    char climbString[100];
+                    utc_string_from_ms(major_climb, climbString);
+
                     char tstring[100];
-                    strftime (tstring, 100, "%H:%M:%S", &utc);
-                    fprintf(stderr, "climb: %d %s high: %d low:%d index: %d\n", altitude, tstring, high, low, major_climb_index);
+                    utc_string_from_ms(state->timestamp, tstring);
+
+                    fprintf(stderr, "%s climb: %d %s high: %d low:%d index: %d\n", tstring, altitude, climbString, high, low, major_climb_index);
                 }
                 low = high - threshold * 9/10;
             } else if (last_low > last_high) {
@@ -1265,19 +1283,21 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
                 major_descent = getState(tb.trace, k)->timestamp;
                 major_descent_index = k;
                 if (focus) {
-                    time_t nowish = major_descent/1000;
-                    struct tm utc;
-                    gmtime_r(&nowish, &utc);
+                    char descString[100];
+                    utc_string_from_ms(major_descent, descString);
+
                     char tstring[100];
-                    strftime (tstring, 100, "%H:%M:%S", &utc);
-                    fprintf(stderr, "desc: %d %s index: %d\n", altitude, tstring, major_descent_index);
+                    utc_string_from_ms(state->timestamp, tstring);
+
+                    fprintf(stderr, "%s desc: %d %s index: %d\n", tstring, altitude, descString, major_descent_index);
                 }
                 high = low + threshold * 9/10;
             }
         }
         int leg_now = 0;
-        if ( (major_descent && (on_ground || was_ground) && elapsed > 25 * 60 * 1000) ||
-                (major_descent && (on_ground || was_ground) && state->timestamp > last_airborne + 45 * 60 * 1000)
+        if (
+                (major_descent && (on_ground || was_ground) && elapsed > 25 * 60 * 1000) ||
+                (major_descent && on_ground && state->timestamp > last_airborne + 45 * 60 * 1000)
            )
         {
             if (focus) {
@@ -1396,6 +1416,12 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
             major_descent_index = 0;
             low += threshold;
             high -= threshold;
+
+            if (new_leg && new_leg->on_ground) {
+                // reset low / high completely
+                high = 0;
+                low = 100000;
+            }
 
             if (focus) {
                 if (new_leg) {
