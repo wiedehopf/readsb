@@ -974,15 +974,16 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
 
     // due to accept_data / beast_reduce forwarding we can't put receivers
     // into the receiver list which aren't the first ones to send us the position
-    if (Modes.netReceiverId) {
+    if (!Modes.netReceiverId) {
+        a->receiverCount = 1;
+    } else {
         a->receiverIdsNext = (a->receiverIdsNext + 1) % RECEIVERIDBUFFER;
         a->receiverIds[a->receiverIdsNext] = simpleHash(mm->receiverId);
         if (0 && a->addr == Modes.cpr_focus) {
             fprintf(stderr, "%u\n", simpleHash(mm->receiverId));
         }
 
-
-        if (a->position_valid.source == SOURCE_MLAT && mm->receiverCountMlat) {
+        if (mm->source == SOURCE_MLAT && mm->receiverCountMlat) {
             a->receiverCount = mm->receiverCountMlat;
         } else if (a->position_valid.source < SOURCE_TISB) {
             a->receiverCount = 1;
@@ -1571,6 +1572,7 @@ static inline void focusGroundstateChange(struct aircraft *a, struct modesMessag
     }
 }
 static void updateAltitude(int64_t now, struct aircraft *a, struct modesMessage *mm) {
+
     int alt = altitude_to_feet(mm->baro_alt, mm->baro_alt_unit);
     if (a->modeC_hit) {
         int new_modeC = (a->baro_alt + 49) / 100;
@@ -1603,6 +1605,7 @@ static void updateAltitude(int64_t now, struct aircraft *a, struct modesMessage 
             a->alt_reliable = 0;
         }
     }
+
     int good_crc = 0;
 
     // just trust messages with this source implicitely and rate the altitude as max reliable
@@ -1639,8 +1642,17 @@ accept_alt:
     } else {
         score_add = good_crc + 1;
     }
+    if (mm->source == SOURCE_MODE_S && a->position_valid.source == SOURCE_MLAT
+            && trackDataAge(now, &a->baro_alt_valid) > 5 * SECONDS && trackDataAge(now, &a->position_valid) < 15 * SECONDS && a->receiverCount > 1) {
+        // when running with certain mlat-server versions, set altitude to inreliable when we get them too infrequently
+        score_add = -1;
+    }
+
     if (accept_data(&a->baro_alt_valid, mm->source, mm, a, 2)) {
         a->alt_reliable = imin(ALTITUDE_BARO_RELIABLE_MAX , a->alt_reliable + score_add);
+        if (a->alt_reliable < 0) {
+            a->alt_reliable = 0;
+        }
         if (0 && a->addr == Modes.trace_focus && abs(delta) > -1) {
             fprintf(stdout, "Alt check S: %06x: %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
                     a->addr, a->alt_reliable, a->baro_alt, alt,
