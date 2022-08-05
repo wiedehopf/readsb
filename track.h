@@ -528,7 +528,7 @@ struct aircraft
   int64_t prev_pos_time; // time the previous position was received
 
   int32_t speedUnreliable;
-  uint32_t paddingadf;
+  uint32_t lastStatusDiscarded;
 
   int64_t nextJsonPortOutput;
 

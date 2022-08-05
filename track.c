@@ -1010,11 +1010,12 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
                 && (valid_elapsed > 10 * MINUTES || override_elapsed < 10 * MINUTES)
                 && mm->msgtype == 17
                 && mm->cpr_valid
-                && status_elapsed > 60 * SECONDS
+                && status_elapsed > 3 * MINUTES
            ) {
             double dist = greatcircle(a->latReliable, a->lonReliable, mm->decoded_lat, mm->decoded_lon, 0);
-            if (dist > 100e3) {
-                if (Modes.debug_lastStatus == 1) {
+            if (dist > 200e3) {
+                a->lastStatusDiscarded++;
+                if (((Modes.debug_lastStatus & 1) && a->lastStatusDiscarded > 8) || (Modes.debug_lastStatus & 4)) {
                     char uuid[32]; // needs 18 chars and null byte
                     sprint_uuid1(mm->receiverId, uuid);
                     fprintf(stderr, "%06x dist: %4d status_e: %4d valid_e: %4d over_e: %4d rCount: %d uuid: %s\n",
@@ -1026,7 +1027,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
                             a->receiverCount,
                             uuid);
                 }
-                if (Modes.debug_lastStatus != 2) {
+                if (!(Modes.debug_lastStatus & 2)) {
                     return;
                 }
             }
@@ -1034,6 +1035,8 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
     }
 
     if (posReliable(a) && accept_data(&a->pos_reliable_valid, mm->source, mm, a, 2)) {
+
+        a->lastStatusDiscarded = 0;
 
         // when accepting crappy positions, invalidate the data indicating position accuracy
         if (mm->source < SOURCE_TISB) {

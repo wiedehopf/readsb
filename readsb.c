@@ -1620,8 +1620,22 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
 
         case OptDevel:
-            if (strcmp(arg, "lastStatus") == 0) { Modes.debug_lastStatus = 1; };
-            if (strcmp(arg, "lastStatusOverride") == 0) { Modes.debug_lastStatus = 2; };
+            {
+                char *stringp = arg;
+                char *token1 = strsep(&stringp, ",");
+                char *token2 = strsep(&stringp, ",");
+                if (!token1) {
+                    break;
+                }
+                if (strcmp(token1, "lastStatus") == 0) {
+                    if (token2) {
+                        Modes.debug_lastStatus = atoi(token2);
+                        fprintf(stderr, "lastStatus: %d\n", Modes.debug_lastStatus);
+                    } else {
+                        Modes.debug_lastStatus = 1;
+                    }
+                }
+            }
             break;
 
         case OptDebug:
