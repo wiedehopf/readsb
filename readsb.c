@@ -1208,6 +1208,7 @@ static int make_net_connector(char *arg) {
             && strcmp(con->protocol, "sbs_out_jaero") != 0
             && strcmp(con->protocol, "sbs_out_prio") != 0
             && strcmp(con->protocol, "json_out") != 0
+            && strcmp(con->protocol, "feedmap_out") != 0
             && strcmp(con->protocol, "gpsd_in") != 0
             && strcmp(con->protocol, "uat_in") != 0
        ) {

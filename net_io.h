@@ -193,6 +193,7 @@ void serviceListen (struct net_service *service, char *bind_addr, char *bind_por
 void serviceClose(struct net_service *s);
 
 void sendBeastSettings (int fd, const char *settings);
+void sendData(struct net_writer *output, char *data, int len);
 
 void modesInitNet (void);
 void modesQueueOutput (struct modesMessage *mm);

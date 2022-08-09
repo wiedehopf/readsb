@@ -757,6 +757,7 @@ void modesInitNet(void) {
     struct net_service *raw_in;
     struct net_service *vrs_out;
     struct net_service *json_out;
+    struct net_service *feedmap_out;
     struct net_service *sbs_out;
     struct net_service *sbs_out_replay;
     struct net_service *sbs_out_mlat;
@@ -791,6 +792,8 @@ void modesInitNet(void) {
 
     json_out = serviceInit(&Modes.services_out, "Position json output", &Modes.json_out, NULL, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(json_out, Modes.net_bind_address, Modes.net_output_json_ports, Modes.net_epfd);
+
+    feedmap_out = serviceInit(&Modes.services_out, "Forward feed map data", &Modes.feedmap_out, NULL, READ_MODE_IGNORE, NULL, NULL);
 
     sbs_out = serviceInit(&Modes.services_out, "SBS TCP output ALL", &Modes.sbs_out, send_sbs_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(sbs_out, Modes.net_bind_address, Modes.net_output_sbs_ports, Modes.net_epfd);
@@ -907,6 +910,8 @@ void modesInitNet(void) {
             con->service = vrs_out;
         else if (strcmp(con->protocol, "json_out") == 0)
             con->service = json_out;
+        else if (strcmp(con->protocol, "feedmap_out") == 0)
+            con->service = feedmap_out;
         else if (strcmp(con->protocol, "sbs_out") == 0)
             con->service = sbs_out;
         else if (strcmp(con->protocol, "sbs_in") == 0)
@@ -2099,6 +2104,24 @@ void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a) {
         }
     } else {
         fprintf(stderr, "buffer insufficient jsonPositionOutput()\n");
+    }
+}
+
+void sendData(struct net_writer *output, char *data, int len) {
+    char *p;
+
+    int buflen = MODES_OUT_BUF_SIZE;
+
+    while (len > 0) {
+        p = prepareWrite(output, buflen);
+        if (!p)
+            return;
+
+        int tsize = imin(len, buflen);
+        memcpy(p, data, tsize);
+        len -= tsize;
+        p += tsize;
+        completeWrite(output, p);
     }
 }
 
