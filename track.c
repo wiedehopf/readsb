@@ -427,6 +427,9 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         override = 1;
     }
 
+    if (mm->in_disc_cache) {
+        override = 0; // don't override if in discard cache
+    }
 
     if (trackDataValid(&a->gs_valid)) {
         // use the larger of the current and earlier speed
@@ -589,7 +592,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
             || (Modes.debug_maxRange && track_diff > 90)
             || (receiverRangeExceeded && Modes.debug_receiverRangeLimit)
        ) {
-        if (uat2esnt_duplicate(now, a, mm) || mm->in_disc_cache || mm->garbage) {
+        if (uat2esnt_duplicate(now, a, mm) || (!inrange && !override && mm->in_disc_cache) || mm->garbage) {
             // don't show debug
         } else {
             char *failMessage;
@@ -3420,16 +3423,18 @@ static void incrementReliable(struct aircraft *a, struct modesMessage *mm, int64
         increment = 0.5f;
     }
 
-    if (a->pos_reliable_odd < increment || a->pos_reliable_even < increment) {
-        a->pos_reliable_odd = a->pos_reliable_even = increment;
-        return;
-    }
-
     if (odd)
         a->pos_reliable_odd = fminf(a->pos_reliable_odd + increment, Modes.position_persistence);
 
     if (!odd || odd == 2)
         a->pos_reliable_even = fminf(a->pos_reliable_even + increment, Modes.position_persistence);
+
+    if (a->pos_reliable_odd < increment) {
+        a->pos_reliable_odd = increment;
+    }
+    if (a->pos_reliable_even < increment) {
+        a->pos_reliable_even = increment;
+    }
 }
 
 static void position_bad(struct modesMessage *mm, struct aircraft *a) {
@@ -3448,11 +3453,12 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
         disc->receiverId = mm->receiverId;
     }
 
-    if (a->addr == Modes.cpr_focus)
-        fprintf(stderr, "%06x: position_bad %u %u\n", a->addr, mm->cpr_lat, mm->cpr_lon);
-
     a->pos_reliable_odd -= 0.4f;
     a->pos_reliable_odd = fmax(0, a->pos_reliable_odd);
     a->pos_reliable_even -= 0.4f;
     a->pos_reliable_even = fmax(0, a->pos_reliable_even);
+
+
+    if (a->addr == Modes.cpr_focus)
+        fprintf(stderr, "%06x: position_bad %.1f %.1f %u %u\n", a->addr, a->pos_reliable_odd, a->pos_reliable_even, mm->cpr_lat, mm->cpr_lon);
 }
