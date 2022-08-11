@@ -412,7 +412,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                )
             ) {
         mm->pos_ignore = 1; // don't decrement pos_reliable
-    } else if (a->pos_reliable_odd < 0.9 || a->pos_reliable_even < 0.9) {
+    } else if (a->pos_reliable_odd < 0.2 || a->pos_reliable_even < 0.2) {
         override = 1;
     } else if (now - a->position_valid.updated > POS_RELIABLE_TIMEOUT) {
         override = 1; // no reference or older than 60 minutes, assume OK
@@ -585,7 +585,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
     if (
             (
-             (receiverRangeExceeded || (!inrange && track_diff < 160) || (!surface && (a->speedUnreliable > 8 || a->trackUnreliable > 8)))
+             ((!inrange && track_diff < 160) || (!surface && (a->speedUnreliable > 8 || a->trackUnreliable > 8)))
              && source == a->position_valid.source && source > SOURCE_MLAT && (Modes.debug_cpr || Modes.debug_speed_check)
             )
             || (a->addr == Modes.cpr_focus && source >= a->position_valid.source)
@@ -608,9 +608,9 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
             char uuid[32]; // needs 18 chars and null byte
             sprint_uuid1(mm->receiverId, uuid);
             fprintTime(stderr, now);
-            fprintf(stderr, " %06x R%3.1f %s %s %s %s %4.0f%%%2ds%2dt %3.0f/%3.0f td %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f biT %4.1f s %s rId %s\n",
+            fprintf(stderr, " %06x R%3.1f|%3.1f %s %s %s %s %4.0f%%%2ds%2dt %3.0f/%3.0f td %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f biT %4.1f s %s rId %s\n",
                     a->addr,
-                    fminf(a->pos_reliable_odd, a->pos_reliable_even),
+                    a->pos_reliable_odd, a->pos_reliable_even,
                     mm->cpr_odd ? "O" : "E",
                     cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "S"),
                     (surface ? "S" : "A"),
@@ -3453,12 +3453,12 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
         disc->receiverId = mm->receiverId;
     }
 
-    a->pos_reliable_odd -= 0.4f;
+    a->pos_reliable_odd -= 0.26f;
     a->pos_reliable_odd = fmax(0, a->pos_reliable_odd);
-    a->pos_reliable_even -= 0.4f;
+    a->pos_reliable_even -= 0.26f;
     a->pos_reliable_even = fmax(0, a->pos_reliable_even);
 
 
-    if (a->addr == Modes.cpr_focus)
+    if (0 && a->addr == Modes.cpr_focus)
         fprintf(stderr, "%06x: position_bad %.1f %.1f %u %u\n", a->addr, a->pos_reliable_odd, a->pos_reliable_even, mm->cpr_lat, mm->cpr_lon);
 }
