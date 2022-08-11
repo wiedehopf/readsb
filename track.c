@@ -737,15 +737,13 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
     }
 
     if (result < 0) {
-        if (!mm->duplicate && (a->addr == Modes.cpr_focus || Modes.debug_cpr)) {
+        if (!mm->duplicate && (a->addr == Modes.cpr_focus || Modes.debug_cpr) && !inDiscCache(mm->sysTimestampMsg, a, mm)) {
             fprintf(stderr, "CPR: decode failure for %06x (%d): even: %d %d   odd: %d %d  fflag: %s\n",
                     a->addr, result,
                     a->cpr_even_lat, a->cpr_even_lon,
                     a->cpr_odd_lat, a->cpr_odd_lon,
                     fflag ? "odd" : "even");
         }
-        // for partially bad transponders and some other cases, don't reduce reliability
-        mm->pos_ignore = 1;
         return result;
     }
 
