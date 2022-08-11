@@ -81,6 +81,10 @@ static uint16_t simpleHash(uint64_t receiverId) {
 // Should we accept some new data from the given source?
 // If so, update the validity and return 1
 
+static int32_t currentReduceInterval(int64_t now) {
+    return Modes.net_output_beast_reduce_interval * (1 + (Modes.doubleBeastReduceIntervalUntil > now));
+}
+
 static int accept_data(data_validity *d, datasource_t source, struct modesMessage *mm, struct aircraft *a, int reduce_often) {
     int64_t now = mm->sysTimestampMsg;
     if (source == SOURCE_INVALID) {
@@ -141,22 +145,29 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
     d->stale = 0;
 
     if (now > d->next_reduce_forward) {
-        int64_t reduceInterval = Modes.net_output_beast_reduce_interval;
-        reduceInterval *= (1 + (Modes.doubleBeastReduceIntervalUntil > now));
+        int32_t reduceInterval = currentReduceInterval(now);
 
-        d->next_reduce_forward = now + reduceInterval * 4;
-        if (reduce_often == 1)
-            d->next_reduce_forward = now + reduceInterval;
-        if (reduce_often == 2)
-            d->next_reduce_forward = now + reduceInterval / 2;
-        // make sure global CPR stays possible even at high interval:
-        if (reduceInterval > 7000 && mm->cpr_valid) {
-            d->next_reduce_forward = now + 7000;
+        if (reduce_often == 2) {
+            reduceInterval = reduceInterval / 2;
+        } else if (reduce_often == 1) {
+            reduceInterval = reduceInterval;
+        } else {
+            // reduce_often == 0
+            reduceInterval = reduceInterval * 4;
         }
+
+        if (mm->cpr_valid && reduceInterval > 7000) {
+            // make sure global CPR stays possible even at high interval:
+            reduceInterval = 7000;
+        }
+
+        d->next_reduce_forward = now + reduceInterval;
+
         mm->reduce_forward = 1;
     }
     return 1;
 }
+
 
 // Given two datasources, produce a third datasource for data combined from them.
 
@@ -1889,7 +1900,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
         if (a->squawkTentative != mm->squawk && now > a->squawk_valid.next_reduce_forward
                 && mm->source >= a->squawk_valid.source && (now - a->squawk_valid.updated < 15 * SECONDS || Modes.netReceiverId)) {
-            a->squawk_valid.next_reduce_forward = now + Modes.net_output_beast_reduce_interval;
+            a->squawk_valid.next_reduce_forward = now + 4 * currentReduceInterval(now);
             mm->reduce_forward = 1;
         }
         if (a->squawkTentative == mm->squawk && accept_data(&a->squawk_valid, mm->source, mm, a, 0)) {
@@ -2113,17 +2124,26 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     }
 
     if (!mm->duplicate && !mm->garbage) {
+        int setLastStatus = 0;
         if (mm->msgtype == 17) {
             if ((mm->metype >= 1 && mm->metype <= 4) || mm->metype >= 23) {
-                a->lastStatusTs = now;
+                setLastStatus = 1;
             }
         }
         if (mm->msgtype == 11) {
-            a->lastStatusTs = now;
+            setLastStatus = 1;
         }
         if (!mm->squawk_valid) {
             if ((mm->msgtype == 0 || mm->msgtype == 4 || mm->msgtype == 20) && a->airground == AG_GROUND) {
-                a->lastStatusTs = now;
+                setLastStatus = 1;
+            }
+        }
+
+        if (setLastStatus) {
+            a->lastStatusTs = now;
+            if (now > a->next_reduce_forward_status) {
+                a->next_reduce_forward_status = now + 4 * currentReduceInterval(now);
+                mm->reduce_forward = 1;
             }
         }
     }
@@ -2391,31 +2411,11 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             mm->jsonPositionOutputEmit = 1;
         }
         // forward DF0/DF11 every 2 * beast_reduce_interval for beast_reduce
-        if (now > a->next_reduce_forward_DF11 && !(Modes.doubleBeastReduceIntervalUntil > now)) {
-            a->next_reduce_forward_DF11 = now + 2 * Modes.net_output_beast_reduce_interval;
+        if (now > a->next_reduce_forward_DF11) {
+            a->next_reduce_forward_DF11 = now + 4 * currentReduceInterval(now);
             mm->reduce_forward = 1;
         }
     }
-    // this is all not really nececcary, remove it for the moment
-    /*
-    if (mm->msgtype == 0 && (now > a->next_reduce_forward_DF0 || mm->reduce_forward)) {
-        a->next_reduce_forward_DF0 = now + 2 * Modes.net_output_beast_reduce_interval;
-        mm->reduce_forward = 1;
-    }
-    // forward DF16/20/21 every 2 * beast_reduce_interval for beast_reduce
-    if (mm->msgtype == 16 && (now > a->next_reduce_forward_DF16 || mm->reduce_forward)) {
-        a->next_reduce_forward_DF16 = now + 2 * Modes.net_output_beast_reduce_interval;
-        mm->reduce_forward = 1;
-    }
-    if (mm->msgtype == 20 && (now > a->next_reduce_forward_DF20 || mm->reduce_forward)) {
-        a->next_reduce_forward_DF20 = now + 2 * Modes.net_output_beast_reduce_interval;
-        mm->reduce_forward = 1;
-    }
-    if (mm->msgtype == 21 && (now > a->next_reduce_forward_DF21 || mm->reduce_forward)) {
-        a->next_reduce_forward_DF21 = now + 2 * Modes.net_output_beast_reduce_interval;
-        mm->reduce_forward = 1;
-    }
-    */
 
     if (cpr_new) {
         a->last_cpr_type = mm->cpr_type;
@@ -3270,7 +3270,8 @@ static const char *source_string(datasource_t source) {
 void updateValidities(struct aircraft *a, int64_t now) {
 
     int64_t elapsed_seen_global = now - a->seenPosGlobal;
-    if (Modes.json_globe_index && elapsed_seen_global < 5 * MINUTES) {
+
+    if (Modes.json_globe_index && elapsed_seen_global < 45 * MINUTES) {
         a->receiverIdsNext = (a->receiverIdsNext + 1) % RECEIVERIDBUFFER;
         a->receiverIds[a->receiverIdsNext] = 0;
     }

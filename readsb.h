@@ -656,7 +656,7 @@ struct _Modes
 
     uint32_t preambleThreshold;
     int net_output_flush_size; // Minimum Size of output data
-    int64_t net_output_beast_reduce_interval; // Position update interval for data reduction
+    int32_t net_output_beast_reduce_interval; // Position update interval for data reduction
     int64_t doubleBeastReduceIntervalUntil;
     float beast_reduce_filter_distance;
     float beast_reduce_filter_altitude;
