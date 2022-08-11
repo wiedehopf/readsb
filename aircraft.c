@@ -423,6 +423,9 @@ int dbUpdate(int64_t now) {
         return 0;
     }
 
+    struct timespec watch;
+    startWatch(&watch);
+
     gzFile gzfp = NULL;
     struct char_buffer cb = {0};
 
@@ -462,11 +465,29 @@ int dbUpdate(int64_t now) {
         goto DBU0;
     }
 
+    static const uint32_t df18_exceptions[] = { 0x40206a, 0xa3227d, 0x478676, 0x40389d, 0x405acf, 0xc82452, 0x40334a };
+    int num_df18_exceptions = sizeof(df18_exceptions) / sizeof(uint32_t);
+
     int alloc = 0;
-    for (uint32_t i = 0; i < cb.len; i++) {
-        if (cb.buffer[i] == '\n')
+    alloc += num_df18_exceptions;
+
+    if (1) {
+        for (uint32_t i = 0; i < cb.len; i++) {
+            if (cb.buffer[i] == '\n')
+                alloc++;
+        }
+    } else {
+        // long live SSE and stuff, memchr reigns supreme
+        unsigned char *p = (unsigned char *) cb.buffer;
+        unsigned char *end = (unsigned char *) cb.buffer + cb.len;
+        size_t remaining = cb.len;
+        while ((p = memchr(p, '\n', remaining))) {
             alloc++;
+            p++;
+            remaining = end - p;
+        }
     }
+
     Modes.db2 = cmalloc(alloc * sizeof(dbEntry));
     Modes.db2Index = cmalloc(DB_BUCKETS * sizeof(void*));
     memset(Modes.db2Index, 0, DB_BUCKETS * sizeof(void*));
@@ -534,6 +555,27 @@ int dbUpdate(int64_t now) {
         dbPut(curr->addr, Modes.db2Index, curr);
     }
 
+    for (int k = 0; k < num_df18_exceptions; k++) {
+        uint32_t addr = df18_exceptions[k];
+        //fprintf(stderr, "df18_exceptions: %06x\n", addr);
+        dbEntry *curr = dbGet(addr, Modes.db2Index);
+        if (!curr) {
+            curr = &Modes.db2[i];
+            memset(curr, 0, sizeof(dbEntry));
+            curr->addr = addr;
+
+            i++; // increment db array index
+                 // add to hashtable
+            dbPut(curr->addr, Modes.db2Index, curr);
+        }
+        curr->dbFlags |= (1 << 7);
+
+        dbEntry *d = dbGet(addr, Modes.db2Index);
+        if (!d) {
+            fprintf(stderr, "<3>df18_exceptions %06x no db entry\n", addr);
+        }
+    }
+
     if (i < 1) {
         fprintf(stderr, "db update error: DB has no entries, maybe old / incorrect format?!\n");
         goto DBU0;
@@ -548,6 +590,11 @@ int dbUpdate(int64_t now) {
     if (Modes.json_dir) {
         free(writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson()).buffer);
     }
+
+
+    double elapsed = stopWatch(&watch) / 1000.0;
+    fprintf(stderr, "Database update first part took %.3f seconds!\n", elapsed);
+
 
     // write database to json dir for testing
     if (Modes.json_dir && Modes.debug_dbJson) {
@@ -584,6 +631,10 @@ int dbFinishUpdate() {
     }
     // finish db update
 
+    struct timespec watch;
+    startWatch(&watch);
+
+
     free(Modes.dbIndex);
     free(Modes.db);
 
@@ -604,7 +655,8 @@ int dbFinishUpdate() {
 
     threadpool_distribute_and_run(Modes.allPool, Modes.allTasks, updateTypeRegRange, AIRCRAFT_BUCKETS, 0, now);
 
-    fprintf(stderr, "Database update done!\n");
+    double elapsed = stopWatch(&watch) / 1000.0;
+    fprintf(stderr, "Database update done! (critical part took %.3f seconds)\n", elapsed);
 
 
     return 1;

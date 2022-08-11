@@ -1014,16 +1014,19 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
             }
             a->receiverCount = div;
         }
+    }
+
+    if (Modes.netReceiverId && posReliable(a)) {
 
         int64_t valid_elapsed = now - a->pos_reliable_valid.updated;
         int64_t override_elapsed = now - a->lastOverrideTs;
         int64_t status_elapsed = now - a->lastStatusTs;
 
-        if (posReliable(a)
-                && (valid_elapsed > 10 * MINUTES || override_elapsed < 10 * MINUTES)
-                && mm->msgtype == 17
+        if (
+                (valid_elapsed > 10 * MINUTES || override_elapsed < 10 * MINUTES)
+                && (mm->msgtype == 17 || (mm->addrtype == ADDR_ADSB_ICAO_NT && mm->cpr_type != CPR_SURFACE && !(a->dbFlags & (1 << 7)) ))
                 && mm->cpr_valid
-                && status_elapsed > 3 * MINUTES
+                && status_elapsed > 5 * MINUTES
            ) {
             double dist = greatcircle(a->latReliable, a->lonReliable, mm->decoded_lat, mm->decoded_lon, 0);
             if (dist > 200e3) {
@@ -1031,14 +1034,15 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
                 if (((Modes.debug_lastStatus & 1) && a->lastStatusDiscarded > 8) || (Modes.debug_lastStatus & 4)) {
                     char uuid[32]; // needs 18 chars and null byte
                     sprint_uuid1(mm->receiverId, uuid);
-                    fprintf(stderr, "%06x dist: %4d status_e: %4d valid_e: %4d over_e: %4d rCount: %d uuid: %s\n",
+                    fprintf(stderr, "%06x dist: %4d status_e: %4d valid_e: %4d over_e: %4d rCount: %d uuid: %s dbFlags: %u\n",
                             a->addr,
                             (int) imin(9999, (dist / 1000)),
                             (int) imin(9999, (status_elapsed / 1000)),
                             (int) imin(9999, (valid_elapsed / 1000)),
                             (int) imin(9999, (override_elapsed / 1000)),
                             a->receiverCount,
-                            uuid);
+                            uuid,
+                            a->dbFlags);
                 }
                 if (!(Modes.debug_lastStatus & 2)) {
                     return;
