@@ -2953,7 +2953,7 @@ static int readClient(struct client *c, int64_t now) {
         }
     }
 
-    if (!Modes.debug_no_discard && !c->discard && now - c->last_read < 1000 && now - c->last_read_flush > 1500) {
+    if (!Modes.debug_no_discard && !c->discard && now - c->last_read < 800 && now - c->last_read_flush > 2400) {
         c->discard = 1;
         if (Modes.netIngest && c->proxy_string[0] != '\0') {
             fprintf(stderr, "<3>ERROR, not enough CPU: Discarding data from: %s\n", c->proxy_string);
