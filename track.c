@@ -3461,3 +3461,7 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
     if (0 && a->addr == Modes.cpr_focus)
         fprintf(stderr, "%06x: position_bad %.1f %.1f %u %u\n", a->addr, a->pos_reliable_odd, a->pos_reliable_even, mm->cpr_lat, mm->cpr_lon);
 }
+
+int nogps(int64_t now, struct aircraft *a) {
+    return (a->nogpsCounter >= NOGPS_SHOW && now < a->seenAdsbReliable + NOGPS_DWELL && now > a->seenAdsbReliable + 15 * SECONDS);
+}

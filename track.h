@@ -76,6 +76,8 @@
 #define NOGPS_MAX (20)
 #define NOGPS_SHOW (17)
 
+int nogps(int64_t now, struct aircraft *a);
+
 // 2.5 seconds maximum between messages used for calculating wind / temperature
 #define TRACK_WT_TIMEOUT (2500)
 
