@@ -377,6 +377,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     int64_t elapsed = trackDataAge(now, &a->position_valid);
     int receiverRangeExceeded = 0;
 
+    if (0 && mm->sbs_in && a->addr == Modes.cpr_focus) {
+        fprintf(stderr, ".");
+    }
+
     if (duplicate_check(now, a, lat, lon, mm)) {
         // don't use duplicate positions
         mm->pos_ignore = 1;
@@ -479,13 +483,12 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         track_age = trackDataAge(now, &a->true_heading_valid);
     }
 
-    if (distance > 1) {
+    if (distance > 2.5f) {
         calc_track = bearing(oldLat, oldLon, lat, lon);
         mm->calculated_track = calc_track;
-        if (source > SOURCE_MLAT
+        if (source != SOURCE_MLAT
                 && track > -1
                 && trackDataAge(now, &a->position_valid) < 7 * SECONDS
-                && trackDataAge(now, &a->gs_valid) < 7 * SECONDS
            ) {
             track_diff = fabs(norm_diff(track - calc_track, 180));
         }
@@ -524,8 +527,8 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         }
     } else {
         // Work out a reasonable speed to use:
-        //  current speed + 1/5
-        speed = speed * 1.2f;
+        //  current speed + 1/3
+        speed = speed * 1.3f;
     }
     if (surface) {
         range += 10;
@@ -547,10 +550,10 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         range += 250;
     }
 
-    if (distance > 1 && (track_diff < 70 || track_diff == -1)) {
-        if (distance <= range + (((float) elapsed + 200.0f) * (1.0f / 1000.0f)) * (transmitted_speed * (1852.0f / 3600.0f))) {
+    if (distance > 2.5f && (track_diff < 70 || track_diff == -1)) {
+        if (distance <= range + (((float) elapsed + 50.0f) * (1.0f / 1000.0f)) * (transmitted_speed * (1852.0f / 3600.0f))) {
             mm->speedUnreliable = -1;
-        } else {
+        } else if (distance > range + (((float) elapsed + 400.0f) * (1.0f / 1000.0f)) * (transmitted_speed * (1852.0f / 3600.0f))) {
             mm->speedUnreliable = +1;
         }
     }
@@ -2305,8 +2308,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                     old_jaero = 1;
             }
         }
-        if (old_jaero || greatcircle(a->lat, a->lon, mm->decoded_lat, mm->decoded_lon, 1) < 1) {
-            // avoid using already received positions
+        if (old_jaero) {
+            // avoid using already received positions for JAERO input
         } else if (mm->source == SOURCE_MLAT && mm->mlatEPU > 2 * a->mlatEPU
                 && imin((int)(3000.0f * logf((float)mm->mlatEPU / (float)a->mlatEPU)), TRACE_STALE * 3 / 4) > (int64_t) trackDataAge(mm->sysTimestampMsg, &a->pos_reliable_valid)
                 ) {
@@ -2438,7 +2441,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         memcpy(a, &scratch, sizeof(struct aircraft));
     }
 
-    if (!(mm->source < a->position_valid.source || mm->in_disc_cache || mm->garbage || mm->pos_ignore)) {
+    if (!(mm->source < a->position_valid.source || mm->in_disc_cache || mm->garbage || mm->pos_ignore || mm->pos_receiver_range_exceeded)) {
         if (mm->pos_bad) {
             position_bad(mm, a);
         }
