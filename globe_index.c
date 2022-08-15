@@ -1307,7 +1307,8 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
         }
 
         int max_leg_alt = 20000;
-        if (elapsed > 30 * 60 * 1000 && (state->on_ground || !state->baro_alt_valid || (state->baro_alt_valid && state->baro_alt / _alt_factor < max_leg_alt))) {
+        // disable .... let's see if we really need it
+        if (0 && elapsed > 30 * 60 * 1000 && (state->on_ground || !state->baro_alt_valid || (state->baro_alt_valid && state->baro_alt / _alt_factor < max_leg_alt))) {
             double distance = greatcircle(
                     (double) state->lat * 1e-6,
                     (double) state->lon * 1e-6,
