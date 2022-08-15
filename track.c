@@ -329,6 +329,14 @@ static int duplicate_check(int64_t now, struct aircraft *a, double new_lat, doub
     return 0;
 }
 
+static int uat2esnt_duplicate(int64_t now, struct aircraft *a, struct modesMessage *mm) {
+    return (
+            mm->cpr_valid && mm->cpr_odd && mm->msgtype == 18
+            && (mm->timestampMsg == MAGIC_UAT_TIMESTAMP || mm->timestampMsg == 0)
+            && now - a->seenPosReliable < 2500
+           );
+}
+
 static int inDiscCache(int64_t now, struct aircraft *a, struct modesMessage *mm) {
     struct cpr_cache *disc;
     uint32_t inCache = 0;
@@ -910,6 +918,9 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
 
     // if we get the same position again but from an inferior source, assume it's delayed and treat as duplicate
     if (now < a->seen_pos + 10 * MINUTES && mm->source < a->position_valid.last_source && mm->distance_traveled < 20) {
+        if (a->addr == Modes.cpr_focus) {
+            fprintf(stderr, "%06x less than 20 m\n", a->addr);
+        }
         mm->duplicate = 1;
         mm->pos_ignore = 1;
     }

@@ -721,13 +721,6 @@ static inline int get8bitSignal(struct aircraft *a) {
     return (int) nearbyint(signal);
 }
 
-static inline int uat2esnt_duplicate(int64_t now, struct aircraft *a, struct modesMessage *mm) {
-    return (
-            mm->cpr_valid && mm->cpr_odd && mm->msgtype == 18
-            && (mm->timestampMsg == MAGIC_UAT_TIMESTAMP || mm->timestampMsg == 0)
-            && now - a->seenPosReliable < 2500
-           );
-}
 static inline const char *nonIcaoSpace(struct aircraft *a) {
     if (a->addr & MODES_NON_ICAO_ADDRESS) {
         return "";
