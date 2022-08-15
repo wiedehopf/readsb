@@ -2259,12 +2259,14 @@ int main(int argc, char **argv) {
             writeInternalState();
         }
     }
-    // db update on startup
-    if (!Modes.exit) {
-        dbUpdate(mstime());
-    }
-    if (!Modes.exit) {
-        dbFinishUpdate();
+    if (0) {
+        // db update on startup
+        if (!Modes.exit) {
+            dbUpdate(mstime());
+        }
+        if (!Modes.exit) {
+            dbFinishUpdate();
+        }
     }
 
     if (Modes.sdr_type != SDR_NONE) {
