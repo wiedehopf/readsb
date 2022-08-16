@@ -335,7 +335,7 @@ static void priorityTasksRun() {
 
     static int64_t last_periodic_mono;
     int64_t periodic_interval = mono - last_periodic_mono;
-    if (periodic_interval > 5 * SECONDS && last_periodic_mono) {
+    if (periodic_interval > 5 * SECONDS && last_periodic_mono && periodic_interval < 24 * HOURS) {
         fprintf(stderr, "<3> priorityTasksRun didn't run for %.1f seconds!\n", periodic_interval / 1000.0);
     }
     last_periodic_mono = mono;
@@ -362,7 +362,7 @@ static void priorityTasksRun() {
         traceDelete();
 
         int64_t interval = mono - Modes.next_remove_stale;
-        if (interval > 5 * SECONDS && Modes.next_remove_stale) {
+        if (interval > 5 * SECONDS && Modes.next_remove_stale && interval < 24 * HOURS) {
             fprintf(stderr, "<3> removeStale didn't run for %.1f seconds!\n", interval / 1000.0);
         }
 
@@ -1121,6 +1121,7 @@ static void cleanup_and_exit(int code) {
     sfree(Modes.json_dir);
     sfree(Modes.globe_history_dir);
     sfree(Modes.heatmap_dir);
+    sfree(Modes.dump_beast_dir);
     sfree(Modes.state_dir);
     sfree(Modes.globalStatsCount.rssi_table);
     sfree(Modes.net_bind_address);
@@ -1392,7 +1393,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 Modes.heatmap_interval = (int64_t)(1000.0 * atof(arg));
             break;
         case OptHeatmapDir:
+            sfree(Modes.heatmap_dir);
             Modes.heatmap_dir = strdup(arg);
+            break;
+        case OptDumpBeastDir:
+            sfree(Modes.dump_beast_dir);
+            Modes.dump_beast_dir = strdup(arg);
             break;
         case OptGlobeHistoryDir:
             sfree(Modes.globe_history_dir);
@@ -1635,6 +1641,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                     } else {
                         Modes.debug_lastStatus = 1;
                     }
+                }
+                if (strcmp(token1, "accept_synthetic") == 0) {
+                    Modes.dump_accept_synthetic_now = 1;
                 }
             }
             break;

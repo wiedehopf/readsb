@@ -613,6 +613,7 @@ struct _Modes
     int8_t debug_provoke_segfault;
     int8_t debug_position_timing;
     int8_t debug_lastStatus;
+    int8_t dump_accept_synthetic_now;
     int8_t tar1090_use_api;
     int8_t verbose;
 
@@ -700,6 +701,9 @@ struct _Modes
     char *globe_history_dir;
     char *state_dir;
     char *state_parent_dir;
+    char *dump_beast_dir; // write raw beast with a timestamp every millisecond for low level replay
+    zstd_fw_t *dump_fw;
+    int64_t dump_next_ts; // last timestamp sent
     int state_only_on_exit;
     int free_aircraft;
     char *prom_file;
@@ -1068,6 +1072,7 @@ enum {
     OptStateOnlyOnExit,
     OptHeatmap,
     OptHeatmapDir,
+    OptDumpBeastDir,
     OptJsonTime,
     OptJsonLocAcc,
     OptJsonGlobeIndex,

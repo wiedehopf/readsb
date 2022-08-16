@@ -747,6 +747,10 @@ void modesInitNet(void) {
         exit(1);
     }
 
+    if (Modes.dump_beast_dir) {
+        Modes.dump_fw = createZstdFw(1 * 1024 * 1024);
+        zstdFwStartFile(Modes.dump_fw, Modes.dump_beast_dir, 1);
+    }
 
     if (!Modes.net)
         return;
@@ -779,6 +783,11 @@ void modesInitNet(void) {
 
     beast_out = serviceInit(&Modes.services_out, "Beast TCP output", &Modes.beast_out, send_beast_heartbeat, READ_MODE_BEAST_COMMAND, NULL, handleBeastCommand);
     serviceListen(beast_out, Modes.net_bind_address, Modes.net_output_beast_ports, Modes.net_epfd);
+
+    if (Modes.dump_fw) {
+        // fake one connection to ensure we can write beast dumps
+        Modes.beast_out.connections++;
+    }
 
     beast_reduce_out = serviceInit(&Modes.services_out, "BeastReduce TCP output", &Modes.beast_reduce_out, send_beast_heartbeat, READ_MODE_BEAST_COMMAND, NULL, handleBeastCommand);
 
@@ -1417,6 +1426,8 @@ static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *wri
     if (!p)
         return;
 
+    char *start = p;
+
     // receiverId, big-endian, in own message to make it backwards compatible
     // only send the receiverId when it changes
     if (Modes.netReceiverId && writer->lastReceiverId != mm->receiverId) {
@@ -1485,6 +1496,20 @@ static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *wri
             *p++ = ch;
         }
     }
+
+
+    if (Modes.dump_fw && writer == &Modes.beast_out) {
+        int64_t now = mm->sysTimestampMsg;
+        if (now > Modes.dump_next_ts) {
+            //fprintf(stderr, "%ld\n", (long) now);
+            Modes.dump_next_ts = now + 1;
+            const char dump_ts_prefix[] = { 0x1A, 0xe8 };
+            zstdFwPutData(Modes.dump_fw, (uint8_t *) dump_ts_prefix, sizeof(dump_ts_prefix));
+            zstdFwPutData(Modes.dump_fw, (uint8_t *) &now, sizeof(int64_t));
+        }
+        zstdFwPutData(Modes.dump_fw, (uint8_t *) start, p - start);
+    }
+
 
     completeWrite(writer, p);
 }
@@ -3097,9 +3122,41 @@ static int readBeast(struct client *c, int64_t now, struct messageBuffer *mb) {
 
         if (!c->service) { fprintf(stderr, "c->service null ohThee9u\n"); }
 
+
+        if (Modes.synthetic_now) {
+            now = Modes.synthetic_now;
+        }
+
         // Check for message with receiverId prepended
         ch = *p;
-        if (ch == 0xe3) {
+        if (ch == 0xe8) {
+            p++;
+
+            int64_t ts;
+            if (p + sizeof(int64_t) > c->eod) {
+                break;
+            }
+
+            memcpy(&ts, p, sizeof(int64_t));
+            p += sizeof(int64_t);
+
+            if (Modes.dump_accept_synthetic_now) {
+                now = Modes.synthetic_now = ts;
+            }
+
+            //fprintf(stderr, "%ld %ld\n", (long) now, (long) (c->eod - c->som));
+
+            c->som = p; // set start of next message
+            if (*p != 0x1A) {
+                //fprintf(stderr, "..\n");
+                continue;
+            }
+            p++; // skip 0x1a
+            if (p >= c->eod) {
+                // Incomplete message in buffer, retry later
+                break;
+            }
+        } else if (ch == 0xe3) {
             p++;
             uint64_t receiverId = 0;
             eom = p + 8;
@@ -3124,11 +3181,15 @@ static int readBeast(struct client *c, int64_t now, struct messageBuffer *mb) {
                 c->receiverId = receiverId;
             }
 
-            if (eom + 2 > c->eod)// Incomplete message in buffer, retry later
-                break;
-
             c->som = p; // set start of next message
+            if (*p != 0x1A) {
+                continue;
+            }
             p++; // skip 0x1a
+            if (p >= c->eod) {
+                // Incomplete message in buffer, retry later
+                break;
+            }
         }
 
         if (!c->service) { fprintf(stderr, "c->service null waevem0E\n"); }
@@ -3866,6 +3927,11 @@ static void cleanupMessageBuffers() {
 
 void cleanupNetwork(void) {
     cleanupMessageBuffers();
+
+    if (Modes.dump_fw) {
+        zstdFwFinishFile(Modes.dump_fw);
+        destroyZstdFw(Modes.dump_fw);
+    }
 
     if (!Modes.net) {
         return;

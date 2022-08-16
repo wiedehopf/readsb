@@ -231,4 +231,23 @@ struct char_buffer ident(struct char_buffer target);
 void setLowestPriorityPthread();
 void setPriorityPthread();
 
+typedef struct {
+    ZSTD_CCtx *cctx;
+    ZSTD_inBuffer in;
+    size_t inAlloc;
+    ZSTD_outBuffer out;
+    const char *outFile;
+    int fd;
+} zstd_fw_t;
+
+
+zstd_fw_t *createZstdFw(size_t inBufSize);
+void destroyZstdFw(zstd_fw_t *fw);
+
+void zstdFwStartFile(zstd_fw_t *fw, const char *outFile, int compressionLvl);
+void zstdFwFinishFile(zstd_fw_t *fw);
+
+void zstdFwPutData(zstd_fw_t *fw, const uint8_t *data, size_t len);
+
+
 #endif
