@@ -752,7 +752,8 @@ void modesInitNet(void) {
         zstdFwStartFile(Modes.dump_fw, Modes.dump_beast_dir, 1);
     }
 
-    Modes.net_connector_delay_min = Modes.net_connector_delay / 32;
+    Modes.net_connector_delay_min = imax(50, Modes.net_connector_delay / 64);
+    Modes.last_connector_fail = Modes.next_reconnect_callback = mstime();
 
     if (!Modes.net)
         return;
@@ -1057,6 +1058,8 @@ static void modesCloseClient(struct client *c) {
 
         // if we were connected for some time, an immediate reconnect is expected
         con->next_reconnect = con->lastConnect + con->backoff;
+
+        Modes.last_connector_fail = Modes.next_reconnect_callback = now;
     }
 
     // mark it as inactive and ready to be freed
@@ -3677,6 +3680,8 @@ void modesNetPeriodicWork(void) {
     if (Modes.net_only) {
         // wait in net-only mode (unless we get network packets, that wakes the wait immediately)
         wait_ms = imax(200, Modes.net_output_flush_interval);
+        wait_ms = imin(wait_ms, Modes.next_reconnect_callback - now); // modify wait for reconnect callback timer
+        wait_ms = imax(wait_ms, 0); // don't allow negative values
     } else {
         // NO WAIT WHEN USING AN SDR !! IMPORTANT !!
         wait_ms = 0;
@@ -3739,7 +3744,6 @@ void modesNetPeriodicWork(void) {
     int64_t elapsed2 = lapWatch(&watch);
 
     if (now > Modes.net_output_next_flush) {
-
         // If we have data that has been waiting to be written for a while, write it now.
         for (struct net_service *service = Modes.services_out.services; service->descr; service++) {
             flushService(service, now);
@@ -3751,9 +3755,15 @@ void modesNetPeriodicWork(void) {
         Modes.net_output_next_flush = now + Modes.net_output_flush_interval;
     }
 
-    static int64_t nextReconnect;
-    if (now > nextReconnect) {
-        nextReconnect = now + Modes.net_connector_delay_min;
+    if (now > Modes.next_reconnect_callback) {
+        //fprintTimePrecise(stderr, now); fprintf(stderr, "\n");
+
+        int64_t since_fail = now - Modes.last_connector_fail;
+        if (since_fail < 10 * SECONDS) {
+            Modes.next_reconnect_callback = now + 5 + since_fail * Modes.net_connector_delay_min / ( 10 * SECONDS );
+        } else {
+            Modes.next_reconnect_callback = now + Modes.net_connector_delay_min;
+        }
         serviceReconnectCallback(now);
     }
 

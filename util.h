@@ -187,6 +187,12 @@ norm_angle (double a, double pi)
     return a;
 }
 
+static inline void fprintTimePrecise(FILE *stream, int64_t now) {
+    fprintf(stream, "%02d:%02d:%06.3f",
+            (int) ((now / (3600 * SECONDS)) % 24),
+            (int) ((now / (60 * SECONDS)) % 60),
+            (now % (60 * SECONDS)) / 1000.0);
+}
 static inline void fprintTime(FILE *stream, int64_t now) {
     fprintf(stream, "%02d:%02d:%04.1f",
             (int) ((now / (3600 * SECONDS)) % 24),
