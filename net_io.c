@@ -1455,27 +1455,27 @@ static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *wri
     }
 
     /* timestamp, big-endian */
-    *p++ = (ch = (mm->timestampMsg >> 40));
+    *p++ = (ch = (mm->timestamp >> 40));
     if (0x1A == ch) {
         *p++ = ch;
     }
-    *p++ = (ch = (mm->timestampMsg >> 32));
+    *p++ = (ch = (mm->timestamp >> 32));
     if (0x1A == ch) {
         *p++ = ch;
     }
-    *p++ = (ch = (mm->timestampMsg >> 24));
+    *p++ = (ch = (mm->timestamp >> 24));
     if (0x1A == ch) {
         *p++ = ch;
     }
-    *p++ = (ch = (mm->timestampMsg >> 16));
+    *p++ = (ch = (mm->timestamp >> 16));
     if (0x1A == ch) {
         *p++ = ch;
     }
-    *p++ = (ch = (mm->timestampMsg >> 8));
+    *p++ = (ch = (mm->timestamp >> 8));
     if (0x1A == ch) {
         *p++ = ch;
     }
-    *p++ = (ch = (mm->timestampMsg));
+    *p++ = (ch = (mm->timestamp));
     if (0x1A == ch) {
         *p++ = ch;
     }
@@ -1499,7 +1499,7 @@ static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *wri
 
 
     if (Modes.dump_fw && writer == &Modes.beast_out) {
-        int64_t now = mm->sysTimestampMsg;
+        int64_t now = mm->sysTimestamp;
         if (now > Modes.dump_next_ts) {
             //fprintf(stderr, "%ld\n", (long) now);
             Modes.dump_next_ts = now + 1;
@@ -1566,10 +1566,10 @@ static void modesSendRawOutput(struct modesMessage *mm) {
     if (!p)
         return;
 
-    if (Modes.mlat && mm->timestampMsg) {
+    if (Modes.mlat && mm->timestamp) {
         /* timestamp, big-endian */
         sprintf(p, "@%012" PRIX64,
-                mm->timestampMsg);
+                mm->timestamp);
         p += 13;
     } else
         *p++ = '*';
@@ -1847,7 +1847,7 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now, 
     //fprintf(stderr, "\n");
 
     // record reception time as the time we read it.
-    mm->sysTimestampMsg = now;
+    mm->sysTimestamp = now;
 
     netUseMessage(mm);
 
@@ -1942,12 +1942,12 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, stru
     gmtime_r(&now.tv_sec, &stTime_now);
 
     // Find message reception time
-    time_t received = (time_t) (mm->sysTimestampMsg / 1000);
+    time_t received = (time_t) (mm->sysTimestamp / 1000);
     gmtime_r(&received, &stTime_receive);
 
     // Fields 7 & 8 are the message reception time and date
     p += sprintf(p, "%04d/%02d/%02d,", (stTime_receive.tm_year + 1900), (stTime_receive.tm_mon + 1), stTime_receive.tm_mday);
-    p += sprintf(p, "%02d:%02d:%02d.%03u,", stTime_receive.tm_hour, stTime_receive.tm_min, stTime_receive.tm_sec, (unsigned) (mm->sysTimestampMsg % 1000));
+    p += sprintf(p, "%02d:%02d:%02d.%03u,", stTime_receive.tm_hour, stTime_receive.tm_min, stTime_receive.tm_sec, (unsigned) (mm->sysTimestamp % 1000));
 
     // Fields 9 & 10 are the current time and date
     p += sprintf(p, "%04d/%02d/%02d,", (stTime_now.tm_year + 1900), (stTime_now.tm_mon + 1), stTime_now.tm_mday);
@@ -2118,15 +2118,11 @@ void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a) {
 
     char *end = p + buflen;
 
-    p = sprintAircraftObject(p, end, a, mm->sysTimestampMsg, 2, NULL);
+    p = sprintAircraftObject(p, end, a, mm->sysTimestamp, 2, NULL);
 
     if (p + 1 < end) {
         *p++ = '\n';
         completeWrite(&Modes.json_out, p);
-        if (Modes.json_out.dataUsed > 0) {
-            // flush unconditionally for this output
-            flushWrites(&Modes.json_out);
-        }
     } else {
         fprintf(stderr, "buffer insufficient jsonPositionOutput()\n");
     }
@@ -2517,15 +2513,15 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now, 
      */
     mm->remote = remote;
 
-    mm->timestampMsg = 0;
+    mm->timestamp = 0;
     // Grab the timestamp (big endian format)
     for (j = 0; j < 6; j++) {
         ch = *p++;
-        mm->timestampMsg = mm->timestampMsg << 8 | (ch & 255);
+        mm->timestamp = mm->timestamp << 8 | (ch & 255);
     }
 
     // record reception time as the time we read it.
-    mm->sysTimestampMsg = now;
+    mm->sysTimestamp = now;
 
 
     ch = *p++; // Grab the signal level
@@ -2667,9 +2663,9 @@ static int decodeHexMessage(struct client *c, char *hex, int64_t now, struct mod
                 seconds -= 1;
                 // assume our clock is one second in front of the GPS clock, go back one second before adding the after pps time
             }
-            mm->timestampMsg = (seconds * (1000 * 1000) + after_pps) * 12;
+            mm->timestamp = (seconds * (1000 * 1000) + after_pps) * 12;
         } else {
-            mm->timestampMsg = now * 12e3; // make 12 MHz timestamp from microseconds
+            mm->timestamp = now * 12e3; // make 12 MHz timestamp from microseconds
         }
     }
     // Turn the message into binary.
@@ -2699,7 +2695,7 @@ static int decodeHexMessage(struct client *c, char *hex, int64_t now, struct mod
                 if (l < 12)
                     return (0);
                 for (j = 0; j < 12; j++) {
-                    mm->timestampMsg = (mm->timestampMsg << 4) | hexDigitVal(*hex);
+                    mm->timestamp = (mm->timestamp << 4) | hexDigitVal(*hex);
                     hex++;
                     l--;
                 }
@@ -2722,7 +2718,7 @@ static int decodeHexMessage(struct client *c, char *hex, int64_t now, struct mod
                 if (l <= 12) // if we have only enough hex for the timestamp or less it's invalid
                     return (0);
                 for (j = 0; j < 12; j++) {
-                    mm->timestampMsg = (mm->timestampMsg << 4) | hexDigitVal(*hex);
+                    mm->timestamp = (mm->timestamp << 4) | hexDigitVal(*hex);
                     hex++;
                 }
 
@@ -2771,7 +2767,7 @@ static int decodeHexMessage(struct client *c, char *hex, int64_t now, struct mod
     }
 
     // record reception time as the time we read it.
-    mm->sysTimestampMsg = now;
+    mm->sysTimestamp = now;
 
     if (l == (MODEAC_MSG_BYTES * 2)) { // ModeA or ModeC
         Modes.stats_current.remote_received_modeac++;
@@ -3628,7 +3624,7 @@ static void flushService(struct net_service *service, int64_t now) {
         writer->send_heartbeat(service);
         force_flush = 1;
     }
-    if (writer->dataUsed && (force_flush || now > writer->lastWrite + Modes.net_output_flush_interval)) {
+    if (writer->dataUsed && (force_flush || now > writer->lastWrite + Modes.net_output_flush_interval || Modes.net_output_flush_interval <= 0)) {
         flushWrites(writer);
     }
 }
@@ -4094,16 +4090,16 @@ static void outputMessage(struct modesMessage *mm) {
 
     if (Modes.debug_bogus) {
         if (!Modes.synthetic_now) {
-            Modes.startup_time = mstime() - mm->timestampMsg / 12000U;
+            Modes.startup_time = mstime() - mm->timestamp / 12000U;
         }
-        Modes.synthetic_now = Modes.startup_time + mm->timestampMsg / 12000U;
+        Modes.synthetic_now = Modes.startup_time + mm->timestamp / 12000U;
 
         if (mm->addr != HEX_UNKNOWN && !(mm->addr & MODES_NON_ICAO_ADDRESS)) {
             ac = aircraftCreate(mm->addr);
         }
         if (ac && ac->messages == 1 && ac->registration[0] == 0) {
             fprintf(stdout, "%6llx %5.1f not in DB: %06x\n",
-                    (long long) mm->timestampMsg % 0x1000000,
+                    (long long) mm->timestamp % 0x1000000,
                     10 * log10(mm->signalLevel),
                     mm->addr);
             //displayModesMessage(mm);

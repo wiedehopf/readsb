@@ -774,13 +774,13 @@ int decodeModesMessage(struct modesMessage *mm) {
     }
 
     // MLAT overrides all other sources
-    if (mm->remote && mm->timestampMsg == MAGIC_MLAT_TIMESTAMP) {
+    if (mm->remote && mm->timestamp == MAGIC_MLAT_TIMESTAMP) {
         mm->source = SOURCE_MLAT;
         mm->addrtype = ADDR_MLAT;
     }
 
     // these are messages of general bad quality, treat them as garbage when garbage_ports is in use.
-    if ((Modes.netIngest || Modes.garbage_ports) && mm->remote && mm->timestampMsg == 0 && mm->msgtype != 18) {
+    if ((Modes.netIngest || Modes.garbage_ports) && mm->remote && mm->timestamp == 0 && mm->msgtype != 18) {
         mm->garbage = 1;
         mm->source = SOURCE_SBS;
         if (mm->addrtype >= ADDR_OTHER)
@@ -1805,7 +1805,7 @@ void displayModesMessage(struct modesMessage *mm) {
     int j;
 
     if (0 && mm->cpr_valid && mm->cpr_decoded) {
-        printf("systemTime: %.3fs\n", (mm->sysTimestampMsg % (5*MINUTES)) / 1000.0);
+        printf("systemTime: %.3fs\n", (mm->sysTimestamp % (5*MINUTES)) / 1000.0);
         printf("  CPR odd flag:  %s\n",
                 mm->cpr_odd ? "odd" : "even");
 
@@ -1827,8 +1827,8 @@ void displayModesMessage(struct modesMessage *mm) {
     }
 
     // Show the raw message.
-    if (Modes.mlat && mm->timestampMsg) {
-        printf("@%012" PRIX64, mm->timestampMsg);
+    if (Modes.mlat && mm->timestamp) {
+        printf("@%012" PRIX64, mm->timestamp);
     } else {
         printf("*");
     }
@@ -1870,20 +1870,20 @@ void displayModesMessage(struct modesMessage *mm) {
         printf("receiverId: %s\n", uuid);
     }
 
-    if (mm->timestampMsg == MAGIC_MLAT_TIMESTAMP)
+    if (mm->timestamp == MAGIC_MLAT_TIMESTAMP)
         printf("This is a synthetic MLAT message.\n");
-    else if (mm->timestampMsg == MAGIC_UAT_TIMESTAMP)
+    else if (mm->timestamp == MAGIC_UAT_TIMESTAMP)
         printf("This is a synthetic UAT message.\n");
     else
-        printf("receiverTime: %.2fus\n", mm->timestampMsg / 12.0);
+        printf("receiverTime: %.2fus\n", mm->timestamp / 12.0);
 
     if (1 || !Modes.debug_bogus) {
-        time_t nowTime = nearbyint(mm->sysTimestampMsg / 1000.0);
+        time_t nowTime = nearbyint(mm->sysTimestamp / 1000.0);
         struct tm local;
         gmtime_r(&nowTime, &local);
         char timebuf[512];
         strftime(timebuf, 128, "%T", &local);
-        printf("utcTime: %s.%ld epoch: %.3f\n", timebuf, (long) mm->sysTimestampMsg % 1000, mm->sysTimestampMsg / 1000.0);
+        printf("utcTime: %s.%ld epoch: %.3f\n", timebuf, (long) mm->sysTimestamp % 1000, mm->sysTimestamp / 1000.0);
     }
 
     if (mm->sbs_in) {
@@ -1917,7 +1917,7 @@ void displayModesMessage(struct modesMessage *mm) {
                 printf("\n");
 
                 if (mm->acas_ra_valid)
-                    printACASInfoShort(mm->addr, mm->MV, NULL, mm, mm->sysTimestampMsg);
+                    printACASInfoShort(mm->addr, mm->MV, NULL, mm, mm->sysTimestamp);
                 break;
 
             case 17:

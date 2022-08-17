@@ -402,14 +402,14 @@ after_pre:
         // For consistency with how the Beast / Radarcape does it,
         // we report the timestamp at the end of bit 56 (even if
         // the frame is a 112-bit frame)
-        mm->timestampMsg = mag->sampleTimestamp + (pa -m) * 5 + (8 + 56) * 12 + bestphase;
+        mm->timestamp = mag->sampleTimestamp + (pa -m) * 5 + (8 + 56) * 12 + bestphase;
 
         // compute message receive time as block-start-time + difference in the 12MHz clock
-        mm->sysTimestampMsg = mag->sysTimestamp + receiveclock_ms_elapsed(mag->sampleTimestamp, mm->timestampMsg);
+        mm->sysTimestamp = mag->sysTimestamp + receiveclock_ms_elapsed(mag->sampleTimestamp, mm->timestamp);
 
         // advance ifile artifical clock for every message received
         if (Modes.sdr_type == SDR_IFILE)
-            Modes.synthetic_now = mm->sysTimestampMsg;
+            Modes.synthetic_now = mm->sysTimestamp;
 
         mm->score = bestscore;
 
@@ -739,10 +739,10 @@ void demodulate2400AC(struct mag_buf *mag) {
 
         // For consistency with how the Beast / Radarcape does it,
         // we report the timestamp at the second framing pulse (F2)
-        mm->timestampMsg = mag->sampleTimestamp + f2_clock / 5; // 60MHz -> 12MHz
+        mm->timestamp = mag->sampleTimestamp + f2_clock / 5; // 60MHz -> 12MHz
 
         // compute message receive time as block-start-time + difference in the 12MHz clock
-        mm->sysTimestampMsg = mag->sysTimestamp + receiveclock_ms_elapsed(mag->sampleTimestamp, mm->timestampMsg);
+        mm->sysTimestamp = mag->sysTimestamp + receiveclock_ms_elapsed(mag->sampleTimestamp, mm->timestamp);
 
         decodeModeAMessage(mm, modeac);
 

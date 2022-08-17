@@ -786,8 +786,8 @@ struct modesMessage
     struct aircraft *aircraft; // tracked aircraft associated with this message or NULL
     struct messageBuffer *messageBuffer;
 
-    int64_t timestampMsg; // Timestamp of the message (12MHz clock)
-    int64_t sysTimestampMsg; // Timestamp of the message (system time)
+    int64_t timestamp; // Timestamp of the message (12MHz clock)
+    int64_t sysTimestamp; // Timestamp of the message (system time)
     uint64_t receiverId; // zero if not transmitted
     int msgtype; // Downlink format #
     int msgbits; // Number of bits in message

@@ -86,7 +86,7 @@ static int32_t currentReduceInterval(int64_t now) {
 }
 
 static int accept_data(data_validity *d, datasource_t source, struct modesMessage *mm, struct aircraft *a, int reduce_often) {
-    int64_t now = mm->sysTimestampMsg;
+    int64_t now = mm->sysTimestamp;
     if (source == SOURCE_INVALID) {
         return 0;
     }
@@ -332,7 +332,7 @@ static int duplicate_check(int64_t now, struct aircraft *a, double new_lat, doub
 static int uat2esnt_duplicate(int64_t now, struct aircraft *a, struct modesMessage *mm) {
     return (
             mm->cpr_valid && mm->cpr_odd && mm->msgtype == 18
-            && (mm->timestampMsg == MAGIC_UAT_TIMESTAMP || mm->timestampMsg == 0)
+            && (mm->timestamp == MAGIC_UAT_TIMESTAMP || mm->timestamp == 0)
             && now - a->seenPosReliable < 2500
            );
 }
@@ -373,7 +373,7 @@ static int inDiscCache(int64_t now, struct aircraft *a, struct modesMessage *mm)
 // to a new position at (lat,lon,surface) at a time of now.
 
 static int speed_check(struct aircraft *a, datasource_t source, double lat, double lon, struct modesMessage *mm, cpr_local_t cpr_local) {
-    int64_t now = mm->sysTimestampMsg;
+    int64_t now = mm->sysTimestamp;
     int64_t elapsed = trackDataAge(now, &a->position_valid);
     int receiverRangeExceeded = 0;
 
@@ -748,7 +748,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
     }
 
     if (result < 0) {
-        if (!mm->duplicate && (a->addr == Modes.cpr_focus || Modes.debug_cpr) && !inDiscCache(mm->sysTimestampMsg, a, mm)) {
+        if (!mm->duplicate && (a->addr == Modes.cpr_focus || Modes.debug_cpr) && !inDiscCache(mm->sysTimestamp, a, mm)) {
             fprintf(stderr, "CPR: decode failure for %06x (%d): even: %d %d   odd: %d %d  fflag: %s\n",
                     a->addr, result,
                     a->cpr_even_lat, a->cpr_even_lon,
@@ -764,7 +764,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
         if (mm->receiver_distance > Modes.maxRange) {
             if (a->addr == Modes.cpr_focus || Modes.debug_bogus) {
                 fprintf(stdout, "%5llu %5.1f Global range check failed: %06x %.3f,%.3f, max range %.1fkm, actual %.1fkm\n",
-                        (long long) mm->timestampMsg % 65536,
+                        (long long) mm->timestamp % 65536,
                         10 * log10(mm->signalLevel),
                         a->addr, *lat, *lon, Modes.maxRange / 1000.0, mm->receiver_distance / 1000.0);
             }
@@ -772,7 +772,7 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
             if (mm->source != SOURCE_MLAT) {
                 Modes.stats_current.cpr_global_range_checks++;
                 if (Modes.debug_maxRange) {
-                    showPositionDebug(a, mm, mm->sysTimestampMsg, *lat, *lon);
+                    showPositionDebug(a, mm, mm->sysTimestamp, *lat, *lon);
                 }
             }
             return (-2); // we consider an out-of-range value to be bad data
@@ -807,7 +807,7 @@ static int doLocalCPR(struct aircraft *a, struct modesMessage *mm, double *lat, 
         *rc = a->cpr_even_rc;
     }
 
-    int64_t now = mm->sysTimestampMsg;
+    int64_t now = mm->sysTimestamp;
     if (now < a->seenPosGlobal + 10 * MINUTES && a->localCPR_allow_ac_rel) {
         reflat = a->lat;
         reflon = a->lon;
@@ -881,7 +881,7 @@ static int doLocalCPR(struct aircraft *a, struct modesMessage *mm, double *lat, 
         if (mm->receiver_distance > Modes.maxRange) {
             if (a->addr == Modes.cpr_focus || Modes.debug_bogus) {
                 fprintf(stdout, "%5llu %5.1f Global range check failed: %06x %.3f,%.3f, max range %.1fkm, actual %.1fkm\n",
-                        (long long) mm->timestampMsg % 65536,
+                        (long long) mm->timestamp % 65536,
                         10 * log10(mm->signalLevel),
                         a->addr, *lat, *lon, Modes.maxRange / 1000.0, mm->receiver_distance / 1000.0);
             }
@@ -889,7 +889,7 @@ static int doLocalCPR(struct aircraft *a, struct modesMessage *mm, double *lat, 
             if (mm->source != SOURCE_MLAT) {
                 Modes.stats_current.cpr_local_range_checks++;
                 if (Modes.debug_maxRange) {
-                    showPositionDebug(a, mm, mm->sysTimestampMsg, *lat, *lon);
+                    showPositionDebug(a, mm, mm->sysTimestamp, *lat, *lon);
                 }
             }
             return (-2); // we consider an out-of-range value to be bad data
@@ -1700,7 +1700,7 @@ discard_alt:
             && trackDataAge(now, &a->baro_alt_valid) < 20 * SECONDS
        ) {
         fprintf(stdout, "%6llx %5.1f Alt check F: %06x %2d %6d ->%6d, %s->%s, min %.1f kfpm, max %.1f kfpm, actual %.1f kfpm\n",
-                (long long) mm->timestampMsg % 0x1000000,
+                (long long) mm->timestamp % 0x1000000,
                 10 * log10(mm->signalLevel),
                 a->addr, a->alt_reliable, a->baro_alt, alt,
                 source_string(a->baro_alt_valid.source),
@@ -1734,7 +1734,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (mm->decodeResult < 0)
         return NULL;
 
-    int64_t now = mm->sysTimestampMsg;
+    int64_t now = mm->sysTimestamp;
 
     struct aircraft *a;
     unsigned int cpr_new = 0;
@@ -2181,13 +2181,13 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             if (accept_data(&a->acas_ra_valid, mm->source, mm, a, 0)) {
                 mm->reduce_forward = 1;
                 memcpy(a->acas_ra, bytes, sizeof(a->acas_ra));
-                logACASInfoShort(mm->addr, bytes, a, mm, mm->sysTimestampMsg);
+                logACASInfoShort(mm->addr, bytes, a, mm, mm->sysTimestamp);
             }
         } else if (bytes && Modes.debug_ACAS
                 && checkAcasRaValid(bytes, mm, 1)
                 && (getbit(bytes, 9) || getbit(bytes, 27) || getbit(bytes, 28))) {
             // getbit checks for ARA/RAT/MTE, at least one must be set
-            logACASInfoShort(mm->addr, bytes, a, mm, mm->sysTimestampMsg);
+            logACASInfoShort(mm->addr, bytes, a, mm, mm->sysTimestamp);
         }
     }
 
@@ -2294,8 +2294,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         if (0 && a->addr == Modes.cpr_focus) {
             fprintf(stderr, "%06x: age: odd %"PRIu64" even %"PRIu64"\n",
                     a->addr,
-                    trackDataAge(mm->sysTimestampMsg, &a->cpr_odd_valid),
-                    trackDataAge(mm->sysTimestampMsg, &a->cpr_even_valid));
+                    trackDataAge(mm->sysTimestamp, &a->cpr_odd_valid),
+                    trackDataAge(mm->sysTimestamp, &a->cpr_even_valid));
         }
     }
 
@@ -2311,7 +2311,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         if (old_jaero) {
             // avoid using already received positions for JAERO input
         } else if (mm->source == SOURCE_MLAT && mm->mlatEPU > 2 * a->mlatEPU
-                && imin((int)(3000.0f * logf((float)mm->mlatEPU / (float)a->mlatEPU)), TRACE_STALE * 3 / 4) > (int64_t) trackDataAge(mm->sysTimestampMsg, &a->pos_reliable_valid)
+                && imin((int)(3000.0f * logf((float)mm->mlatEPU / (float)a->mlatEPU)), TRACE_STALE * 3 / 4) > (int64_t) trackDataAge(mm->sysTimestamp, &a->pos_reliable_valid)
                 ) {
             // don't use less accurate MLAT positions unless some time has elapsed
             // only works with SBS input MLAT data coming from some versions of mlat-server
@@ -3456,7 +3456,7 @@ static void incrementReliable(struct aircraft *a, struct modesMessage *mm, int64
 
 static void position_bad(struct modesMessage *mm, struct aircraft *a) {
 
-    int64_t now = mm->sysTimestampMsg;
+    int64_t now = mm->sysTimestamp;
 
     if (mm->cpr_valid) {
         struct cpr_cache *disc;
