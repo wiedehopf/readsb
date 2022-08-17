@@ -1038,7 +1038,8 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
 
         if (
                 (valid_elapsed > 10 * MINUTES || override_elapsed < 10 * MINUTES)
-                && (mm->msgtype == 17 || (mm->addrtype == ADDR_ADSB_ICAO_NT && mm->cpr_type != CPR_SURFACE && !(a->dbFlags & (1 << 7)) ))
+                && (mm->msgtype == 17 || (mm->addrtype == ADDR_ADSB_ICAO_NT && mm->cpr_type != CPR_SURFACE
+                        && !(a->dbFlags & (1 << 7)) && ((a->addr >= 0xa00000 && a->addr <= 0xafffff) || (a->dbFlags & (1 << 0))) ))
                 && mm->cpr_valid
                 && status_elapsed > 5 * MINUTES
            ) {
@@ -1048,7 +1049,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
                 if (((Modes.debug_lastStatus & 1) && a->lastStatusDiscarded > 8) || (Modes.debug_lastStatus & 4)) {
                     char uuid[32]; // needs 18 chars and null byte
                     sprint_uuid1(mm->receiverId, uuid);
-                    fprintf(stderr, "%06x dist: %4d status_e: %4d valid_e: %4d over_e: %4d rCount: %d uuid: %s dbFlags: %u\n",
+                    fprintf(stderr, "%06x dist: %4d status_e: %4d valid_e: %4d over_e: %4d rCount: %d uuid: %s dbFlags: %u DF: %d\n",
                             a->addr,
                             (int) imin(9999, (dist / 1000)),
                             (int) imin(9999, (status_elapsed / 1000)),
@@ -1056,7 +1057,8 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
                             (int) imin(9999, (override_elapsed / 1000)),
                             a->receiverCount,
                             uuid,
-                            a->dbFlags);
+                            a->dbFlags,
+                            mm->msgtype);
                 }
                 if (!(Modes.debug_lastStatus & 2)) {
                     return;
