@@ -414,7 +414,7 @@ static void serviceConnect(struct net_connector *con, int64_t now) {
     int fd;
 
     // make sure backoff is never too small
-    con->backoff = imax(Modes.net_connector_delay / 32, con->backoff);
+    con->backoff = imax(Modes.net_connector_delay_min, con->backoff);
 
     if (con->try_addr && con->try_addr->ai_next) {
         // we have another address to try,
@@ -752,6 +752,8 @@ void modesInitNet(void) {
         zstdFwStartFile(Modes.dump_fw, Modes.dump_beast_dir, 1);
     }
 
+    Modes.net_connector_delay_min = Modes.net_connector_delay / 32;
+
     if (!Modes.net)
         return;
     struct net_service *beast_out;
@@ -1051,7 +1053,7 @@ static void modesCloseClient(struct client *c) {
             con->backoff -= sinceLastConnect;
         }
         // make sure it's not too small
-        con->backoff = imax(Modes.net_connector_delay / 32, con->backoff);
+        con->backoff = imax(Modes.net_connector_delay_min, con->backoff);
 
         // if we were connected for some time, an immediate reconnect is expected
         con->next_reconnect = con->lastConnect + con->backoff;
@@ -3616,15 +3618,16 @@ static void flushService(struct net_service *service, int64_t now) {
     if (!service->writer) {
         return;
     }
-    int force_flush = 0;
     struct net_writer *writer = service->writer;
+    if (!writer->connections) {
+        return;
+    }
     if (Modes.net_heartbeat_interval && writer->send_heartbeat
             && now - writer->lastWrite >= Modes.net_heartbeat_interval) {
         // If we have generated no messages for a while, send a heartbeat
         writer->send_heartbeat(service);
-        force_flush = 1;
     }
-    if (writer->dataUsed && (force_flush || now > writer->lastWrite + Modes.net_output_flush_interval || Modes.net_output_flush_interval <= 0)) {
+    if (writer->dataUsed) {
         flushWrites(writer);
     }
 }
@@ -3669,10 +3672,11 @@ void modesNetPeriodicWork(void) {
         epollAllocEvents(&Modes.net_events, &Modes.net_maxEvents);
     }
 
+    int64_t now = mstime();
     int64_t wait_ms;
     if (Modes.net_only) {
-        // wait in net-only mode, but never less than 1 ms (unless we get network packets, that wakes the wait immediately)
-        wait_ms = imax(1, Modes.net_output_flush_interval);
+        // wait in net-only mode (unless we get network packets, that wakes the wait immediately)
+        wait_ms = imax(200, Modes.net_output_flush_interval);
     } else {
         // NO WAIT WHEN USING AN SDR !! IMPORTANT !!
         wait_ms = 0;
@@ -3692,7 +3696,7 @@ void modesNetPeriodicWork(void) {
 
     int64_t interval = lapWatch(&watch);
 
-    int64_t now = mstime();
+    now = mstime();
     Modes.network_time_limit = now + 100;
 
     if (Modes.decodeThreads == 1) {
@@ -3734,11 +3738,7 @@ void modesNetPeriodicWork(void) {
 
     int64_t elapsed2 = lapWatch(&watch);
 
-    static int64_t next_flush_interval;
-    if (now > next_flush_interval) {
-        next_flush_interval = now + Modes.net_output_flush_interval / 4;
-
-        serviceReconnectCallback(now);
+    if (now > Modes.net_output_next_flush) {
 
         // If we have data that has been waiting to be written for a while, write it now.
         for (struct net_service *service = Modes.services_out.services; service->descr; service++) {
@@ -3747,12 +3747,22 @@ void modesNetPeriodicWork(void) {
         for (struct net_service *service = Modes.services_in.services; service->descr; service++) {
             flushService(service, now);
         }
+
+        Modes.net_output_next_flush = now + Modes.net_output_flush_interval;
+    }
+
+    static int64_t nextReconnect;
+    if (now > nextReconnect) {
+        nextReconnect = now + Modes.net_connector_delay_min;
+        serviceReconnectCallback(now);
     }
 
     static int64_t next_free_clients;
     int64_t free_client_interval = 1 * SECONDS;
     if (now > next_free_clients) {
         next_free_clients = now + free_client_interval;
+
+
         netFreeClients();
 
         if (Modes.receiverTable) {
