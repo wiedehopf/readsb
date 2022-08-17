@@ -250,7 +250,7 @@ bool rtlsdrOpen(void) {
     }
 
 #ifdef USE_BOUNCE_BUFFER
-    if (!(RTLSDR.bounce_buffer = cmalloc(MODES_RTL_BUF_SIZE))) {
+    if (!(RTLSDR.bounce_buffer = cmalloc(Modes.sdr_buf_size))) {
         fprintf(stderr, "rtlsdr: can't allocate bounce buffer\n");
         rtlsdrClose();
         return false;
@@ -297,12 +297,12 @@ void rtlsdrCallback(unsigned char *buf, uint32_t len, void *ctx) {
 
     unlockReader();
 
-    if (len != MODES_RTL_BUF_SIZE) {
+    if (len != Modes.sdr_buf_size) {
         fprintf(stderr, "weirdness: rtlsdr gave us a block with an unusual size (got %u bytes, expected %u bytes)\n",
-                (unsigned) len, (unsigned) MODES_RTL_BUF_SIZE);
-        if (len > MODES_RTL_BUF_SIZE) {
+                (unsigned) len, (unsigned) Modes.sdr_buf_size);
+        if (len > Modes.sdr_buf_size) {
             // wat?! Discard the start.
-            unsigned discard = (len - MODES_RTL_BUF_SIZE + 1) / 2;
+            unsigned discard = (len - Modes.sdr_buf_size + 1) / 2;
             outbuf->dropped += discard;
             buf += discard * 2;
             len -= discard * 2;
@@ -384,7 +384,7 @@ void rtlsdrRun() {
 
     start_cpu_timing(&rtlsdr_thread_cpu);
 
-    rtlsdr_read_async(RTLSDR.dev, rtlsdrCallback, NULL, MODES_RTL_BUFFERS, MODES_RTL_BUF_SIZE);
+    rtlsdr_read_async(RTLSDR.dev, rtlsdrCallback, NULL, MODES_RTL_BUFFERS, Modes.sdr_buf_size);
     if (!Modes.exit) {
         fprintf(stderr,"rtlsdr_read_async returned unexpectedly, probably lost the USB device, bailing out\n");
     }

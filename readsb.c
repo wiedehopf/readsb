@@ -191,6 +191,8 @@ static void configSetDefaults(void) {
     struct rlimit limits;
     getrlimit(RLIMIT_NOFILE, &limits);
     Modes.max_fds = limits.rlim_cur;
+
+    Modes.sdr_buf_size = 16 * 16 * 1024;
 }
 //
 //=========================================================================
@@ -237,7 +239,7 @@ static void modesInit(void) {
 
     if (!Modes.net_only) {
         for (int i = 0; i < MODES_MAG_BUFFERS; ++i) {
-            size_t alloc = (MODES_MAG_BUF_SAMPLES + Modes.trailing_samples) * sizeof (uint16_t);
+            size_t alloc = (Modes.sdr_buf_samples + Modes.trailing_samples) * sizeof (uint16_t);
             if ((Modes.mag_buffers[i].data = cmalloc(alloc)) == NULL) {
                 fprintf(stderr, "Out of memory allocating magnitude buffer.\n");
                 exit(1);
@@ -741,7 +743,22 @@ static void *decodeEntryPoint(void *arg) {
                 pthread_cond_signal(&Threads.reader.cond);
                 unlockReader();
 
-                Modes.stats_current.samples_lost += MODES_MAG_BUF_SAMPLES - buf->length;
+
+                if (0) {
+                    static int64_t last;
+
+                    double elapsed = buf->sysMicroseconds - last;
+                    last = buf->sysMicroseconds;
+
+                    static double last_elapsed;
+                    // diff more than 2 ms:
+                    if (fabs(elapsed - last_elapsed) > 200) {
+                        fprintf(stderr, "time between USB transfers: %.0f us\n", elapsed);
+                        last_elapsed = elapsed;
+                    }
+                }
+
+                Modes.stats_current.samples_lost += Modes.sdr_buf_samples - buf->length;
                 {
                     static int64_t last_sys;
                     static int64_t last_sample;
@@ -761,7 +778,7 @@ static void *decodeEntryPoint(void *arg) {
                             if (fabs(ppm) > 600) {
                                 if (ppm < -1000) {
                                     int packets_lost = (int) nearbyint(ppm / -1820);
-                                    Modes.stats_current.samples_lost += packets_lost * MODES_MAG_BUF_SAMPLES;
+                                    Modes.stats_current.samples_lost += packets_lost * Modes.sdr_buf_samples;
                                     fprintf(stderr, "Lost %d packets (%.1f us) on USB, MLAT could be UNSTABLE, check sync! (ppm: %.0f)"
                                             "(or the system clock jumped for some reason)\n", packets_lost, diff_us, ppm);
                                 } else {
@@ -1567,6 +1584,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptNetVerbatim:
             Modes.net_verbatim = 1;
             break;
+        case OptSdrBufSize:
+            Modes.sdr_buf_size = atoi(arg) * 1024;
+            break;
         case OptNetReceiverId:
             Modes.netReceiverId = 1;
             Modes.ping = 1;
@@ -1840,6 +1860,7 @@ int parseCommandLine(int argc, char **argv) {
 }
 
 static void configAfterParse() {
+    Modes.sdr_buf_samples = Modes.sdr_buf_size / 2;
     Modes.trackExpireMax = Modes.trackExpireJaero + TRACK_EXPIRE_LONG + 1 * MINUTES;
 
     if (Modes.json_globe_index) {

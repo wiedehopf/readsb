@@ -285,7 +285,7 @@ void demodulate2400(struct mag_buf *mag) {
 
     uint16_t *pa = m;
     uint16_t *stop = m + mlen;
-    // don't go all the way to mlen because we increment pa in the pre-check up to 3 times
+
     for (; pa < stop; pa++) {
         int32_t pa_mag, base_noise, ref_level;
         int msglen;

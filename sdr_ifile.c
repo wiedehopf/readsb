@@ -141,7 +141,7 @@ bool ifileOpen(void) {
             return false;
     }
 
-    if (!(ifile.readbuf = cmalloc(MODES_MAG_BUF_SAMPLES * ifile.bytes_per_sample))) {
+    if (!(ifile.readbuf = cmalloc(Modes.sdr_buf_samples * ifile.bytes_per_sample))) {
         fprintf(stderr, "ifile: failed to allocate read buffer\n");
         ifileClose();
         return false;
@@ -211,7 +211,7 @@ void ifileRun() {
         outbuf->sysMicroseconds = outbuf->sampleTimestamp / 12U + Modes.startup_time * 1000;
 
 
-        toread = MODES_MAG_BUF_SAMPLES * ifile.bytes_per_sample;
+        toread = Modes.sdr_buf_samples * ifile.bytes_per_sample;
         r = ifile.readbuf;
         while (toread) {
             nread = read(ifile.fd, r, toread);
@@ -227,7 +227,7 @@ void ifileRun() {
             toread -= nread;
         }
 
-        slen = outbuf->length = MODES_MAG_BUF_SAMPLES - toread / ifile.bytes_per_sample;
+        slen = outbuf->length = Modes.sdr_buf_samples - toread / ifile.bytes_per_sample;
         sampleCounter += slen;
 
         // Convert the new data

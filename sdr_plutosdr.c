@@ -141,13 +141,13 @@ bool plutosdrOpen()
     iio_channel_enable(PLUTOSDR.rx0_i);
     iio_channel_enable(PLUTOSDR.rx0_q);
 
-    PLUTOSDR.rxbuf = iio_device_create_buffer(PLUTOSDR.dev, MODES_MAG_BUF_SAMPLES, false);
+    PLUTOSDR.rxbuf = iio_device_create_buffer(PLUTOSDR.dev, Modes.sdr_buf_samples, false);
 
     if (!PLUTOSDR.rxbuf) {
         perror("plutosdr: Could not create RX buffer");
     }
 
-    if (!(PLUTOSDR.readbuf = cmalloc(MODES_RTL_BUF_SIZE * 4))) {
+    if (!(PLUTOSDR.readbuf = cmalloc(Modes.sdr_buf_size * 4))) {
         fprintf(stderr, "plutosdr: Failed to allocate read buffer\n");
         plutosdrClose();
         return false;
@@ -184,12 +184,12 @@ static void plutosdrCallback(int16_t *buf, uint32_t len) {
     lastbuf = &Modes.mag_buffers[(Modes.first_free_buffer + MODES_MAG_BUFFERS - 1) % MODES_MAG_BUFFERS];
     free_bufs = (Modes.first_filled_buffer - next_free_buffer + MODES_MAG_BUFFERS) % MODES_MAG_BUFFERS;
 
-    if (len != MODES_RTL_BUF_SIZE) {
+    if (len != Modes.sdr_buf_size) {
         fprintf(stderr, "weirdness: plutosdr gave us a block with an unusual size (got %u bytes, expected %u bytes)\n",
-                (unsigned) len, (unsigned) MODES_RTL_BUF_SIZE);
+                (unsigned) len, (unsigned) Modes.sdr_buf_size);
 
-        if (len > MODES_RTL_BUF_SIZE) {
-            unsigned discard = (len - MODES_RTL_BUF_SIZE + 1) / 2;
+        if (len > Modes.sdr_buf_size) {
+            unsigned discard = (len - Modes.sdr_buf_size + 1) / 2;
             outbuf->dropped += discard;
             buf += discard * 2;
             len -= discard * 2;

@@ -377,7 +377,7 @@ static void *handle_bladerf_samples(struct bladerf *dev,
 
     static bool overrun = true; // ignore initial overruns as we get up to speed
     static bool first_buffer = true;
-    for (unsigned offset = 0; offset < MODES_MAG_BUF_SAMPLES * 4; offset += uBladeRF.block_size) {
+    for (unsigned offset = 0; offset < Modes.sdr_buf_samples * 4; offset += uBladeRF.block_size) {
         // read the next metadata header
         uint8_t *header = ((uint8_t*) samples) + offset;
         uint64_t metadata_magic = le32toh(*(uint32_t*) (header));
@@ -480,14 +480,14 @@ void ubladeRFRun() {
             &buffers,
             /* num_buffers */ transfers,
             BLADERF_FORMAT_SC16_Q11_META,
-            /* samples_per_buffer */ MODES_MAG_BUF_SAMPLES,
+            /* samples_per_buffer */ Modes.sdr_buf_samples,
             /* num_transfers */ transfers,
             /* user_data */ NULL)) < 0) {
         fprintf(stderr, "bladerf_init_stream() failed: %s\n", bladerf_strerror(status));
         goto out;
     }
 
-    unsigned ms_per_transfer = 1000 * MODES_MAG_BUF_SAMPLES / Modes.sample_rate;
+    unsigned ms_per_transfer = 1000 * Modes.sdr_buf_samples / Modes.sample_rate;
     if ((status = bladerf_set_stream_timeout(uBladeRF.device, BLADERF_MODULE_RX, ms_per_transfer * (transfers + 2))) < 0) {
         fprintf(stderr, "bladerf_set_stream_timeout() failed: %s\n", bladerf_strerror(status));
         goto out;

@@ -109,8 +109,6 @@
 
 #define MODES_DEFAULT_FREQ      1090000000
 #define MODES_RTL_BUFFERS       16                         // Number of RTL buffers
-#define MODES_RTL_BUF_SIZE      (16*16384)                 // 256k
-#define MODES_MAG_BUF_SAMPLES   (MODES_RTL_BUF_SIZE / 2)   // Each sample is 2 bytes
 #define MODES_MAG_BUFFERS       12                         // Number of magnitude buffers (should be smaller than RTL_BUFFERS for flowcontrol to work)
 #define MODES_AUTO_GAIN         -100                       // Use automatic gain
 #define MODES_MAX_GAIN          999999                     // Use max available gain
@@ -461,6 +459,9 @@ struct _Modes
     int allPoolSize;
     threadpool_t *allPool;
     task_group_t *allTasks;
+
+    uint32_t sdr_buf_size;
+    uint32_t sdr_buf_samples;
 
     int64_t traceWriteTimelimit;
     int tracePoolSize;
@@ -1116,6 +1117,7 @@ enum {
     OptNetReceiverId,
     OptNetReceiverIdJson,
     OptNetIngest,
+    OptSdrBufSize,
     OptGarbage,
     OptDecodeThreads,
     OptUuidFile,
