@@ -3178,6 +3178,10 @@ static int readBeast(struct client *c, int64_t now, struct messageBuffer *mb) {
                 // Grab the receiver id (big endian format)
                 receiverId = receiverId << 8 | (ch & 255);
             }
+
+            if (eom + 2 > c->eod)// Incomplete message in buffer, retry later
+                break;
+
             if (!Modes.netIngest) {
                 c->receiverId = receiverId;
             }
