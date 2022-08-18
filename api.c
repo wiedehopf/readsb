@@ -1116,7 +1116,7 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                 char *tok = strtok_r(value, ",", &saveptr);
                 while (tok && hexCount < maxCount) {
                     int other = 0;
-                    if (tok[0] == '~' && tok[0] != '\0') {
+                    if (tok[0] == '~') {
                         other = 1;
                         tok++; // skip over ~
                     }
@@ -1125,11 +1125,10 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                         hex |= (other ? MODES_NON_ICAO_ADDRESS : 0);
                         hexList[hexCount] = hex;
                         hexCount++;
+                        //fprintf(stderr, "%06x\n", hex);
                     }
                     tok = strtok_r(NULL, ",", &saveptr);
                 }
-                if (hexCount == 0)
-                    return invalid;
 
                 options->hexCount = hexCount;
             } else if (strcasecmp(option, "find_callsign") == 0) {
