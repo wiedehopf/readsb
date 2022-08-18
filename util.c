@@ -912,6 +912,8 @@ zstd_fw_t *createZstdFw(size_t inBufSize) {
 
     fw->cctx = ZSTD_createCCtx();
 
+    fw->fd = -1;
+
     return fw;
 }
 
@@ -1001,4 +1003,37 @@ void zstdFwPutData(zstd_fw_t *fw, const uint8_t *data, size_t len) {
         remaining -= bytes;
         p += bytes;
     }
+}
+
+
+void dump_beast_check(int64_t now) {
+    if (!Modes.dump_fw) {
+        return;
+    }
+    int32_t index = now / (DUMP_BEAST_INTERVAL * SECONDS);
+
+    if (Modes.dump_beast_index == index) {
+        return;
+    }
+    Modes.dump_beast_index = index;
+
+    time_t nowish = index * DUMP_BEAST_INTERVAL;
+    struct tm utc;
+    gmtime_r(&nowish, &utc);
+
+    char tstring[100];
+    strftime (tstring, 100, "%H%M%S", &utc);
+
+
+    char pathbuf[PATH_MAX];
+    snprintf(pathbuf, PATH_MAX, "%s/%sZ.zst", Modes.dump_beast_dir, tstring);
+
+    zstd_fw_t *fw = Modes.dump_fw;
+
+    if (fw->fd >= 0) {
+        zstdFwFinishFile(fw);
+    }
+
+    zstdFwStartFile(fw, pathbuf, 1);
+    fprintf(stderr, "dump_beast started file: %s\n", pathbuf);
 }

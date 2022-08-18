@@ -279,7 +279,7 @@ static void unlockThreads() {
     }
 }
 
-int64_t ms_until_priority() {
+static int64_t ms_until_priority() {
     int64_t now = mstime();
     int64_t mono = mono_milli_seconds();
     int64_t ms_until_run = imin(
@@ -314,7 +314,7 @@ int priorityTasksPending() {
 // Entry point for periodic updates
 //
 
-static void priorityTasksRun() {
+void priorityTasksRun() {
     pthread_mutex_lock(&Modes.hungTimerMutex);
     startWatch(&Modes.hungTimer1);
     pthread_mutex_unlock(&Modes.hungTimerMutex);
@@ -337,7 +337,7 @@ static void priorityTasksRun() {
 
     static int64_t last_periodic_mono;
     int64_t periodic_interval = mono - last_periodic_mono;
-    if (periodic_interval > 5 * SECONDS && last_periodic_mono && periodic_interval < 24 * HOURS) {
+    if (periodic_interval > 5 * SECONDS && last_periodic_mono && !(Modes.syntethic_now_suppress_errors && Modes.synthetic_now)) {
         fprintf(stderr, "<3> priorityTasksRun didn't run for %.1f seconds!\n", periodic_interval / 1000.0);
     }
     last_periodic_mono = mono;
@@ -364,7 +364,7 @@ static void priorityTasksRun() {
         traceDelete();
 
         int64_t interval = mono - Modes.next_remove_stale;
-        if (interval > 5 * SECONDS && Modes.next_remove_stale && interval < 24 * HOURS) {
+        if (interval > 5 * SECONDS && Modes.next_remove_stale && !(Modes.syntethic_now_suppress_errors && Modes.synthetic_now)) {
             fprintf(stderr, "<3> removeStale didn't run for %.1f seconds!\n", interval / 1000.0);
         }
 
@@ -392,7 +392,7 @@ static void priorityTasksRun() {
     Modes.currentTask = "unlocked";
 
     static int64_t antiSpam;
-    if ((Modes.debug_removeStaleDuration && removed_stale) || ((elapsed1 > 150 || elapsed2 > 150) && mono > antiSpam + 30 * SECONDS)) {
+    if (0 || (Modes.debug_removeStaleDuration && removed_stale) || ((elapsed1 > 150 || elapsed2 > 150) && mono > antiSpam + 30 * SECONDS)) {
         fprintf(stderr, "<3>High load: removeStale took %"PRIi64"/%"PRIi64" ms! stats: %d (suppressing for 30 seconds)\n", elapsed1, elapsed2, Modes.updateStats);
         antiSpam = mono;
     }
@@ -1047,6 +1047,10 @@ static void *upkeepEntryPoint(void *arg) {
         checkReplaceState();
 
         int64_t wait = ms_until_priority();
+
+        if (Modes.synthetic_now) {
+            wait = 5000;
+        }
 
         if (0) {
             fprintf(stderr, "upkeep wait: %ld ms\n", (long) wait);

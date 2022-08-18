@@ -748,8 +748,14 @@ void modesInitNet(void) {
     }
 
     if (Modes.dump_beast_dir) {
-        Modes.dump_fw = createZstdFw(1 * 1024 * 1024);
-        zstdFwStartFile(Modes.dump_fw, Modes.dump_beast_dir, 1);
+        mkdir(Modes.dump_beast_dir, 0755);
+        if (errno != EEXIST) {
+            perror("issue creating dump-beast-dir");
+        } else {
+            Modes.dump_fw = createZstdFw(1 * 1024 * 1024);
+            Modes.dump_beast_index = -1;
+            dump_beast_check(mstime());
+        }
     }
 
     Modes.net_connector_delay_min = imax(50, Modes.net_connector_delay / 64);
@@ -3126,6 +3132,7 @@ static int readBeast(struct client *c, int64_t now, struct messageBuffer *mb) {
 
         if (Modes.synthetic_now) {
             now = Modes.synthetic_now;
+            Modes.syntethic_now_suppress_errors = 0;
         }
 
         // Check for message with receiverId prepended
@@ -3140,6 +3147,8 @@ static int readBeast(struct client *c, int64_t now, struct messageBuffer *mb) {
 
             memcpy(&ts, p, sizeof(int64_t));
             p += sizeof(int64_t);
+
+            int64_t old_now = now;
 
             if (Modes.dump_accept_synthetic_now) {
                 now = Modes.synthetic_now = ts;
@@ -3156,6 +3165,18 @@ static int readBeast(struct client *c, int64_t now, struct messageBuffer *mb) {
             if (p >= c->eod) {
                 // Incomplete message in buffer, retry later
                 break;
+            }
+
+            if (Modes.synthetic_now) {
+                if (priorityTasksPending()) {
+                    if (now - old_now > 5 * SECONDS) {
+                        Modes.syntethic_now_suppress_errors = 1;
+                    }
+                    pthread_mutex_unlock(&Threads.decode.mutex);
+                    priorityTasksRun();
+                    pthread_mutex_lock(&Threads.decode.mutex);
+                    Modes.syntethic_now_suppress_errors = 0;
+                }
             }
         } else if (ch == 0xe3) {
             p++;
@@ -3281,7 +3302,7 @@ static int readBeast(struct client *c, int64_t now, struct messageBuffer *mb) {
                     p++;
                     eom++;
                     if (eom > c->eod) { // Incomplete message in buffer, retry later
-                        goto beastWhileBreak;
+                        break;
                     }
                     if (*p != (char) 0x1A) { // check that it's indeed a double escape
                                              // might be start of message rather than double escape.
@@ -3347,7 +3368,6 @@ static int readBeast(struct client *c, int64_t now, struct messageBuffer *mb) {
 beastWhileContinue:
         ;
     }
-beastWhileBreak:
 
     if (c->eod - c->som > 256) {
         //fprintf(stderr, "beastWhile too much data remaining, garbage?!\n");
@@ -3466,11 +3486,16 @@ static void modesReadFromClient(struct client *c, struct messageBuffer *mb) {
             return;
         }
 
+        if (Modes.synthetic_now && priorityTasksPending()) {
+            return;
+        }
+
         if (!c->service) {
             return;
         }
 
         if (!c->bufferToProcess) {
+            // get more buffer to process
             int read = readClient(c, now);
             //fprintf(stderr, "readClient returned: %d\n", read);
             if (!read) {
@@ -3488,6 +3513,8 @@ static void modesReadFromClient(struct client *c, struct messageBuffer *mb) {
 
             mb->activeClient = c;
         }
+
+        // process buffer
 
         c->processing++;
         //fprintf(stderr, "%d", c->processing);
@@ -3680,6 +3707,9 @@ void modesNetPeriodicWork(void) {
     }
 
     int64_t now = mstime();
+
+    dump_beast_check(now);
+
     int64_t wait_ms;
     if (Modes.net_only) {
         // wait in net-only mode (unless we get network packets, that wakes the wait immediately)

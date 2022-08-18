@@ -146,6 +146,8 @@
 
 #define INVALID_ALTITUDE (-9999)
 
+#define DUMP_BEAST_INTERVAL (300) // in seconds
+
 
 // size of various on stack buffers used across the code, let's just be conservative and assume 1 MB of stack
 // without heavy recursion 3 of those stack buffers can be in use at the same time, at most we expect to to be in use
@@ -346,7 +348,7 @@ typedef enum {
 
 void setExit(int arg);
 int priorityTasksPending();
-int64_t ms_until_priority();
+void priorityTasksRun();
 
 #define MemoryAlignment 32
 #define ALIGNED __attribute__((aligned(MemoryAlignment)))
@@ -615,6 +617,7 @@ struct _Modes
     int8_t debug_position_timing;
     int8_t debug_lastStatus;
     int8_t dump_accept_synthetic_now;
+    int8_t syntethic_now_suppress_errors;
     int8_t tar1090_use_api;
     int8_t verbose;
 
@@ -707,6 +710,7 @@ struct _Modes
     char *state_dir;
     char *state_parent_dir;
     char *dump_beast_dir; // write raw beast with a timestamp every millisecond for low level replay
+    int32_t dump_beast_index;
     zstd_fw_t *dump_fw;
     int64_t dump_next_ts; // last timestamp sent
     int state_only_on_exit;
