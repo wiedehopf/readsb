@@ -1672,6 +1672,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 }
                 if (strcmp(token1, "dump_reduce") == 0) {
                     Modes.dump_reduce = 1;
+                    fprintf(stderr, "Modes.dump_reduce: %d\n", Modes.dump_reduce);
                 }
             }
             break;
