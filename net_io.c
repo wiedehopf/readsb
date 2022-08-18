@@ -1359,7 +1359,16 @@ static void flushWrites(struct net_writer *writer) {
             if (c->pingEnabled) {
                 pong(c, now);
             }
+            // give the connection 10 seconds to ramp up --> automatic TCP window scaling in Linux ...
             if ((c->sendq_len + writer->dataUsed) >= c->sendq_max) {
+                if (now - c->connectedSince < 10 * SECONDS) {
+                    fprintf(stderr, "%s: Discarding full SendQ: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
+                            c->service->descr, c->host, c->port,
+                            c->fd, c->sendq_len, c->buflen);
+                    c->sendq_len = 0;
+                    flushClient(c, now);
+                    continue;
+                }
                 // Too much data in client SendQ.  Drop client - SendQ exceeded.
                 fprintf(stderr, "%s: Dropped due to full SendQ: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
                         c->service->descr, c->host, c->port,
