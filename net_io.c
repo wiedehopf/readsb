@@ -943,7 +943,7 @@ void modesInitNet(void) {
         if (errno != EEXIST) {
             perror("issue creating dump-beast-dir");
         } else {
-            Modes.dump_fw = createZstdFw(1 * 1024 * 1024);
+            Modes.dump_fw = createZstdFw(4 * 1024 * 1024);
             Modes.dump_beast_index = -1;
             dump_beast_check(mstime());
         }

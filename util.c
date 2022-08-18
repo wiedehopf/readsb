@@ -1034,6 +1034,6 @@ void dump_beast_check(int64_t now) {
         zstdFwFinishFile(fw);
     }
 
-    zstdFwStartFile(fw, pathbuf, 1);
-    fprintf(stderr, "dump_beast started file: %s\n", pathbuf);
+    zstdFwStartFile(fw, pathbuf, 4);
+    //fprintf(stderr, "dump_beast started file: %s\n", pathbuf);
 }
