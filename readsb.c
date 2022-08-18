@@ -531,7 +531,7 @@ static void *jsonEntryPoint(void *arg) {
         }
 
         //fprintf(stderr, "uncompressed size %ld\n", (long) cb3.len);
-        writeJsonToFile(Modes.json_dir, "aircraft.binCraft.zst", ident(generateZstd(cctx, &zstd_buffer, cb3, 1)));
+        writeJsonToFile(Modes.json_dir, "aircraft.binCraft.zst", generateZstd(cctx, &zstd_buffer, cb3, 1));
 
         if (Modes.json_globe_index) {
             struct char_buffer cb2 = generateGlobeBin(-1, 1, &pass_buffer);
@@ -1311,7 +1311,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptNetOnly:
             Modes.net = 1;
-            Modes.sdr_type = SDR_NONE;
             Modes.net_only = 1;
             break;
         case OptQuiet:
@@ -1420,6 +1419,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptDumpBeastDir:
             sfree(Modes.dump_beast_dir);
             Modes.dump_beast_dir = strdup(arg);
+            // enable networking, this is required for dumping
+            Modes.net = 1;
             break;
         case OptGlobeHistoryDir:
             sfree(Modes.globe_history_dir);
@@ -1668,6 +1669,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 }
                 if (strcmp(token1, "accept_synthetic") == 0) {
                     Modes.dump_accept_synthetic_now = 1;
+                }
+                if (strcmp(token1, "dump_reduce") == 0) {
+                    Modes.dump_reduce = 1;
                 }
             }
             break;
@@ -2001,6 +2005,7 @@ static void configAfterParse() {
             cleanup_and_exit(1);
         }
     } else if (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS) {
+        Modes.net = 1;
         Modes.net_only = 1;
     } else {
         Modes.net_only = 0;

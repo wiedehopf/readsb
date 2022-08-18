@@ -747,17 +747,6 @@ void modesInitNet(void) {
         exit(1);
     }
 
-    if (Modes.dump_beast_dir) {
-        mkdir(Modes.dump_beast_dir, 0755);
-        if (errno != EEXIST) {
-            perror("issue creating dump-beast-dir");
-        } else {
-            Modes.dump_fw = createZstdFw(1 * 1024 * 1024);
-            Modes.dump_beast_index = -1;
-            dump_beast_check(mstime());
-        }
-    }
-
     Modes.net_connector_delay_min = imax(50, Modes.net_connector_delay / 64);
     Modes.last_connector_fail = Modes.next_reconnect_callback = mstime();
 
@@ -793,13 +782,7 @@ void modesInitNet(void) {
     beast_out = serviceInit(&Modes.services_out, "Beast TCP output", &Modes.beast_out, send_beast_heartbeat, READ_MODE_BEAST_COMMAND, NULL, handleBeastCommand);
     serviceListen(beast_out, Modes.net_bind_address, Modes.net_output_beast_ports, Modes.net_epfd);
 
-    if (Modes.dump_fw) {
-        // fake one connection to ensure we can write beast dumps
-        Modes.beast_out.connections++;
-    }
-
     beast_reduce_out = serviceInit(&Modes.services_out, "BeastReduce TCP output", &Modes.beast_reduce_out, send_beast_heartbeat, READ_MODE_BEAST_COMMAND, NULL, handleBeastCommand);
-
     serviceListen(beast_reduce_out, Modes.net_bind_address, Modes.net_output_beast_reduce_ports, Modes.net_epfd);
 
     garbage_out = serviceInit(&Modes.services_out, "Garbage TCP output", &Modes.garbage_out, send_beast_heartbeat, READ_MODE_IGNORE, NULL, NULL);
@@ -953,6 +936,17 @@ void modesInitNet(void) {
         else if (strcmp(con->protocol, "uat_in") == 0)
             con->service = Modes.uat_in_service;
 
+    }
+
+    if (Modes.dump_beast_dir) {
+        mkdir(Modes.dump_beast_dir, 0755);
+        if (errno != EEXIST) {
+            perror("issue creating dump-beast-dir");
+        } else {
+            Modes.dump_fw = createZstdFw(1 * 1024 * 1024);
+            Modes.dump_beast_index = -1;
+            dump_beast_check(mstime());
+        }
     }
 }
 
@@ -1420,6 +1414,36 @@ static void completeWrite(struct net_writer *writer, void *endptr) {
     }
 }
 
+static char *netTimestamp(char *p, int64_t timestamp) {
+    unsigned char ch;
+    /* timestamp, big-endian */
+    *p++ = (ch = (timestamp >> 40));
+    if (0x1A == ch) {
+        *p++ = ch;
+    }
+    *p++ = (ch = (timestamp >> 32));
+    if (0x1A == ch) {
+        *p++ = ch;
+    }
+    *p++ = (ch = (timestamp >> 24));
+    if (0x1A == ch) {
+        *p++ = ch;
+    }
+    *p++ = (ch = (timestamp >> 16));
+    if (0x1A == ch) {
+        *p++ = ch;
+    }
+    *p++ = (ch = (timestamp >> 8));
+    if (0x1A == ch) {
+        *p++ = ch;
+    }
+    *p++ = (ch = (timestamp));
+    if (0x1A == ch) {
+        *p++ = ch;
+    }
+    return p;
+}
+
 //
 //=========================================================================
 //
@@ -1436,8 +1460,6 @@ static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *wri
 
     if (!p)
         return;
-
-    char *start = p;
 
     // receiverId, big-endian, in own message to make it backwards compatible
     // only send the receiverId when it changes
@@ -1466,29 +1488,75 @@ static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *wri
     }
 
     /* timestamp, big-endian */
-    *p++ = (ch = (mm->timestamp >> 40));
+    p = netTimestamp(p, mm->timestamp);
+
+    sig = nearbyint(sqrt(mm->signalLevel) * 255);
+    if (mm->signalLevel > 0 && sig < 1)
+        sig = 1;
+    if (sig > 255)
+        sig = 255;
+    *p++ = ch = (char) sig;
     if (0x1A == ch) {
         *p++ = ch;
     }
-    *p++ = (ch = (mm->timestamp >> 32));
-    if (0x1A == ch) {
-        *p++ = ch;
+
+    for (j = 0; j < msgLen; j++) {
+        *p++ = (ch = msg[j]);
+        if (0x1A == ch) {
+            *p++ = ch;
+        }
     }
-    *p++ = (ch = (mm->timestamp >> 24));
-    if (0x1A == ch) {
-        *p++ = ch;
+
+    completeWrite(writer, p);
+}
+
+static void modesDumpBeastData(struct modesMessage *mm) {
+    if (!Modes.dump_fw) {
+        return;
     }
-    *p++ = (ch = (mm->timestamp >> 16));
-    if (0x1A == ch) {
-        *p++ = ch;
+    int msgLen = mm->msgbits / 8;
+    // 0x1a 0xe3 receiverId(2*8) 0x1a msgType timestamp+signal(2*7) message(2*msgLen)
+    char store[(2 + 2 * 8 + 2 + 2 * 7) + 2 * MODES_LONG_MSG_BYTES];
+    char *p = store;
+    unsigned char ch;
+    int j;
+    int sig;
+    unsigned char *msg = (Modes.net_verbatim ? mm->verbatim : mm->msg);
+
+    char *start = p;
+
+    // receiverId, big-endian, in own message to make it backwards compatible
+    // only send the receiverId when it changes
+    if (Modes.netReceiverId && Modes.dump_lastReceiverId != mm->receiverId) {
+        Modes.dump_lastReceiverId = mm->receiverId;
+        *p++ = 0x1a;
+        // other dump1090 / readsb versions or beast implementations should discard unknown message types
+        *p++ = 0xe3; // good enough guess no one is using this.
+        for (int i = 7; i >= 0; i--) {
+            *p++ = (ch = ((mm->receiverId >> (8 * i)) & 0xFF));
+            if (0x1A == ch) {
+                *p++ = ch;
+            }
+        }
     }
-    *p++ = (ch = (mm->timestamp >> 8));
-    if (0x1A == ch) {
-        *p++ = ch;
+
+    *p++ = 0x1a;
+    if (msgLen == MODES_SHORT_MSG_BYTES) {
+        *p++ = '2';
+    } else if (msgLen == MODES_LONG_MSG_BYTES) {
+        *p++ = '3';
+    } else if (msgLen == MODEAC_MSG_BYTES) {
+        *p++ = '1';
+    } else {
+        return;
     }
-    *p++ = (ch = (mm->timestamp));
-    if (0x1A == ch) {
-        *p++ = ch;
+
+    /* timestamp, big-endian */
+    if (Modes.dump_reduce && mm->timestamp && mm->timestamp >= MAGIC_MLAT_TIMESTAMP && mm->timestamp <= MAGIC_MLAT_TIMESTAMP + 10) {
+        // clobber timestamp for better compression
+        p = netTimestamp(p, MAGIC_ANY_TIMESTAMP);
+    } else {
+        p = netTimestamp(p, mm->timestamp);
     }
 
     sig = nearbyint(sqrt(mm->signalLevel) * 255);
@@ -1508,21 +1576,16 @@ static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *wri
         }
     }
 
-
-    if (Modes.dump_fw && writer == &Modes.beast_out) {
-        int64_t now = mm->sysTimestamp;
-        if (now > Modes.dump_next_ts) {
-            //fprintf(stderr, "%ld\n", (long) now);
-            Modes.dump_next_ts = now + 1;
-            const char dump_ts_prefix[] = { 0x1A, 0xe8 };
-            zstdFwPutData(Modes.dump_fw, (uint8_t *) dump_ts_prefix, sizeof(dump_ts_prefix));
-            zstdFwPutData(Modes.dump_fw, (uint8_t *) &now, sizeof(int64_t));
-        }
-        zstdFwPutData(Modes.dump_fw, (uint8_t *) start, p - start);
+    int64_t now = mm->sysTimestamp;
+    if (now > Modes.dump_next_ts) {
+        //fprintf(stderr, "%ld\n", (long) now);
+        Modes.dump_next_ts = now + 1;
+        const char dump_ts_prefix[] = { 0x1A, 0xe8 };
+        zstdFwPutData(Modes.dump_fw, (uint8_t *) dump_ts_prefix, sizeof(dump_ts_prefix));
+        zstdFwPutData(Modes.dump_fw, (uint8_t *) &now, sizeof(int64_t));
     }
 
-
-    completeWrite(writer, p);
+    zstdFwPutData(Modes.dump_fw, (uint8_t *) start, p - start);
 }
 
 static void send_beast_heartbeat(struct net_service *service) {
@@ -2985,7 +3048,7 @@ static int readClient(struct client *c, int64_t now) {
         }
     }
 
-    if (!Modes.debug_no_discard && !c->discard && now - c->last_read < 800 && now - c->last_read_flush > 2400) {
+    if (!Modes.debug_no_discard && !c->discard && now - c->last_read < 800 && now - c->last_read_flush > 2400 && !Modes.synthetic_now) {
         c->discard = 1;
         if (Modes.netIngest && c->proxy_string[0] != '\0') {
             fprintf(stderr, "<3>ERROR, not enough CPU: Discarding data from: %s\n", c->proxy_string);
@@ -4130,6 +4193,9 @@ static void outputMessage(struct modesMessage *mm) {
             if (mm->reduce_forward && Modes.beast_reduce_out.connections) {
                 modesSendBeastOutput(mm, &Modes.beast_reduce_out);
             }
+        }
+        if (Modes.dump_fw && (!Modes.dump_reduce || mm->reduce_forward)) {
+            modesDumpBeastData(mm);
         }
     }
 

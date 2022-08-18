@@ -153,7 +153,7 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
             reduceInterval = reduceInterval;
         } else {
             // reduce_often == 0
-            reduceInterval = reduceInterval * 4;
+            reduceInterval = reduceInterval * 2;
         }
 
         if (mm->cpr_valid && reduceInterval > 7000) {

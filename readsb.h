@@ -340,8 +340,10 @@ typedef enum {
 /* A timestamp that indicates the data is synthetic, created from a
  * multilateration result
  */
-#define MAGIC_MLAT_TIMESTAMP 0xFF004D4C4154ULL
-#define MAGIC_UAT_TIMESTAMP  0xFF004D4C4155ULL
+#define MAGIC_MLAT_TIMESTAMP 0xFF004D4C4154LL
+#define MAGIC_UAT_TIMESTAMP  0xFF004D4C4155LL
+
+#define MAGIC_ANY_TIMESTAMP  0xFFFFFFFFFFFFULL
 
 #define likely(x)       __builtin_expect((x),1)
 #define unlikely(x)     __builtin_expect((x),0)
@@ -710,11 +712,13 @@ struct _Modes
     char *state_dir;
     char *state_parent_dir;
     char *dump_beast_dir; // write raw beast with a timestamp every millisecond for low level replay
-    int32_t dump_beast_index;
     zstd_fw_t *dump_fw;
     int64_t dump_next_ts; // last timestamp sent
-    int state_only_on_exit;
-    int free_aircraft;
+    int32_t dump_beast_index;
+    uint64_t dump_lastReceiverId;
+    int8_t dump_reduce; // only dump beast that would be sent out according to reduce_interval
+    int8_t state_only_on_exit;
+    int8_t free_aircraft;
     char *prom_file;
     int64_t heatmap_current_interval;
     int64_t heatmap_interval; // don't change data type
