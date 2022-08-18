@@ -1449,7 +1449,7 @@ static char *sprintTracePoint(char *p, char *end, struct state *state, struct st
 
 static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
     struct traceCache *cache = &a->traceCache;
-    if (!cache->entries) {
+    if (!cache->entries || !cache->json) {
         if (Modes.trace_hist_only & 8) {
             return; // no cache in this special case
         }
@@ -1598,6 +1598,11 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
         }
 
         struct state_all *state_all = getStateAll(tb.trace, i);
+
+        if (!p || !cache->entries || !cache->json) {
+            fprintf(stderr, "wtf null pointer ?!?! ohj4Ohbi\n");
+            break;
+        }
 
         char *stringStart = p;
         p = sprintTracePoint(p, end, state, state_all, cache->referenceTs, now, a);
