@@ -134,7 +134,7 @@ static struct argp_option optionsReadsb[] = {
     {"net-api-port", OptNetApiPorts, "<port>", 0, "TCP API listen port (in contrast to other listeners, only a single port is allowed) (update frequency controlled by write-json-every parameter) (default: 0)", 2},
     {"tar1090-use-api", OptTar1090UseApi, 0, 0, "when running with globe-index, signal tar1090 use the readsb API to get data, requires webserver mapping of /tar1090/re-api to proxy_pass the requests to the --net-api-port, see nginx-readsb-api.conf in the tar1090 repository for details", 2},
     {"net-beast-reduce-out-port", OptNetBeastReducePorts, "<ports>", 0, "TCP BeastReduce output listen ports (default: 0)", 2},
-    {"net-beast-reduce-interval", OptNetBeastReduceInterval, "<seconds>", 0, "BeastReduce position update interval, longer means less data (default: 0.125, valid range: 0.000 - 14.999)", 2},
+    {"net-beast-reduce-interval", OptNetBeastReduceInterval, "<seconds>", 0, "BeastReduce data update interval, longer means less data (default: 0.250, valid range: 0.000 - 14.999)", 2},
     {"net-beast-reduce-filter-dist", OptNetBeastReduceFilterDist, "<distance in nmi>", 0, "beast-reduce: remove aircraft which are further than distance from the receiver", 2},
     {"net-beast-reduce-filter-alt", OptNetBeastReduceFilterAlt, "<pressure altitude in ft>", 0, "beast-reduce: remove aircraft which are above altitude", 2},
     {"net-sbs-reduce", OptNetSbsReduce, 0, 0, "Apply beast reduce logic and interval to SBS outputs", 2},

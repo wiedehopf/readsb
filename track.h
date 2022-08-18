@@ -86,6 +86,12 @@ int nogps(int64_t now, struct aircraft *a);
 #define DISCARD_CACHE (4)
 #define CPR_CACHE (4)
 
+typedef enum
+{
+    REDUCE_RARE,
+    REDUCE_OFTEN,
+} reduce_freq_t;
+
 // data moves through three states:
 //  fresh: data is valid. Updates from a less reliable source are not accepted.
 //  stale: data is valid. Updates from a less reliable source are accepted.
