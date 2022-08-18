@@ -1552,7 +1552,7 @@ static void modesDumpBeastData(struct modesMessage *mm) {
     }
 
     /* timestamp, big-endian */
-    if (Modes.dump_reduce && mm->timestamp && mm->timestamp >= MAGIC_MLAT_TIMESTAMP && mm->timestamp <= MAGIC_MLAT_TIMESTAMP + 10) {
+    if (Modes.dump_reduce && mm->timestamp && !(mm->timestamp >= MAGIC_MLAT_TIMESTAMP && mm->timestamp <= MAGIC_MLAT_TIMESTAMP + 10)) {
         // clobber timestamp for better compression
         p = netTimestamp(p, MAGIC_ANY_TIMESTAMP);
     } else {
