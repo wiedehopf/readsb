@@ -730,7 +730,7 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *op
         size_t compressedSize = ZSTD_compressCCtx(thread->cctx,
                 dst.buffer, dst.len,
                 payload, payload_len,
-                1);
+                API_ZSTD_LVL);
 
         dst.len = compressedSize;
         new.len = API_REQ_PADSTART + compressedSize;

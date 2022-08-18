@@ -5,6 +5,8 @@
 
 #define API_REQ_LIST_MAX 1024
 
+#define API_ZSTD_LVL (2)
+
 struct apiCon {
     int fd;
     int accept;
