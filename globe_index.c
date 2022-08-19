@@ -483,7 +483,8 @@ void traceWrite(struct aircraft *a, threadpool_threadbuffers_t *buffer_group) {
     int64_t now = mstime();
 
     int recent_points = Modes.traceRecentPoints;
-    if (a->trace_writeCounter >= recent_points - 2) {
+    int memThreshold = recent_points - 2;
+    if (a->trace_writeCounter >= memThreshold) {
         trace_write |= WMEM;
         trace_write |= WRECENT;
     }
@@ -613,12 +614,12 @@ void traceWrite(struct aircraft *a, threadpool_threadbuffers_t *buffer_group) {
         }
 
         if (a->trace_writeCounter >= 0xc0ffee) {
-            a->trace_next_mw = now + GLOBE_MEM_IVAL / 8 + random() % (GLOBE_MEM_IVAL / 1);
+            a->trace_next_mw = now + random() % (GLOBE_MEM_IVAL * 9 / 8);
+            a->trace_writeCounter = random() % memThreshold;
         } else {
-            a->trace_next_mw = now + GLOBE_MEM_IVAL / 1 + random() % (GLOBE_MEM_IVAL / 8);
+            a->trace_next_mw = now + GLOBE_MEM_IVAL + random() % (GLOBE_MEM_IVAL / 8);
+            a->trace_writeCounter = 0;
         }
-
-        a->trace_writeCounter = 0;
     }
 
     int permWritten = 0;
@@ -722,7 +723,7 @@ void traceWrite(struct aircraft *a, threadpool_threadbuffers_t *buffer_group) {
                     permCount++;
                 }
                 if (memWritten && memWritten < 0xc0ffee) {
-                    if (memWritten >= recent_points - 2) {
+                    if (memWritten >= memThreshold) {
                         byCounter = 1;
                         pointsCount++;
                     } else {
@@ -974,6 +975,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
         // write traces into /run/readsb so they are present for the webinterface
         if (a->pos_reliable_valid.source != SOURCE_INVALID || (now - a->seenPosReliable) < 15 * MINUTES) {
             // write these trace immediately
+            a->trace_writeCounter = 0xc0ffee;
             a->trace_write |= WRECENT;
             a->trace_write |= WMEM;
         } else {
