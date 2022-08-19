@@ -3224,6 +3224,11 @@ static int readBeast(struct client *c, int64_t now, struct messageBuffer *mb) {
 
             if (Modes.dump_accept_synthetic_now) {
                 now = Modes.synthetic_now = ts;
+            } else {
+                fprintf(stderr, "%s: Synthetic timestamp detected without --devel=accept_synthetic specified, disconnecting client: %s port %s (fd %d)\n",
+                        c->service->descr, c->host, c->port, c->fd);
+                modesCloseClient(c);
+                return -1;
             }
 
             //fprintf(stderr, "%ld %ld\n", (long) now, (long) (c->eod - c->som));
