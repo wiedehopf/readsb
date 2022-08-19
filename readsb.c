@@ -193,6 +193,9 @@ static void configSetDefaults(void) {
     Modes.max_fds = limits.rlim_cur;
 
     Modes.sdr_buf_size = 16 * 16 * 1024;
+
+    // in seconds, default to 1 hour
+    Modes.dump_interval = 60 * 60;
 }
 //
 //=========================================================================
@@ -1269,6 +1272,8 @@ static int parseLongs(char *p, long long *results, int result_size) {
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     //fprintf(stderr, "parse_opt(%d, %s, argp_state*)\n", key, arg);
+    int maxTokens = 16;
+    char* token[maxTokens];
     switch (key) {
         case OptDevice:
             Modes.dev_name = strdup(arg);
@@ -1417,9 +1422,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.heatmap_dir = strdup(arg);
             break;
         case OptDumpBeastDir:
+            tokenize(&arg, ",", token, maxTokens); if (!token[0]) { break; }
+
             sfree(Modes.dump_beast_dir);
-            Modes.dump_beast_dir = strdup(arg);
-            // enable networking, this is required for dumping
+            Modes.dump_beast_dir = strdup(token[0]);
+            if (token[1]) { Modes.dump_interval = atoi(token[1]); }
+            // enable networking as this is required
             Modes.net = 1;
             break;
         case OptGlobeHistoryDir:
@@ -1653,24 +1661,22 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 
         case OptDevel:
             {
-                char *stringp = arg;
-                char *token1 = strsep(&stringp, ",");
-                char *token2 = strsep(&stringp, ",");
-                if (!token1) {
+                tokenize(&arg, ",", token, maxTokens);
+                if (!token[0]) {
                     break;
                 }
-                if (strcmp(token1, "lastStatus") == 0) {
-                    if (token2) {
-                        Modes.debug_lastStatus = atoi(token2);
+                if (strcmp(token[0], "lastStatus") == 0) {
+                    if (token[1]) {
+                        Modes.debug_lastStatus = atoi(token[1]);
                         fprintf(stderr, "lastStatus: %d\n", Modes.debug_lastStatus);
                     } else {
                         Modes.debug_lastStatus = 1;
                     }
                 }
-                if (strcmp(token1, "accept_synthetic") == 0) {
+                if (strcmp(token[0], "accept_synthetic") == 0) {
                     Modes.dump_accept_synthetic_now = 1;
                 }
-                if (strcmp(token1, "dump_reduce") == 0) {
+                if (strcmp(token[0], "dump_reduce") == 0) {
                     Modes.dump_reduce = 1;
                     fprintf(stderr, "Modes.dump_reduce: %d\n", Modes.dump_reduce);
                 }

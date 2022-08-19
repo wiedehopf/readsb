@@ -98,7 +98,7 @@ static struct argp_option optionsReadsb[] = {
     {"write-state-only-on-exit", OptStateOnlyOnExit, 0, 0, "Don't continously update state.", 1},
     {"heatmap-dir", OptHeatmapDir, "<dir>", 0, "Change the directory where heatmaps are saved (default is in globe history dir)", 1},
     {"heatmap", OptHeatmap, "<interval in seconds>", 0, "Make Heatmap, each aircraft at most every interval seconds (creates historydir/heatmap.bin and exit after that)", 1},
-    {"dump-beast-dir", OptDumpBeastDir, "<dir>", 0, "Dump compressed beast files to this directory", 1},
+    {"dump-beast", OptDumpBeastDir, "<dir>,<interval>", 0, "Dump compressed beast files to this directory, start a new file evey interval seconds", 1},
     {"write-json-every", OptJsonTime, "<sec>", 0, "Write json output and update API json every sec seconds (default 1)", 1},
     {"json-location-accuracy", OptJsonLocAcc , "<n>", 0, "Accuracy of receiver location in json metadata: 0=no location, 1=approximate, 2=exact", 1},
     {"write-json-globe-index", OptJsonGlobeIndex, 0, 0, "Write specially indexed globe_xxxx.json files (for tar1090)", 1},

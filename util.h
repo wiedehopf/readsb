@@ -258,4 +258,6 @@ void zstdFwPutData(zstd_fw_t *fw, const uint8_t *data, size_t len);
 
 void dump_beast_check(int64_t now);
 
+int32_t tokenize(char **restrict stringp, char *restrict delim, char **restrict tokens, int maxTokens);
+
 #endif

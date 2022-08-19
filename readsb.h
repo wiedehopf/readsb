@@ -146,8 +146,6 @@
 
 #define INVALID_ALTITUDE (-9999)
 
-#define DUMP_BEAST_INTERVAL (300) // in seconds
-
 
 // size of various on stack buffers used across the code, let's just be conservative and assume 1 MB of stack
 // without heavy recursion 3 of those stack buffers can be in use at the same time, at most we expect to to be in use
@@ -714,6 +712,7 @@ struct _Modes
     char *dump_beast_dir; // write raw beast with a timestamp every millisecond for low level replay
     zstd_fw_t *dump_fw;
     int64_t dump_next_ts; // last timestamp sent
+    int32_t dump_interval;
     int32_t dump_beast_index;
     uint64_t dump_lastReceiverId;
     int8_t dump_reduce; // only dump beast that would be sent out according to reduce_interval

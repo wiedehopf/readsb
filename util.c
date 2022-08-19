@@ -1028,14 +1028,14 @@ void dump_beast_check(int64_t now) {
     if (!Modes.dump_fw) {
         return;
     }
-    int32_t index = now / (DUMP_BEAST_INTERVAL * SECONDS);
+    int32_t index = now / (Modes.dump_interval * SECONDS);
 
     if (Modes.dump_beast_index == index) {
         return;
     }
     Modes.dump_beast_index = index;
 
-    time_t nowish = index * DUMP_BEAST_INTERVAL;
+    time_t nowish = index * Modes.dump_interval;
     struct tm utc;
     gmtime_r(&nowish, &utc);
 
@@ -1054,4 +1054,23 @@ void dump_beast_check(int64_t now) {
 
     zstdFwStartFile(fw, pathbuf, 4);
     //fprintf(stderr, "dump_beast started file: %s\n", pathbuf);
+}
+
+
+
+// get the first <maxTokens> tokens from a string separated by any bytes in <delim> and place them in the provided char pointer array tokens
+// the array of token pointers is set to NULL before populating it
+// stringp / delim work just like strsep(3), this is just a wrapper to easily extract multiple tokens from a string
+// the pointer pointed at by stringp will be modified
+int32_t tokenize(char **restrict stringp, char *restrict delim, char **restrict tokens, int maxTokens) {
+    memset(tokens, 0x0, sizeof(char *) * maxTokens);
+    int32_t k = 0;
+    while (k < maxTokens) {
+        tokens[k] = strsep(stringp, delim);
+        if (!tokens[k]) {
+            break;
+        }
+        k++;
+    }
+    return k;
 }
