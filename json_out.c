@@ -1621,7 +1621,7 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
 
         cache->entriesLen = k + 1;
 
-        p = '\0';
+        *p = '\0';
         if (0 && state->timestamp < lastTs) {
             fprintf(stderr, "%06x trace timestamps wrong order: %.3f %.3f i: %d k: %d %s\n", a->addr, lastTs / 1000.0, state->timestamp / 1000.0, i, k, stringStart);
         }
