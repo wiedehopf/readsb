@@ -910,8 +910,8 @@ zstd_fw_t *createZstdFw(size_t inBufSize) {
     fw->out.size = outBufSize;
     fw->out.pos = 0;
 
-    fw->cctx = ZSTD_createCCtx();
-
+    //fw->cctx = ZSTD_createCCtx();
+    fw->cstream = ZSTD_createCStream();
     fw->fd = -1;
 
     return fw;
@@ -919,7 +919,8 @@ zstd_fw_t *createZstdFw(size_t inBufSize) {
 
 void destroyZstdFw(zstd_fw_t *fw) {
 
-    ZSTD_freeCCtx(fw->cctx);
+    //ZSTD_freeCCtx(fw->cctx);
+    ZSTD_freeCStream(fw->cstream);
 
     free((void *) fw->in.src);
     free((void *) fw->out.dst);
@@ -937,18 +938,26 @@ static void zstdFwWrite(zstd_fw_t *fw) {
     fw->out.pos = 0;
 }
 
-static void zstdFwFlush(zstd_fw_t *fw) {
+static void zstdFwCompress(zstd_fw_t *fw) {
     if (fw->in.size == 0) {
         return;
     }
     if (fw->fd < 0) {
         return;
     }
+    size_t res;
     // fw->in buffer is full, let's compress it
-    size_t res = ZSTD_compressStream2(fw->cctx, &fw->out, &fw->in, ZSTD_e_flush);
+    //res = ZSTD_compressStream2(fw->cctx, &fw->out, &fw->in, ZSTD_e_flush);
+    res = ZSTD_compressStream(fw->cstream, &fw->out, &fw->in);
     if (ZSTD_isError(res)) {
-        fprintf(stderr, "ZSTD_e_flush failed: %s\n", ZSTD_getErrorName(res));
+        fprintf(stderr, "ZSTD_compressStream failed: %ld %s\n", (long) res, ZSTD_getErrorName(res));
     }
+    /*
+    res = ZSTD_flushStream(fw->cstream, &fw->out);
+    if (ZSTD_isError(res)) {
+        fprintf(stderr, "ZSTD_flushStream failed: %s\n", ZSTD_getErrorName(res));
+    }
+    */
 
     if (fw->in.size != fw->in.pos) {
         fprintf(stderr, "<3>BAD: ohB6ooVi %ld %ld %ld\n", (long) fw->in.size, (long) fw->in.pos, (long) res);
@@ -963,8 +972,16 @@ void zstdFwStartFile(zstd_fw_t *fw, const char *outFile, int compressionLvl) {
     fw->in.pos = 0;
     fw->in.size = 0;
     fw->out.pos = 0;
-    ZSTD_CCtx_reset(fw->cctx, ZSTD_reset_session_and_parameters);
-    ZSTD_CCtx_setParameter(fw->cctx, ZSTD_c_compressionLevel, compressionLvl);
+
+    size_t res;
+
+    //ZSTD_CCtx_reset(fw->cctx, ZSTD_reset_session_and_parameters);
+    //ZSTD_CCtx_setParameter(fw->cctx, ZSTD_c_compressionLevel, compressionLvl);
+
+    res = ZSTD_initCStream(fw->cstream, compressionLvl);
+    if (ZSTD_isError(res)) {
+        fprintf(stderr, "ZSTD_initCStream failed: %s\n", ZSTD_getErrorName(res));
+    }
 
     fw->outFile = outFile;
     if (!fw->outFile) {
@@ -978,10 +995,11 @@ void zstdFwStartFile(zstd_fw_t *fw, const char *outFile, int compressionLvl) {
 }
 
 void zstdFwFinishFile(zstd_fw_t *fw) {
-    zstdFwFlush(fw);
-    size_t res = ZSTD_compressStream2(fw->cctx, &fw->out, &fw->in, ZSTD_e_end);
-    if (ZSTD_isError(res)) {
-        fprintf(stderr, "ZSTD_e_end failed: %s\n", ZSTD_getErrorName(res));
+    zstdFwCompress(fw);
+    //size_t res = ZSTD_compressStream2(fw->cctx, &fw->out, &fw->in, ZSTD_e_end);
+    size_t res = ZSTD_endStream(fw->cstream, &fw->out);
+    if (res != 0) {
+        fprintf(stderr, "ZSTD_endStream failed: %ld %s\n", (long) res, ZSTD_getErrorName(res));
     }
     zstdFwWrite(fw);
     close(fw->fd);
@@ -995,7 +1013,7 @@ void zstdFwPutData(zstd_fw_t *fw, const uint8_t *data, size_t len) {
     const uint8_t *p = data;
     while (remaining > 0) {
         if (zstdFwAvailable(fw) == 0) {
-            zstdFwFlush(fw);
+            zstdFwCompress(fw);
         }
         size_t bytes = imin(zstdFwAvailable(fw), remaining);
         memcpy((char *)(fw->in.src + fw->in.size), p, bytes);

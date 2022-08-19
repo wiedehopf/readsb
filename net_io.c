@@ -939,8 +939,8 @@ void modesInitNet(void) {
     }
 
     if (Modes.dump_beast_dir) {
-        mkdir(Modes.dump_beast_dir, 0755);
-        if (errno != EEXIST) {
+        int res = mkdir(Modes.dump_beast_dir, 0755);
+        if (res != 0 && errno != EEXIST) {
             perror("issue creating dump-beast-dir");
         } else {
             Modes.dump_fw = createZstdFw(4 * 1024 * 1024);

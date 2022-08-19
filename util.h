@@ -238,7 +238,8 @@ void setLowestPriorityPthread();
 void setPriorityPthread();
 
 typedef struct {
-    ZSTD_CCtx *cctx;
+    //ZSTD_CCtx *cctx;
+    ZSTD_CStream *cstream;
     ZSTD_inBuffer in;
     size_t inAlloc;
     ZSTD_outBuffer out;
