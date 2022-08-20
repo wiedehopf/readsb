@@ -78,6 +78,7 @@ int64_t mono_milli_seconds();
 int snprintHMS(char *buf, size_t bufsize, int64_t now);
 
 int64_t msThreadTime(void);
+int64_t nsThreadTime(void);
 
 /* Returns the time elapsed, in nanoseconds, from t1 to t2,
  * where t1 and t2 are 12MHz counters.

@@ -6,7 +6,7 @@
 static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent);
 static void traceCleanupNoUnlink(struct aircraft *a);
 static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t after_timestamp, threadpool_buffer_t *buffer);
-static void resizeTraceCurrent(struct aircraft *a, int64_t now, int overridePoints);
+static void resizeTraceCurrent(struct aircraft *a, int64_t now);
 
 void init_globe_index() {
     struct tile *s_tiles = Modes.json_globe_special_tiles = cmalloc(GLOBE_SPECIAL_INDEX * sizeof(struct tile));
@@ -949,7 +949,7 @@ static int load_aircraft(char **p, char *end, int64_t now, threadpool_buffer_t *
                 discard_trace = 1;
             }
         }
-        resizeTraceCurrent(a, now, imax(a->trace_current_len, a->trace_current_max));
+        resizeTraceCurrent(a, now);
         if (a->trace_current_len) {
             checkSize(stateBytes(a->trace_current_len));
             *p += memcpySize(a->trace_current, *p, stateBytes(a->trace_current_len));
@@ -1691,7 +1691,7 @@ static void tracePrune(struct aircraft *a, int64_t now) {
     }
 
     if (deletedChunks > 0) {
-        if (Modes.verbose) {
+        if (0 && Modes.verbose) {
             fprintf(stderr, "%06x deleting %d chunks\n", a->addr, deletedChunks);
         }
         resizeTraceChunks(a, a->trace_chunk_len - deletedChunks);
@@ -1865,7 +1865,7 @@ static void compressChunk(stateChunk *target, fourState *source, int pointCount,
                 passbuffer->cctx,
                 passbuffer->buf, passbuffer->size,
                 source, chunkBytes,
-                1);
+                4);
 
         if (ZSTD_isError(compressedSize)) {
             fprintf(stderr, "compressChunk() zstd error: %s\n", ZSTD_getErrorName(compressedSize));
@@ -1934,7 +1934,7 @@ static void setTrace(struct aircraft *a, fourState *source, int len, threadpool_
     }
 
     a->trace_current_len = len;
-    resizeTraceCurrent(a, now, 0);
+    resizeTraceCurrent(a, now);
     if (a->trace_current_max < a->trace_current_len) {
         fprintf(stderr, "%06x setTrace error, insufficient current trace, discarding some data\n", a->addr);
         a->trace_current_len = 0;
@@ -1945,6 +1945,38 @@ static void setTrace(struct aircraft *a, fourState *source, int len, threadpool_
 
 }
 
+static int get_active_trace_current_points() {
+    return alignSFOUR(Modes.traceChunkPoints + Modes.traceReserve);
+}
+
+static int get_nominal_trace_current_points(struct aircraft *a, int64_t now) {
+    int minPoints = alignSFOUR(a->trace_current_len + 1 + Modes.traceReserve);
+    if (now - a->seenPosReliable > 1 * HOURS) {
+        return minPoints;
+    } else {
+        return alignSFOUR(imax(minPoints, get_active_trace_current_points()));
+    }
+}
+
+static void resizeTraceCurrent(struct aircraft *a, int64_t now) {
+    int newPoints = get_nominal_trace_current_points(a, now);
+    int newBytes = stateBytes(newPoints);
+    fourState *new = cmalloc(newBytes);
+
+    if (!new) {
+        return;
+    }
+
+    memset(new, 0x0, newBytes);
+
+    if (a->trace_current) {
+        memcpy(new, a->trace_current, stateBytes(a->trace_current_len + 1)); // 1 extra for buffered pos
+        sfree(a->trace_current);
+    }
+
+    a->trace_current = new;
+    a->trace_current_max = newPoints;
+}
 
 static void compressCurrent(struct aircraft *a, threadpool_buffer_t *passbuffer) {
     int keep = alignSFOUR(8);
@@ -1962,17 +1994,24 @@ static void compressCurrent(struct aircraft *a, threadpool_buffer_t *passbuffer)
         return;
     }
 
+    int64_t now = mstime();
+
     stateChunk *new = resizeTraceChunks(a, a->trace_chunk_len + 1);
 
     new->numStates = chunkPoints;
     new->firstTimestamp = getState(a->trace_current, 0)->timestamp;
     new->lastTimestamp = getState(a->trace_current, chunkPoints - 1)->timestamp;
 
+    int64_t before = 0;
+    if (Modes.verbose) { before = nsThreadTime(); };
+
     compressChunk(new, a->trace_current, chunkPoints, passbuffer);
     a->trace_chunk_overall_bytes += new->compressed_size;
     if (Modes.verbose) {
-        fprintf(stderr, "%06x compressChunk: compressed_size: %d trace_chunk_len %d compression ratio %.2f\n",
-                a->addr, new->compressed_size, a->trace_chunk_len, stateBytes(chunkPoints) / (double) new->compressed_size);
+        int64_t after = nsThreadTime();
+        fprintf(stderr, "%06x compressChunk: threadTime: %.9fs compressed_size: %d trace_chunk_len %d compression ratio %.2f lp %.0fs\n",
+                a->addr, (after - before) * 1e-9, new->compressed_size, a->trace_chunk_len, stateBytes(chunkPoints) / (double) new->compressed_size,
+                (now - (getState(a->trace_current, a->trace_current_len - 1))->timestamp) / 1000.0);
     }
 
     // current_len + 1 to account for the buffered position
@@ -1989,43 +2028,6 @@ static void compressCurrent(struct aircraft *a, threadpool_buffer_t *passbuffer)
     }
 
     memmove(dest, src, newBytes);
-}
-
-static int get_active_trace_current_points() {
-    return alignSFOUR(Modes.traceChunkPoints + Modes.traceReserve);
-}
-
-static int get_nominal_trace_current_points(struct aircraft *a, int64_t now) {
-    if (now - a->seenPosReliable > 1 * HOURS) {
-        return alignSFOUR(a->trace_current_len + Modes.traceReserve);
-    } else {
-        return get_active_trace_current_points();
-    }
-}
-
-static void resizeTraceCurrent(struct aircraft *a, int64_t now, int overridePoints) {
-    int newPoints;
-    if (overridePoints > 0) {
-        newPoints = alignSFOUR(overridePoints + Modes.traceReserve);
-    } else {
-        newPoints = get_nominal_trace_current_points(a, now);
-    }
-    int newBytes = stateBytes(newPoints);
-    fourState *new = cmalloc(newBytes);
-
-    if (!new) {
-        return;
-    }
-
-    memset(new, 0x0, newBytes);
-
-    if (a->trace_current) {
-        memcpy(new, a->trace_current, stateBytes(a->trace_current_len + 1)); // 1 extra for buffered pos
-        sfree(a->trace_current);
-    }
-
-    a->trace_current = new;
-    a->trace_current_max = newPoints;
 }
 
 void traceMaintenance(struct aircraft *a, int64_t now, threadpool_buffer_t *passbuffer) {
@@ -2065,24 +2067,21 @@ void traceMaintenance(struct aircraft *a, int64_t now, threadpool_buffer_t *pass
     }
 
     if (a->trace_current_len > 0) {
+        // reset trace_current allocation to minimal size if aircraft has been inactive for some time
+        if (a->trace_current_max > get_nominal_trace_current_points(a, now)) {
+            compressCurrent(a, passbuffer);
+            resizeTraceCurrent(a, now);
+        }
+        // reset trace_current allocation to nominal size aircraft is active again
+        if (a->trace_current_max < get_nominal_trace_current_points(a, now)) {
+            resizeTraceCurrent(a, now);
+        }
+
         if (
                 (a->trace_current_len >= alignSFOUR(Modes.traceChunkPoints + Modes.traceReserve / 4))
                 || (a->trace_current_len >= Modes.traceChunkPoints / 4 && now - (getState(a->trace_current, a->trace_current_len - 1))->timestamp > 1 * HOURS)
            ) {
             compressCurrent(a, passbuffer);
-        }
-
-        // reset trace_current allocation to minimal size if aircraft has been inactive for some time
-        if (
-                (a->trace_current_max >= get_active_trace_current_points() / 2 && now - a->seenPosReliable > 1 * HOURS)
-                || a->trace_current_max > get_active_trace_current_points()
-           ) {
-            compressCurrent(a, passbuffer);
-            resizeTraceCurrent(a, now, 0);
-        }
-        // reset trace_current allocation to nominal size aircraft is active again
-        if (a->trace_current_max < get_nominal_trace_current_points(a, now)) {
-            resizeTraceCurrent(a, now, 0);
         }
     }
 }
@@ -2405,7 +2404,7 @@ no_save_state:
     }
 
     if (!a->trace_current) {
-        resizeTraceCurrent(a, now, 0);
+        resizeTraceCurrent(a, now);
         scheduleMemBothWrite(a, now); // rewrite full history file
         a->trace_next_perm = now + GLOBE_PERM_IVAL / 2; // schedule perm write
 
