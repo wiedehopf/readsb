@@ -623,8 +623,11 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
                 p = safe_snprintf(p, end, ",\"r\":\"%.*s\"", (int) sizeof(a->registration), a->registration);
             if (a->typeCode[0])
                 p = safe_snprintf(p, end, ",\"t\":\"%.*s\"", (int) sizeof(a->typeCode), a->typeCode);
-            if (a->dbFlags)
-                p = safe_snprintf(p, end, ",\"dbFlags\":%u", a->dbFlags);
+            if (a->dbFlags) {
+                uint32_t dbFlags = a->dbFlags;
+                dbFlags &= ~(1 << 7);
+                p = safe_snprintf(p, end, ",\"dbFlags\":%u", dbFlags);
+            }
 
             if (Modes.jsonLongtype) {
                 dbEntry *e = dbGet(a->addr, Modes.dbIndex);
@@ -1578,6 +1581,11 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
     struct traceCacheEntry *entry = NULL;
     struct state *state = NULL;
     int64_t lastTs = 0;
+
+    if (!cache->entries || !cache->json) {
+        fprintf(stderr, "wtf null pointer ?!?! ing5umuS\n");
+    }
+
     for (int i = firstRecent, k = firstRecentCache; i < tb.len && k < Modes.traceCachePoints; i++, k++) {
         state = getState(tb.trace, i);
         entry = &entries[k];
@@ -1599,7 +1607,11 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
 
         struct state_all *state_all = getStateAll(tb.trace, i);
 
-        if (!p || !cache->entries || !cache->json) {
+        if (!p) {
+            fprintf(stderr, "wtf null pointer ?!?! Mai9eice\n");
+            break;
+        }
+        if (!cache->entries || !cache->json) {
             fprintf(stderr, "wtf null pointer ?!?! ohj4Ohbi\n");
             break;
         }
@@ -1673,7 +1685,9 @@ struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int sta
             p = safe_snprintf(p, end, ",\n\"t\":\"%.*s\"", (int) sizeof(a->typeCode), a->typeCode);
         }
         if (a->typeCode[0] || a->registration[0] || a->dbFlags) {
-            p = safe_snprintf(p, end, ",\n\"dbFlags\":%u", a->dbFlags);
+            uint32_t dbFlags = a->dbFlags;
+            dbFlags &= ~(1 << 7);
+            p = safe_snprintf(p, end, ",\n\"dbFlags\":%u", dbFlags);
         }
         dbEntry *e = dbGet(a->addr, Modes.dbIndex);
         if (e) {
