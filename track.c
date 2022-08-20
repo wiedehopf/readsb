@@ -2597,9 +2597,7 @@ static void updateAircraft() {
 // we remove the aircraft from the list.
 //
 
-static void removeStaleRange(void *arg, threadpool_threadbuffers_t * buffers) {
-    MODES_NOTUSED(buffers);
-
+static void removeStaleRange(void *arg, threadpool_threadbuffers_t * buffer_group) {
     task_info_t *info = (task_info_t *) arg;
 
     int64_t now = info->now;
@@ -2639,7 +2637,7 @@ static void removeStaleRange(void *arg, threadpool_threadbuffers_t * buffers) {
                 freeAircraft(a);
 
             } else {
-                traceMaintenance(a, now);
+                traceMaintenance(a, now, &buffer_group->buffers[0]);
 
                 nextPointer = &(a->next);
             }
@@ -2647,8 +2645,7 @@ static void removeStaleRange(void *arg, threadpool_threadbuffers_t * buffers) {
     }
 }
 
-static void activeUpdateRange(void *arg, threadpool_threadbuffers_t * buffers) {
-    MODES_NOTUSED(buffers);
+static void activeUpdateRange(void *arg, threadpool_threadbuffers_t * buffer_group) {
     task_info_t *info = (task_info_t *) arg;
     int64_t now = info->now;
     struct craftArray *ca = &Modes.aircraftActive;
@@ -2659,7 +2656,7 @@ static void activeUpdateRange(void *arg, threadpool_threadbuffers_t * buffers) {
             continue;
         }
         updateValidities(a, now);
-        traceMaintenance(a, now);
+        traceMaintenance(a, now, &buffer_group->buffers[0]);
     }
     //fprintf(stderr, "%9d %9d %9d\n", info->from, info->to, ca->len);
 }

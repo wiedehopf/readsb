@@ -51,7 +51,7 @@ void traceWrite(struct aircraft *a, threadpool_threadbuffers_t *buffer_group);
 void traceCleanup(struct aircraft *a);
 int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale);
 int traceUsePosBuffered();
-void traceMaintenance(struct aircraft *a, int64_t now);
+void traceMaintenance(struct aircraft *a, int64_t now, threadpool_buffer_t *passbuffer);
 
 int handleHeatmap(int64_t now);
 

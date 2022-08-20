@@ -807,7 +807,7 @@ static int roundUp8(int value) {
     return ((value + 7) / 8) * 8;
 }
 
-static int load_aircraft(char **p, char *end, int64_t now) {
+static int load_aircraft(char **p, char *end, int64_t now, threadpool_buffer_t *passbuffer) {
     static int size_changed;
 
     ssize_t newSize = sizeof(struct aircraft);
@@ -961,7 +961,7 @@ static int load_aircraft(char **p, char *end, int64_t now) {
             return 0;
         }
 
-        traceMaintenance(a, now);
+        traceMaintenance(a, now, passbuffer);
 
         if (a->addr == Modes.leg_focus) {
             a->trace_next_perm = now;
@@ -1841,12 +1841,9 @@ static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t af
     return tb;
 }
 
-static void compressChunk(stateChunk *target, fourState *source, int pointCount) {
+static void compressChunk(stateChunk *target, fourState *source, int pointCount, threadpool_buffer_t *passbuffer) {
     target->numStates = pointCount;
     int chunkBytes = stateBytes(pointCount);
-
-    threadpool_buffer_t passbuffer_back = { 0 };
-    threadpool_buffer_t *passbuffer = &passbuffer_back;
 
     if (1) {
         check_grow_threadpool_buffer_t(passbuffer, ZSTD_compressBound(chunkBytes));
@@ -1895,12 +1892,10 @@ static void compressChunk(stateChunk *target, fourState *source, int pointCount)
     if (!target->compressed) { fprintf(stderr, "malloc fail: ieshee7G\n"); exit(1); }
 
     memcpy(target->compressed, passbuffer->buf, target->compressed_size);
-
-    free_threadpool_buffer(passbuffer);
 }
 
 
-static void setTrace(struct aircraft *a, fourState *source, int len) {
+static void setTrace(struct aircraft *a, fourState *source, int len, threadpool_buffer_t *passbuffer) {
     if (len == 0) {
         traceCleanup(a);
         return;
@@ -1929,7 +1924,7 @@ static void setTrace(struct aircraft *a, fourState *source, int len) {
         new->firstTimestamp = getState(p, 0)->timestamp;
         new->lastTimestamp = getState(p, chunkSize - 1)->timestamp;
 
-        compressChunk(new, p, chunkSize);
+        compressChunk(new, p, chunkSize, passbuffer);
 
         a->trace_chunk_overall_bytes += new->compressed_size;
 
@@ -1951,7 +1946,7 @@ static void setTrace(struct aircraft *a, fourState *source, int len) {
 }
 
 
-static void compressCurrent(struct aircraft *a) {
+static void compressCurrent(struct aircraft *a, threadpool_buffer_t *passbuffer) {
     int keep = alignSFOUR(8);
     int chunkPoints = ((a->trace_current_len - keep) / SFOUR) * SFOUR;
     int newLen = a->trace_current_len - chunkPoints;
@@ -1973,7 +1968,7 @@ static void compressCurrent(struct aircraft *a) {
     new->firstTimestamp = getState(a->trace_current, 0)->timestamp;
     new->lastTimestamp = getState(a->trace_current, chunkPoints - 1)->timestamp;
 
-    compressChunk(new, a->trace_current, chunkPoints);
+    compressChunk(new, a->trace_current, chunkPoints, passbuffer);
     a->trace_chunk_overall_bytes += new->compressed_size;
     if (Modes.verbose) {
         fprintf(stderr, "%06x compressChunk: compressed_size: %d trace_chunk_len %d compression ratio %.2f\n",
@@ -2033,7 +2028,7 @@ static void resizeTraceCurrent(struct aircraft *a, int64_t now, int overridePoin
     a->trace_current_max = newPoints;
 }
 
-void traceMaintenance(struct aircraft *a, int64_t now) {
+void traceMaintenance(struct aircraft *a, int64_t now, threadpool_buffer_t *passbuffer) {
     // free trace cache for inactive aircraft
     if (a->traceCache.entries && now - a->seenPosReliable > TRACE_CACHE_LIFETIME) {
         //fprintf(stderr, "%06x free traceCache\n", a->addr);
@@ -2074,7 +2069,7 @@ void traceMaintenance(struct aircraft *a, int64_t now) {
                 (a->trace_current_len >= alignSFOUR(Modes.traceChunkPoints + Modes.traceReserve / 4))
                 || (a->trace_current_len >= Modes.traceChunkPoints / 4 && now - (getState(a->trace_current, a->trace_current_len - 1))->timestamp > 1 * HOURS)
            ) {
-            compressCurrent(a);
+            compressCurrent(a, passbuffer);
         }
 
         // reset trace_current allocation to minimal size if aircraft has been inactive for some time
@@ -2082,7 +2077,7 @@ void traceMaintenance(struct aircraft *a, int64_t now) {
                 (a->trace_current_max >= get_active_trace_current_points() / 2 && now - a->seenPosReliable > 1 * HOURS)
                 || a->trace_current_max > get_active_trace_current_points()
            ) {
-            compressCurrent(a);
+            compressCurrent(a, passbuffer);
             resizeTraceCurrent(a, now, 0);
         }
         // reset trace_current allocation to nominal size aircraft is active again
@@ -2679,7 +2674,7 @@ out:
     ;
 }
 
-static int load_aircrafts(char *p, char *end, char *filename, int64_t now) {
+static int load_aircrafts(char *p, char *end, char *filename, int64_t now, threadpool_buffer_t *passbuffer) {
     int count = 0;
     while (end - p > 0) {
         uint64_t value = 0;
@@ -2695,7 +2690,7 @@ static int load_aircrafts(char *p, char *end, char *filename, int64_t now) {
             }
             break;
         }
-        load_aircraft(&p, end, now);
+        load_aircraft(&p, end, now, passbuffer);
         count++;
     }
     return count;
@@ -2785,13 +2780,13 @@ decompress:
                 goto decompress;
             }
 
-            if (load_aircrafts(lzo_out, lzo_out + uncompressed_len, filename, now) < 0) {
+            if (load_aircrafts(lzo_out, lzo_out + uncompressed_len, filename, now, passbuffer) < 0) {
                 break;
             }
             p += compressed_len;
         }
     } else {
-        load_aircrafts(p, end, filename, now);
+        load_aircrafts(p, end, filename, now, passbuffer);
     }
 
     sfree(cb.buffer);
@@ -3441,12 +3436,12 @@ void traceDelete() {
         }
 
 
-        setTrace(a, trace, trace_len);
+        setTrace(a, trace, trace_len, &passbuffer);
 
         int64_t now = mstime();
         a->trace_next_perm = now;
         scheduleMemBothWrite(a, now);
-        traceMaintenance(a, now);
+        traceMaintenance(a, now, &passbuffer);
 
         // write immediately:
         a->trace_write |= WRECENT;
