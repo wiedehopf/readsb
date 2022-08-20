@@ -151,9 +151,7 @@ void threadpool_destroy(threadpool_t *pool)
         pthread_join(thread->pthread, NULL);
 
         for (uint32_t k = 0; k < thread->user_buffers.buffer_count; k++) {
-            free(thread->user_buffers.buffers[k].buf);
-            thread->user_buffers.buffers[k].buf = NULL;
-            thread->user_buffers.buffers[k].size = 0;
+            free_threadpool_buffer(&thread->user_buffers.buffers[k]);
         }
         free(thread->user_buffers.buffers);
     }

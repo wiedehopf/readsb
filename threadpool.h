@@ -45,6 +45,8 @@ typedef struct {
 #endif
 } threadpool_buffer_t;
 
+// this function is called when destroying a threadpool with buffers
+// in case you're using the threadpool_buffer_t yourself, you can use this to free the buffers in it
 void free_threadpool_buffer(threadpool_buffer_t *buffer);
 
 typedef struct {
