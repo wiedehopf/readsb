@@ -551,8 +551,8 @@ static void *jsonEntryPoint(void *arg) {
     }
 
     ZSTD_freeCCtx(cctx);
-    sfree(zstd_buffer.buf);
-    sfree(pass_buffer.buf);
+    free_threadpool_buffer(&zstd_buffer);
+    free_threadpool_buffer(&pass_buffer);
 
     pthread_mutex_unlock(&Threads.json.mutex);
 

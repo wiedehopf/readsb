@@ -1793,23 +1793,31 @@ static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t af
 
         lzo_uint uncompressed_len = stateBytes(chunk->numStates);
 
-        //fprintf(stderr, "reassembleTrace(%06x %d %ld): chunk %d trace_chunk_len %d compressed_size %d uncompressed_size %d outAlloc %d allocLen %d numStates %d trace_current_len %d\n",
-        //        a->addr, numPoints, (long) after_timestamp, k, a->trace_chunk_len,
-        //        chunk->compressed_size, (int) uncompressed_len, (int) stateBytes(allocLen), allocLen, (int) chunk->numStates, currentLen);
+        char zstd_magic[] = { 0x28, 0xb5, 0x2f, 0xfd };
+        if (0 && memcmp(zstd_magic, chunk->compressed, sizeof(zstd_magic)) == 0) {
+            // WIP
+            if (!buffer->cctx) {
+                buffer->cctx = ZSTD_createCCtx();
+            }
+        } else {
+            //fprintf(stderr, "reassembleTrace(%06x %d %ld): chunk %d trace_chunk_len %d compressed_size %d uncompressed_size %d outAlloc %d allocLen %d numStates %d trace_current_len %d\n",
+            //        a->addr, numPoints, (long) after_timestamp, k, a->trace_chunk_len,
+            //        chunk->compressed_size, (int) uncompressed_len, (int) stateBytes(allocLen), allocLen, (int) chunk->numStates, currentLen);
 
-        int res = lzo1x_decompress_safe(chunk->compressed, chunk->compressed_size, (unsigned char*) tp, &uncompressed_len, NULL);
+            int res = lzo1x_decompress_safe(chunk->compressed, chunk->compressed_size, (unsigned char*) tp, &uncompressed_len, NULL);
 
-        //fprintf(stderr, "reassembleTrace(%06x %d %ld): chunk %d trace_chunk_len %d compressed_size %d uncompressed_size %d outAlloc %d allocLen %d numStates %d trace_current_len %d\n",
-        //        a->addr, numPoints, (long) after_timestamp, k, a->trace_chunk_len,
-        //        chunk->compressed_size, (int) uncompressed_len, (int) stateBytes(allocLen), allocLen, (int) chunk->numStates, currentLen);
+            //fprintf(stderr, "reassembleTrace(%06x %d %ld): chunk %d trace_chunk_len %d compressed_size %d uncompressed_size %d outAlloc %d allocLen %d numStates %d trace_current_len %d\n",
+            //        a->addr, numPoints, (long) after_timestamp, k, a->trace_chunk_len,
+            //        chunk->compressed_size, (int) uncompressed_len, (int) stateBytes(allocLen), allocLen, (int) chunk->numStates, currentLen);
 
-        if (res != LZO_E_OK) {
-            fprintf(stderr, "reassembleTrace(%06x %d %ld): decompress failure chunk %d trace_chunk_len %d compressed_size %d uncompressed_size %d\n",
-                    a->addr, numPoints, (long) after_timestamp, k, a->trace_chunk_len,
-                    chunk->compressed_size, (int) uncompressed_len);
-            tb.len = 0;
-            traceCleanup(a);
-            return tb;
+            if (res != LZO_E_OK) {
+                fprintf(stderr, "reassembleTrace(%06x %d %ld): decompress failure chunk %d trace_chunk_len %d compressed_size %d uncompressed_size %d\n",
+                        a->addr, numPoints, (long) after_timestamp, k, a->trace_chunk_len,
+                        chunk->compressed_size, (int) uncompressed_len);
+                tb.len = 0;
+                traceCleanup(a);
+                return tb;
+            }
         }
 
         tp += getFourStates(chunk->numStates);

@@ -260,3 +260,17 @@ static void *threadpool_threadproc(void *arg)
 
     return NULL;
 }
+
+void free_threadpool_buffer(threadpool_buffer_t *buffer) {
+    if (buffer->buf) {
+        free(buffer->buf);
+        buffer->buf = NULL;
+        buffer->size = 0;
+    }
+#ifdef _THREADPOOL_WITH_ZSTD
+    if (buffer->cctx) {
+        ZSTD_freeCCtx(buffer->cctx);
+        buffer->cctx = NULL;
+    }
+#endif
+}

@@ -31,10 +31,20 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVE
 // Minimal thread pool implementation using pthread.h and stdatomic.h
 // with option per thread pointers (for readsb used for per thread buffers)
 
+#if 1
+    #define _THREADPOOL_WITH_ZSTD
+    #include <zstd.h>
+#endif
+
 typedef struct {
     void *buf;
     ssize_t size;
+#ifdef _THREADPOOL_WITH_ZSTD
+    ZSTD_CCtx* cctx;
+#endif
 } threadpool_buffer_t;
+
+void free_threadpool_buffer(threadpool_buffer_t *buffer);
 
 typedef struct {
     uint32_t buffer_count;
