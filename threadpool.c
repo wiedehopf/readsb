@@ -272,5 +272,9 @@ void free_threadpool_buffer(threadpool_buffer_t *buffer) {
         ZSTD_freeCCtx(buffer->cctx);
         buffer->cctx = NULL;
     }
+    if (buffer->dctx) {
+        ZSTD_freeDCtx(buffer->dctx);
+        buffer->dctx = NULL;
+    }
 #endif
 }

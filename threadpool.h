@@ -41,6 +41,7 @@ typedef struct {
     ssize_t size;
 #ifdef _THREADPOOL_WITH_ZSTD
     ZSTD_CCtx* cctx;
+    ZSTD_DCtx* dctx;
 #endif
 } threadpool_buffer_t;
 

@@ -591,7 +591,7 @@ static void *globeJsonEntryPoint(void *arg) {
         threadTimedWait(&Threads.globeJson, &ts, Modes.json_interval * 3);
     }
 
-    sfree(pass_buffer.buf);
+    free_threadpool_buffer(&pass_buffer);
 
     pthread_mutex_unlock(&Threads.globeJson.mutex);
     return NULL;
@@ -656,8 +656,8 @@ static void *globeBinEntryPoint(void *arg) {
     }
 
     ZSTD_freeCCtx(cctx);
-    sfree(zstd_buffer.buf);
-    sfree(pass_buffer.buf);
+    free_threadpool_buffer(&zstd_buffer);
+    free_threadpool_buffer(&pass_buffer);
 
     pthread_mutex_unlock(&Threads.globeBin.mutex);
 
@@ -2023,8 +2023,8 @@ static void notask_save_blob(uint32_t blob) {
     threadpool_buffer_t pbuffer1 = { 0 };
     threadpool_buffer_t pbuffer2 = { 0 };
     save_blob(blob, &pbuffer1, &pbuffer2);
-    sfree(pbuffer1.buf);
-    sfree(pbuffer2.buf);
+    free_threadpool_buffer(&pbuffer1);
+    free_threadpool_buffer(&pbuffer2);
 }
 
 static void loadReplaceState() {
@@ -2040,7 +2040,7 @@ static void loadReplaceState() {
     snprintf(blob, 1024, "%s.lzol", Modes.replace_state_blob);
     unlink(blob);
 
-    sfree(pbuffer.buf);
+    free_threadpool_buffer(&pbuffer);
     free(Modes.replace_state_blob);
     Modes.replace_state_blob = NULL;
 }

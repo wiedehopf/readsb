@@ -845,7 +845,7 @@ struct char_buffer generateZstd(ZSTD_CCtx* cctx, threadpool_buffer_t *pbuffer, s
             level);
 
     if (ZSTD_isError(compressedSize)) {
-        fprintf(stderr, "zstd error: %s\n", ZSTD_getErrorName(compressedSize));
+        fprintf(stderr, "generateZstd() zstd error: %s\n", ZSTD_getErrorName(compressedSize));
         cb.buffer = NULL;
         cb.len = 0;
         return cb;

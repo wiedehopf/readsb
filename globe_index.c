@@ -1795,9 +1795,18 @@ static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t af
 
         char zstd_magic[] = { 0x28, 0xb5, 0x2f, 0xfd };
         if (0 && memcmp(zstd_magic, chunk->compressed, sizeof(zstd_magic)) == 0) {
-            // WIP
-            if (!buffer->cctx) {
-                buffer->cctx = ZSTD_createCCtx();
+            if (!buffer->dctx) {
+                buffer->dctx = ZSTD_createDCtx();
+            }
+            size_t ZSTD_decompressDCtx(ZSTD_DCtx* dctx,
+                           void* dst, size_t dstCapacity,
+                     const void* src, size_t srcSize);
+            size_t res = ZSTD_decompressDCtx(buffer->dctx, tp, uncompressed_len, chunk->compressed, chunk->compressed_size);
+            if (ZSTD_isError(res)) {
+                fprintf(stderr, "reassembleTrace() zstd error: %s\n", ZSTD_getErrorName(res));
+                tb.len = 0;
+                traceCleanup(a);
+                return tb;
             }
         } else {
             //fprintf(stderr, "reassembleTrace(%06x %d %ld): chunk %d trace_chunk_len %d compressed_size %d uncompressed_size %d outAlloc %d allocLen %d numStates %d trace_current_len %d\n",
@@ -2926,7 +2935,7 @@ int handleHeatmap(int64_t now) {
         }
     }
 
-    sfree(passbuffer.buf);
+    free_threadpool_buffer(&passbuffer);
 
     struct heatEntry *buffer2 = cmalloc(alloc * sizeof(struct heatEntry));
     ssize_t indexSize = num_slices * sizeof(struct heatEntry);
@@ -3420,7 +3429,7 @@ next:
         sfree(curr);
     }
     Modes.deleteTrace = NULL;
-    sfree(passbuffer.buf);
+    free_threadpool_buffer(&passbuffer);
 }
 
 /*
