@@ -1794,13 +1794,10 @@ static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t af
         lzo_uint uncompressed_len = stateBytes(chunk->numStates);
 
         char zstd_magic[] = { 0x28, 0xb5, 0x2f, 0xfd };
-        if (0 && memcmp(zstd_magic, chunk->compressed, sizeof(zstd_magic)) == 0) {
+        if (memcmp(zstd_magic, chunk->compressed, sizeof(zstd_magic)) == 0) {
             if (!buffer->dctx) {
                 buffer->dctx = ZSTD_createDCtx();
             }
-            size_t ZSTD_decompressDCtx(ZSTD_DCtx* dctx,
-                           void* dst, size_t dstCapacity,
-                     const void* src, size_t srcSize);
             size_t res = ZSTD_decompressDCtx(buffer->dctx, tp, uncompressed_len, chunk->compressed, chunk->compressed_size);
             if (ZSTD_isError(res)) {
                 fprintf(stderr, "reassembleTrace() zstd error: %s\n", ZSTD_getErrorName(res));
@@ -1847,25 +1844,59 @@ static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t af
 static void compressChunk(stateChunk *target, fourState *source, int pointCount) {
     target->numStates = pointCount;
     int chunkBytes = stateBytes(pointCount);
-    int lzo_out_alloc = chunkBytes + chunkBytes / 16 + 64 + 3; // from mini lzo example
-    unsigned char lzo_work[LZO1X_1_MEM_COMPRESS];
-    unsigned char *lzo_out = cmalloc(lzo_out_alloc);
-    if (!lzo_out) { fprintf(stderr, "malloc fail: ieshee7G\n"); exit(1); }
 
-    lzo_uint compressed_len = 0;
-    //lzo1x_1_compress        ( const lzo_bytep src, lzo_uint  src_len, lzo_bytep dst, lzo_uintp dst_len, lzo_voidp wrkmem );
-    int res = lzo1x_1_compress((unsigned char *) source, chunkBytes, lzo_out, &compressed_len, lzo_work);
+    threadpool_buffer_t passbuffer_back = { 0 };
+    threadpool_buffer_t *passbuffer = &passbuffer_back;
 
-    if (res != LZO_E_OK) { fprintf(stderr, "lzo1x_1_compress error Theij8ah\n"); exit(1); }
-    if (compressed_len < 1) { fprintf(stderr, "compressChunk len < 1\n"); exit(1); }
+    if (1) {
+        check_grow_threadpool_buffer_t(passbuffer, ZSTD_compressBound(chunkBytes));
 
-    target->compressed_size = compressed_len;
+        if (!passbuffer->cctx) {
+            passbuffer->cctx = ZSTD_createCCtx();
+        }
+
+        //fprintf(stderr, "pbuffer->size: %ld src.len %ld\n", (long) pbuffer->size, (long) src.len);
+
+        /*
+         * size_t ZSTD_compressCCtx(ZSTD_CCtx* cctx,
+         void* dst, size_t dstCapacity,
+         const void* src, size_t srcSize,
+         int compressionLevel);
+         */
+
+        size_t compressedSize = ZSTD_compressCCtx(
+                passbuffer->cctx,
+                passbuffer->buf, passbuffer->size,
+                source, chunkBytes,
+                1);
+
+        if (ZSTD_isError(compressedSize)) {
+            fprintf(stderr, "compressChunk() zstd error: %s\n", ZSTD_getErrorName(compressedSize));
+            exit(1);
+        }
+        target->compressed_size = compressedSize;
+
+    } else {
+        int temp_alloc = chunkBytes + chunkBytes / 16 + 64 + 3; // from mini lzo example: upper bound of compressed size
+        unsigned char lzo_work[LZO1X_1_MEM_COMPRESS];
+        check_grow_threadpool_buffer_t(passbuffer, temp_alloc);
+
+        lzo_uint compressed_len = 0;
+        //lzo1x_1_compress        ( const lzo_bytep src, lzo_uint  src_len, lzo_bytep dst, lzo_uintp dst_len, lzo_voidp wrkmem );
+        int res = lzo1x_1_compress((unsigned char *) source, chunkBytes, passbuffer->buf, &compressed_len, lzo_work);
+
+        if (res != LZO_E_OK) { fprintf(stderr, "lzo1x_1_compress error Theij8ah\n"); exit(1); }
+        if (compressed_len < 1) { fprintf(stderr, "compressChunk len < 1\n"); exit(1); }
+
+        target->compressed_size = compressed_len;
+    }
 
     target->compressed = cmalloc(target->compressed_size);
     if (!target->compressed) { fprintf(stderr, "malloc fail: ieshee7G\n"); exit(1); }
 
-    memcpy(target->compressed, lzo_out, target->compressed_size);
-    sfree(lzo_out);
+    memcpy(target->compressed, passbuffer->buf, target->compressed_size);
+
+    free_threadpool_buffer(passbuffer);
 }
 
 
