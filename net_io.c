@@ -625,7 +625,7 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
         end = strpbrk(p, ", ");
 
         if (!end) {
-            strncpy(buf, p, sizeof (buf));
+            strncpy(buf, p, sizeof (buf) - 1);
             buf[sizeof (buf) - 1] = 0;
             p = NULL;
         } else {
@@ -3465,7 +3465,7 @@ static int readProxy(struct client *c) {
             return -2;
         }
         *eop = '\0';
-        strncpy(c->proxy_string, proxy + 6, sizeof(c->proxy_string));
+        strncpy(c->proxy_string, proxy + 6, sizeof(c->proxy_string) - 1);
         c->proxy_string[sizeof(c->proxy_string) - 1] = '\0'; // make sure it's null terminated
                                                              //fprintf(stderr, "%s\n", c->proxy_string);
         *eop = '\r';
