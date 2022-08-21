@@ -146,6 +146,8 @@
 
 #define INVALID_ALTITUDE (-9999)
 
+#define CANARY (0x665225ca79e653a3)
+
 
 // size of various on stack buffers used across the code, let's just be conservative and assume 1 MB of stack
 // without heavy recursion 3 of those stack buffers can be in use at the same time, at most we expect to to be in use

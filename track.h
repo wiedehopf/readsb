@@ -301,13 +301,6 @@ struct traceCache {
     char *json;
 };
 
-static inline void destroyTraceCache(struct traceCache *cache) {
-    sfree(cache->entries);
-    sfree(cache->json);
-    memset(cache, 0x0, sizeof(struct traceCache));
-}
-
-
 /* Structure used to describe the state of one tracked aircraft */
 struct aircraft
 {
@@ -519,7 +512,7 @@ struct aircraft
   unsigned char acas_flags; // maybe use for some flags, would be padding otherwise
   data_validity acas_ra_valid;
   int64_t unused12;
-  int64_t unused13;
+  uint64_t canary1;
   int64_t unused14;
   double magneticDeclination;
   int64_t updatedDeclination;
@@ -568,7 +561,11 @@ struct aircraft
   uint32_t cpr_cache_index;
   struct cpr_cache cpr_cache[CPR_CACHE];
 
+  uint64_t canary2;
+
   struct traceCache traceCache;
+
+  uint64_t canary3;
 
   char zeroEnd;
 };

@@ -1451,6 +1451,13 @@ static char *sprintTracePoint(char *p, char *end, struct state *state, struct st
 }
 
 static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
+    if (a->canary1 != CANARY || a->canary2 != CANARY || a->canary3 != CANARY) {
+        fprintf(stderr, "%06x canary alert1 canary1 %016llx canary2 %016llx canary3 %016llx\n",
+                a->addr,
+                (unsigned long long) a->canary1,
+                (unsigned long long) a->canary2,
+                (unsigned long long) a->canary3);
+    }
     struct traceCache *cache = &a->traceCache;
     if (!cache->entries || !cache->json) {
         if (Modes.trace_hist_only & 8) {
@@ -1472,9 +1479,22 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
         cache->entries = cmalloc(size_entries);
         cache->json = cmalloc(cache->json_max);
 
+        if (!cache->entries || !cache->json) {
+            fprintf(stderr, "WTF quae3OhG\n");
+        }
+
         memset(cache->entries, 0x0, size_entries);
         memset(cache->json, 0x0, cache->json_max);
     }
+
+    if (a->canary1 != CANARY || a->canary2 != CANARY || a->canary3 != CANARY) {
+        fprintf(stderr, "%06x canary alert2 canary1 %016llx canary2 %016llx canary3 %016llx\n",
+                a->addr,
+                (unsigned long long) a->canary1,
+                (unsigned long long) a->canary2,
+                (unsigned long long) a->canary3);
+    }
+
     char *p;
     char *end = cache->json + cache->json_max;
     int firstRecent = imax(0, tb.len - Modes.traceRecentPoints);
@@ -1582,7 +1602,10 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
     struct state *state = NULL;
     int64_t lastTs = 0;
 
-    if (!cache->entries || !cache->json) {
+    if (!cache->entries) {
+        fprintf(stderr, "wtf null pointer ?!?! aeV3Geih\n");
+    }
+    if (!cache->json) {
         fprintf(stderr, "wtf null pointer ?!?! ing5umuS\n");
     }
 
@@ -1619,7 +1642,8 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
         char *stringStart = p;
         p = sprintTracePoint(p, end, state, state_all, cache->referenceTs, now, a);
         if (p + 1 >= end) {
-            fprintf(stderr, "traceCache full, not an issue but fix it!\n");
+            fprintf(stderr, "traceCache full, not an issue but fix it! p + 1 - end: %lld json_max: %lld p - cache-json: %lld\n",
+                    (long long) (p + 1 - end), (long long) cache->json_max, (long long) (p - cache->json));
             // not enough space to safely write another cache
             break;
         }
@@ -1646,6 +1670,13 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
         if (a->addr == TRACE_FOCUS) {
             fprintf(stderr, "%06x traceCache succeeded, entriesLen %d recent points %d\n", a->addr, cache->entriesLen, tb.len - firstRecent);
         }
+    }
+    if (a->canary1 != CANARY || a->canary2 != CANARY || a->canary3 != CANARY) {
+        fprintf(stderr, "%06x canary alert3 canary1 %016llx canary2 %016llx canary3 %016llx\n",
+                a->addr,
+                (unsigned long long) a->canary1,
+                (unsigned long long) a->canary2,
+                (unsigned long long) a->canary3);
     }
 }
 

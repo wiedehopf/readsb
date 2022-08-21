@@ -1717,6 +1717,13 @@ int traceUsePosBuffered(struct aircraft *a) {
     }
 }
 
+static void destroyTraceCache(struct traceCache *cache) {
+    sfree(cache->entries);
+    sfree(cache->json);
+    memset(cache, 0x0, sizeof(struct traceCache));
+}
+
+
 static void traceCleanupNoUnlink(struct aircraft *a) {
     if (a->trace_chunks) {
         for (int k = 0; k < a->trace_chunk_len; k++) {

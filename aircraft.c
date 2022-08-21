@@ -130,16 +130,23 @@ void freeAircraft(struct aircraft *a) {
 
 void aircraftZeroTail(struct aircraft *a) {
     memset(&a->zeroStart, 0x0, &a->zeroEnd - &a->zeroStart);
+    a->canary1 = CANARY;
+    a->canary2 = CANARY;
+    a->canary3 = CANARY;
 }
 
 struct aircraft *aircraftCreate(uint32_t addr) {
     struct aircraft *a = aircraftGet(addr);
-    if (a)
+    if (a) {
         return a;
+    }
     a = cmalloc(sizeof(struct aircraft));
 
     // Default everything to zero/NULL
     memset(a, 0, sizeof (struct aircraft));
+    a->canary1 = CANARY;
+    a->canary2 = CANARY;
+    a->canary3 = CANARY;
 
     // Now initialise things that should not be 0/NULL to their defaults
     a->addr = addr;
