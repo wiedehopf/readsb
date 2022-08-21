@@ -3407,13 +3407,15 @@ void readInternalState() {
         taskCount++;
     }
 
+    int k = STATE_BLOBS - 1;
     for (int i = 0; i < parts; i++) {
         threadpool_task_t *task = &tasks[taskCount];
         task_info_t *range = &infos[taskCount];
 
         range->now = now;
-        range->from = i * stride;
-        range->to = imin(STATE_BLOBS, range->from + stride);
+        range->from = k * stride;
+        range->to = imin(STATE_BLOBS, (k + 1) * stride);
+        k--;
 
         //fprintf(stderr, "from %d to %d\n", range->from, range->to);
 
