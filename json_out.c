@@ -1458,8 +1458,10 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
                 (unsigned long long) a->canary2,
                 (unsigned long long) a->canary3);
     }
+
+    a->lastCacheWrite = mstime();
     struct traceCache *cache = &a->traceCache;
-    if (!cache->entries || !cache->json) {
+    if (!cache->entries || !cache->json || !cache->json_max) {
         if (Modes.trace_hist_only & 8) {
             return; // no cache in this special case
         }
@@ -1467,6 +1469,12 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
         if (elapsedReliable > TRACE_CACHE_LIFETIME / 2 || tb.len == 0) {
             //fprintf(stderr, "elapsedReliable: %.3f\n", elapsedReliable / 1000.0);
             return;
+        }
+
+        if (cache->entries || cache->json || cache->json_max) {
+            fprintf(stderr, "wtf Eijo0eep write %.3f destroy %.3f\n", a->lastCacheWrite / 1000.0, a->lastCacheDestroy / 1000.0);
+            sfree(cache->entries);
+            sfree(cache->json);
         }
 
         // reset cache for good measure
@@ -1542,7 +1550,7 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
             struct traceCacheEntry *last = &entries[cache->entriesLen - 1];
             int moveBytes = (last->offset + last->len) - moveDist;
 
-            if (moveIndexes > cache->entriesLen || moveIndexes <= 0 || moveIndexes > cache->entriesLen) {
+            if (cache->entriesLen > Modes.traceCachePoints || moveIndexes <= 0 || moveIndexes > cache->entriesLen) {
                 fprintf(stderr, "%06x unexpected value moveIndexes: %ld firstRecentCache: %ld newEntryCount: %ld cache->entriesLen: %ld Modes.traceCachePoints: %ld\n",
                         a->addr, (long) moveIndexes, (long) firstRecentCache, (long) newEntryCount, (long) cache->entriesLen, (long) Modes.traceCachePoints);
                 resetCache = 1;
@@ -1656,6 +1664,11 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
         entry->leg_marker = state->leg_marker;
 
         cache->entriesLen = k + 1;
+        if (cache->entriesLen > Modes.traceCachePoints) {
+            fprintf(stderr, "wtf phooTie1\n");
+            cache->entriesLen = Modes.traceCachePoints;
+            break;
+        }
 
         *p = '\0';
         if (0 && state->timestamp < lastTs) {

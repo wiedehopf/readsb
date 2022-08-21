@@ -567,6 +567,9 @@ struct aircraft
 
   uint64_t canary3;
 
+  int64_t lastCacheDestroy;
+  int64_t lastCacheWrite;
+
   char zeroEnd;
 };
 

@@ -1743,6 +1743,7 @@ static void traceCleanupNoUnlink(struct aircraft *a) {
 
     destroyTraceCache(&a->traceCache);
 
+    a->lastCacheDestroy = mstime();
 }
 
 void traceCleanup(struct aircraft *a) {
@@ -2042,6 +2043,7 @@ void traceMaintenance(struct aircraft *a, int64_t now, threadpool_buffer_t *pass
     if (a->traceCache.entries && now - a->seenPosReliable > TRACE_CACHE_LIFETIME) {
         //fprintf(stderr, "%06x free traceCache\n", a->addr);
         destroyTraceCache(&a->traceCache);
+        a->lastCacheDestroy = mstime();
     }
 
     //fprintf(stderr, "%06x\n", a->addr);
