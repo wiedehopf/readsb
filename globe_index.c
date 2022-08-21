@@ -2704,40 +2704,49 @@ static int load_aircrafts(char *p, char *end, char *filename, int64_t now, threa
     return count;
 }
 
-void load_blob(char *blob, threadpool_buffer_t *passbuffer) {
+void load_blob(char *blob, threadpool_threadbuffers_t * buffer_group) {
     int64_t now = mstime();
     int fd = -1;
     struct char_buffer cb;
     char *p;
     char *end;
     int lzo = 0;
+    int zst = 0;
     char filename[1024];
 
-    snprintf(filename, 1024, "%s.lzol", blob);
+    snprintf(filename, 1024, "%s.zst", blob);
     fd = open(filename, O_RDONLY);
     if (fd != -1) {
-        lzo = 1;
+        zst = 1;
         cb = readWholeFile(fd, filename);
         close(fd);
     } else {
         Modes.writeInternalState = 1; // not the primary load method, immediately write state
-        snprintf(filename, 1024, "%s.gz", blob);
-        gzFile gzfp = gzopen(filename, "r");
-        if (gzfp) {
-            cb = readWholeGz(gzfp, filename);
-            gzclose(gzfp);
-            unlink(filename); // moving to lzo
-        } else {
-            fd = open(blob, O_RDONLY);
-            if (fd == -1) {
-                fprintf(stderr, "missing state blob:");
-                snprintf(filename, 1024, "%s[.gz/.lzol]", blob);
-                perror(filename);
-                return;
-            }
+        snprintf(filename, 1024, "%s.lzol", blob);
+        fd = open(filename, O_RDONLY);
+        if (fd != -1) {
+            lzo = 1;
             cb = readWholeFile(fd, filename);
             close(fd);
-            unlink(filename); // moving to lzo
+        } else {
+            snprintf(filename, 1024, "%s.gz", blob);
+            gzFile gzfp = gzopen(filename, "r");
+            if (gzfp) {
+                cb = readWholeGz(gzfp, filename);
+                gzclose(gzfp);
+                unlink(filename); // moving to lzo
+            } else {
+                fd = open(blob, O_RDONLY);
+                if (fd == -1) {
+                    fprintf(stderr, "missing state blob:");
+                    snprintf(filename, 1024, "%s[.gz/.lzol]", blob);
+                    perror(filename);
+                    return;
+                }
+                cb = readWholeFile(fd, filename);
+                close(fd);
+                unlink(filename); // moving to lzo
+            }
         }
     }
     if (!cb.buffer)
@@ -2745,10 +2754,48 @@ void load_blob(char *blob, threadpool_buffer_t *passbuffer) {
     p = cb.buffer;
     end = p + cb.len;
 
-    if (lzo) {
+    threadpool_buffer_t *pb1 = &buffer_group->buffers[0];
+    threadpool_buffer_t *pb2 = &buffer_group->buffers[1];
+
+    if (zst) {
+        while (end - p > 0) {
+            if (end - p < 2 * (ssize_t) sizeof(uint32_t)) {
+                fprintf(stderr, "Corrupt state file (too small): %s\n", filename);
+                goto out;
+            }
+            uint32_t compressed_len = *((uint32_t *) p);
+            p += sizeof(compressed_len);
+
+            uint32_t uncompressed_len = *((uint32_t *) p);
+            p += sizeof(uncompressed_len);
+
+            if (end - p < compressed_len) {
+                fprintf(stderr, "Corrupt state file (smaller than compressed_len): %s\n", filename);
+                goto out;
+            }
+
+            if (!pb1->dctx) {
+                pb1->dctx = ZSTD_createDCtx();
+            }
+
+            char *uncompressed = check_grow_threadpool_buffer_t(pb1, uncompressed_len);
+            char *compressed = p;
+
+            size_t res = ZSTD_decompressDCtx(pb1->dctx, uncompressed, uncompressed_len, compressed, compressed_len);
+            if (ZSTD_isError(res)) {
+                fprintf(stderr, "Corrupt state file %s zstd error: %s\n", filename, ZSTD_getErrorName(res));
+                goto out;
+            }
+
+            if (load_aircrafts(uncompressed, uncompressed + uncompressed_len, filename, now, pb2) < 0) {
+                goto out;
+            }
+            p += compressed_len;
+        }
+    } else if (lzo) {
         int lzo_out_alloc = Modes.state_chunk_size_read;
 
-        char *lzo_out = check_grow_threadpool_buffer_t(passbuffer, lzo_out_alloc);
+        char *lzo_out = check_grow_threadpool_buffer_t(pb1, lzo_out_alloc);
 
         lzo_uint uncompressed_len = 0;
         int res = 0;
@@ -2766,7 +2813,7 @@ void load_blob(char *blob, threadpool_buffer_t *passbuffer) {
 
             if (value != LZO_MAGIC) {
                 fprintf(stderr, "Corrupt state file (LZO_MAGIC wrong): %s\n", filename);
-                break;
+                goto out;
             }
 
 decompress:
@@ -2781,22 +2828,23 @@ decompress:
                 }
                 if (lzo_out_alloc > 256 * 1024 * 1024 || !lzo_out) {
                     fprintf(stderr, "Corrupt state file (decompression failure): %s\n", filename);
-                    break;
+                    goto out;
                 }
 
-                lzo_out = check_grow_threadpool_buffer_t(passbuffer, lzo_out_alloc);
+                lzo_out = check_grow_threadpool_buffer_t(pb1, lzo_out_alloc);
                 goto decompress;
             }
 
-            if (load_aircrafts(lzo_out, lzo_out + uncompressed_len, filename, now, passbuffer) < 0) {
-                break;
+            if (load_aircrafts(lzo_out, lzo_out + uncompressed_len, filename, now, pb2) < 0) {
+                goto out;
             }
             p += compressed_len;
         }
     } else {
-        load_aircrafts(p, end, filename, now, passbuffer);
+        load_aircrafts(p, end, filename, now, pb2);
     }
 
+out:
     sfree(cb.buffer);
 }
 
@@ -2806,7 +2854,7 @@ static void load_blobs(void *arg, threadpool_threadbuffers_t * buffer_group) {
     for (int j = info->from; j < info->to; j++) {
         char blob[1024];
         snprintf(blob, 1024, "%s/blob_%02x", Modes.state_dir, j);
-        load_blob(blob, &buffer_group->buffers[0]);
+        load_blob(blob, buffer_group);
     }
 }
 

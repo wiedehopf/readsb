@@ -2033,14 +2033,18 @@ static void loadReplaceState() {
     }
 
     fprintf(stderr, "overriding current state with this blob: %s\n", Modes.replace_state_blob);
-    threadpool_buffer_t pbuffer = { 0 };
-    load_blob(Modes.replace_state_blob, &pbuffer);
+    threadpool_buffer_t buffers[4];
+    memset(buffers, 0x0, sizeof(buffers));
+    threadpool_threadbuffers_t group = { .buffer_count = 4, .buffers = buffers };
+    load_blob(Modes.replace_state_blob, &group);
 
     char blob[1024];
     snprintf(blob, 1024, "%s.lzol", Modes.replace_state_blob);
     unlink(blob);
 
-    free_threadpool_buffer(&pbuffer);
+    for (uint32_t k = 0; k < group.buffer_count; k++) {
+        free_threadpool_buffer(&buffers[k]);
+    }
     free(Modes.replace_state_blob);
     Modes.replace_state_blob = NULL;
 }

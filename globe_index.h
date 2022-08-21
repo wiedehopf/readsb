@@ -44,7 +44,7 @@ int globe_index_index(int index);
 void init_globe_index();
 void cleanup_globe_index();
 void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbuffer2);
-void load_blob(char *blob, threadpool_buffer_t *passbuffer);
+void load_blob(char *blob, threadpool_threadbuffers_t * buffer_group);
 void writeInternalState();
 void readInternalState();
 void traceWrite(struct aircraft *a, threadpool_threadbuffers_t *buffer_group);
