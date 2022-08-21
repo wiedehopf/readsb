@@ -2475,11 +2475,14 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
     }
 
     int gzip = 0;
-    int lzo = 1;
+    int lzo = 0;
+    int zst = 1;
 
     char filename[PATH_MAX];
     char tmppath[PATH_MAX];
-    if (lzo) {
+    if (zst) {
+        snprintf(filename, 1024, "%s/blob_%02x.zstl", Modes.state_dir, blob);
+    } else if (lzo) {
         snprintf(filename, 1024, "%s/blob_%02x.lzol", Modes.state_dir, blob);
     } else if (gzip) {
         snprintf(filename, 1024, "%s/blob_%02x.gz", Modes.state_dir, blob);
@@ -2532,6 +2535,17 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
         lzo_out = check_grow_threadpool_buffer_t(pbuffer2, lzo_out_alloc);
     }
 
+    char *zst_out = NULL;
+    int zst_out_alloc;
+    int zst_header_len = 2 * sizeof(uint32_t);
+    if (zst) {
+        if (!pbuffer2->cctx) {
+            pbuffer2->cctx = ZSTD_createCCtx();
+        }
+        zst_out_alloc = ZSTD_compressBound(alloc);
+        zst_out = check_grow_threadpool_buffer_t(pbuffer2, zst_out_alloc + zst_header_len);
+    }
+
     int chunk_ac_count = 0;
 
     struct aircraft copyback;
@@ -2573,7 +2587,37 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
                     fprintf(stderr, "save_blob: overran buffer! %ld\n", (long) (p - (buf + alloc)));
                 }
 
-                if (lzo) {
+                if (zst) {
+                    uint32_t uncompressed_len = p - buf;
+
+                    /*
+                     * size_t ZSTD_compressCCtx(ZSTD_CCtx* cctx,
+                     void* dst, size_t dstCapacity,
+                     const void* src, size_t srcSize,
+                     int compressionLevel);
+                     */
+
+                    size_t compressedSize = ZSTD_compressCCtx(pbuffer2->cctx,
+                            zst_out + zst_header_len, zst_out_alloc,
+                            buf, uncompressed_len,
+                            1);
+
+                    if (ZSTD_isError(compressedSize)) {
+                        fprintf(stderr, "save_blob() zstd error: %s\n", ZSTD_getErrorName(compressedSize));
+                        goto error;
+                    }
+
+                    uint32_t compressed_len = compressedSize;
+
+                    // write header
+
+                    memcpy(zst_out, &compressed_len, sizeof(uint32_t));
+                    memcpy(zst_out + sizeof(uint32_t), &uncompressed_len, sizeof(uint32_t));
+
+                    // end header
+
+                    check_write(fd, zst_out, compressed_len + zst_header_len, tmppath);
+                } else if (lzo) {
                     int res = lzo1x_1_compress(buf, p - buf, lzo_out + lzo_header_len, &compressed_len, lzo_work);
 
                     //fprintf(stderr, "%d %08lld\n", blob, (long long) compressed_len);
@@ -2714,7 +2758,7 @@ void load_blob(char *blob, threadpool_threadbuffers_t * buffer_group) {
     int zst = 0;
     char filename[1024];
 
-    snprintf(filename, 1024, "%s.zst", blob);
+    snprintf(filename, 1024, "%s.zstl", blob);
     fd = open(filename, O_RDONLY);
     if (fd != -1) {
         zst = 1;
@@ -2728,6 +2772,7 @@ void load_blob(char *blob, threadpool_threadbuffers_t * buffer_group) {
             lzo = 1;
             cb = readWholeFile(fd, filename);
             close(fd);
+            unlink(filename); // moving to zst
         } else {
             snprintf(filename, 1024, "%s.gz", blob);
             gzFile gzfp = gzopen(filename, "r");
