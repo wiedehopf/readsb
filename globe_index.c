@@ -2814,7 +2814,7 @@ void load_blob(char *blob, threadpool_threadbuffers_t * buffer_group) {
             uint32_t uncompressed_len = *((uint32_t *) p);
             p += sizeof(uncompressed_len);
 
-            if (end - p < compressed_len) {
+            if (end - p < (ssize_t) compressed_len) {
                 fprintf(stderr, "Corrupt state file (smaller than compressed_len): %s\n", filename);
                 goto out;
             }

@@ -1616,6 +1616,9 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
     if (!cache->json) {
         fprintf(stderr, "wtf null pointer ?!?! ing5umuS\n");
     }
+    if (!cache->entries || !cache->json || !cache->json_max) {
+        fprintf(stderr, "wtf ANgo9Joo write %.3f destroy %.3f\n", a->lastCacheWrite / 1000.0, a->lastCacheDestroy / 1000.0);
+    }
 
     for (int i = firstRecent, k = firstRecentCache; i < tb.len && k < Modes.traceCachePoints; i++, k++) {
         state = getState(tb.trace, i);
