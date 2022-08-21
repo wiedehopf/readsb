@@ -307,7 +307,7 @@ typedef enum {
 #define MODES_NOTUSED(V) ((void) V)
 
 #ifndef AIRCRAFT_HASH_BITS
-#define AIRCRAFT_HASH_BITS 19
+#define AIRCRAFT_HASH_BITS 20
 #endif
 #define AIRCRAFT_BUCKETS (1 << AIRCRAFT_HASH_BITS) // this is critical for hashing purposes
 
