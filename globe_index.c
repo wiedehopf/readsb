@@ -812,7 +812,7 @@ static int load_aircraft(char **p, char *end, int64_t now, threadpool_buffer_t *
 
     ssize_t newSize = sizeof(struct aircraft);
 
-    if (end - *p < newSize / 2) {
+    if (end - *p < (int) sizeof(uint64_t)) {
         return -1;
     }
 
