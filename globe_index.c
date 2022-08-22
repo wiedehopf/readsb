@@ -1854,6 +1854,49 @@ static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t af
     return tb;
 }
 
+float recompressStateChunk(struct stateChunk *chunk, threadpool_buffer_t *passbuffer) {
+    if (!passbuffer->dctx) {
+        passbuffer->dctx = ZSTD_createDCtx();
+    }
+    int uncompressed_len = stateBytes(chunk->numStates);
+    int maxSize = ZSTD_compressBound(uncompressed_len);
+    int totalBuffer = uncompressed_len + maxSize;
+    char *uncompressed = check_grow_threadpool_buffer_t(passbuffer, totalBuffer);
+    char *compressed = uncompressed + uncompressed_len;
+
+    size_t res = ZSTD_decompressDCtx(passbuffer->dctx, uncompressed, uncompressed_len, chunk->compressed, chunk->compressed_size);
+    if (ZSTD_isError(res)) {
+        fprintf(stderr, "recompress(): Corrupt trace chunk: zstd error: %s\n", ZSTD_getErrorName(res));
+        return 0;
+    }
+
+    if (!passbuffer->cctx) {
+        passbuffer->cctx = ZSTD_createCCtx();
+    }
+    size_t compressedSize = ZSTD_compressCCtx(
+            passbuffer->cctx,
+            compressed, maxSize,
+            uncompressed, uncompressed_len,
+            6);
+
+    if (ZSTD_isError(compressedSize)) {
+        fprintf(stderr, "recompress() zstd error: %s\n", ZSTD_getErrorName(compressedSize));
+        return 0;
+    }
+
+    float recompressSavings = (float) (chunk->compressed_size - compressedSize) / chunk->compressed_size;
+
+    sfree(chunk->compressed);
+    chunk->compressed = cmalloc(compressedSize);
+
+    memcpy(chunk->compressed, compressed, compressedSize);
+    chunk->compressed_size = compressedSize;
+
+    return recompressSavings;
+}
+
+
+
 static int compressChunk(fourState *source, int pointCount, threadpool_buffer_t *passbuffer, struct aircraft *a) {
     int64_t now = mstime();
     int64_t before = 0;
@@ -1895,6 +1938,8 @@ static int compressChunk(fourState *source, int pointCount, threadpool_buffer_t 
         }
     }
 
+    float recompressSavings = 0;
+
     int newBytes = 0;
     if (extending) {
         pointCount = extending;
@@ -1913,6 +1958,11 @@ static int compressChunk(fourState *source, int pointCount, threadpool_buffer_t 
 
         newBytes = stateBytes(pointCount);
     } else {
+        if (lastChunk && memcmp(zstd_magic, lastChunk->compressed, sizeof(zstd_magic)) == 0) {
+            // recompress finished buffer
+            recompressSavings = recompressStateChunk(lastChunk, passbuffer);
+        }
+
         // make new chunk
         target = resizeTraceChunks(a, a->trace_chunk_len + 1);
 
@@ -1971,7 +2021,7 @@ static int compressChunk(fourState *source, int pointCount, threadpool_buffer_t 
                 passbuffer->cctx,
                 compressed, maxSize,
                 source, newBytes,
-                6);
+                2);
 
         if (ZSTD_isError(compressedSize)) {
             fprintf(stderr, "compressChunk() zstd error: %s\n", ZSTD_getErrorName(compressedSize));
@@ -2006,12 +2056,13 @@ static int compressChunk(fourState *source, int pointCount, threadpool_buffer_t 
 
     if (Modes.verbose) {
         int64_t after = nsThreadTime();
-        fprintf(stderr, "%s%06x compressChunk: cpu: %7.3f ms compressed: %8d chunks %3d ratio %5.2f lp %5.0fm chunkTime %5.0fm %5d %5d\n",
+        fprintf(stderr, "%s%06x compressChunk: cpu: %7.3f ms compressed: %8d chunks %3d ratio %5.2f lp %5.0fm chunkTime %5.0fm %5d %5d %4.1f\n",
                 ((a->addr & MODES_NON_ICAO_ADDRESS) ? "." : ". "),
                 a->addr, (after - before) * 1e-6, target->compressed_size, a->trace_chunk_len, stateBytes(target->numStates) / (double) target->compressed_size,
                 (now - (getState(a->trace_current, a->trace_current_len - 1))->timestamp) / (60 * 1000.0),
                 (target->lastTimestamp - target->firstTimestamp) / (60 * 1000.0),
-                target->numStates, extending);
+                target->numStates, extending,
+                recompressSavings * 100.0f);
     }
 
     return pointCount;
