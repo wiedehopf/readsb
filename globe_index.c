@@ -1856,7 +1856,7 @@ static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t af
     return tb;
 }
 
-static void compressChunk(stateChunk *target, fourState *source, int pointCount, threadpool_buffer_t *passbuffer) {
+static void compressChunk(stateChunk *target, fourState *source, int pointCount, threadpool_buffer_t *passbuffer, struct aircraft *a) {
     target->numStates = pointCount;
     int chunkBytes = stateBytes(pointCount);
 
@@ -1869,6 +1869,16 @@ static void compressChunk(stateChunk *target, fourState *source, int pointCount,
 
         //fprintf(stderr, "pbuffer->size: %ld src.len %ld\n", (long) pbuffer->size, (long) src.len);
 
+        if (0 && Modes.json_dir) {
+            char path[1024];
+            snprintf(path, 1024, "%s/tracechunk_samples/%06x", Modes.json_dir, a->addr);
+            int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (fd >= 0) {
+                check_write(fd, source, chunkBytes, path);
+                close(fd);
+            }
+        }
+
         /*
          * size_t ZSTD_compressCCtx(ZSTD_CCtx* cctx,
          void* dst, size_t dstCapacity,
@@ -1880,7 +1890,7 @@ static void compressChunk(stateChunk *target, fourState *source, int pointCount,
                 passbuffer->cctx,
                 passbuffer->buf, passbuffer->size,
                 source, chunkBytes,
-                4);
+                6);
 
         if (ZSTD_isError(compressedSize)) {
             fprintf(stderr, "compressChunk() zstd error: %s\n", ZSTD_getErrorName(compressedSize));
@@ -1939,7 +1949,7 @@ static void setTrace(struct aircraft *a, fourState *source, int len, threadpool_
         new->firstTimestamp = getState(p, 0)->timestamp;
         new->lastTimestamp = getState(p, chunkSize - 1)->timestamp;
 
-        compressChunk(new, p, chunkSize, passbuffer);
+        compressChunk(new, p, chunkSize, passbuffer, a);
 
         a->trace_chunk_overall_bytes += new->compressed_size;
 
@@ -2020,11 +2030,11 @@ static void compressCurrent(struct aircraft *a, threadpool_buffer_t *passbuffer)
     int64_t before = 0;
     if (Modes.verbose) { before = nsThreadTime(); };
 
-    compressChunk(new, a->trace_current, chunkPoints, passbuffer);
+    compressChunk(new, a->trace_current, chunkPoints, passbuffer, a);
     a->trace_chunk_overall_bytes += new->compressed_size;
     if (Modes.verbose) {
         int64_t after = nsThreadTime();
-        fprintf(stderr, "%06x compressChunk: threadTime: %.9fs compressed_size: %d trace_chunk_len %d compression ratio %.2f lp %.0fs\n",
+        fprintf(stderr, "%06x compressChunk: threadTime: %.9fs compressed_size: %8d trace_chunk_len %3d compression ratio %.2f lp %5.0fs\n",
                 a->addr, (after - before) * 1e-9, new->compressed_size, a->trace_chunk_len, stateBytes(chunkPoints) / (double) new->compressed_size,
                 (now - (getState(a->trace_current, a->trace_current_len - 1))->timestamp) / 1000.0);
     }
