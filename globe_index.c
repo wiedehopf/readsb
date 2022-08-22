@@ -980,9 +980,6 @@ static int load_aircraft(char **p, char *end, int64_t now, threadpool_buffer_t *
             a->trace_writeCounter = 0xc0ffee;
             a->trace_write |= WRECENT;
             a->trace_write |= WMEM;
-        } else {
-            // write these traces within a couple minutes
-            scheduleMemBothWrite(a, now + 60 * SECONDS + (now - a->seen_pos) / (24 * 60) * 2); // condense 24h into 2 minutes
         }
     } else {
         traceCleanupNoUnlink(a);

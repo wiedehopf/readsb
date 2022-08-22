@@ -474,6 +474,8 @@ struct _Modes
     threadpool_t *tracePool;
     task_group_t *traceTasks;
 
+    int triggerPastDayTraceWrite;
+
     int lockThreadsCount;
     threadT *lockThreads[LOCK_THREADS_MAX];
 

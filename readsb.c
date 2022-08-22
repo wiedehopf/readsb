@@ -841,12 +841,18 @@ static void traceWriteTask(void *arg, threadpool_threadbuffers_t *buffer_group) 
     // increment info->from to mark this part of the task as finshed
     for (int j = info->from; j < info->to; j++, info->from++) {
         for (a = Modes.aircraft[j]; a; a = a->next) {
+            if (Modes.triggerPastDayTraceWrite && !a->initialTraceWriteDone) {
+                a->trace_writeCounter = 0xc0ffee;
+                a->trace_write |= WRECENT;
+                a->trace_write |= WMEM;
+            }
             if (a->trace_write) {
                 int64_t before = mono_milli_seconds();
                 if (before > Modes.traceWriteTimelimit) {
                     return;
                 }
                 traceWrite(a, buffer_group);
+                a->initialTraceWriteDone = 1;
                 int64_t elapsed = mono_milli_seconds() - before;
                 if (elapsed > 4 * SECONDS) {
                     fprintf(stderr, "<3>traceWrite() for %06x took %.1f s!\n", a->addr, elapsed / 1000.0);
@@ -931,10 +937,17 @@ static void writeTraces(int64_t mono) {
                     Modes.writeTracesActualDuration = elapsed;
                 }
 
+                if (Modes.triggerPastDayTraceWrite) {
+                    // deactivate after one sweep
+                    Modes.triggerPastDayTraceWrite = 0;
+                    fprintf(stderr, "Wrote live traces for aircraft active within the last 24 hours. This took %.1f seconds (roughly %.0f minutes).\n",
+                            elapsed / 1000.0, elapsed / (double) MINUTES);
+                }
                 if (!firstRunDone) {
                     firstRunDone = 1;
                     fprintf(stderr, "Wrote live traces for aircraft active within the last 15 minutes. This took %.1f seconds (roughly %.0f minutes).\n",
                             elapsed / 1000.0, elapsed / (double) MINUTES);
+                    Modes.triggerPastDayTraceWrite = 1; // activated for one sweep
                 }
 
                 if (elapsed > 30 * SECONDS && mstime() - Modes.startup_time > 10 * MINUTES) {

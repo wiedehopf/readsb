@@ -553,6 +553,8 @@ struct aircraft
 
   char zeroStart;
 
+  int8_t initialTraceWriteDone;
+
   uint32_t disc_cache_index;
   struct cpr_cache disc_cache[DISCARD_CACHE];
 
