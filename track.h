@@ -563,7 +563,7 @@ struct aircraft
 
   uint64_t canary2;
 
-  struct traceCache traceCache;
+  struct traceCache *traceCache;
 
   uint64_t canary3;
 

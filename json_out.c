@@ -1459,8 +1459,8 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
                 (unsigned long long) a->canary3);
     }
 
-    struct traceCache *cache = &a->traceCache;
-    if (!cache->entries || !cache->json || !cache->json_max) {
+    struct traceCache *cache = a->traceCache;
+    if (!cache || !cache->entries || !cache->json || !cache->json_max) {
         if (Modes.trace_hist_only & 8) {
             return; // no cache in this special case
         }
@@ -1469,8 +1469,12 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
             //fprintf(stderr, "elapsedReliable: %.3f\n", elapsedReliable / 1000.0);
             return;
         }
+        if (!cache) {
+            cache = a->traceCache = malloc_or_exit(4096, 4096, __FILE__, __LINE__);
+            memset(cache, 0x0, sizeof(struct traceCache));
+        }
         if (cache->entries || cache->json || cache->json_max) {
-            fprintf(stderr, "%06x wtf Eijo0eep write %.3f destroy %.3f\n", a->addr, a->lastCacheWrite / 1000.0, a->lastCacheDestroy / 1000.0);
+            fprintf(stderr, "%06x wtf Eijo0eep create %.3f destroy %.3f now %.3f\n", a->addr, a->lastCacheWrite / 1000.0, a->lastCacheDestroy / 1000.0, mstime() / 1000.0);
             sfree(cache->entries);
             sfree(cache->json);
         }
@@ -1492,6 +1496,9 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
 
         memset(cache->entries, 0x0, size_entries);
         memset(cache->json, 0x0, cache->json_max);
+    }
+    if (mprotect(cache, 4096, PROT_READ | PROT_WRITE) == -1) {
+        perror("mprotect");
     }
 
     if (a->canary1 != CANARY || a->canary2 != CANARY || a->canary3 != CANARY) {
@@ -1616,7 +1623,7 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
         fprintf(stderr, "%06x wtf null pointer ?!?! ing5umuS\n", a->addr);
     }
     if (!cache->entries || !cache->json || !cache->json_max) {
-        fprintf(stderr, "%06x wtf ANgo9Joo write %.3f destroy %.3f\n", a->addr, a->lastCacheWrite / 1000.0, a->lastCacheDestroy / 1000.0);
+        fprintf(stderr, "%06x wtf ANgo9Joo create %.3f destroy %.3f now %.3f\n", a->addr, a->lastCacheWrite / 1000.0, a->lastCacheDestroy / 1000.0, mstime() / 1000.0);
     }
 
     for (int i = firstRecent, k = firstRecentCache; i < tb.len && k < Modes.traceCachePoints; i++, k++) {
@@ -1631,11 +1638,17 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
         // cache needs updating:
         cache->entriesLen = k;
 
+        if (k < 0) {
+            fprintf(stderr, "%06x wtf null pointer ?!?! oonae2OJ\n", a->addr);
+        }
         if (k == 0) {
             p = cache->json;
         } else {
             struct traceCacheEntry *prev = &entries[k - 1];
             p = cache->json + prev->offset + prev->len;
+            if (p < cache->json) {
+                fprintf(stderr, "%06x wtf null pointer ?!?! Ge2thiap\n", a->addr);
+            }
         }
 
         struct state_all *state_all = getStateAll(tb.trace, i);
@@ -1692,6 +1705,10 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
                 (unsigned long long) a->canary1,
                 (unsigned long long) a->canary2,
                 (unsigned long long) a->canary3);
+    }
+
+    if (mprotect(cache, 4096, PROT_READ) == -1) {
+        perror("mprotect");
     }
 }
 
@@ -1763,8 +1780,8 @@ struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int sta
     // due to timestamping, only use trace cache for recent trace jsons
     if (recent && firstStamp != 0) {
         checkTraceCache(a, tb, now);
-        if (a->traceCache.entries && a->traceCache.entriesLen > 0) {
-            tCache = &a->traceCache;
+        if (a->traceCache && a->traceCache->entries && a->traceCache->entriesLen > 0) {
+            tCache = a->traceCache;
             entries = tCache->entries;
             referenceTs = tCache->referenceTs;
         } else {

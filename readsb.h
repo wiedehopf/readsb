@@ -101,6 +101,8 @@
 #include "threadpool.h"
 #include <stdatomic.h>
 #include <zstd.h>
+#include <sys/mman.h>
+
 
 
 #include "compat/compat.h"
