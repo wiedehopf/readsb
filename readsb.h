@@ -744,6 +744,7 @@ struct _Modes
     int beast_fd; // Local Modes-S Beast handler
     int beast_baudrate; // Mode-S beast and similar baud rate
     char *beast_serial; // Modes-S Beast device path
+    struct client *beast_client;
 
     int net_sndbuf_size; // TCP output buffer size (64Kb * 2^n)
     int json_aircraft_history_next;

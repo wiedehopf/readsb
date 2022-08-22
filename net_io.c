@@ -888,7 +888,7 @@ void modesInitNet(void) {
 
     /* Beast input from local Modes-S Beast via USB */
     if (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS) {
-        createSocketClient(Modes.beast_in_service, Modes.beast_fd);
+        Modes.beast_client = createSocketClient(Modes.beast_in_service, Modes.beast_fd);
     }
 
     Modes.uat_in_service = serviceInit(&Modes.services_in, "UAT TCP input", NULL, NULL, READ_MODE_ASCII, "\n", decodeUatMessage);
@@ -2612,7 +2612,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now, 
     mm->signalLevel = mm->signalLevel * mm->signalLevel;
 
     /* In case of Mode-S Beast use the signal level per message for statistics */
-    if (Modes.sdr_type == SDR_MODESBEAST) {
+    if (c == Modes.beast_client) {
         Modes.stats_current.signal_power_sum += mm->signalLevel;
         Modes.stats_current.signal_power_count += 1;
 
@@ -3788,7 +3788,9 @@ void modesNetPeriodicWork(void) {
     dump_beast_check(now);
 
     int64_t wait_ms;
-    if (Modes.net_only) {
+    if (Modes.beast_client) {
+        wait_ms = 20;
+    } else if (Modes.net_only) {
         // wait in net-only mode (unless we get network packets, that wakes the wait immediately)
         wait_ms = imax(200, Modes.net_output_flush_interval);
         wait_ms = imin(wait_ms, Modes.next_reconnect_callback - now); // modify wait for reconnect callback timer
@@ -3815,11 +3817,11 @@ void modesNetPeriodicWork(void) {
     now = mstime();
     Modes.network_time_limit = now + 100;
 
+    struct messageBuffer *mb = &Modes.netMessageBuffer[0];
     if (Modes.decodeThreads == 1) {
-        struct messageBuffer *buf = &Modes.netMessageBuffer[0];
-        handleEpoll(&Modes.services_in, buf);
-        drainMessageBuffer(buf);
-        handleEpoll(&Modes.services_out, buf);
+        handleEpoll(&Modes.services_in, mb);
+        drainMessageBuffer(mb);
+        handleEpoll(&Modes.services_out, mb);
     } else {
         task_info_t *infos = Modes.decodeTasks->infos;
         threadpool_task_t *tasks = Modes.decodeTasks->tasks;
@@ -3840,6 +3842,10 @@ void modesNetPeriodicWork(void) {
         threadpool_run(Modes.decodePool, tasks, taskCount);
         struct timespec after = threadpool_get_cumulative_thread_time(Modes.decodePool);
         timespec_add_elapsed(&before, &after, &Modes.stats_current.background_cpu);
+    }
+
+    if (Modes.beast_client) {
+        modesReadFromClient(Modes.beast_client, mb);
     }
 
     if (Modes.net_event_count == Modes.net_maxEvents) {
