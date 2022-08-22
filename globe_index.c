@@ -1857,11 +1857,47 @@ static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t af
 }
 
 static void compressChunk(fourState *source, int pointCount, threadpool_buffer_t *passbuffer, struct aircraft *a) {
+    int64_t now = mstime();
     int64_t before = 0;
     if (Modes.verbose) { before = nsThreadTime(); };
 
+    char *temp = NULL;
     stateChunk *target = NULL;
-    if (1) {
+    if (a->trace_chunk_len > 0 && now - a->trace_chunks[a->trace_chunk_len - 1].firstTimestamp < 60 * MINUTES) {
+        // add to existing chunk
+        if (!passbuffer->dctx) {
+            passbuffer->dctx = ZSTD_createDCtx();
+        }
+        stateChunk *last = &a->trace_chunks[a->trace_chunk_len - 1];
+        int alloc = stateBytes(last->numStates) + stateBytes(pointCount);
+        temp = cmalloc(alloc);
+
+        size_t res = ZSTD_decompressDCtx(passbuffer->dctx, temp, alloc, last->compressed, last->compressed_size);
+        if (ZSTD_isError(res)) {
+            fprintf(stderr, "compressChunk: Corrupt trace chunk: zstd error: %s\n", ZSTD_getErrorName(res));
+            free(temp);
+            return;
+        }
+        // do some bookkeeping, we add the compressed size of the newly compressed chunk back to it
+        a->trace_chunk_overall_bytes -= last->compressed_size;
+
+        // free memory for the old chunk
+        sfree(last->compressed);
+
+        // add new data to temp buffer
+        memcpy(temp + stateBytes(last->numStates), source, stateBytes(pointCount));
+
+        // modify source / pointCount
+        pointCount += last->numStates;
+        source = (fourState*) temp;
+
+
+        // tell rest of the code to write new details into existing stateChunk struct
+        target = last;
+        // for good measure zero the values
+        memset(target, 0x0, sizeof(stateChunk));
+    } else {
+        // make new chunk
         target = resizeTraceChunks(a, a->trace_chunk_len + 1);
 
         if (!target) {
@@ -1869,13 +1905,11 @@ static void compressChunk(fourState *source, int pointCount, threadpool_buffer_t
             setExit(2);
             return;
         }
-
-        target->numStates = pointCount;
-        target->firstTimestamp = getState(source, 0)->timestamp;
-        target->lastTimestamp = getState(source, pointCount - 1)->timestamp;
-
-        a->trace_chunk_overall_bytes += target->compressed_size;
     }
+
+    target->numStates = pointCount;
+    target->firstTimestamp = getState(source, 0)->timestamp;
+    target->lastTimestamp = getState(source, pointCount - 1)->timestamp;
 
     int chunkBytes = stateBytes(pointCount);
 
@@ -1885,10 +1919,6 @@ static void compressChunk(fourState *source, int pointCount, threadpool_buffer_t
         if (!passbuffer->cctx) {
             passbuffer->cctx = ZSTD_createCCtx();
         }
-        if (!passbuffer->dctx) {
-            passbuffer->dctx = ZSTD_createDCtx();
-        }
-
         //fprintf(stderr, "pbuffer->size: %ld src.len %ld\n", (long) pbuffer->size, (long) src.len);
 
         if (0 && Modes.json_dir) {
@@ -1935,17 +1965,22 @@ static void compressChunk(fourState *source, int pointCount, threadpool_buffer_t
         target->compressed_size = compressed_len;
     }
 
+    if (temp) {
+        sfree(temp);
+    }
+
     target->compressed = cmalloc(target->compressed_size);
-    if (!target->compressed) { fprintf(stderr, "malloc fail: ieshee7G\n"); exit(1); }
 
     memcpy(target->compressed, passbuffer->buf, target->compressed_size);
+
+    a->trace_chunk_overall_bytes += target->compressed_size;
 
 
     if (Modes.verbose) {
         int64_t after = nsThreadTime();
         fprintf(stderr, "%06x compressChunk: threadTime: %.9fs compressed_size: %8d trace_chunk_len %3d compression ratio %.2f lp %5.0fs\n",
                 a->addr, (after - before) * 1e-9, target->compressed_size, a->trace_chunk_len, stateBytes(pointCount) / (double) target->compressed_size,
-                (mstime() - (getState(a->trace_current, a->trace_current_len - 1))->timestamp) / 1000.0);
+                (now - (getState(a->trace_current, a->trace_current_len - 1))->timestamp) / 1000.0);
     }
 }
 
