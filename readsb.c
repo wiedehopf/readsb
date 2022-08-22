@@ -1894,8 +1894,8 @@ static void configAfterParse() {
         Modes.traceReserve = alignSFOUR(64);
     }
 
-    Modes.traceChunkPoints = alignSFOUR(3 * 64);
-    Modes.traceChunkMaxBytes = 32 * 1024;
+    Modes.traceChunkPoints = alignSFOUR(5 * 64);
+    Modes.traceChunkMaxBytes = 16 * 1024;
 
     if (Modes.json_trace_interval < 1) {
         Modes.json_trace_interval = 1; // 1 ms

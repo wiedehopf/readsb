@@ -136,7 +136,7 @@ int64_t msThreadTime(void) {
 int64_t nsThreadTime(void) {
     struct timespec ts;
     clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
-    return ((int64_t) ts.tv_sec * (1000LL * 1000LL * 1000LL) + ts.tv_nsec / (1000LL * 1000LL));
+    return ((int64_t) ts.tv_sec * (1000LL * 1000LL * 1000LL) + ts.tv_nsec);
 }
 
 int64_t receiveclock_ns_elapsed(int64_t t1, int64_t t2) {
