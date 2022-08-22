@@ -1854,7 +1854,7 @@ static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t af
     return tb;
 }
 
-float recompressStateChunk(struct stateChunk *chunk, threadpool_buffer_t *passbuffer) {
+static float recompressStateChunk(struct stateChunk *chunk, threadpool_buffer_t *passbuffer) {
     if (!passbuffer->dctx) {
         passbuffer->dctx = ZSTD_createDCtx();
     }
@@ -1867,7 +1867,7 @@ float recompressStateChunk(struct stateChunk *chunk, threadpool_buffer_t *passbu
     size_t res = ZSTD_decompressDCtx(passbuffer->dctx, uncompressed, uncompressed_len, chunk->compressed, chunk->compressed_size);
     if (ZSTD_isError(res)) {
         fprintf(stderr, "recompress(): Corrupt trace chunk: zstd error: %s\n", ZSTD_getErrorName(res));
-        return 0;
+        return 0.0f;
     }
 
     if (!passbuffer->cctx) {
@@ -1877,14 +1877,26 @@ float recompressStateChunk(struct stateChunk *chunk, threadpool_buffer_t *passbu
             passbuffer->cctx,
             compressed, maxSize,
             uncompressed, uncompressed_len,
-            6);
+            2);
 
     if (ZSTD_isError(compressedSize)) {
         fprintf(stderr, "recompress() zstd error: %s\n", ZSTD_getErrorName(compressedSize));
-        return 0;
+        return 0.0f;
     }
 
-    float recompressSavings = (float) (chunk->compressed_size - compressedSize) / chunk->compressed_size;
+    float recompressSavings = 0;
+    if (chunk->compressed_size == 0) {
+        fprintf(stderr, "chunk->compressed_size == 0\n");
+    } else {
+        recompressSavings = (float) (chunk->compressed_size - (int) compressedSize) / (float) chunk->compressed_size;
+    }
+
+    if (recompressSavings > 100) {
+        fprintf(stderr, "savings %4.1f old %lld new %lld\n",
+                recompressSavings * 100.0f,
+                (long long) chunk->compressed_size,
+                (long long) compressedSize);
+    }
 
     sfree(chunk->compressed);
     chunk->compressed = cmalloc(compressedSize);
@@ -1938,8 +1950,6 @@ static int compressChunk(fourState *source, int pointCount, threadpool_buffer_t 
         }
     }
 
-    float recompressSavings = 0;
-
     int newBytes = 0;
     if (extending) {
         pointCount = extending;
@@ -1958,9 +1968,10 @@ static int compressChunk(fourState *source, int pointCount, threadpool_buffer_t 
 
         newBytes = stateBytes(pointCount);
     } else {
-        if (lastChunk && memcmp(zstd_magic, lastChunk->compressed, sizeof(zstd_magic)) == 0) {
+        // disable, not worth it
+        if (0 && lastChunk && memcmp(zstd_magic, lastChunk->compressed, sizeof(zstd_magic)) == 0) {
             // recompress finished buffer
-            recompressSavings = recompressStateChunk(lastChunk, passbuffer);
+            recompressStateChunk(lastChunk, passbuffer);
         }
 
         // make new chunk
@@ -2021,7 +2032,7 @@ static int compressChunk(fourState *source, int pointCount, threadpool_buffer_t 
                 passbuffer->cctx,
                 compressed, maxSize,
                 source, newBytes,
-                2);
+                6);
 
         if (ZSTD_isError(compressedSize)) {
             fprintf(stderr, "compressChunk() zstd error: %s\n", ZSTD_getErrorName(compressedSize));
@@ -2056,13 +2067,12 @@ static int compressChunk(fourState *source, int pointCount, threadpool_buffer_t 
 
     if (Modes.verbose) {
         int64_t after = nsThreadTime();
-        fprintf(stderr, "%s%06x compressChunk: cpu: %7.3f ms compressed: %8d chunks %3d ratio %5.2f lp %5.0fm chunkTime %5.0fm %5d %5d %4.1f\n",
+        fprintf(stderr, "%s%06x compressChunk: cpu: %7.3f ms compressed: %8d chunks %3d ratio %5.2f lp %5.0fm chunkTime %5.0fm %5d %5d\n",
                 ((a->addr & MODES_NON_ICAO_ADDRESS) ? "." : ". "),
                 a->addr, (after - before) * 1e-6, target->compressed_size, a->trace_chunk_len, stateBytes(target->numStates) / (double) target->compressed_size,
                 (now - (getState(a->trace_current, a->trace_current_len - 1))->timestamp) / (60 * 1000.0),
                 (target->lastTimestamp - target->firstTimestamp) / (60 * 1000.0),
-                target->numStates, extending,
-                recompressSavings * 100.0f);
+                target->numStates, extending);
     }
 
     return pointCount;
