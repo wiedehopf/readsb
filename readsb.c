@@ -1894,7 +1894,8 @@ static void configAfterParse() {
         Modes.traceReserve = alignSFOUR(64);
     }
 
-    Modes.traceChunkPoints = alignSFOUR(5 * 64);
+    Modes.traceChunkPoints = alignSFOUR(3 * 64);
+    Modes.traceChunkMaxBytes = 32 * 1024;
 
     if (Modes.json_trace_interval < 1) {
         Modes.json_trace_interval = 1; // 1 ms
@@ -1903,6 +1904,7 @@ static void configAfterParse() {
     if (Modes.json_trace_interval < 4 * SECONDS) {
         double oversize = 4.0 / fmax(1, (double) Modes.json_trace_interval / 1000.0);
         Modes.traceChunkPoints = alignSFOUR(Modes.traceChunkPoints * oversize);
+        Modes.traceChunkMaxBytes *= oversize;
     }
 
     //Modes.traceChunkPoints = alignSFOUR(4);

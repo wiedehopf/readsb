@@ -3,6 +3,8 @@
 #define STATE_SAVE_MAGIC_END (STATE_SAVE_MAGIC + 1)
 #define LZO_MAGIC (0xf7413cc6eaf227dbULL)
 
+static const char zstd_magic[] = { 0x28, 0xb5, 0x2f, 0xfd };
+
 static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent);
 static void traceCleanupNoUnlink(struct aircraft *a);
 static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t after_timestamp, threadpool_buffer_t *buffer);
@@ -1808,7 +1810,6 @@ static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t af
 
         lzo_uint uncompressed_len = stateBytes(chunk->numStates);
 
-        char zstd_magic[] = { 0x28, 0xb5, 0x2f, 0xfd };
         if (memcmp(zstd_magic, chunk->compressed, sizeof(zstd_magic)) == 0) {
             if (!buffer->dctx) {
                 buffer->dctx = ZSTD_createDCtx();
@@ -1856,44 +1857,79 @@ static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t af
     return tb;
 }
 
-static void compressChunk(fourState *source, int pointCount, threadpool_buffer_t *passbuffer, struct aircraft *a) {
+static int compressChunk(fourState *source, int pointCount, threadpool_buffer_t *passbuffer, struct aircraft *a) {
     int64_t now = mstime();
     int64_t before = 0;
     if (Modes.verbose) { before = nsThreadTime(); };
 
+    if (pointCount < SFOUR) {
+        fprintf(stderr, "eeZ2avaH\n");
+        return 0;
+    }
+
+    int chunkPoints = pointCount;
+
     char *temp = NULL;
     stateChunk *target = NULL;
-    if (a->trace_chunk_len > 0 && now - a->trace_chunks[a->trace_chunk_len - 1].firstTimestamp < 60 * MINUTES) {
+
+    int64_t chunkDuration = 240 * MINUTES;
+    int extending = 0;
+    int64_t lastChunkFirstTs = 0;
+    stateChunk *lastChunk = NULL;
+    if (a->trace_chunk_len > 0) {
+        lastChunk = &a->trace_chunks[a->trace_chunk_len - 1];
+        lastChunkFirstTs = lastChunk->firstTimestamp;
+        if (lastChunkFirstTs) {
+            int k = 0;
+            while(k < pointCount / SFOUR) {
+                int64_t ts = getState(source, k * SFOUR + (SFOUR - 1))->timestamp;
+                if (ts - lastChunkFirstTs > chunkDuration) {
+                    break;
+                }
+                k++;
+            }
+            extending = k * SFOUR;
+        }
+        if (extending && lastChunk->compressed_size > Modes.traceChunkMaxBytes) {
+            // make new chunk if the last one is pretty big already
+            extending = 0;
+        }
+
+        if (extending && memcmp(zstd_magic, lastChunk->compressed, sizeof(zstd_magic)) != 0) {
+            extending = 0;
+        }
+    }
+    if (extending) {
+        pointCount = extending;
         // add to existing chunk
         if (!passbuffer->dctx) {
             passbuffer->dctx = ZSTD_createDCtx();
         }
-        stateChunk *last = &a->trace_chunks[a->trace_chunk_len - 1];
-        int alloc = stateBytes(last->numStates) + stateBytes(pointCount);
+        int alloc = stateBytes(lastChunk->numStates) + stateBytes(pointCount);
         temp = cmalloc(alloc);
 
-        size_t res = ZSTD_decompressDCtx(passbuffer->dctx, temp, alloc, last->compressed, last->compressed_size);
+        size_t res = ZSTD_decompressDCtx(passbuffer->dctx, temp, alloc, lastChunk->compressed, lastChunk->compressed_size);
         if (ZSTD_isError(res)) {
             fprintf(stderr, "compressChunk: Corrupt trace chunk: zstd error: %s\n", ZSTD_getErrorName(res));
             free(temp);
-            return;
+            return 0;
         }
         // do some bookkeeping, we add the compressed size of the newly compressed chunk back to it
-        a->trace_chunk_overall_bytes -= last->compressed_size;
+        a->trace_chunk_overall_bytes -= lastChunk->compressed_size;
 
         // free memory for the old chunk
-        sfree(last->compressed);
+        sfree(lastChunk->compressed);
 
         // add new data to temp buffer
-        memcpy(temp + stateBytes(last->numStates), source, stateBytes(pointCount));
+        memcpy(temp + stateBytes(lastChunk->numStates), source, stateBytes(pointCount));
 
-        // modify source / pointCount
-        pointCount += last->numStates;
+        // modify source and set chunkPoints
+        chunkPoints = lastChunk->numStates + pointCount;
         source = (fourState*) temp;
 
 
         // tell rest of the code to write new details into existing stateChunk struct
-        target = last;
+        target = lastChunk;
         // for good measure zero the values
         memset(target, 0x0, sizeof(stateChunk));
     } else {
@@ -1903,15 +1939,15 @@ static void compressChunk(fourState *source, int pointCount, threadpool_buffer_t
         if (!target) {
             fprintf(stderr, "%06x compressChunk error, resizeTraceChunks returned NULL, treat this as fatal and exit.\n", a->addr);
             setExit(2);
-            return;
+            return 0;
         }
     }
 
-    target->numStates = pointCount;
+    target->numStates = chunkPoints;
     target->firstTimestamp = getState(source, 0)->timestamp;
-    target->lastTimestamp = getState(source, pointCount - 1)->timestamp;
+    target->lastTimestamp = getState(source, chunkPoints - 1)->timestamp;
 
-    int chunkBytes = stateBytes(pointCount);
+    int chunkBytes = stateBytes(chunkPoints);
 
     if (1) {
         check_grow_threadpool_buffer_t(passbuffer, ZSTD_compressBound(chunkBytes));
@@ -1978,10 +2014,15 @@ static void compressChunk(fourState *source, int pointCount, threadpool_buffer_t
 
     if (Modes.verbose) {
         int64_t after = nsThreadTime();
-        fprintf(stderr, "%06x compressChunk: threadTime: %.9fs compressed_size: %8d trace_chunk_len %3d compression ratio %.2f lp %5.0fs\n",
-                a->addr, (after - before) * 1e-9, target->compressed_size, a->trace_chunk_len, stateBytes(pointCount) / (double) target->compressed_size,
-                (now - (getState(a->trace_current, a->trace_current_len - 1))->timestamp) / 1000.0);
+        fprintf(stderr, "%s%06x compressChunk: cpu ns: %lld compressed: %8d chunks %3d ratio %.2f lp %3.0fm chunkTime %3.0fm %4d %4d\n",
+                ((a->addr & MODES_NON_ICAO_ADDRESS) ? "." : ". "),
+                a->addr, (long long) (after - before), target->compressed_size, a->trace_chunk_len, stateBytes(chunkPoints) / (double) target->compressed_size,
+                (now - (getState(a->trace_current, a->trace_current_len - 1))->timestamp) / (60 * 1000.0),
+                (target->lastTimestamp - target->firstTimestamp) / (60 * 1000.0),
+                chunkPoints, extending);
     }
+
+    return pointCount;
 }
 
 
@@ -2002,10 +2043,10 @@ static void setTrace(struct aircraft *a, fourState *source, int len, threadpool_
     int chunkSize = alignSFOUR(Modes.traceChunkPoints);
     int keep = alignSFOUR(8);
     while (len > chunkSize + keep) {
-        compressChunk(p, chunkSize, passbuffer, a);
+        int res = compressChunk(p, chunkSize, passbuffer, a);
 
-        len -= chunkSize;
-        p += chunkSize / SFOUR;
+        len -= res;
+        p += res / SFOUR;
         //fprintf(stderr, "setTrace reduce len: %ld\n", (long) len);
     }
 
@@ -2021,21 +2062,20 @@ static void setTrace(struct aircraft *a, fourState *source, int len, threadpool_
 
 }
 
-static int get_active_trace_current_points() {
-    return alignSFOUR(Modes.traceChunkPoints + Modes.traceReserve);
-}
-
 static int get_nominal_trace_current_points(struct aircraft *a, int64_t now) {
-    int minPoints = alignSFOUR(a->trace_current_len + 1 + Modes.traceReserve);
-    if (now - a->seenPosReliable > 1 * HOURS) {
-        return minPoints;
+    if (now - a->seenPosReliable > 15 * MINUTES) {
+        return alignSFOUR(Modes.traceReserve);
     } else {
-        return alignSFOUR(imax(minPoints, get_active_trace_current_points()));
+        return alignSFOUR(Modes.traceReserve + Modes.traceChunkPoints);
     }
 }
 
 static void resizeTraceCurrent(struct aircraft *a, int64_t now) {
     int newPoints = get_nominal_trace_current_points(a, now);
+    int minPoints = alignSFOUR(a->trace_current_len + Modes.traceReserve + 1);
+    if (newPoints < minPoints) {
+        newPoints = minPoints;
+    }
     int newBytes = stateBytes(newPoints);
     fourState *new = cmalloc(newBytes);
 
@@ -2070,14 +2110,15 @@ static void compressCurrent(struct aircraft *a, threadpool_buffer_t *passbuffer)
         return;
     }
 
-    compressChunk(a->trace_current, chunkPoints, passbuffer, a);
+    // return actually compressed points
+    int res = compressChunk(a->trace_current, chunkPoints, passbuffer, a);
 
     // current_len + 1 to account for the buffered position
     int oldBytes = stateBytes(a->trace_current_len + 1);
-    a->trace_current_len -= chunkPoints;
+    a->trace_current_len -= res;
     int newBytes = stateBytes(a->trace_current_len + 1);
 
-    int diffBytes = stateBytes(chunkPoints);
+    int diffBytes = stateBytes(res);
     char *src = ((char *) a->trace_current) + diffBytes;
     char *dest = (char *) a->trace_current;
 
@@ -2128,7 +2169,7 @@ void traceMaintenance(struct aircraft *a, int64_t now, threadpool_buffer_t *pass
 
     if (a->trace_current_len > 0) {
         // reset trace_current allocation to minimal size if aircraft has been inactive for some time
-        if (a->trace_current_max > get_nominal_trace_current_points(a, now)) {
+        for (int k = 0; k < 4 && a->trace_current_max > get_nominal_trace_current_points(a, now); k++) {
             compressCurrent(a, passbuffer);
             resizeTraceCurrent(a, now);
         }
@@ -2137,10 +2178,8 @@ void traceMaintenance(struct aircraft *a, int64_t now, threadpool_buffer_t *pass
             resizeTraceCurrent(a, now);
         }
 
-        if (
-                (a->trace_current_len >= alignSFOUR(Modes.traceChunkPoints + Modes.traceReserve / 4))
-                || (a->trace_current_len >= Modes.traceChunkPoints / 4 && now - (getState(a->trace_current, a->trace_current_len - 1))->timestamp > 1 * HOURS)
-           ) {
+
+        if ((a->trace_current_len >= alignSFOUR(Modes.traceChunkPoints + Modes.traceReserve / 4))) {
             compressCurrent(a, passbuffer);
         }
     }

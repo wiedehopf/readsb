@@ -734,6 +734,7 @@ struct _Modes
     int32_t traceRecentPoints;
     int32_t traceCachePoints;
     int32_t traceChunkPoints;
+    int32_t traceChunkMaxBytes;
     int json_globe_index; // Enable extra globe indexed json files.
     int acasFD1; // file descriptor to write acasFDs to
     int acasFD2;
