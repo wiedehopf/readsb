@@ -1856,8 +1856,27 @@ static traceBuffer reassembleTrace(struct aircraft *a, int numPoints, int64_t af
     return tb;
 }
 
-static void compressChunk(stateChunk *target, fourState *source, int pointCount, threadpool_buffer_t *passbuffer, struct aircraft *a) {
-    target->numStates = pointCount;
+static void compressChunk(fourState *source, int pointCount, threadpool_buffer_t *passbuffer, struct aircraft *a) {
+    int64_t before = 0;
+    if (Modes.verbose) { before = nsThreadTime(); };
+
+    stateChunk *target = NULL;
+    if (1) {
+        target = resizeTraceChunks(a, a->trace_chunk_len + 1);
+
+        if (!target) {
+            fprintf(stderr, "%06x compressChunk error, resizeTraceChunks returned NULL, treat this as fatal and exit.\n", a->addr);
+            setExit(2);
+            return;
+        }
+
+        target->numStates = pointCount;
+        target->firstTimestamp = getState(source, 0)->timestamp;
+        target->lastTimestamp = getState(source, pointCount - 1)->timestamp;
+
+        a->trace_chunk_overall_bytes += target->compressed_size;
+    }
+
     int chunkBytes = stateBytes(pointCount);
 
     if (1) {
@@ -1865,6 +1884,9 @@ static void compressChunk(stateChunk *target, fourState *source, int pointCount,
 
         if (!passbuffer->cctx) {
             passbuffer->cctx = ZSTD_createCCtx();
+        }
+        if (!passbuffer->dctx) {
+            passbuffer->dctx = ZSTD_createDCtx();
         }
 
         //fprintf(stderr, "pbuffer->size: %ld src.len %ld\n", (long) pbuffer->size, (long) src.len);
@@ -1917,6 +1939,14 @@ static void compressChunk(stateChunk *target, fourState *source, int pointCount,
     if (!target->compressed) { fprintf(stderr, "malloc fail: ieshee7G\n"); exit(1); }
 
     memcpy(target->compressed, passbuffer->buf, target->compressed_size);
+
+
+    if (Modes.verbose) {
+        int64_t after = nsThreadTime();
+        fprintf(stderr, "%06x compressChunk: threadTime: %.9fs compressed_size: %8d trace_chunk_len %3d compression ratio %.2f lp %5.0fs\n",
+                a->addr, (after - before) * 1e-9, target->compressed_size, a->trace_chunk_len, stateBytes(pointCount) / (double) target->compressed_size,
+                (mstime() - (getState(a->trace_current, a->trace_current_len - 1))->timestamp) / 1000.0);
+    }
 }
 
 
@@ -1937,21 +1967,7 @@ static void setTrace(struct aircraft *a, fourState *source, int len, threadpool_
     int chunkSize = alignSFOUR(Modes.traceChunkPoints);
     int keep = alignSFOUR(8);
     while (len > chunkSize + keep) {
-        stateChunk *new = resizeTraceChunks(a, a->trace_chunk_len + 1);
-
-        if (!new) {
-            fprintf(stderr, "%06x setTrace error, resizeTraceChunks returned NULL, treat this as fatal and exit.\n", a->addr);
-            setExit(2);
-            break;
-        }
-
-        new->numStates = chunkSize;
-        new->firstTimestamp = getState(p, 0)->timestamp;
-        new->lastTimestamp = getState(p, chunkSize - 1)->timestamp;
-
-        compressChunk(new, p, chunkSize, passbuffer, a);
-
-        a->trace_chunk_overall_bytes += new->compressed_size;
+        compressChunk(p, chunkSize, passbuffer, a);
 
         len -= chunkSize;
         p += chunkSize / SFOUR;
@@ -2019,25 +2035,7 @@ static void compressCurrent(struct aircraft *a, threadpool_buffer_t *passbuffer)
         return;
     }
 
-    int64_t now = mstime();
-
-    stateChunk *new = resizeTraceChunks(a, a->trace_chunk_len + 1);
-
-    new->numStates = chunkPoints;
-    new->firstTimestamp = getState(a->trace_current, 0)->timestamp;
-    new->lastTimestamp = getState(a->trace_current, chunkPoints - 1)->timestamp;
-
-    int64_t before = 0;
-    if (Modes.verbose) { before = nsThreadTime(); };
-
-    compressChunk(new, a->trace_current, chunkPoints, passbuffer, a);
-    a->trace_chunk_overall_bytes += new->compressed_size;
-    if (Modes.verbose) {
-        int64_t after = nsThreadTime();
-        fprintf(stderr, "%06x compressChunk: threadTime: %.9fs compressed_size: %8d trace_chunk_len %3d compression ratio %.2f lp %5.0fs\n",
-                a->addr, (after - before) * 1e-9, new->compressed_size, a->trace_chunk_len, stateBytes(chunkPoints) / (double) new->compressed_size,
-                (now - (getState(a->trace_current, a->trace_current_len - 1))->timestamp) / 1000.0);
-    }
+    compressChunk(a->trace_current, chunkPoints, passbuffer, a);
 
     // current_len + 1 to account for the buffered position
     int oldBytes = stateBytes(a->trace_current_len + 1);
