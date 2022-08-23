@@ -2054,7 +2054,7 @@ static void loadReplaceState() {
     load_blob(Modes.replace_state_blob, &group);
 
     char blob[1024];
-    snprintf(blob, 1024, "%s.lzol", Modes.replace_state_blob);
+    snprintf(blob, 1024, "%s.zstl", Modes.replace_state_blob);
     unlink(blob);
 
     for (uint32_t k = 0; k < group.buffer_count; k++) {
@@ -2077,7 +2077,7 @@ static void checkReplaceState() {
     if (!Modes.replace_state_blob && access(filename, R_OK) == 0) {
         for (int j = 0; j < STATE_BLOBS; j++) {
             char blob[1024];
-            snprintf(blob, 1024, "%s/blob_%02x.lzol", filename, j);
+            snprintf(blob, 1024, "%s/blob_%02x.zstl", filename, j);
             if (access(blob, R_OK) == 0) {
                 snprintf(blob, 1024, "%s/blob_%02x", filename, j);
                 Modes.replace_state_blob = strdup(blob);

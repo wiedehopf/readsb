@@ -35,23 +35,25 @@ $TCMD "mkdir -p $TTDIR; mkdir -p $RDIR; chmod a+w $RDIR"
 
 echo "$(date -u --rfc-3339=s) starting transfer from $SHOST to $THOST"
 
+suffix="zstl"
+
 for num in $(seq 0 255); do
     blob="$(printf "%02x\n" "$num")"
     TRIGGER="$SDIR/writeState"
-    LZOL="blob_${blob}.lzol"
+    BLOB="blob_${blob}.${suffix}"
     $SCMD "echo $blob > $TRIGGER; while [[ -f $TRIGGER ]]; do sleep 0.01; done;"
 
     wait # wait for previous transfer to finish before starting new transfer
 
-    $SCMD "tar -C $SDIR -c -f - $LZOL" | $TCMD "tar -C $TTDIR --overwrite -x -f - && chmod a+w $TTDIR/$LZOL && mv -f $TTDIR/$LZOL $RDIR/$LZOL;" &
-    echo "$(date -u --rfc-3339=s) transferring $LZOL"
+    $SCMD "tar -C $SDIR -c -f - $BLOB" | $TCMD "tar -C $TTDIR --overwrite -x -f - && chmod a+w $TTDIR/$BLOB && mv -f $TTDIR/$BLOB $RDIR/$BLOB;" &
+    echo "$(date -u --rfc-3339=s) transferring $BLOB"
 done
 
 wait # wait for last transfer
 
 echo "$(date -u --rfc-3339=s) transfer done, waiting for completion of state load on the target side"
 $TCMD "while ls $RDIR | grep -qs -v -e tmp; do sleep 1; done"
-$TCMD "if ls $RDIR | grep -qs lzol; then echo transfer or state loading incomplete, check target readsb log; else echo $(date -u --rfc-3339=s) state loading completed on target; fi"
+$TCMD "if ls $RDIR | grep -qs ${suffix}; then echo transfer or state loading incomplete, check target readsb log; else echo $(date -u --rfc-3339=s) state loading completed on target; fi"
 $TCMD "rm -rf $RDIR $TTDIR"
 
 rm -rf "$SSHDIR"

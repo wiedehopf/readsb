@@ -2936,7 +2936,7 @@ void load_blob(char *blob, threadpool_threadbuffers_t * buffer_group) {
                 fd = open(blob, O_RDONLY);
                 if (fd == -1) {
                     fprintf(stderr, "missing state blob:");
-                    snprintf(filename, 1024, "%s[.gz/.lzol]", blob);
+                    snprintf(filename, 1024, "%s[.gz/.lzol/.zstl]", blob);
                     perror(filename);
                     return;
                 }
