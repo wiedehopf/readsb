@@ -296,6 +296,7 @@ struct traceCache {
     int32_t entriesLen;
     int32_t json_max;
     int32_t firstRecentCache;
+    int32_t totalAlloc;
     int64_t referenceTs;
     struct traceCacheEntry *entries;
     char *json;
@@ -553,28 +554,20 @@ struct aircraft
 
   char zeroStart;
 
-  int8_t initialTraceWriteDone;
-
   uint32_t disc_cache_index;
   struct cpr_cache disc_cache[DISCARD_CACHE];
-
-  uint32_t trace_chunk_overall_bytes;
 
   uint32_t cpr_cache_index;
   struct cpr_cache cpr_cache[CPR_CACHE];
 
-  int64_t padcache;
+  // keep trace cache after cpr / disc cache
+  // stuff above is put into
 
-  uint64_t canary2;
+  struct traceCache traceCache;
 
-  struct traceCache *traceCache;
+  uint32_t trace_chunk_overall_bytes;
 
-  uint64_t canary3;
-
-  int64_t padcache2;
-
-  int64_t lastCacheDestroy;
-  int64_t lastCacheWrite;
+  int8_t initialTraceWriteDone;
 
   char zeroEnd;
 };

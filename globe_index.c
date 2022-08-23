@@ -1721,12 +1721,7 @@ static void destroyTraceCache(struct traceCache *cache) {
     if (!cache) {
         return;
     }
-    if (mprotect(cache, 4096, PROT_READ | PROT_WRITE) == -1) {
-        perror("mprotect");
-    }
-
     sfree(cache->entries);
-    sfree(cache->json);
     memset(cache, 0x0, sizeof(struct traceCache));
 }
 
@@ -1748,9 +1743,7 @@ static void traceCleanupNoUnlink(struct aircraft *a) {
     a->tracePosBuffered = 0;
     a->trace_len = 0;
 
-    a->lastCacheDestroy = mstime();
-    destroyTraceCache(a->traceCache);
-    sfree(a->traceCache);
+    destroyTraceCache(&a->traceCache);
 }
 
 void traceCleanup(struct aircraft *a) {
@@ -2199,11 +2192,9 @@ static void compressCurrent(struct aircraft *a, threadpool_buffer_t *passbuffer)
 
 void traceMaintenance(struct aircraft *a, int64_t now, threadpool_buffer_t *passbuffer) {
     // free trace cache for inactive aircraft
-    if (a->traceCache && a->traceCache->entries && now - a->seenPosReliable > TRACE_CACHE_LIFETIME) {
+    if (a->traceCache.entries && now - a->seenPosReliable > TRACE_CACHE_LIFETIME) {
         //fprintf(stderr, "%06x free traceCache\n", a->addr);
-        a->lastCacheDestroy = mstime();
-        destroyTraceCache(a->traceCache);
-        sfree(a->traceCache);
+        destroyTraceCache(&a->traceCache);
     }
 
     //fprintf(stderr, "%06x\n", a->addr);
