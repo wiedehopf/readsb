@@ -2716,20 +2716,26 @@ void trackRemoveStale(int64_t now) {
     struct craftArray *ca = &Modes.aircraftActive;
     // we must not lock ca here as aircraft freeing locks it
 
-    int section_len = ca->len / taskCount + 1;
+    int section_len = ca->len / taskCount;
+    int extra = ca->len % taskCount;
     // assign tasks
     for (int i = 0; i < taskCount; i++) {
         threadpool_task_t *task = &tasks[i];
         task_info_t *range = &infos[i];
 
         range->now = now;
-        range->from = i * section_len;
-        range->to = imin(ca->len, range->from + section_len);
+        range->from = i * section_len + imin(extra, i);
+        range->to = range->from + section_len + (i < extra ? 1 : 0);
+
+        if (range->to > ca->len || (i == taskCount - 1 && range->to != ca->len)) {
+            range->to = ca->len;
+            fprintf(stderr, "check trackRemoveStale distribution\n");
+        }
 
         task->function = activeUpdateRange;
         task->argument = range;
 
-        //fprintf(stderr, "%d %d\n", thread_start, thread_end);
+        //fprintf(stderr, "%d %d\n", range->from, range->to);
     }
 
     ca_lock_read(ca);
@@ -2747,7 +2753,8 @@ void trackRemoveStale(int64_t now) {
     static int part = 0;
     int n_parts = 32 * taskCount;
 
-    section_len = AIRCRAFT_BUCKETS / n_parts + 1;
+    section_len = AIRCRAFT_BUCKETS / n_parts;
+    extra = AIRCRAFT_BUCKETS % n_parts;
 
 
     //fprintf(stderr, "part %d\n", part);
@@ -2759,13 +2766,18 @@ void trackRemoveStale(int64_t now) {
 
         range->now = now;
 
-        range->from = part * section_len;
-        range->to = imin(AIRCRAFT_BUCKETS, range->from + section_len);
+        range->from = part * section_len + imin(extra, part);
+        range->to = range->from + section_len + (part < extra ? 1 : 0);
+
+        if (range->to > AIRCRAFT_BUCKETS || (part == n_parts - 1 && range->to != AIRCRAFT_BUCKETS)) {
+            range->to = AIRCRAFT_BUCKETS;
+            fprintf(stderr, "check trackRemoveStale distribution\n");
+        }
 
         task->function = removeStaleRange;
         task->argument = range;
 
-        //fprintf(stderr, "%d %d\n", thread_start, thread_end);
+        //fprintf(stderr, "%d %d\n", range->from, range->to);
 
         if (++part >= n_parts) {
             part = 0;
