@@ -563,11 +563,15 @@ struct aircraft
   uint32_t cpr_cache_index;
   struct cpr_cache cpr_cache[CPR_CACHE];
 
+  int64_t padcache;
+
   uint64_t canary2;
 
   struct traceCache *traceCache;
 
   uint64_t canary3;
+
+  int64_t padcache2;
 
   int64_t lastCacheDestroy;
   int64_t lastCacheWrite;
