@@ -666,6 +666,7 @@ int dbFinishUpdate() {
     fprintf(stderr, "Database update done! (critical part took %.3f seconds)\n", elapsed);
 
 
+
     return 1;
 }
 

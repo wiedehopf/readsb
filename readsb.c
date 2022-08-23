@@ -356,7 +356,10 @@ void priorityTasksRun() {
         checkReplaceState();
     }
 
-    if (mono >= Modes.next_remove_stale) {
+    // finish db update under lock
+    if (dbFinishUpdate()) {
+        // don't do trackRemoveStale at the same time as dbFinishUpdate
+    } else if (mono >= Modes.next_remove_stale) {
         pthread_mutex_lock(&Modes.hungTimerMutex);
         startWatch(&Modes.hungTimer2);
         pthread_mutex_unlock(&Modes.hungTimerMutex);
@@ -385,9 +388,6 @@ void priorityTasksRun() {
         statsUpdate(now); // needs to happen under lock
     }
 
-    // finish db update under lock
-    dbFinishUpdate();
-
     int64_t elapsed2 = lapWatch(&watch);
 
     Modes.currentTask = "unlocking";
@@ -395,7 +395,7 @@ void priorityTasksRun() {
     Modes.currentTask = "unlocked";
 
     static int64_t antiSpam;
-    if (0 || (Modes.debug_removeStaleDuration && removed_stale) || ((elapsed1 > 150 || elapsed2 > 150) && mono > antiSpam + 30 * SECONDS)) {
+    if (0 || (Modes.debug_removeStaleDuration) || ((elapsed1 > 150 || elapsed2 > 150) && mono > antiSpam + 30 * SECONDS)) {
         fprintf(stderr, "<3>High load: removeStale took %"PRIi64"/%"PRIi64" ms! stats: %d (suppressing for 30 seconds)\n", elapsed1, elapsed2, Modes.updateStats);
         antiSpam = mono;
     }

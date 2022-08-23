@@ -3640,10 +3640,14 @@ void unlinkPerm(struct aircraft *a) {
 }
 
 void traceDelete() {
+    struct hexInterval* entry = Modes.deleteTrace;
+
+    if (!entry) {
+        return;
+    }
 
     threadpool_buffer_t passbuffer = { 0 };
 
-    struct hexInterval* entry = Modes.deleteTrace;
     while (entry) {
         struct hexInterval* curr = entry;
         struct aircraft *a = aircraftGet(curr->hex);
