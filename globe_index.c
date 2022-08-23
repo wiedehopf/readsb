@@ -1914,7 +1914,7 @@ static int minCurrentPoints() {
     return alignSFOUR(8);
 }
 static int64_t traceChunkDuration() {
-    return 180 * MINUTES;
+    return 120 * MINUTES;
 }
 
 
