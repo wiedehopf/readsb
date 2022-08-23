@@ -1773,7 +1773,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     struct aircraft scratch;
     bool haveScratch = false;
     if (mm->cpr_valid || mm->sbs_pos_valid) {
-        memcpy(&scratch, a, sizeof(struct aircraft));
+        memcpy(&scratch, a, offsetof(struct aircraft, traceCache));
         haveScratch = true;
         // messages from receivers classified garbage with position get processed to see if they still send garbage
     } else if (mm->garbage) {
@@ -2443,7 +2443,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     }
 
     if (haveScratch && (mm->garbage || mm->pos_bad || mm->duplicate)) {
-        memcpy(a, &scratch, sizeof(struct aircraft));
+        memcpy(a, &scratch, offsetof(struct aircraft, traceCache));
     }
 
     if (!(mm->source < a->position_valid.source || mm->in_disc_cache || mm->garbage || mm->pos_ignore || mm->pos_receiver_range_exceeded)) {
