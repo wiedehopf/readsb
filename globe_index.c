@@ -2047,7 +2047,7 @@ static int compressChunk(fourState *source, int pointCount, threadpool_buffer_t 
                 passbuffer->cctx,
                 compressed, maxSize,
                 source, newBytes,
-                6);
+                2);
 
         if (ZSTD_isError(compressedSize)) {
             fprintf(stderr, "compressChunk() zstd error: %s\n", ZSTD_getErrorName(compressedSize));
