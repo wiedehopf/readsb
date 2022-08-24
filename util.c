@@ -1039,6 +1039,16 @@ void dump_beast_check(int64_t now) {
     if (Modes.dump_beast_index == index) {
         return;
     }
+
+    // finish old file
+    zstd_fw_t *fw = Modes.dump_fw;
+
+    if (fw->fd >= 0) {
+        zstdFwFinishFile(fw);
+    }
+
+
+    int startup = (Modes.dump_beast_index < 0);
     Modes.dump_beast_index = index;
 
     time_t nowish = index * Modes.dump_interval;
@@ -1052,13 +1062,14 @@ void dump_beast_check(int64_t now) {
     char pathbuf[PATH_MAX];
     snprintf(pathbuf, PATH_MAX, "%s/%sZ.zst", Modes.dump_beast_dir, tstring);
 
-    zstd_fw_t *fw = Modes.dump_fw;
-
-    if (fw->fd >= 0) {
-        zstdFwFinishFile(fw);
+    // unless we just restarted, delete the file
+    if (!startup) {
+        unlink(pathbuf);
     }
 
+    // start new file
     zstdFwStartFile(fw, pathbuf, 4);
+
     //fprintf(stderr, "dump_beast started file: %s\n", pathbuf);
 }
 
