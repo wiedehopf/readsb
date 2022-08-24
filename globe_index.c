@@ -1695,11 +1695,30 @@ static void tracePrune(struct aircraft *a, int64_t now) {
             fprintf(stderr, "%06x deleting %d chunks\n", a->addr, deletedChunks);
         }
         resizeTraceChunks(a, a->trace_chunk_len - deletedChunks);
-        a->trace_writeCounter = 0xc0ffee;
     }
 
     if (a->trace_current_len > 0 && getState(a->trace_current, a->trace_current_len - 1)->timestamp < keep_after) {
         traceCleanup(a);
+    }
+
+    int deleteFs = 0;
+    for (int k = 0; k < a->trace_current_len / SFOUR; k++) {
+        fourState *fs = &a->trace_current[k];
+        int64_t ts = fs->no[SFOUR - 1].timestamp;
+        if (ts >= keep_after) {
+            break;
+        }
+        deleteFs++;
+    }
+    if (deleteFs * SFOUR >= Modes.traceReserve) {
+        if (0 && Modes.verbose) {
+            fprintf(stderr, "%s%06x tracePrune a->trace_current: %d\n",
+                    ((a->addr & MODES_NON_ICAO_ADDRESS) ? "." : ". "), a->addr, SFOUR * deleteFs);
+        }
+        a->trace_current_len -= SFOUR * deleteFs;
+        a->trace_len -= SFOUR * deleteFs;
+        // keep buffered position intact -> +1
+        memmove(a->trace_current, a->trace_current + deleteFs, stateBytes(a->trace_current_len + 1));
     }
 }
 
@@ -2116,6 +2135,7 @@ static void setTrace(struct aircraft *a, fourState *source, int len, threadpool_
         a->trace_current_len = 0;
     } else if (a->trace_current_len > 0) {
         //fprintf(stderr, "%06x setTrace current memcpy, len %ld fourStates %ld stateBytes %ld\n", a->addr, (long) len, (long) getFourStates(len), (long) stateBytes(len));
+        // keep buffered position intact -> +1
         memcpy(a->trace_current, p, stateBytes(a->trace_current_len + 1));
     }
 
