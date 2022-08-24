@@ -2618,11 +2618,20 @@ static void removeStaleRange(void *arg, threadpool_threadbuffers_t * buffer_grou
     // timeout for aircraft without position
     int64_t noposTimeout = now - 5 * MINUTES;
 
+    // timeout for non-ICAO aircraft with position
+    int64_t nonIcaoPosTimeout = now - 26 * HOURS;
+
     for (int j = info->from; j < info->to; j++) {
         struct aircraft **nextPointer = &(Modes.aircraft[j]);
         while (*nextPointer) {
             struct aircraft *a = *nextPointer;
-            if ((!a->seenPosReliable && a->seen < noposTimeout) || (a->seenPosReliable && a->seenPosReliable < posTimeout)) {
+            if (
+                    (!a->seenPosReliable && a->seen < noposTimeout)
+                    || (
+                        a->seenPosReliable &&
+                        (a->seenPosReliable < posTimeout || ((a->addr & MODES_NON_ICAO_ADDRESS) && a->seenPosReliable < nonIcaoPosTimeout))
+                       )
+               ) {
                 // Count aircraft where we saw only one message before reaping them.
                 // These are likely to be due to messages with bad addresses.
                 if (a->messages == 1)
