@@ -2430,6 +2430,15 @@ int main(int argc, char **argv) {
     close(mainEpfd);
     sfree(events);
 
+    if (Modes.json_dir) {
+        // mark this instance as deactivated, webinterface won't load
+        char pathbuf[PATH_MAX];
+        snprintf(pathbuf, PATH_MAX, "%s/receiver.json", Modes.json_dir);
+        unlink(pathbuf);
+    }
+
+    threadSignalJoin(&Threads.misc);
+
     if (Modes.sdr_type != SDR_NONE) {
         threadSignalJoin(&Threads.reader);
     }
@@ -2439,17 +2448,11 @@ int main(int argc, char **argv) {
     if (Modes.json_dir) {
         threadSignalJoin(&Threads.json);
 
-        // mark this instance as deactivated, webinterface won't load
-        char pathbuf[PATH_MAX];
-        snprintf(pathbuf, PATH_MAX, "%s/receiver.json", Modes.json_dir);
-        unlink(pathbuf);
-
         if (Modes.json_globe_index) {
             threadSignalJoin(&Threads.globeJson);
             threadSignalJoin(&Threads.globeBin);
         }
     }
-    threadSignalJoin(&Threads.misc);
 
     // after miscThread for the moment
     if (Modes.api) {
