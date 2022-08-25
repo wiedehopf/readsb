@@ -2605,21 +2605,25 @@ static void removeStaleRange(void *arg, threadpool_threadbuffers_t * buffer_grou
 
     // timeout for aircraft with position
     int64_t posTimeout = now - 1 * HOURS;
+
+    // timeout for non-ICAO aircraft with position
+    int64_t nonIcaoPosTimeout = now - 30 * MINUTES;
+
     if (Modes.json_globe_index) {
         posTimeout = now - 26 * HOURS;
+        nonIcaoPosTimeout = now - 26 * HOURS;
     }
     if (Modes.state_dir && !Modes.userLocationValid) {
-        posTimeout = now - 14 * 24 * HOURS;
+        posTimeout = now - 21 * 24 * HOURS;
+        nonIcaoPosTimeout = now - 26 * HOURS;
     }
     if (Modes.debug_rough_receiver_location) {
-        posTimeout = now - 2 * 24 * HOURS;
+        posTimeout = now - 7 * 24 * HOURS;
+        nonIcaoPosTimeout = now - 26 * HOURS;
     }
 
     // timeout for aircraft without position
     int64_t noposTimeout = now - 5 * MINUTES;
-
-    // timeout for non-ICAO aircraft with position
-    int64_t nonIcaoPosTimeout = now - 26 * HOURS;
 
     for (int j = info->from; j < info->to; j++) {
         struct aircraft **nextPointer = &(Modes.aircraft[j]);
