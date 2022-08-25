@@ -36,7 +36,6 @@ struct net_service_group;
 struct messageBuffer;
 
 typedef int (*read_fn)(struct client *, char *, int, int64_t, struct messageBuffer *);
-typedef void (*heartbeat_fn)(struct net_service *);
 
 typedef enum
 {
@@ -75,6 +74,8 @@ struct net_service
     char* unixSocket; // path of unix socket
     int sendqOverrideSize;
     int recvqOverrideSize;
+    const char *heartbeat_msg;
+    int32_t heartbeat_len;
 };
 
 #define NET_SERVICE_GROUP_MAX 16
@@ -183,7 +184,6 @@ struct net_writer
     int dataUsed; // number of bytes of write buffer currently used
     int connections; // number of active clients
     struct net_service *service; // owning service
-    heartbeat_fn send_heartbeat; // function that queues a heartbeat if needed
     int64_t lastWrite; // time of last write to clients
     uint64_t lastReceiverId;
     int noTimestamps;
