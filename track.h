@@ -514,7 +514,7 @@ struct aircraft
   data_validity acas_ra_valid;
   int64_t unused12;
   uint64_t canary1;
-  int64_t unused14;
+  int64_t squawkTentativeChanged;
   double magneticDeclination;
   int64_t updatedDeclination;
 

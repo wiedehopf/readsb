@@ -85,7 +85,7 @@ static int32_t currentReduceInterval(int64_t now) {
     return Modes.net_output_beast_reduce_interval * (1 + (Modes.doubleBeastReduceIntervalUntil > now));
 }
 
-static int accept_data(data_validity *d, datasource_t source, struct modesMessage *mm, struct aircraft *a, int reduce_often) {
+static inline int will_accept_data(data_validity *d, datasource_t source, struct modesMessage *mm, struct aircraft *a) {
     int64_t now = mm->sysTimestamp;
     if (source == SOURCE_INVALID) {
         return 0;
@@ -133,6 +133,16 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
         fprintf(stderr, "%d %s", mm->duplicate, source_string(mm->source));
     }
 
+    return 1;
+}
+
+static int accept_data(data_validity *d, datasource_t source, struct modesMessage *mm, struct aircraft *a, int reduce_often) {
+
+    if (!will_accept_data(d, source, mm, a)) {
+        return 0;
+    }
+
+    int64_t now = mm->sysTimestamp;
 
     d->source = source;
     if (unlikely(source == SOURCE_PRIO)) {
@@ -1913,38 +1923,44 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (mm->squawk_valid) {
         uint32_t oldsquawk = a->squawk;
 
-        if (a->squawkTentative != mm->squawk && now > a->squawk_valid.next_reduce_forward
-                && mm->source >= a->squawk_valid.source && (now - a->squawk_valid.updated < 15 * SECONDS || Modes.netReceiverId)) {
-            a->squawk_valid.next_reduce_forward = now + 4 * currentReduceInterval(now);
+        int changeTentative = 0;
+        if (a->squawkTentative != mm->squawk && now - a->seen < 15 * SECONDS && will_accept_data(&a->squawk_valid, mm->source, mm, a)) {
+            a->squawk_valid.next_reduce_forward = now + currentReduceInterval(now);
             mm->reduce_forward = 1;
+            changeTentative = 1;
         }
-        if (a->squawkTentative == mm->squawk && accept_data(&a->squawk_valid, mm->source, mm, a, REDUCE_RARE)) {
+        if (a->squawkTentative == mm->squawk && now - a->squawkTentativeChanged > 750 && accept_data(&a->squawk_valid, mm->source, mm, a, REDUCE_RARE)) {
             if (mm->squawk != a->squawk) {
                 a->modeA_hit = 0;
             }
             a->squawk = mm->squawk;
         }
-        a->squawkTentative = mm->squawk;
+        if (changeTentative) {
+            a->squawkTentative = mm->squawk;
+            a->squawkTentativeChanged = now;
+        }
 
         if (Modes.debug_squawk
                 && (a->squawk == 0x7500 || a->squawk == 0x7600 || a->squawk == 0x7700
+                    || a->squawkTentative == 0x7500 || a->squawkTentative == 0x7600 || a->squawkTentative == 0x7700
                     || oldsquawk == 0x7500 || oldsquawk == 0x7600 || oldsquawk == 0x7700)
            ) {
-            if (a->squawk == oldsquawk && a->squawk != mm->squawk) {
+            char uuid[32]; // needs 18 chars and null byte
+            sprint_uuid1(mm->receiverId, uuid);
+            if (changeTentative) {
                 if (1) {
-                    fprintf(stderr, "%06x DF: %02d a->squawk: %04x ignored: %04x\n",
+                    fprintf(stderr, "%06x DF: %02d a->squawk: %04x tentative %04x (receiverId: %s)\n",
                             a->addr,
                             mm->msgtype,
                             a->squawk,
-                            mm->squawk);
+                            mm->squawk,
+                            uuid);
                 }
             } else {
                 static int64_t antiSpam;
                 if (now > antiSpam + 15 * SECONDS || oldsquawk != a->squawk) {
                     antiSpam = now;
-                    char uuid[32]; // needs 18 chars and null byte
-                    sprint_uuid1(mm->receiverId, uuid);
-                    fprintf(stderr, "%06x DF: %02d a->squawk: %04x -> %04x (receiverId: %s)\n",
+                    fprintf(stderr, "%06x DF: %02d a->squawk: %04x   --->    %04x (receiverId: %s)\n",
                             a->addr,
                             mm->msgtype,
                             oldsquawk,
