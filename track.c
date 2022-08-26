@@ -77,6 +77,8 @@ static uint16_t simpleHash(uint64_t receiverId) {
     return simpleHash;
 }
 
+static float knots_to_meterpersecond = (1852.0 / 3600.0);
+
 
 // Should we accept some new data from the given source?
 // If so, update the validity and return 1
@@ -558,9 +560,9 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
     }
 
     if (distance > 2.5f && (track_diff < 70 || track_diff == -1)) {
-        if (distance <= range + (((float) elapsed + 50.0f) * (1.0f / 1000.0f)) * (transmitted_speed * (1852.0f / 3600.0f))) {
+        if (distance <= range + (((float) elapsed + 50.0f) * (1.0f / 1000.0f)) * (transmitted_speed * knots_to_meterpersecond)) {
             mm->speedUnreliable = -1;
-        } else if (distance > range + (((float) elapsed + 400.0f) * (1.0f / 1000.0f)) * (transmitted_speed * (1852.0f / 3600.0f))) {
+        } else if (distance > range + (((float) elapsed + 400.0f) * (1.0f / 1000.0f)) * (transmitted_speed * knots_to_meterpersecond)) {
             mm->speedUnreliable = +1;
         }
     }
@@ -1051,7 +1053,8 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
                 && status_elapsed > 5 * MINUTES
            ) {
             double dist = greatcircle(a->latReliable, a->lonReliable, mm->decoded_lat, mm->decoded_lon, 0);
-            if (dist > 200e3) {
+            double estimate = a->gs_reliable * knots_to_meterpersecond * (valid_elapsed * 1e-3);
+            if (dist > 200e3 && fabs(estimate - dist) > 100e3) {
                 a->lastStatusDiscarded++;
                 if (((Modes.debug_lastStatus & 1) && a->lastStatusDiscarded > 8) || (Modes.debug_lastStatus & 4)) {
                     char uuid[32]; // needs 18 chars and null byte
@@ -1112,6 +1115,14 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
         a->pos_nic_reliable = mm->decoded_nic;
         a->pos_rc_reliable = mm->decoded_rc;
         a->surfaceCPR_allow_ac_rel = 1; // allow ac relative CPR for ground positions
+
+
+        if (trackDataValid(&a->gs_valid)) {
+            a->gs_reliable = a->gs;
+        }
+        if (trackDataValid(&a->track_valid)) {
+            a->track_reliable = a->track;
+        }
 
         traceAdd(a, mm, now, stale);
 

@@ -512,7 +512,8 @@ struct aircraft
   unsigned char acas_ra[7]; // mm->MV from last acas RA message
   unsigned char acas_flags; // maybe use for some flags, would be padding otherwise
   data_validity acas_ra_valid;
-  int64_t unused12;
+  float gs_reliable;
+  float track_reliable;
   uint64_t canary1;
   int64_t squawkTentativeChanged;
   double magneticDeclination;
