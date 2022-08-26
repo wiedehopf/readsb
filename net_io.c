@@ -806,22 +806,24 @@ void modesInitNet(void) {
 
     serviceListen(sbs_out_jaero, Modes.net_bind_address, Modes.net_output_jaero_ports, Modes.net_epfd);
 
-    if (strlen(Modes.net_output_sbs_ports) == 5 && Modes.net_output_sbs_ports[4] == '5') {
+    int sbs_port_len = strlen(Modes.net_output_sbs_ports);
+    int pos = sbs_port_len - 1;
+    if (sbs_port_len <= 5 && Modes.net_output_sbs_ports[pos] == '5') {
 
         char *replay = strdup(Modes.net_output_sbs_ports);
-        replay[4] = '6';
+        replay[pos] = '6';
         serviceListen(sbs_out_replay, Modes.net_bind_address, replay, Modes.net_epfd);
 
         char *mlat = strdup(Modes.net_output_sbs_ports);
-        mlat[4] = '7';
+        mlat[pos] = '7';
         serviceListen(sbs_out_mlat, Modes.net_bind_address, mlat, Modes.net_epfd);
 
         char *prio = strdup(Modes.net_output_sbs_ports);
-        prio[4] = '8';
+        prio[pos] = '8';
         serviceListen(sbs_out_prio, Modes.net_bind_address, prio, Modes.net_epfd);
 
         char *jaero = strdup(Modes.net_output_sbs_ports);
-        jaero[4] = '9';
+        jaero[pos] = '9';
         if (sbs_out_jaero->listener_count == 0)
             serviceListen(sbs_out_jaero, Modes.net_bind_address, jaero, Modes.net_epfd);
 
@@ -841,17 +843,19 @@ void modesInitNet(void) {
 
     serviceListen(sbs_in_jaero, Modes.net_bind_address, Modes.net_input_jaero_ports, Modes.net_epfd);
 
-    if (strlen(Modes.net_input_sbs_ports) == 5 && Modes.net_input_sbs_ports[4] == '6') {
+    sbs_port_len = strlen(Modes.net_input_sbs_ports);
+    pos = sbs_port_len - 1;
+    if (sbs_port_len <= 5 && Modes.net_input_sbs_ports[pos] == '6') {
         char *mlat = strdup(Modes.net_input_sbs_ports);
-        mlat[4] = '7';
+        mlat[pos] = '7';
         serviceListen(sbs_in_mlat, Modes.net_bind_address, mlat, Modes.net_epfd);
 
         char *prio = strdup(Modes.net_input_sbs_ports);
-        prio[4] = '8';
+        prio[pos] = '8';
         serviceListen(sbs_in_prio, Modes.net_bind_address, prio, Modes.net_epfd);
 
         char *jaero = strdup(Modes.net_input_sbs_ports);
-        jaero[4] = '9';
+        jaero[pos] = '9';
         if (sbs_in_jaero->listener_count == 0)
             serviceListen(sbs_in_jaero, Modes.net_bind_address, jaero, Modes.net_epfd);
 
