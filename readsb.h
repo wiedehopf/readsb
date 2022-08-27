@@ -296,8 +296,6 @@ typedef enum {
 
 #define MODES_NET_HEARTBEAT_INTERVAL 60000      // milliseconds
 
-#define NET_MAX_CONNECTORS 256
-
 //#define ENABLE_DF24
 
 #define HISTORY_SIZE 120
@@ -682,7 +680,7 @@ struct _Modes
     int64_t net_output_vrs_interval;
     int64_t net_output_json_interval;
     int net_output_json_include_nopos;
-    struct net_connector **net_connectors; // client connectors
+    struct net_connector *net_connectors; // client connectors
     int net_connectors_count;
     int net_connectors_size;
     int64_t synthetic_now;

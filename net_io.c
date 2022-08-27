@@ -560,7 +560,7 @@ static void serviceReconnectCallback(int64_t now) {
     //    - Otherwise, if enough time has passed, try reconnecting
 
     for (int i = 0; i < Modes.net_connectors_count; i++) {
-        struct net_connector *con = Modes.net_connectors[i];
+        struct net_connector *con = &Modes.net_connectors[i];
         if (!con->connected) {
             // If we've exceeded our connect timeout, close connection.
             if (con->connecting && now >= con->connect_timeout) {
@@ -892,7 +892,7 @@ void modesInitNet(void) {
     // serviceListen(Modes.uat_in_service, Modes.net_bind_address, "1234", Modes.net_epfd);
 
     for (int i = 0; i < Modes.net_connectors_count; i++) {
-        struct net_connector *con = Modes.net_connectors[i];
+        struct net_connector *con = &Modes.net_connectors[i];
         if (strcmp(con->protocol, "beast_out") == 0)
             con->service = beast_out;
         else if (strcmp(con->protocol, "beast_in") == 0)
@@ -3847,14 +3847,13 @@ void cleanupNetwork(void) {
     close(Modes.net_epfd);
 
     for (int i = 0; i < Modes.net_connectors_count; i++) {
-        struct net_connector *con = Modes.net_connectors[i];
+        struct net_connector *con = &Modes.net_connectors[i];
         if (con->gai_request_in_progress) {
             pthread_join(con->thread, NULL);
         }
         sfree(con->address0);
         freeaddrinfo(con->addr_info);
         pthread_mutex_destroy(&con->mutex);
-        sfree(con);
     }
     sfree(Modes.net_connectors);
     sfree(Modes.net_events);
