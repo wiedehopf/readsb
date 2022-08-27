@@ -664,6 +664,54 @@ static void *globeBinEntryPoint(void *arg) {
     return NULL;
 }
 
+static void timingStatistics(struct mag_buf *buf) {
+    if (0) {
+        static int64_t last;
+
+        double elapsed = buf->sysMicroseconds - last;
+        last = buf->sysMicroseconds;
+
+        static double last_elapsed;
+        // diff more than 2 ms:
+        if (fabs(elapsed - last_elapsed) > 200) {
+            fprintf(stderr, "time between USB transfers: %.0f us\n", elapsed);
+            last_elapsed = elapsed;
+        }
+    }
+
+    {
+        static int64_t last_sys;
+        static int64_t last_sample;
+        if (!last_sys) {
+            last_sys = buf->sysMicroseconds;
+            last_sample = buf->sampleTimestamp;
+        }
+        double elapsed_sys = buf->sysMicroseconds - last_sys;
+        if (elapsed_sys > 30 * SECONDS * 1000) {
+            double elapsed_sample = buf->sampleTimestamp - last_sample;
+            double freq_ratio = elapsed_sample / (elapsed_sys * 12.0);
+            double diff_us = elapsed_sys - elapsed_sample / 12.0;
+            double ppm = (freq_ratio - 1) * 1e6;
+            // ignore the first 30 seconds for alerting purposes
+            if (last_sample != 0) {
+                Modes.estimated_ppm = ppm;
+                if (fabs(ppm) > 600) {
+                    if (ppm < -1000) {
+                        int packets_lost = (int) nearbyint(ppm / -1820);
+                        Modes.stats_current.samples_lost += packets_lost * Modes.sdr_buf_samples;
+                        fprintf(stderr, "Lost %d packets (%.1f us) on USB, MLAT could be UNSTABLE, check sync! (ppm: %.0f)"
+                                "(or the system clock jumped for some reason)\n", packets_lost, diff_us, ppm);
+                    } else {
+                        fprintf(stderr, "SDR ppm out of specification (could cause MLAT issues) or local clock jumped / not syncing with ntp or chrony! ppm: %.0f\n", ppm);
+                    }
+                }
+            }
+            last_sys = buf->sysMicroseconds;
+            last_sample = buf->sampleTimestamp;
+        }
+    }
+}
+
 static void *decodeEntryPoint(void *arg) {
     // only go higher priority if we have multiple processors
     if (Modes.num_procs > 1 && Modes.num_procs > Modes.decodeThreads) {
@@ -746,53 +794,9 @@ static void *decodeEntryPoint(void *arg) {
                 pthread_cond_signal(&Threads.reader.cond);
                 unlockReader();
 
-
-                if (0) {
-                    static int64_t last;
-
-                    double elapsed = buf->sysMicroseconds - last;
-                    last = buf->sysMicroseconds;
-
-                    static double last_elapsed;
-                    // diff more than 2 ms:
-                    if (fabs(elapsed - last_elapsed) > 200) {
-                        fprintf(stderr, "time between USB transfers: %.0f us\n", elapsed);
-                        last_elapsed = elapsed;
-                    }
-                }
-
                 Modes.stats_current.samples_lost += Modes.sdr_buf_samples - buf->length;
-                {
-                    static int64_t last_sys;
-                    static int64_t last_sample;
-                    if (!last_sys) {
-                        last_sys = buf->sysMicroseconds;
-                        last_sample = buf->sampleTimestamp;
-                    }
-                    double elapsed_sys = buf->sysMicroseconds - last_sys;
-                    if (elapsed_sys > 30 * SECONDS * 1000) {
-                        double elapsed_sample = buf->sampleTimestamp - last_sample;
-                        double freq_ratio = elapsed_sample / (elapsed_sys * 12.0);
-                        double diff_us = elapsed_sys - elapsed_sample / 12.0;
-                        double ppm = (freq_ratio - 1) * 1e6;
-                        // ignore the first 30 seconds for alerting purposes
-                        if (last_sample != 0) {
-                            Modes.estimated_ppm = ppm;
-                            if (fabs(ppm) > 600) {
-                                if (ppm < -1000) {
-                                    int packets_lost = (int) nearbyint(ppm / -1820);
-                                    Modes.stats_current.samples_lost += packets_lost * Modes.sdr_buf_samples;
-                                    fprintf(stderr, "Lost %d packets (%.1f us) on USB, MLAT could be UNSTABLE, check sync! (ppm: %.0f)"
-                                            "(or the system clock jumped for some reason)\n", packets_lost, diff_us, ppm);
-                                } else {
-                                    fprintf(stderr, "SDR ppm out of specification (could cause MLAT issues) or local clock jumped / not syncing with ntp or chrony! ppm: %.0f\n", ppm);
-                                }
-                            }
-                        }
-                        last_sys = buf->sysMicroseconds;
-                        last_sample = buf->sampleTimestamp;
-                    }
-                }
+
+                timingStatistics(buf);
 
                 watchdogCounter = 100; // roughly 10 seconds
             } else {
