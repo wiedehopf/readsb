@@ -1220,11 +1220,19 @@ static int make_net_connector(char *arg) {
     char* token[maxTokens];
     tokenize(&connect_string, ",", token, maxTokens);
 
-    con->address = con->address0 = token[0];
-    con->port = con->port0 = token[1];
-    con->protocol = token[2];
-    con->address1 = token[3];
-    con->port1 = token[4];
+    int k = 0;
+    con->address = con->address0 = token[k++];
+    con->port = con->port0 = token[k++];
+    con->protocol = token[k++];
+
+    if (token[k] && strcmp(token[k], "silent_fail") == 0) {
+        k++;
+        con->silent_fail = 1;
+    }
+
+    con->address1 = token[k++];
+    con->port1 = token[k++];
+
 
     if (pthread_mutex_init(&con->mutex, NULL)) {
         fprintf(stderr, "Unable to initialize connector mutex!\n");

@@ -322,8 +322,10 @@ static void checkServiceConnected(struct net_connector *con, int64_t now) {
 
     if (optval != 0) {
         // only 0 means "connection ok"
-        fprintf(stderr, "%s: Connection to %s%s port %s failed: %d (%s)\n",
-                con->service->descr, con->address, con->resolved_addr, con->port, optval, strerror(optval));
+        if (!con->silent_fail) {
+            fprintf(stderr, "%s: Connection to %s%s port %s failed: %d (%s)\n",
+                    con->service->descr, con->address, con->resolved_addr, con->port, optval, strerror(optval));
+        }
         con->connecting = 0;
         anetCloseSocket(con->fd);
         return;
@@ -487,7 +489,9 @@ static void serviceConnect(struct net_connector *con, int64_t now) {
         }
 
         if (con->gai_error) {
-            fprintf(stderr, "%s: Name resolution for %s failed: %s\n", con->service->descr, con->address, gai_strerror(con->gai_error));
+            if (!con->silent_fail) {
+                fprintf(stderr, "%s: Name resolution for %s failed: %s\n", con->service->descr, con->address, gai_strerror(con->gai_error));
+            }
             // limit name resolution attempts via backoff
             con->next_reconnect = now + con->backoff;
             con->backoff = imin(Modes.net_connector_delay, 2 * con->backoff);
@@ -587,8 +591,10 @@ static void serviceReconnectCallback(int64_t now) {
         if (!con->connected) {
             // If we've exceeded our connect timeout, close connection.
             if (con->connecting && now >= con->connect_timeout) {
-                fprintf(stderr, "%s: Connection to %s%s port %s timed out.\n",
-                        con->service->descr, con->address, con->resolved_addr, con->port);
+                if (!con->silent_fail) {
+                    fprintf(stderr, "%s: Connection to %s%s port %s timed out.\n",
+                            con->service->descr, con->address, con->resolved_addr, con->port);
+                }
                 con->connecting = 0;
                 // delete dummyClient epollEvent for connection that is being established
                 epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, con->fd, &con->dummyClient.epollEvent);
