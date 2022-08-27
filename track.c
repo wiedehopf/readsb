@@ -2641,10 +2641,10 @@ static void removeStaleRange(void *arg, threadpool_threadbuffers_t * buffer_grou
         nonIcaoPosTimeout = now - 26 * HOURS;
     }
     if (Modes.state_dir && !Modes.userLocationValid) {
-        posTimeout = now - 21 * 24 * HOURS;
+        posTimeout = now - 6 * 28 * 24 * HOURS; // 6 months
         nonIcaoPosTimeout = now - 26 * HOURS;
     }
-    if (Modes.debug_rough_receiver_location) {
+    if (0 && Modes.debug_rough_receiver_location) {
         posTimeout = now - 7 * 24 * HOURS;
         nonIcaoPosTimeout = now - 26 * HOURS;
     }
