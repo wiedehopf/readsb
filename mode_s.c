@@ -1883,7 +1883,7 @@ void displayModesMessage(struct modesMessage *mm) {
         gmtime_r(&nowTime, &local);
         char timebuf[512];
         strftime(timebuf, 128, "%T", &local);
-        printf("utcTime: %s.%ld epoch: %.3f\n", timebuf, (long) mm->sysTimestamp % 1000, mm->sysTimestamp / 1000.0);
+        printf("utcTime: %s.%lld epoch: %.3f\n", timebuf, (long long) mm->sysTimestamp % 1000, mm->sysTimestamp / 1000.0);
     }
 
     if (mm->sbs_in) {
