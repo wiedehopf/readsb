@@ -2972,14 +2972,6 @@ static int readClient(struct client *c, int64_t now) {
 
     int left = c->bufmax - c->buflen - 4; // leave 4 extra byte for NUL termination in the ASCII case
 
-    // If our buffer is full discard it, this is some badly formatted shit
-    if (left <= 0) {
-        c->garbage += c->buflen;
-        Modes.stats_current.remote_malformed_beast += c->buflen;
-        c->buflen = 0;
-        left = c->bufmax - c->buflen - 4; // leave 4 extra byte for NUL termination in the ASCII case
-                                          // If there is garbage, read more to discard it ASAP
-    }
     if (c->remote) {
         nread = recv(c->fd, c->buf + c->buflen, left, 0);
     } else {
@@ -3134,6 +3126,23 @@ static int readAscii(struct client *c, int64_t now, struct messageBuffer *mb) {
     //
     char *p;
 
+    // replace null bytes with newlines so the routine doesn't stop working
+    // while null bytes are an illegal input, let's deal with them regardless
+    if (memchr(c->som, '\0', c->eod - c->som)) {
+        p = c->som;
+        while (p < c->eod) {
+            if (*p == '\0') {
+                *p = '\n';
+            }
+            p++;
+        }
+        // warn about illegal input
+        static int64_t antiSpam;
+        if (now > antiSpam) {
+            antiSpam = now + 30 * SECONDS;
+            fprintf(stderr, "%s from %s port %s: Bad format, at least one null byte in input data!\n", c->service->descr, c->host, c->port);
+        }
+    }
     while (c->som < c->eod && (p = strstr(c->som, c->service->read_sep)) != NULL) { // end of first message if found
         *p = '\0'; // The handler expects null terminated strings
                    // remove \r for strings that still have it at the end
@@ -3162,21 +3171,6 @@ static int readBeast(struct client *c, int64_t now, struct messageBuffer *mb) {
 
     //fprintf(stderr, "readBeast\n");
 
-    // disconnect garbage feeds
-    if (c->garbage >= GARBAGE_THRESHOLD) {
-
-        *c->eod = '\0';
-        char sample[64];
-        hexEscapeString(c->som, sample, sizeof(sample));
-        sample[sizeof(sample) - 1] = '\0';
-        if (c->proxy_string[0] != '\0')
-            fprintf(stderr, "Garbage: Close: %s sample: %s\n", c->proxy_string, sample);
-        else
-            fprintf(stderr, "Garbage: Close: %s port %s sample: %s\n", c->host, c->port, sample);
-
-        modesCloseClient(c);
-        return -1;
-    }
     while (c->som < c->eod && ((p = memchr(c->som, (char) 0x1a, c->eod - c->som)) != NULL)) { // The first byte of buffer 'should' be 0x1a
 
         c->garbage += p - c->som;
@@ -3580,7 +3574,11 @@ static void modesReadFromClient(struct client *c, struct messageBuffer *mb) {
             c->eod = c->buf + c->buflen; // one byte past end of data
             // Always NUL-terminate so we are free to use strstr()
             // nb: we never fill the last byte of the buffer with read data (see above) so this is safe
-            *c->eod = '\0';
+            if (likely(c->buflen < c->bufmax)) {
+                *c->eod = '\0';
+            } else {
+                fprintf(stderr, "wtf Dieh2hau\n");
+            }
             c->bufferToProcess = 1;
 
             mb->activeClient = c;
@@ -3614,7 +3612,33 @@ static void modesReadFromClient(struct client *c, struct messageBuffer *mb) {
             c->eod = c->buf + c->buflen; // one byte past end of data
                                          // Always NUL-terminate so we are free to use strstr()
                                          // nb: we never fill the last byte of the buffer with read data (see above) so this is safe
+        }
+
+        // disconnect garbage feeds
+        if (c->garbage >= GARBAGE_THRESHOLD) {
+
             *c->eod = '\0';
+            char sample[64];
+            hexEscapeString(c->som, sample, sizeof(sample));
+            sample[sizeof(sample) - 1] = '\0';
+            if (c->proxy_string[0] != '\0') {
+                fprintf(stderr, "Garbage: Close: %s sample: %s\n", c->proxy_string, sample);
+            } else {
+                fprintf(stderr, "Garbage: Close: %s port %s sample: %s\n", c->host, c->port, sample);
+            }
+
+            modesCloseClient(c);
+            return;
+        }
+
+        // If our buffer is full after processing, discard it, this is some badly formatted shit
+        if (c->buflen == c->bufmax) {
+            c->garbage += c->buflen;
+            Modes.stats_current.remote_malformed_beast += c->buflen;
+
+            c->buflen = 0;
+            c->som = c->buf;
+            c->eod = c->buf + c->buflen;
         }
     }
 
