@@ -1954,8 +1954,9 @@ basestation_invalid:
     for (size_t i = 0; i < line_len; i++)
         line[i] = (line[i] == '\0' ? ',' : line[i]);
 
-    if (Modes.debug_garbage)
-        fprintf(stderr, "SBS invalid: %.*s\n", (int) line_len, line);
+    if (Modes.debug_garbage) {
+        fprintf(stderr, "SBS invalid: %.*s (anything over 200 characters cut)\n", (int) imin(200, line_len), line);
+    }
     Modes.stats_current.remote_received_basestation_invalid++;
     return 0;
 }
@@ -2936,25 +2937,38 @@ static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now
     return 0;
 }
 
-static const char *hexEscapeString(const char *str, char *buf, int len) {
-    const char *in = str;
-    char *out = buf, *end = buf + len - 10;
+static const char *hexDumpString(const char *str, int strlen, char *buf, int buflen) {
+    int max = buflen / 4 - 4;
+    if (max <= 0) {
+        // fail silently
+        buf[0] = 0;
+        return buf;
+    }
 
-    for (; out < end; ++in) {
-        unsigned char ch = *in;
-        *out++ = '.';
-        if (ch == '"' || ch == '\\') {
-            *out++ = '\\';
-            *out++ = ch;
-        } else if (ch < 32 || ch > 126) {
-            out = safe_snprintf(out, end, "%02x", ch);
+    char *out = buf;
+    char *end = buf + buflen;
+
+    for (int k = 0; k < max && k < strlen; k++) {
+        out = safe_snprintf(out, end, "%02x ", (unsigned char) str[k]);
+    }
+
+    out = safe_snprintf(out, end, "|");
+
+    for (int k = 0; k < max && k < strlen; k++) {
+        unsigned char ch = str[k];
+        if (ch < 32 || ch > 126) {
+            out = safe_snprintf(out, end, ".");
         } else {
-            *out++ = ' ';
-            *out++ = ch;
+            out = safe_snprintf(out, end, "%c", (unsigned char) ch);
         }
     }
 
-    *out++ = 0;
+    out = safe_snprintf(out, end, "|");
+
+    if (out >= end) {
+        fprintf(stderr, "hexDumpstring: check logic\n");
+    }
+
     return buf;
 }
 
@@ -2971,6 +2985,20 @@ static int readClient(struct client *c, int64_t now) {
         c->buflen = 0;
 
     int left = c->bufmax - c->buflen - 4; // leave 4 extra byte for NUL termination in the ASCII case
+
+
+    // If our buffer is full discard it, this is some badly formatted shit
+    if (left <= 0) {
+        c->garbage += c->buflen;
+        Modes.stats_current.remote_malformed_beast += c->buflen;
+
+        c->buflen = 0;
+        c->som = c->buf;
+        c->eod = c->buf + c->buflen;
+
+        left = c->bufmax - c->buflen - 4; // leave 4 extra byte for NUL termination in the ASCII case
+                                          // If there is garbage, read more to discard it ASAP
+    }
 
     if (c->remote) {
         nread = recv(c->fd, c->buf + c->buflen, left, 0);
@@ -3138,7 +3166,7 @@ static int readAscii(struct client *c, int64_t now, struct messageBuffer *mb) {
         }
         // warn about illegal input
         static int64_t antiSpam;
-        if (now > antiSpam) {
+        if (Modes.debug_garbage && now > antiSpam) {
             antiSpam = now + 30 * SECONDS;
             fprintf(stderr, "%s from %s port %s: Bad format, at least one null byte in input data!\n", c->service->descr, c->host, c->port);
         }
@@ -3299,7 +3327,7 @@ static int readBeast(struct client *c, int64_t now, struct messageBuffer *mb) {
                 if (sampleStart < c->buf)
                     sampleStart = c->buf;
                 *c->som = 'X';
-                hexEscapeString(sampleStart, sample, sizeof(sample));
+                hexDumpString(sampleStart, c->eod - sampleStart, sample, sizeof(sample));
                 *c->som = 0x1a;
                 sample[sizeof(sample) - 1] = '\0';
                 fprintf(stderr, "modeAC: som pos %d, sample %s, eom > c->eod %d\n", (int) (c->som - c->buf), sample, eom > c->eod);
@@ -3383,7 +3411,7 @@ static int readBeast(struct client *c, int64_t now, struct messageBuffer *mb) {
                             if (sampleStart < c->buf)
                                 sampleStart = c->buf;
                             *c->som = 'X';
-                            hexEscapeString(sampleStart, sample, sizeof(sample));
+                            hexDumpString(sampleStart, c->eod - sampleStart, sample, sizeof(sample));
                             *c->som = 0x1a;
                             sample[sizeof(sample) - 1] = '\0';
                             fprintf(stderr, "not a double Escape: som pos %d, sample %s, eom - som %d\n", (int) (c->som - c->buf), sample, (int) (eom - c->som));
@@ -3618,8 +3646,8 @@ static void modesReadFromClient(struct client *c, struct messageBuffer *mb) {
         if (c->garbage >= GARBAGE_THRESHOLD) {
 
             *c->eod = '\0';
-            char sample[64];
-            hexEscapeString(c->som, sample, sizeof(sample));
+            char sample[256];
+            hexDumpString(c->som, c->eod - c->som, sample, sizeof(sample));
             sample[sizeof(sample) - 1] = '\0';
             if (c->proxy_string[0] != '\0') {
                 fprintf(stderr, "Garbage: Close: %s sample: %s\n", c->proxy_string, sample);
@@ -3629,16 +3657,6 @@ static void modesReadFromClient(struct client *c, struct messageBuffer *mb) {
 
             modesCloseClient(c);
             return;
-        }
-
-        // If our buffer is full after processing, discard it, this is some badly formatted shit
-        if (c->buflen == c->bufmax) {
-            c->garbage += c->buflen;
-            Modes.stats_current.remote_malformed_beast += c->buflen;
-
-            c->buflen = 0;
-            c->som = c->buf;
-            c->eod = c->buf + c->buflen;
         }
     }
 
