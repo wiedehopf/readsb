@@ -475,6 +475,8 @@ after_pre:
         Modes.stats_current.noise_power_sum += (mag->mean_power * mag->length - sum_signal_power);
         Modes.stats_current.noise_power_count += mag->length;
     }
+
+    netDrainMessageBuffers();
 }
 
 
@@ -752,4 +754,6 @@ void demodulate2400AC(struct mag_buf *mag) {
         f1_sample += (20 * 87 / 25);
         Modes.stats_current.demod_modeac++;
     }
+
+    netDrainMessageBuffers();
 }

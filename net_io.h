@@ -222,6 +222,7 @@ typedef union __packed {
 } hulc_status_msg_t;
 
 void netUseMessage(struct modesMessage *mm);
+void netDrainMessageBuffers();
 struct modesMessage *netGetMM();
 
 

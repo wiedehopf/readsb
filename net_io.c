@@ -4405,3 +4405,10 @@ void netUseMessage(struct modesMessage *mm) {
         drainMessageBuffer(buf);
     }
 }
+
+void netDrainMessageBuffers() {
+    for (int kt = 0; kt < Modes.decodeThreads; kt++) {
+        struct messageBuffer *mb = &Modes.netMessageBuffer[0];
+        drainMessageBuffer(mb);
+    }
+}
