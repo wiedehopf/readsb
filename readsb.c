@@ -1206,23 +1206,25 @@ static void cleanup_and_exit(int code) {
 static int make_net_connector(char *arg) {
     if (!Modes.net_connectors || Modes.net_connectors_count + 1 > Modes.net_connectors_size) {
         Modes.net_connectors_size = Modes.net_connectors_count * 2 + 8;
-        Modes.net_connectors = realloc(Modes.net_connectors,
-                sizeof(struct net_connector *) * (size_t) Modes.net_connectors_size);
+        Modes.net_connectors = realloc(Modes.net_connectors, sizeof(struct net_connector) * (size_t) Modes.net_connectors_size);
         if (!Modes.net_connectors) {
             fprintf(stderr, "realloc error net_connectors\n");
             exit(1);
         }
     }
-    struct net_connector *con = cmalloc(sizeof(struct net_connector));
-    memset(con, 0, sizeof(struct net_connector));
-    Modes.net_connectors[Modes.net_connectors_count++] = con;
+    struct net_connector *con = &Modes.net_connectors[Modes.net_connectors_count++];
+    memset(con, 0x0, sizeof(struct net_connector));
     char *connect_string = strdup(arg);
-    char *saveptr = NULL;
-    con->address = con->address0 = strtok_r(connect_string, ",", &saveptr);
-    con->port = con->port0 = strtok_r(NULL, ",", &saveptr);
-    con->protocol = strtok_r(NULL, ",", &saveptr);
-    con->address1 = strtok_r(NULL, ",", &saveptr);
-    con->port1 = strtok_r(NULL, ",", &saveptr);
+
+    int maxTokens = 128;
+    char* token[maxTokens];
+    tokenize(&connect_string, ",", token, maxTokens);
+
+    con->address = con->address0 = token[0];
+    con->port = con->port0 = token[1];
+    con->protocol = token[2];
+    con->address1 = token[3];
+    con->port1 = token[4];
 
     if (pthread_mutex_init(&con->mutex, NULL)) {
         fprintf(stderr, "Unable to initialize connector mutex!\n");
@@ -1289,7 +1291,7 @@ static int parseLongs(char *p, long long *results, int result_size) {
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     //fprintf(stderr, "parse_opt(%d, %s, argp_state*)\n", key, arg);
-    int maxTokens = 16;
+    int maxTokens = 128;
     char* token[maxTokens];
     switch (key) {
         case OptDevice:

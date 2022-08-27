@@ -855,7 +855,7 @@ struct char_buffer generatePromFile(int64_t now) {
 
 
     for (int i = 0; i < Modes.net_connectors_count; i++) {
-        struct net_connector *con = Modes.net_connectors[i];
+        struct net_connector *con = &Modes.net_connectors[i];
         int64_t value = 0;
         if (con->connected) {
             value = (now - con->lastConnect) / 1000.0;
