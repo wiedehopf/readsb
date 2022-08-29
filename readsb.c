@@ -196,6 +196,10 @@ static void configSetDefaults(void) {
 
     // in seconds, default to 1 hour
     Modes.dump_interval = 60 * 60;
+
+
+    Modes.ping_reduce = PING_REDUCE;
+    Modes.ping_reject = PING_REJECT;
 }
 //
 //=========================================================================
@@ -1706,6 +1710,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (strcmp(token[0], "dump_reduce") == 0) {
                     Modes.dump_reduce = 1;
                     fprintf(stderr, "Modes.dump_reduce: %d\n", Modes.dump_reduce);
+                }
+                if (strcmp(token[0], "ping_reject") == 0 && token[1]) {
+                    Modes.ping_reject = atoi(token[1]);
+                    Modes.ping_reduce = Modes.ping_reject / 2;
                 }
             }
             break;

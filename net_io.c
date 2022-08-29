@@ -1273,7 +1273,7 @@ static int pongReceived(struct client *c, int64_t now) {
 
     // only log if the average is greater the rejection threshold, don't log for single packet events
     // actual discard / rejection happens elsewhere int the code
-    if (c->latest_rtt > PING_REJECT && now > antiSpam) {
+    if (c->latest_rtt > Modes.ping_reject && now > antiSpam) {
         char uuid[64]; // needs 36 chars and null byte
         sprint_uuid(c->receiverId, c->receiverId2, uuid);
         if (Modes.debug_nextra) {
@@ -1289,7 +1289,7 @@ static int pongReceived(struct client *c, int64_t now) {
                     c->latest_rtt, c->proxy_string, uuid);
         }
     }
-    if (c->latest_rtt > PING_REDUCE) {
+    if (Modes.netIngest && c->latest_rtt > Modes.ping_reduce) {
         // tell the client to slow down via beast command
         // misuse pingReceived as a timeout variable
         if (now > c->pingReceived + PING_REDUCE_DURATION / 2) {
@@ -2670,7 +2670,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now, 
         // if messages are received with more than 100 ms delay after a pong, recalculate c->rtt
         pongReceived(c, now);
     }
-    if (c->rtt > PING_REJECT && Modes.netIngest) {
+    if (c->rtt > Modes.ping_reject && Modes.netIngest) {
         // don't discard CPRs, if we have better data speed_check generally will take care of delayed CPR messages
         // this way we get basic data even from high latency receivers
         // super high latency receivers are getting disconnected in pongReceived()
