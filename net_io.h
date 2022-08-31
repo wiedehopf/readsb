@@ -45,13 +45,10 @@ typedef enum
     READ_MODE_ASCII
 } read_mode_t;
 
-/* Data mode to feed push server */
-typedef enum
-{
-    PUSH_MODE_RAW,
-    PUSH_MODE_BEAST,
-    PUSH_MODE_SBS,
-} push_mode_t;
+typedef struct {
+    const char *msg;
+    int32_t len;
+} heartbeat_t;
 
 // Describes one network service (a group of clients with common behaviour)
 
@@ -74,8 +71,8 @@ struct net_service
     char* unixSocket; // path of unix socket
     int sendqOverrideSize;
     int recvqOverrideSize;
-    const char *heartbeat_msg;
-    int32_t heartbeat_len;
+    heartbeat_t heartbeat_in;
+    heartbeat_t heartbeat_out;
 };
 
 #define NET_SERVICE_GROUP_MAX 16

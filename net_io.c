@@ -102,10 +102,27 @@ static void modesReadFromClient(struct client *c, struct messageBuffer *mb);
 static void drainMessageBuffer(struct messageBuffer *buf);
 
 // ModeAC all zero messag
-static char beast_heartbeat_msg[] = {0x1a, '1', 0, 0, 0, 0, 0, 0, 0, 0, 0};
-static char raw_heartbeat_msg[] = "*0000;\n";
-static char sbs_heartbeat_msg[] = "\r\n"; // is there a better one?
-// CAUTION: sizeof includes the trailing \0 byte, use strlen for the non binary heartbeat messages
+static const char beast_heartbeat_msg[] = {0x1a, '1', 0, 0, 0, 0, 0, 0, 0, 0, 0};
+static const char raw_heartbeat_msg[] = "*0000;\n";
+static const char sbs_heartbeat_msg[] = "\r\n"; // is there a better one?
+// CAUTION: sizeof includes the trailing \0 byte
+
+static const heartbeat_t beast_heartbeat = {
+    .msg = beast_heartbeat_msg,
+    .len = sizeof(beast_heartbeat_msg)
+};
+static const heartbeat_t raw_heartbeat = {
+    .msg = raw_heartbeat_msg,
+    .len = sizeof(raw_heartbeat_msg) - 1
+};
+static const heartbeat_t sbs_heartbeat = {
+    .msg = sbs_heartbeat_msg,
+    .len = sizeof(sbs_heartbeat_msg) - 1
+};
+static const heartbeat_t no_heartbeat = {
+    .msg = NULL,
+    .len = 0
+};
 
 //
 //=========================================================================
@@ -115,7 +132,7 @@ static char sbs_heartbeat_msg[] = "\r\n"; // is there a better one?
 
 // Init a service with the given read/write characteristics, return the new service.
 // Doesn't arrange for the service to listen or connect
-static struct net_service *serviceInit(struct net_service_group *group, const char *descr, struct net_writer *writer, const char *heartbeat_msg, size_t heartbeat_len, read_mode_t mode, const char *sep, read_fn handler) {
+static struct net_service *serviceInit(struct net_service_group *group, const char *descr, struct net_writer *writer, heartbeat_t heartbeat_out, heartbeat_t heartbeat_in, read_mode_t mode, const char *sep, read_fn handler) {
     if (!descr) {
         fprintf(stderr, "Fatal: no service description\n");
         exit(1);
@@ -151,8 +168,8 @@ static struct net_service *serviceInit(struct net_service_group *group, const ch
     service->read_handler = handler;
     service->clients = NULL;
 
-    service->heartbeat_msg = heartbeat_msg;
-    service->heartbeat_len = heartbeat_len;
+    service->heartbeat_out = heartbeat_out;
+    service->heartbeat_in = heartbeat_in;
 
     if (service->writer) {
         if (service->writer->data) {
@@ -174,6 +191,24 @@ static struct net_service *serviceInit(struct net_service_group *group, const ch
 
     return service;
 }
+
+
+static int sendFiveHeartbeats(struct client *c, int64_t now) {
+    // send 5 heartbeats to signal that we are a client that can accomodate feedback .... some counterparts crash if they get stuff they don't understand
+    // this is really a crutch, but there is no other good way to signal this without causing issues
+    int repeats = 5;
+    const char *heartbeat_msg = c->service->heartbeat_out.msg;
+    int heartbeat_len = c->service->heartbeat_out.len;
+
+    if (heartbeat_msg && c->sendq && c->sendq_len + repeats * heartbeat_len < c->sendq_max) {
+        for (int k = 0; k < repeats; k++) {
+            memcpy(c->sendq + c->sendq_len, heartbeat_msg, heartbeat_len);
+            c->sendq_len += heartbeat_len;
+        }
+    }
+    return flushClient(c, now);
+}
+
 
 
 static void setProxyString(struct client *c) {
@@ -298,6 +333,53 @@ static struct client *createSocketClient(struct net_service *service, int fd) {
     return c;
 }
 
+static int sendUUID(struct client *c, int64_t now) {
+    struct net_connector *con = c->con;
+    // sending UUID if hostname matches adsbexchange
+    char uuid[130];
+    uuid[0] = '\0';
+    if ((c->sendq && c->sendq_len + 256 < c->sendq_max)
+            && ( (strstr(con->address, "feed") && strstr(con->address, ".adsbexchange.com")) || Modes.debug_ping || Modes.debug_send_uuid)) {
+        int fd = open(Modes.uuidFile, O_RDONLY);
+        // try legacy / adsbexchange image path as hardcoded fallback
+        if (fd == -1) {
+            fd = open("/boot/adsbx-uuid", O_RDONLY);
+        }
+        int res = -1;
+        if (fd != -1) {
+            res = read(fd, uuid, 128);
+            close(fd);
+        }
+        if (res >= 28) {
+            if (uuid[res - 1] == '\n') {
+                // remove trailing newline
+                res--;
+            }
+            uuid[res] = '\0';
+
+            c->sendq[c->sendq_len++] = 0x1A;
+            c->sendq[c->sendq_len++] = 0xE4;
+            // uuid is padded with 'f', always send 36 chars
+            memset(c->sendq + c->sendq_len, 'f', 36);
+            strncpy(c->sendq + c->sendq_len, uuid, res);
+            c->sendq_len += 36;
+        } else {
+            uuid[0] = '\0';
+            fprintf(stderr, "ERROR: Not a valid UUID: %s\n", Modes.uuidFile);
+            fprintf(stderr, "Use this command to fix: sudo uuidgen > %s\n", Modes.uuidFile);
+        }
+
+        // enable ping stuff
+        // O for high resolution timer, both P and p already used for previous iterations
+        c->sendq[c->sendq_len++] = 0x1a;
+        c->sendq[c->sendq_len++] = 'W';
+        c->sendq[c->sendq_len++] = 'O';
+        return flushClient(c, now);
+    }
+    return -1;
+}
+
+
 static void checkServiceConnected(struct net_connector *con, int64_t now) {
 
     if (!con->connecting) {
@@ -354,65 +436,9 @@ static void checkServiceConnected(struct net_connector *con, int64_t now) {
     c->con = con;
     con->c = c;
 
-    // sending UUID if hostname matches adsbexchange
-    char uuid[130];
-    uuid[0] = '\0';
-    if ((c->sendq && c->sendq_len + 256 < c->sendq_max)
-                && ( (strstr(con->address, "feed") && strstr(con->address, ".adsbexchange.com")) || Modes.debug_ping || Modes.debug_send_uuid)) {
-        int fd = open(Modes.uuidFile, O_RDONLY);
-        // try legacy / adsbexchange image path as hardcoded fallback
-        if (fd == -1) {
-            fd = open("/boot/adsbx-uuid", O_RDONLY);
-        }
-        int res = -1;
-        if (fd != -1) {
-            res = read(fd, uuid, 128);
-            close(fd);
-        }
-        if (res >= 28) {
-            if (uuid[res - 1] == '\n') {
-                // remove trailing newline
-                res--;
-            }
-            uuid[res] = '\0';
+    int uuid_sent = (sendUUID(c, now) == 0);
 
-            c->sendq[c->sendq_len++] = 0x1A;
-            c->sendq[c->sendq_len++] = 0xE4;
-            // uuid is padded with 'f', always send 36 chars
-            memset(c->sendq + c->sendq_len, 'f', 36);
-            strncpy(c->sendq + c->sendq_len, uuid, res);
-            c->sendq_len += 36;
-        } else {
-            uuid[0] = '\0';
-            fprintf(stderr, "ERROR: Not a valid UUID: %s\n", Modes.uuidFile);
-            fprintf(stderr, "Use this command to fix: sudo uuidgen > %s\n", Modes.uuidFile);
-        }
-
-        // enable ping stuff
-        // O for high resolution timer, both P and p already used for previous iterations
-        c->sendq[c->sendq_len++] = 0x1a;
-        c->sendq[c->sendq_len++] = 'W';
-        c->sendq[c->sendq_len++] = 'O';
-        if (flushClient(c, now) < 0) {
-            return;
-        }
-    }
-
-    // send 5 heartbeats to signal that we are a client that can accomodate feedback .... some counterparts crash if they get stuff they don't understand
-    // this is really a crutch, but there is no other good way to signal this without causing issues
-    int repeats = 5;
-    const char *heartbeat_msg = c->service->heartbeat_msg;
-    int heartbeat_len = c->service->heartbeat_len;
-
-    if (heartbeat_msg && c->sendq && c->sendq_len + repeats * heartbeat_len < c->sendq_max) {
-        for (int k = 0; k < repeats; k++) {
-            memcpy(c->sendq + c->sendq_len, heartbeat_msg, heartbeat_len);
-            c->sendq_len += heartbeat_len;
-        }
-    }
-    if (flushClient(c, now) < 0) {
-        return;
-    }
+    sendFiveHeartbeats(c, now);
 
     if ((c->sendq && c->sendq_len + 256 < c->sendq_max)
                 && strcmp(con->protocol, "gpsd_in") == 0) {
@@ -422,9 +448,9 @@ static void checkServiceConnected(struct net_connector *con, int64_t now) {
         }
     }
     if (!Modes.interactive) {
-        if (uuid[0]) {
-            fprintf(stderr, "%s: Connection established: %s%s port %s (sending UUID: %s)\n",
-                    con->service->descr, con->address, con->resolved_addr, con->port, uuid);
+        if (uuid_sent) {
+            fprintf(stderr, "%s: Connection established: %s%s port %s (sent UUID)\n",
+                    con->service->descr, con->address, con->resolved_addr, con->port);
         } else {
             fprintf(stderr, "%s: Connection established: %s%s port %s\n",
                     con->service->descr, con->address, con->resolved_addr, con->port);
@@ -609,8 +635,7 @@ static void serviceReconnectCallback(int64_t now) {
             struct client *c = con->c;
             if (Modes.net_heartbeat_interval && c
                     && now - c->last_read > 2 * Modes.net_heartbeat_interval
-                    && c->service->read_mode != READ_MODE_IGNORE && c->service->read_mode != READ_MODE_BEAST_COMMAND
-                    && c->service != Modes.uat_in_service
+                    && c->service->heartbeat_in.msg != NULL
                ) {
                 fprintf(stderr, "%s: No data or heartbeat received for %.0f seconds, reconnecting: %s port %s\n",
                         c->service->descr, (2 * Modes.net_heartbeat_interval) / 1000.0, c->host, c->port);
@@ -805,33 +830,33 @@ void modesInitNet(void) {
     Modes.net_epfd = my_epoll_create();
 
     // set up listeners
-    raw_out = serviceInit(&Modes.services_out, "Raw TCP output", &Modes.raw_out, raw_heartbeat_msg, strlen(raw_heartbeat_msg), READ_MODE_IGNORE, NULL, NULL);
+    raw_out = serviceInit(&Modes.services_out, "Raw TCP output", &Modes.raw_out, raw_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(raw_out, Modes.net_bind_address, Modes.net_output_raw_ports, Modes.net_epfd);
 
-    beast_out = serviceInit(&Modes.services_out, "Beast TCP output", &Modes.beast_out, beast_heartbeat_msg, sizeof(beast_heartbeat_msg), READ_MODE_BEAST_COMMAND, NULL, handleBeastCommand);
+    beast_out = serviceInit(&Modes.services_out, "Beast TCP output", &Modes.beast_out, beast_heartbeat, no_heartbeat, READ_MODE_BEAST_COMMAND, NULL, handleBeastCommand);
     serviceListen(beast_out, Modes.net_bind_address, Modes.net_output_beast_ports, Modes.net_epfd);
 
-    beast_reduce_out = serviceInit(&Modes.services_out, "BeastReduce TCP output", &Modes.beast_reduce_out, beast_heartbeat_msg, sizeof(beast_heartbeat_msg), READ_MODE_BEAST_COMMAND, NULL, handleBeastCommand);
+    beast_reduce_out = serviceInit(&Modes.services_out, "BeastReduce TCP output", &Modes.beast_reduce_out, beast_heartbeat, no_heartbeat, READ_MODE_BEAST_COMMAND, NULL, handleBeastCommand);
     serviceListen(beast_reduce_out, Modes.net_bind_address, Modes.net_output_beast_reduce_ports, Modes.net_epfd);
 
-    garbage_out = serviceInit(&Modes.services_out, "Garbage TCP output", &Modes.garbage_out, beast_heartbeat_msg, sizeof(beast_heartbeat_msg), READ_MODE_IGNORE, NULL, NULL);
+    garbage_out = serviceInit(&Modes.services_out, "Garbage TCP output", &Modes.garbage_out, beast_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(garbage_out, Modes.net_bind_address, Modes.garbage_ports, Modes.net_epfd);
 
-    vrs_out = serviceInit(&Modes.services_out, "VRS json output", &Modes.vrs_out, NULL, 0, READ_MODE_IGNORE, NULL, NULL);
+    vrs_out = serviceInit(&Modes.services_out, "VRS json output", &Modes.vrs_out, no_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(vrs_out, Modes.net_bind_address, Modes.net_output_vrs_ports, Modes.net_epfd);
 
-    json_out = serviceInit(&Modes.services_out, "Position json output", &Modes.json_out, NULL, 0, READ_MODE_IGNORE, NULL, NULL);
+    json_out = serviceInit(&Modes.services_out, "Position json output", &Modes.json_out, no_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(json_out, Modes.net_bind_address, Modes.net_output_json_ports, Modes.net_epfd);
 
-    feedmap_out = serviceInit(&Modes.services_out, "Forward feed map data", &Modes.feedmap_out, NULL, 0, READ_MODE_IGNORE, NULL, NULL);
+    feedmap_out = serviceInit(&Modes.services_out, "Forward feed map data", &Modes.feedmap_out, no_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
 
-    sbs_out = serviceInit(&Modes.services_out, "SBS TCP output ALL", &Modes.sbs_out, sbs_heartbeat_msg, strlen(sbs_heartbeat_msg), READ_MODE_IGNORE, NULL, NULL);
+    sbs_out = serviceInit(&Modes.services_out, "SBS TCP output ALL", &Modes.sbs_out, sbs_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(sbs_out, Modes.net_bind_address, Modes.net_output_sbs_ports, Modes.net_epfd);
 
-    sbs_out_replay = serviceInit(&Modes.services_out, "SBS TCP output MAIN", &Modes.sbs_out_replay, sbs_heartbeat_msg, strlen(sbs_heartbeat_msg), READ_MODE_IGNORE, NULL, NULL);
-    sbs_out_prio = serviceInit(&Modes.services_out, "SBS TCP output PRIO", &Modes.sbs_out_prio, sbs_heartbeat_msg, strlen(sbs_heartbeat_msg), READ_MODE_IGNORE, NULL, NULL);
-    sbs_out_mlat = serviceInit(&Modes.services_out, "SBS TCP output MLAT", &Modes.sbs_out_mlat, sbs_heartbeat_msg, strlen(sbs_heartbeat_msg), READ_MODE_IGNORE, NULL, NULL);
-    sbs_out_jaero = serviceInit(&Modes.services_out, "SBS TCP output JAERO", &Modes.sbs_out_jaero, sbs_heartbeat_msg, strlen(sbs_heartbeat_msg), READ_MODE_IGNORE, NULL, NULL);
+    sbs_out_replay = serviceInit(&Modes.services_out, "SBS TCP output MAIN", &Modes.sbs_out_replay, sbs_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    sbs_out_prio = serviceInit(&Modes.services_out, "SBS TCP output PRIO", &Modes.sbs_out_prio, sbs_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    sbs_out_mlat = serviceInit(&Modes.services_out, "SBS TCP output MLAT", &Modes.sbs_out_mlat, sbs_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    sbs_out_jaero = serviceInit(&Modes.services_out, "SBS TCP output JAERO", &Modes.sbs_out_jaero, sbs_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
 
     serviceListen(sbs_out_jaero, Modes.net_bind_address, Modes.net_output_jaero_ports, Modes.net_epfd);
 
@@ -862,12 +887,12 @@ void modesInitNet(void) {
         sfree(jaero);
     }
 
-    sbs_in = serviceInit(&Modes.services_in, "SBS TCP input MAIN", NULL, NULL, 0, READ_MODE_ASCII, "\n",  decodeSbsLine);
+    sbs_in = serviceInit(&Modes.services_in, "SBS TCP input MAIN", NULL, no_heartbeat, sbs_heartbeat, READ_MODE_ASCII, "\n",  decodeSbsLine);
     serviceListen(sbs_in, Modes.net_bind_address, Modes.net_input_sbs_ports, Modes.net_epfd);
 
-    sbs_in_mlat = serviceInit(&Modes.services_in, "SBS TCP input MLAT", NULL, NULL, 0, READ_MODE_ASCII, "\n",  decodeSbsLineMlat);
-    sbs_in_prio = serviceInit(&Modes.services_in, "SBS TCP input PRIO", NULL, NULL, 0, READ_MODE_ASCII, "\n",  decodeSbsLinePrio);
-    sbs_in_jaero = serviceInit(&Modes.services_in, "SBS TCP input JAERO", NULL, NULL, 0, READ_MODE_ASCII, "\n",  decodeSbsLineJaero);
+    sbs_in_mlat = serviceInit(&Modes.services_in, "SBS TCP input MLAT", NULL, no_heartbeat, sbs_heartbeat, READ_MODE_ASCII, "\n",  decodeSbsLineMlat);
+    sbs_in_prio = serviceInit(&Modes.services_in, "SBS TCP input PRIO", NULL, no_heartbeat, sbs_heartbeat, READ_MODE_ASCII, "\n",  decodeSbsLinePrio);
+    sbs_in_jaero = serviceInit(&Modes.services_in, "SBS TCP input JAERO", NULL, no_heartbeat, sbs_heartbeat, READ_MODE_ASCII, "\n",  decodeSbsLineJaero);
 
 
     serviceListen(sbs_in_jaero, Modes.net_bind_address, Modes.net_input_jaero_ports, Modes.net_epfd);
@@ -893,11 +918,11 @@ void modesInitNet(void) {
         sfree(jaero);
     }
 
-    gpsd_in = serviceInit(&Modes.services_in, "GPSD TCP input", &Modes.gpsd_in, NULL, 0, READ_MODE_ASCII, "\n", handle_gpsd);
+    gpsd_in = serviceInit(&Modes.services_in, "GPSD TCP input", &Modes.gpsd_in, no_heartbeat, no_heartbeat, READ_MODE_ASCII, "\n", handle_gpsd);
 
     if (Modes.json_dir && Modes.json_globe_index && Modes.globe_history_dir) {
         /* command input */
-        struct net_service *commandService = serviceInit(&Modes.services_in, "command input", NULL, NULL, 0, READ_MODE_ASCII, "\n", handleCommandSocket);
+        struct net_service *commandService = serviceInit(&Modes.services_in, "command input", NULL, no_heartbeat, no_heartbeat, READ_MODE_ASCII, "\n", handleCommandSocket);
         char commandSocketFile[PATH_MAX];
         char commandSocket[PATH_MAX];
         snprintf(commandSocketFile, PATH_MAX, "%s/cmd.sock", Modes.json_dir);
@@ -907,11 +932,11 @@ void modesInitNet(void) {
         chmod(commandSocket, 0600);
     }
 
-    raw_in = serviceInit(&Modes.services_in, "Raw TCP input", NULL, NULL, 0, READ_MODE_ASCII, "\n", processHexMessage);
+    raw_in = serviceInit(&Modes.services_in, "Raw TCP input", NULL, no_heartbeat, raw_heartbeat, READ_MODE_ASCII, "\n", processHexMessage);
     serviceListen(raw_in, Modes.net_bind_address, Modes.net_input_raw_ports, Modes.net_epfd);
 
     /* Beast input via network */
-    Modes.beast_in_service = serviceInit(&Modes.services_in, "Beast TCP input", &Modes.beast_in, NULL, 0, READ_MODE_BEAST, NULL, decodeBinMessage);
+    Modes.beast_in_service = serviceInit(&Modes.services_in, "Beast TCP input", &Modes.beast_in, no_heartbeat, beast_heartbeat, READ_MODE_BEAST, NULL, decodeBinMessage);
     if (Modes.netIngest) {
         Modes.beast_in_service->sendqOverrideSize = MODES_NET_SNDBUF_SIZE;
         Modes.beast_in_service->recvqOverrideSize = MODES_NET_SNDBUF_SIZE;
@@ -921,10 +946,10 @@ void modesInitNet(void) {
 
     /* Beast input from local Modes-S Beast via USB */
     if (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS) {
-        Modes.beast_client = createSocketClient(Modes.beast_in_service, Modes.beast_fd);
+        Modes.serial_client = createSocketClient(Modes.beast_in_service, Modes.beast_fd);
     }
 
-    Modes.uat_in_service = serviceInit(&Modes.services_in, "UAT TCP input", NULL, NULL, 0, READ_MODE_ASCII, "\n", decodeUatMessage);
+    Modes.uat_in_service = serviceInit(&Modes.services_in, "UAT TCP input", NULL, no_heartbeat, no_heartbeat, READ_MODE_ASCII, "\n", decodeUatMessage);
     // for testing ... don't care to create an argument to open this port
     // serviceListen(Modes.uat_in_service, Modes.net_bind_address, "1234", Modes.net_epfd);
 
@@ -1035,6 +1060,9 @@ static void modesAcceptClients(struct client *c, int64_t now) {
             fprintf(stderr, "%s: Fatal: createSocketClient shouldn't fail!\n", s->descr);
             exit(1);
         }
+
+
+        sendFiveHeartbeats(c, now);
     }
 
     if (errno != EMFILE && errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK) {
@@ -1273,7 +1301,7 @@ static int pongReceived(struct client *c, int64_t now) {
 
     // only log if the average is greater the rejection threshold, don't log for single packet events
     // actual discard / rejection happens elsewhere int the code
-    if (c->latest_rtt > Modes.ping_reject && now > antiSpam) {
+    if (c->rtt > Modes.ping_reject && now > antiSpam) {
         char uuid[64]; // needs 36 chars and null byte
         sprint_uuid(c->receiverId, c->receiverId2, uuid);
         if (Modes.debug_nextra) {
@@ -1285,8 +1313,8 @@ static int pongReceived(struct client *c, int64_t now) {
             fprintf(stderr, "reject: %6.0fms %6.0fms %6.0fms rId %s %s\n",
                     (double) c->rtt, c->latest_rtt, c->recent_rtt, uuid, c->proxy_string);
         } else {
-            fprintf(stderr, "high network delay: %6.0f ms; discarding data: %s rId %s\n",
-                    c->latest_rtt, c->proxy_string, uuid);
+            fprintf(stderr, "high network delay: %6lld ms; discarding data: %s rId %s\n",
+                    (long long) c->rtt, c->proxy_string, uuid);
         }
     }
     if (Modes.netIngest && c->latest_rtt > Modes.ping_reduce) {
@@ -1631,17 +1659,17 @@ static void modesDumpBeastData(struct modesMessage *mm) {
 }
 
 static void send_heartbeat(struct net_service *service) {
-    if (!service->writer) {
+    if (!service->writer || !service->heartbeat_out.msg) {
         return;
     }
 
-    char *p = prepareWrite(service->writer, service->heartbeat_len);
+    char *p = prepareWrite(service->writer, service->heartbeat_out.len);
     if (!p) {
         return;
     }
 
-    memcpy(p, service->heartbeat_msg, service->heartbeat_len);
-    p += service->heartbeat_len;
+    memcpy(p, service->heartbeat_out.msg, service->heartbeat_out.len);
+    p += service->heartbeat_out.len;
     completeWrite(service->writer, p);
 }
 
@@ -2614,7 +2642,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now, 
     mm->signalLevel = mm->signalLevel * mm->signalLevel;
 
     /* In case of Mode-S Beast use the signal level per message for statistics */
-    if (c == Modes.beast_client) {
+    if (c == Modes.serial_client) {
         Modes.stats_current.signal_power_sum += mm->signalLevel;
         Modes.stats_current.signal_power_count += 1;
 
@@ -3510,6 +3538,12 @@ static int readProxy(struct client *c) {
     return 0;
 }
 
+void requestCompression(struct client *c, int64_t now) {
+    //memcpy(c->sendq + c->sendq_len, heartbeat_msg, heartbeat_len);
+    //c->sendq_len += heartbeat_len;
+    flushClient(c, now);
+}
+
 //
 //=========================================================================
 //
@@ -3528,35 +3562,51 @@ static int readProxy(struct client *c) {
 
 static int processClient(struct client *c, int64_t now, struct messageBuffer *mb) {
 
+    struct net_service *service = c->service;
+    read_mode_t read_mode = service->read_mode;
+
     //fprintf(stderr, "processing count %d, buf->id %d\n", c->processing, mb->id);
 
-    // check for PROXY v1 header if connection is new / low bytes received
-    if (Modes.netIngest && c->som - c->buf == 0 && c->bytesReceived <= 128 * 1024) {
-        if (c->buflen > 5 && c->som[0] == 'P' && c->som[1] == 'R') {
-            int res = readProxy(c);
-            if (res != 0) {
-                return res;
+    if (now - c->connectedSince < 5 * SECONDS) {
+        // check for PROXY v1 header if connection is new / low bytes received
+        if (Modes.netIngest && c->som == c->buf) {
+            if (c->eod - c->som >= 6 && c->som[0] == 'P' && c->som[1] == 'R') {
+                int res = readProxy(c);
+                if (res != 0) {
+                    return res;
+                }
+            }
+        }
+        const char *hb = service->heartbeat_in.msg;
+        int hb_len = service->heartbeat_in.len;
+        if (hb && c->eod - c->som >= 5 * hb_len) {
+            int res = 0;
+            for (int k = 0; k < 5; k++) {
+                res += memcmp(hb, c->som + k * hb_len, hb_len);
+            }
+            if (res == 0) {
+                requestCompression(c, now);
             }
         }
     }
 
-    if (c->service->read_mode == READ_MODE_BEAST) {
+    if (read_mode == READ_MODE_BEAST) {
         int res = readBeast(c, now, mb);
         if (res != 0) {
             return res;
         }
 
-    } else if (c->service->read_mode == READ_MODE_ASCII) {
+    } else if (read_mode == READ_MODE_ASCII) {
         int res = readAscii(c, now, mb);
         if (res != 0) {
             return res;
         }
 
-    } else if (c->service->read_mode == READ_MODE_IGNORE) {
+    } else if (read_mode == READ_MODE_IGNORE) {
         // drop the bytes on the floor
         c->som = c->eod;
 
-    } else if (c->service->read_mode == READ_MODE_BEAST_COMMAND) {
+    } else if (read_mode == READ_MODE_BEAST_COMMAND) {
         int res = readBeastcommand(c, now, mb);
         if (res != 0) {
             return res;
@@ -3776,7 +3826,7 @@ static void flushService(struct net_service *service, int64_t now) {
     if (!writer->connections) {
         return;
     }
-    if (Modes.net_heartbeat_interval && service->heartbeat_msg
+    if (Modes.net_heartbeat_interval && service->heartbeat_out.msg
             && now - writer->lastWrite >= Modes.net_heartbeat_interval) {
         // If we have generated no messages for a while, send a heartbeat
         send_heartbeat(service);
@@ -3831,7 +3881,7 @@ void modesNetPeriodicWork(void) {
     dump_beast_check(now);
 
     int64_t wait_ms;
-    if (Modes.beast_client) {
+    if (Modes.serial_client) {
         wait_ms = 20;
     } else if (Modes.net_only) {
         // wait in net-only mode (unless we get network packets, that wakes the wait immediately)
@@ -3887,8 +3937,8 @@ void modesNetPeriodicWork(void) {
         timespec_add_elapsed(&before, &after, &Modes.stats_current.background_cpu);
     }
 
-    if (Modes.beast_client) {
-        modesReadFromClient(Modes.beast_client, mb);
+    if (Modes.serial_client) {
+        modesReadFromClient(Modes.serial_client, mb);
     }
 
     if (Modes.net_event_count == Modes.net_maxEvents) {
