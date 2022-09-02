@@ -769,7 +769,7 @@ void updateTypeReg(struct aircraft *a) {
             || (i >= 0x4b8200 && i <= 0x4b82ff)
 
             //506f32-506fff = slovenia mil(sj)
-            || (i >= 0x506f32 && i <= 0x506fff)
+            //|| (i >= 0x506f32 && i <= 0x506fff)
 
             //70c070-70c07f = oman mil(on)
             || (i >= 0x70c070 && i <= 0x70c07f)
