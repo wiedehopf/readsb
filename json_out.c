@@ -1690,10 +1690,11 @@ struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int sta
         last = tb.len - 1;
     }
     if (recent) {
-        start = tb.len - Modes.traceRecentPoints;
-        if (start < 0) {
-            start = 0;
-        }
+        start = imax(0, tb.len - Modes.traceRecentPoints);
+    }
+    if (start < 0) {
+        fprintf(stderr, "WTF chu0Uub8\n");
+        start = 0;
     }
 
     int traceCount = imax(last - start + 1, 0);

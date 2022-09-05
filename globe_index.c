@@ -551,22 +551,19 @@ void traceWrite(struct aircraft *a, threadpool_threadbuffers_t *buffer_group) {
         startFull = first_index_ge_timestamp(tb, now - Modes.keep_traces);
     }
 
-    if ((trace_write & WRECENT)) {
-        int start_recent = tb.len - recent_points;
-        if (start_recent < startFull) {
-            start_recent = startFull;
-        }
-        if (start_recent < 0) {
-            start_recent = 0;
-        }
+    if (startFull >= tb.len) {
+        //do not write trace if all data is older than keep_traces
+        trace_write = 0;
+    }
 
+    if ((trace_write & WRECENT)) {
         mark_legs(tb, a, imax(0, tb.len - 4 * recent_points), 1);
 
         // statistics
         atomic_fetch_add(&Modes.recentTraceWrites, 1);
 
         // prepare the data for the trace_recent file in /run
-        recent = generateTraceJson(a, tb, start_recent, -2, generate_buffer, 0);
+        recent = generateTraceJson(a, tb, -2, -2, generate_buffer, 0);
 
         //if (Modes.debug_traceCount && ++count2 % 1000 == 0)
         //    fprintf(stderr, "recent trace write: %u\n", count2);
@@ -658,12 +655,8 @@ void traceWrite(struct aircraft *a, threadpool_threadbuffers_t *buffer_group) {
             int64_t end_of_day = 1000 * (int64_t) (timegm(&fiftyfive) + 86400);
 
             int start = first_index_ge_timestamp(tb, start_of_day);
-            int end = first_index_ge_timestamp(tb, end_of_day);
-            if (end >= tb.len) {
-                end = tb.len - 1;
-            } else if (end > 0) {
-                end -= 1;
-            }
+            int end = first_index_ge_timestamp(tb, end_of_day) - 1;
+            // end == -1 means we have no data before end_of_day thus we do not write the trace
 
             int64_t endStamp = getState(tb.trace, end)->timestamp;
             if (start >= 0 && end >= 0 && end >= start
@@ -1675,6 +1668,11 @@ static void tracePrune(struct aircraft *a, int64_t now) {
 
     int64_t keep_after = now - Modes.keep_traces;
 
+    if (a->trace_current_len > 0 && getState(a->trace_current, a->trace_current_len - 1)->timestamp < keep_after) {
+        traceCleanup(a);
+        return;
+    }
+
     int deletedChunks = 0;
 
     for (int k = 0; k < a->trace_chunk_len; k++) {
@@ -1695,10 +1693,6 @@ static void tracePrune(struct aircraft *a, int64_t now) {
             fprintf(stderr, "%06x deleting %d chunks\n", a->addr, deletedChunks);
         }
         resizeTraceChunks(a, a->trace_chunk_len - deletedChunks);
-    }
-
-    if (a->trace_current_len > 0 && getState(a->trace_current, a->trace_current_len - 1)->timestamp < keep_after) {
-        traceCleanup(a);
     }
 
     int deleteFs = 0;
