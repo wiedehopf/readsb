@@ -1757,57 +1757,23 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now, 
     else
         mm->source = SOURCE_SBS;
 
-    struct net_writer *extra_writer = NULL;
     switch(mm->source) {
         case SOURCE_SBS:
-            extra_writer = &Modes.sbs_out_replay;
             mm->addrtype = ADDR_OTHER;
             break;
         case SOURCE_MLAT:
-            extra_writer = &Modes.sbs_out_mlat;
             mm->addrtype = ADDR_MLAT;
             break;
         case SOURCE_JAERO:
-            extra_writer = &Modes.sbs_out_jaero;
             mm->addrtype = ADDR_JAERO;
             break;
         case SOURCE_PRIO:
-            extra_writer = &Modes.sbs_out_prio;
             mm->addrtype = ADDR_OTHER;
             break;
 
         default:
-            extra_writer = NULL;
             mm->addrtype = ADDR_OTHER;
     }
-
-    // don't write SBS message if sbsReduce is active
-    // sbs reduce recreates the message from struct modesMessage details while this copies it verbatim
-    if (!Modes.sbsReduce) {
-        char *out = prepareWrite(&Modes.sbs_out, max_len);
-        if (out) {
-            memcpy(out, line, line_len);
-            //fprintf(stderr, "%s", out);
-            out += line_len;
-            *out++ = '\r';
-            *out++ = '\n';
-            completeWrite(&Modes.sbs_out, out);
-        }
-
-        if (extra_writer) {
-            char *out = prepareWrite(extra_writer, max_len);
-
-            if (out) {
-                memcpy(out, line, line_len);
-                out += line_len;
-                *out++ = '\r';
-                *out++ = '\n';
-
-                completeWrite(extra_writer, out);
-            }
-        }
-    }
-
 
     // Mark messages received over the internet as remote so that we don't try to
     // pass them off as being received by this instance when forwarding them
@@ -1985,10 +1951,10 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now, 
 
 basestation_invalid:
 
-    for (size_t i = 0; i < line_len; i++)
-        line[i] = (line[i] == '\0' ? ',' : line[i]);
-
     if (Modes.debug_garbage) {
+        for (size_t i = 0; i < line_len; i++) {
+            line[i] = (line[i] == '\0' ? ',' : line[i]);
+        }
         fprintf(stderr, "SBS invalid: %.*s (anything over 200 characters cut)\n", (int) imin(200, line_len), line);
     }
     Modes.stats_current.remote_received_basestation_invalid++;
@@ -4343,35 +4309,32 @@ static void outputMessage(struct modesMessage *mm) {
         }
     }
 
-    if (mm->reduce_forward && mm->sbs_in && Modes.net && Modes.sbsReduce && ac) {
-        if (Modes.sbs_out.connections) {
-            modesSendSBSOutput(mm, ac, &Modes.sbs_out);
-        }
-        struct net_writer *extra_writer = NULL;
-        switch(mm->source) {
-            case SOURCE_SBS:
-                extra_writer = &Modes.sbs_out_replay;
-                mm->addrtype = ADDR_OTHER;
-                break;
-            case SOURCE_MLAT:
-                extra_writer = &Modes.sbs_out_mlat;
-                mm->addrtype = ADDR_MLAT;
-                break;
-            case SOURCE_JAERO:
-                extra_writer = &Modes.sbs_out_jaero;
-                mm->addrtype = ADDR_JAERO;
-                break;
-            case SOURCE_PRIO:
-                extra_writer = &Modes.sbs_out_prio;
-                mm->addrtype = ADDR_OTHER;
-                break;
+    if (mm->sbs_in && Modes.net && ac) {
+        if (mm->reduce_forward || !Modes.sbsReduce) {
+            if (Modes.sbs_out.connections) {
+                modesSendSBSOutput(mm, ac, &Modes.sbs_out);
+            }
+            struct net_writer *extra_writer = NULL;
+            switch(mm->source) {
+                case SOURCE_SBS:
+                    extra_writer = &Modes.sbs_out_replay;
+                    break;
+                case SOURCE_MLAT:
+                    extra_writer = &Modes.sbs_out_mlat;
+                    break;
+                case SOURCE_JAERO:
+                    extra_writer = &Modes.sbs_out_jaero;
+                    break;
+                case SOURCE_PRIO:
+                    extra_writer = &Modes.sbs_out_prio;
+                    break;
 
-            default:
-                extra_writer = NULL;
-                mm->addrtype = ADDR_OTHER;
-        }
-        if (extra_writer && extra_writer->connections) {
-            modesSendSBSOutput(mm, ac, extra_writer);
+                default:
+                    extra_writer = NULL;
+            }
+            if (extra_writer && extra_writer->connections) {
+                modesSendSBSOutput(mm, ac, extra_writer);
+            }
         }
     }
 
