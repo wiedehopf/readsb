@@ -625,86 +625,105 @@ void traceWrite(struct aircraft *a, threadpool_threadbuffers_t *buffer_group) {
     // prepare writing the permanent history
     // until 20 min after midnight we only write permanent traces for the previous day
     if ((trace_write & WPERM)) {
-        if (!Modes.globe_history_dir || ((a->addr & MODES_NON_ICAO_ADDRESS) && a->airground == AG_GROUND)) {
-            // be sure to push the timer back if we don't write permanent history
-            a->trace_next_perm = now + GLOBE_PERM_IVAL;
-        } else {
-            if (a->addr == TRACE_FOCUS)
-                fprintf(stderr, "perm\n");
+        int64_t endStamp = 0;
 
-            // fiftyfive_ago changes day 55 min after midnight: stop writing the previous days traces
-            // fiftysix_ago changes day 56 min after midnight: allow webserver to read the previous days traces (see checkNewDay function)
-            // this is in seconds, not milliseconds
-            time_t fiftyfive_time = now / 1000 - 55 * 60;
+        // fiftyfive_ago changes day 55 min after midnight: stop writing the previous days traces
+        // fiftysix_ago changes day 56 min after midnight: allow webserver to read the previous days traces (see checkNewDay function)
+        // this is in seconds, not milliseconds
+        time_t fiftyfive_time = now / 1000 - 55 * 60;
 
-            struct tm fiftyfive;
-            gmtime_r(&fiftyfive_time, &fiftyfive);
+        struct tm fiftyfive;
+        gmtime_r(&fiftyfive_time, &fiftyfive);
 
-            // this is in reference to the fiftyfive clock ....
-            if (fiftyfive.tm_hour == 23) {
-                a->trace_next_perm = now + GLOBE_PERM_IVAL / 8 + random() % (GLOBE_PERM_IVAL / 1);
-            } else {
-                a->trace_next_perm = now + GLOBE_PERM_IVAL / 1 + random() % (GLOBE_PERM_IVAL / 8);
-            }
-
-            // we just use the day of the struct tm in the next lines
-            fiftyfive.tm_sec = 0;
-            fiftyfive.tm_min = 0;
-            fiftyfive.tm_hour = 0;
-            int64_t start_of_day = 1000 * (int64_t) (timegm(&fiftyfive));
-            int64_t end_of_day = 1000 * (int64_t) (timegm(&fiftyfive) + 86400);
-
-            int start = first_index_ge_timestamp(tb, start_of_day);
-            int end = first_index_ge_timestamp(tb, end_of_day) - 1;
-            // end == -1 means we have no data before end_of_day thus we do not write the trace
-
-            int64_t endStamp = getState(tb.trace, end)->timestamp;
-            if (start >= 0 && end >= 0 && end >= start
-                    // only write permanent trace if we haven't already written it
-                    && a->trace_perm_last_timestamp != endStamp
-               ) {
-
-                static int64_t antiSpam;
-                if (fiftyfive.tm_hour == 23 && fiftyfive.tm_min > 50 && now > antiSpam) {
-                    antiSpam = now + 30 * SECONDS;
-                    fprintf(stderr, "<3>%06x permanent trace written for yesterday was written successfully but a bit late,"
-                            "persistent traces for the previous UTC day are in danger of not all getting done!"
-                            "consider alloting more CPU cores or increasing json-trace-interval!\n",
-                            a->addr);
-                }
-
-                int64_t before = mono_milli_seconds();
-
-                mark_legs(tb, a, 0, 0);
-
-                int64_t elapsed = mono_milli_seconds() - before;
-                if (elapsed > 2 * SECONDS || focus) {
-                    fprintf(stderr, "%06x mark_legs() took %.1f s!\n", a->addr, elapsed / 1000.0);
-                }
-
-                // statistics
-                atomic_fetch_add(&Modes.permTraceWrites, 1);
-
-                hist = generateTraceJson(a, tb, start, end, generate_buffer, start_of_day);
-                if (hist.len > 0) {
-                    permWritten = 1;
-                    char tstring[100];
-                    strftime (tstring, 100, TDATE_FORMAT, &fiftyfive);
-
-                    snprintf(filename, PATH_MAX, "%s/traces/%02x/trace_full_%s%06x.json", tstring, a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
-                    filename[PATH_MAX - 101] = 0;
-
-                    writeJsonToGzip(Modes.globe_history_dir, filename, hist, 9);
-
-                    // note what we have written to disk
-                    a->trace_perm_last_timestamp = endStamp;
-
-
-                    //if (Modes.debug_traceCount && ++count4 % 100 == 0)
-                    //    fprintf(stderr, "perm trace writes: %u\n", count4);
-                }
-            }
+        if (!Modes.globe_history_dir) {
+            // push timer back in perm_done
+            goto perm_done;
         }
+
+        if (a->addr == TRACE_FOCUS) {
+            fprintf(stderr, "perm\n");
+        }
+
+        struct tm tm_daystart = fiftyfive;
+        tm_daystart.tm_sec = 0;
+        tm_daystart.tm_min = 0;
+        tm_daystart.tm_hour = 0;
+
+        time_t epoch_daystart = timegm(&tm_daystart);
+
+        int64_t start_of_day = 1000 * (int64_t) epoch_daystart;
+        int64_t end_of_day = 1000 * (int64_t) (epoch_daystart + 86400);
+
+        int start = first_index_ge_timestamp(tb, start_of_day);
+        int end = first_index_ge_timestamp(tb, end_of_day) - 1;
+        // end == -1 means we have no data before end_of_day thus we do not write the trace
+
+        if (start < 0 || end < 0 || end < start) {
+            goto perm_done;
+        }
+
+        struct state *startState = getState(tb.trace, start);
+        struct state *endState = getState(tb.trace, end);
+        endStamp = endState->timestamp;
+
+        // only write permanent trace if we haven't already written up to the last timestamp
+        if (a->trace_perm_last_timestamp == endStamp) {
+            goto perm_done;
+        }
+        // don't write permanent trace for non icao traces that are on the ground
+        if ((a->addr & MODES_NON_ICAO_ADDRESS) &&
+                (
+                 (startState->on_ground || !startState->baro_alt_valid)
+                 && (endState->on_ground || !endState->baro_alt_valid)
+                )
+           ) {
+            goto perm_done;
+        }
+
+        static int64_t antiSpam;
+        if (fiftyfive.tm_hour == 23 && fiftyfive.tm_min > 50 && now > antiSpam) {
+            antiSpam = now + 30 * SECONDS;
+            fprintf(stderr, "<3>%06x permanent trace written for yesterday was written successfully but a bit late,"
+                    "persistent traces for the previous UTC day are in danger of not all getting done!"
+                    "consider alloting more CPU cores or increasing json-trace-interval!\n",
+                    a->addr);
+        }
+
+        int64_t before = mono_milli_seconds();
+
+        mark_legs(tb, a, 0, 0);
+
+        int64_t elapsed = mono_milli_seconds() - before;
+        if (elapsed > 2 * SECONDS || focus) {
+            fprintf(stderr, "%06x mark_legs() took %.1f s!\n", a->addr, elapsed / 1000.0);
+        }
+
+        // statistics
+        atomic_fetch_add(&Modes.permTraceWrites, 1);
+
+        hist = generateTraceJson(a, tb, start, end, generate_buffer, start_of_day);
+        if (hist.len > 0) {
+            permWritten = 1;
+            char tstring[100];
+            strftime (tstring, 100, TDATE_FORMAT, &fiftyfive);
+
+            snprintf(filename, PATH_MAX, "%s/traces/%02x/trace_full_%s%06x.json", tstring, a->addr % 256, (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
+            filename[PATH_MAX - 101] = 0;
+
+            writeJsonToGzip(Modes.globe_history_dir, filename, hist, 9);
+
+            //if (Modes.debug_traceCount && ++count4 % 100 == 0)
+            //    fprintf(stderr, "perm trace writes: %u\n", count4);
+        }
+
+perm_done:
+        if (fiftyfive.tm_hour == 23) {
+            a->trace_next_perm = now + GLOBE_PERM_IVAL / 8 + random() % (GLOBE_PERM_IVAL / 1);
+        } else {
+            a->trace_next_perm = now + GLOBE_PERM_IVAL / 1 + random() % (GLOBE_PERM_IVAL / 8);
+        }
+        // note what we have written to disk
+        a->trace_perm_last_timestamp = endStamp;
     }
 
     if (Modes.debug_traceCount) {
