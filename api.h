@@ -13,10 +13,11 @@ struct apiCon {
     struct char_buffer reply;
     size_t bytesSent;
     uint32_t events;
-    struct char_buffer request;
     int open;
+    int keepalive;
     int wakeups;
-    int64_t connected_since; // milliseconds
+    struct char_buffer request;
+    int64_t lastReset; // milliseconds
     char *content_type;
 };
 

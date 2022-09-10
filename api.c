@@ -935,25 +935,27 @@ static int shutClose(int fd) {
 
 static void apiCloseCon(struct apiCon *con, struct apiThread *thread) {
     if (!con->open) {
-        fprintf(stderr, "apiCloseConn double close!\n");
+        fprintf(stderr, "apiCloseCon double close!\n");
         return;
     }
 
     int fd = con->fd;
     if (con->events && epoll_ctl(thread->epfd, EPOLL_CTL_DEL, fd, NULL)) {
-        fprintf(stderr, "apiCloseConn: EPOLL_CTL_DEL %d: %s\n", fd, strerror(errno));
+        fprintf(stderr, "apiCloseCon: EPOLL_CTL_DEL %d: %s\n", fd, strerror(errno));
     }
     con->events = 0;
 
     if (shutClose(fd) != 0) {
-        perror("apiCloseConn: close:");
+        perror("apiCloseCon: close:");
     }
 
-    if (Modes.debug_api)
-        fprintf(stderr, "%d: clo c: %d\n", thread->index, fd);
+    if (Modes.debug_api) {
+        fprintf(stderr, "%d %d apiCloseCon()\n", thread->index, fd);
+    }
 
     sfree(con->request.buffer);
     con->request.len = 0;
+    con->request.alloc = 0;
 
     struct char_buffer *reply = &con->reply;
 
@@ -961,57 +963,72 @@ static void apiCloseCon(struct apiCon *con, struct apiThread *thread) {
 
     sfree(reply->buffer);
     reply->len = 0;
-    reply->buffer = NULL;
+    reply->alloc = 0;
 
     con->open = 0;
     thread->openFDs--;
     //fprintf(stderr, "%2d %5d\n", thread->index, thread->openFDs);
 }
 
-static void send500(int fd) {
+static void apiResetCon(struct apiCon *con, struct apiThread *thread) {
+    if (!con->open) {
+        fprintf(stderr, "apiResetCon called on closed connection!\n");
+        return;
+    }
+    if (!con->keepalive) {
+        apiCloseCon(con, thread);
+        return;
+    }
+
+    if (Modes.debug_api) {
+        fprintf(stderr, "%d %d apiResetCon\n", thread->index, con->fd);
+    }
+
+    // not freeing request buffer, rather reusing it
+    con->request.len = 0;
+
+    con->bytesSent = 0;
+
+    struct char_buffer *reply = &con->reply;
+
+    thread->responseBytesBuffered -= reply->len;
+
+    // free reply buffer
+    sfree(reply->buffer);
+    reply->len = 0;
+    reply->alloc = 0;
+
+    con->lastReset = mstime();
+}
+
+static void sendError(int fd, const char *http_status) {
     char buf[256];
     char *p = buf;
     char *end = buf + sizeof(buf);
 
     p = safe_snprintf(p, end,
-    "HTTP/1.1 500 Internal Server Error\r\n"
+    "HTTP/1.1 %s\r\n"
     "Server: readsb/3.1442\r\n"
-    "Connection: close\r\n"
-    "Content-Length: 0\r\n\r\n");
+    "Connection: keep-alive\r\n"
+    "Content-Length: 0\r\n\r\n",
+    http_status);
 
     int res = send(fd, buf, strlen(buf), 0);
     MODES_NOTUSED(res);
 }
-
-static void send503(int fd) {
-    char buf[256];
-    char *p = buf;
-    char *end = buf + sizeof(buf);
-
-    p = safe_snprintf(p, end,
-    "HTTP/1.1 503 Service Unavailable\r\n"
-    "Server: readsb/3.1442\r\n"
-    "Connection: close\r\n"
-    "Content-Length: 0\r\n\r\n");
-
-    int res = send(fd, buf, strlen(buf), 0);
-    MODES_NOTUSED(res);
-}
-
 static void send400(int fd) {
-    char buf[256];
-    char *p = buf;
-    char *end = buf + sizeof(buf);
-
-    p = safe_snprintf(p, end,
-    "HTTP/1.1 400 Bad Request\r\n"
-    "Server: readsb/3.1442\r\n"
-    "Connection: close\r\n"
-    "Content-Length: 0\r\n\r\n");
-
-    int res = send(fd, buf, strlen(buf), 0);
-    MODES_NOTUSED(res);
+    sendError(fd, "400 Bad Request");
 }
+static void send405(int fd) {
+    sendError(fd, "405 Method Not Allowed");
+}
+static void send503(int fd) {
+    sendError(fd, "503 ServiceUnavailable");
+}
+static void send500(int fd) {
+    sendError(fd, "500 Internal Server Error");
+}
+
 
 static int parseDoubles(char *p, double *results, int max) {
     char *saveptr = NULL;
@@ -1298,14 +1315,22 @@ static void apiSendData(struct apiCon *con, struct apiThread *thread) {
     struct char_buffer *reply = &con->reply;
     int toSend = reply->len - con->bytesSent;
 
-    // all data has been sent, close the connection
     if (toSend <= 0) {
-        if (toSend < 0)  {
-            fprintf(stderr, "wat?! apiSendData() being weird\n");
+        if ((con->events & EPOLLOUT)) {
+            con->events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
+            struct epoll_event epollEvent = { .events = con->events };
+            epollEvent.data.ptr = con;
+
+            if (epoll_ctl(thread->epfd, EPOLL_CTL_MOD, con->fd, &epollEvent)) {
+                perror("apiResetCon() epoll_ctl fail:");
+            }
         }
-        apiCloseCon(con, thread);
+        if (toSend < 0) {
+            fprintf(stderr, "wat?! toSend < 0\n");
+        }
         return;
     }
+
     char *dataStart = reply->buffer + con->bytesSent;
 
     int nwritten = send(con->fd, dataStart, toSend, 0);
@@ -1314,9 +1339,9 @@ static void apiSendData(struct apiCon *con, struct apiThread *thread) {
         con->bytesSent += nwritten;
     }
 
-    // all data has been sent, close the connection
+    // all data has been sent, reset the connection
     if (nwritten == toSend) {
-        apiCloseCon(con, thread);
+        apiResetCon(con, thread);
         return;
     }
 
@@ -1331,25 +1356,40 @@ static void apiSendData(struct apiCon *con, struct apiThread *thread) {
 
     //fprintf(stderr, "wrote only %d of %d\n", nwritten, toSend);
 
+    // couldn't write everything, set EPOLLOUT
     if (!(con->events & EPOLLOUT)) {
-        int op;
-        if (!con->events) {
-            op = EPOLL_CTL_ADD;
-        } else {
-            op = EPOLL_CTL_MOD;
-        }
         con->events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP | EPOLLOUT;
         struct epoll_event epollEvent = { .events = con->events };
         epollEvent.data.ptr = con;
 
-        if (epoll_ctl(thread->epfd, op, con->fd, &epollEvent))
-            perror("epoll_ctl fail:");
+        if (epoll_ctl(thread->epfd, EPOLL_CTL_MOD, con->fd, &epollEvent)) {
+            perror("apiSendData() epoll_ctl fail:");
+        }
     }
 
     return;
 }
 
-static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
+static void apiShutdown(struct apiCon *con, struct apiThread *thread) {
+    if (con->bytesSent != con->reply.len) {
+        if (antiSpam(&thread->antiSpam[1], 5 * SECONDS)) {
+            fprintf(stderr, "Connection shutdown with incomplete or no reply sent."
+                    " (reply.len: %d, bytesSent: %d, request.len: %d open: %d)\n",
+                    (int) con->reply.len,
+                    (int) con->bytesSent,
+                    (int) con->request.len,
+                    con->open);
+        }
+    }
+    apiCloseCon(con, thread);
+}
+
+static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct epoll_event event) {
+
+    if (event.events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
+        apiShutdown(con, thread);
+        return;
+    }
 
     // delay processing requests until we have more memory
     if (thread->responseBytesBuffered > 512 * 1024 * 1024) {
@@ -1367,7 +1407,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
     size_t requestMax = 1024 + 13 * API_REQ_LIST_MAX;
     if (request->len > requestMax) {
         send400(fd);
-        apiCloseCon(con, thread);
+        apiResetCon(con, thread);
         return;
     }
     if (!request->alloc) {
@@ -1387,8 +1427,26 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
     toRead = request->alloc - request->len - 1; // leave an extra byte we can set \0
     nread = recv(fd, request->buffer + request->len, toRead, 0);
 
-    if (nread < 0 && !(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)) {
-        send400(fd);
+    if (Modes.debug_api) {
+        fprintf(stderr, "%d %d nread %d\n", thread->index, con->fd, nread);
+    }
+
+    if (nread < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+            return;
+        }
+        apiShutdown(con, thread);
+        return;
+    }
+
+    if (nread == 0) {
+        apiShutdown(con, thread);
+        return;
+    }
+
+    if (con->reply.buffer) {
+        int toSend = con->reply.len - con->bytesSent;
+        fprintf(stderr, "wat?! reply buffer but got new request data. toSend: %d\n", toSend);
         apiCloseCon(con, thread);
         return;
     }
@@ -1399,52 +1457,29 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
         request->buffer[request->len] = '\0';
     }
 
-    // detect orderly connection shutdown
-    if (nread == 0) {
-        if (con->reply.len == 0 || con->bytesSent != con->reply.len) {
-            if (antiSpam(&thread->antiSpam[1], 5 * SECONDS)) {
-                fprintf(stderr, "Connection shutdown with incomplete or no reply sent."
-                        " (reply.len: %d, bytesSent: %d, request.len: %d open: %d)\n",
-                        (int) con->reply.len,
-                        (int) con->bytesSent,
-                        (int) con->request.len,
-                        con->open);
-            }
-        }
-        apiCloseCon(con, thread);
+
+    if (!memchr(request->buffer, '\n', request->len) || !strstr(request->buffer, "\r\n\r\n")) {
+        // request not complete
+        return;
+    }
+    if (strcasestr(request->buffer, "\r\nConnection: Keep-Alive\r\n")) {
+        con->keepalive = 1;
+    }
+    if (strncmp(request->buffer, "GET", 3) != 0) {
+        send405(fd);
+        apiResetCon(con, thread);
         return;
     }
 
-    if (con->reply.buffer) {
-        int toSend = con->reply.len - con->bytesSent;
-
-        if (toSend > 0) {
-            // we already have a response that hasn't been sent yet, don't parse request
-            // only one request per connection supported
-            return;
-        } else {
-            // all data has been sent, close the connection
-            if (toSend < 0)  {
-                fprintf(stderr, "wat?! apiSendData() being weird\n");
-            }
-            apiCloseCon(con, thread);
-            return;
-        }
-    }
-
-    if (!memchr(request->buffer, '\n', request->len)) {
-        // no newline, wait for more data
-        return;
-    }
-
-    //fprintf(stderr, "%s\n", req);
+    request->buffer[request->len] = '\0';
+    //fprintf(stderr, "%s\n", request->buffer);
 
     con->content_type = "multipart/mixed";
     struct char_buffer reply = parseFetch(con, request, thread);
     if (reply.len == 0) {
-        //fprintf(stderr, "parseFetch retunred invalid\n");
+        //fprintf(stderr, "parseFetch returned invalid\n");
         send400(fd);
-        apiCloseCon(con, thread);
+        apiResetCon(con, thread);
         return;
     }
 
@@ -1460,7 +1495,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
     p = safe_snprintf(p, end,
             "HTTP/1.1 200 OK\r\n"
             "Server: readsb/3.1442\r\n"
-            "Connection: close\r\n"
+            "Connection: keep-alive\r\n"
             "Content-Type: %s\r\n"
             "Content-Length: %d\r\n\r\n",
             con->content_type, content_len);
@@ -1516,10 +1551,10 @@ static void acceptCon(struct apiCon *con, struct apiThread *thread) {
 
         // when starving for connections, close old connections
         if (con->open) {
-            fprintf(stderr, "starving for connections, send 503 and close connections connected longer than 1 second\n");
+            fprintf(stderr, "starving for connections, send 503 and close connections connected longer than 5 seconds\n");
             int64_t now = mstime();
             for (int j = 0; j < Modes.api_fds_per_thread; j++) {
-                if (now - thread->cons[j].connected_since > 1 * SECONDS) {
+                if (now - thread->cons[j].lastReset > 5 * SECONDS) {
                     send503(con->fd);
                     apiCloseCon(con, thread);
                 }
@@ -1540,21 +1575,19 @@ static void acceptCon(struct apiCon *con, struct apiThread *thread) {
         con->open = 1;
         con->fd = fd;
 
-        con->connected_since = mstime();
+        con->lastReset = mstime();
 
-        if (Modes.debug_api)
-            fprintf(stderr, "%d: new c: %d\n", thread->index, fd);
+        if (Modes.debug_api) {
+            fprintf(stderr, "%d %d acceptCon()\n", thread->index, fd);
+        }
 
-        apiReadRequest(con, thread);
+        int op = EPOLL_CTL_ADD;
+        con->events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
+        struct epoll_event epollEvent = { .events = con->events };
+        epollEvent.data.ptr = con;
 
-        if (!con->reply.buffer && con->open) {
-            int op = EPOLL_CTL_ADD;
-            con->events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
-            struct epoll_event epollEvent = { .events = con->events };
-            epollEvent.data.ptr = con;
-
-            if (epoll_ctl(thread->epfd, op, fd, &epollEvent))
-                perror("epoll_ctl fail:");
+        if (epoll_ctl(thread->epfd, op, fd, &epollEvent)) {
+            perror("acceptCon() epoll_ctl fail:");
         }
     }
     if (errno) {
@@ -1587,8 +1620,9 @@ static void *apiThreadEntryPoint(void *arg) {
         struct epoll_event epollEvent = { .events = con->events };
         epollEvent.data.ptr = con;
 
-        if (epoll_ctl(thread->epfd, EPOLL_CTL_ADD, con->fd, &epollEvent))
-            perror("epoll_ctl fail:");
+        if (epoll_ctl(thread->epfd, EPOLL_CTL_ADD, con->fd, &epollEvent)) {
+            perror("apiThreadEntryPoint() epoll_ctl fail:");
+        }
     }
 
     int count = 0;
@@ -1657,7 +1691,7 @@ static void *apiThreadEntryPoint(void *arg) {
             }
 
             if (con->open && (event.events & (EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP))) {
-                apiReadRequest(con, thread);
+                apiReadRequest(con, thread, event);
             }
         }
     }
