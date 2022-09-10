@@ -134,7 +134,7 @@ viewadsb: readsb
 	cp readsb viewadsb
 
 clean:
-	rm -f *.o compat/clock_gettime/*.o compat/clock_nanosleep/*.o readsb viewadsb cprtests crctests convert_benchmark
+	rm -f *.o uat2esnt/*.o compat/clock_gettime/*.o compat/clock_nanosleep/*.o readsb viewadsb cprtests crctests convert_benchmark
 
 cprtest: cprtests
 	./cprtests
