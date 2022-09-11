@@ -14,8 +14,9 @@ struct apiCon {
     size_t bytesSent;
     uint32_t events;
     int open;
-    int keepalive;
     int wakeups;
+    int keepalive;
+    int minor_version;
     struct char_buffer request;
     int64_t lastReset; // milliseconds
     char *content_type;

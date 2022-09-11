@@ -1008,10 +1008,10 @@ static void sendStatus(struct apiCon *con, const char *http_status) {
 
     p = safe_snprintf(p, end,
     "HTTP/1.1 %s\r\n"
-    "Server: readsb/3.1442\r\n"
-    "Connection: %s\r\n"
-    "Cache-Control: no-store\r\n"
-    "Content-Length: 0\r\n\r\n",
+    "server: readsb/3.1442\r\n"
+    "connection: %s\r\n"
+    "cache-control: no-store\r\n"
+    "content-length: 0\r\n\r\n",
     http_status,
     con->keepalive ? "keep-alive" : "close");
 
@@ -1481,15 +1481,19 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
         return;
     }
     char *minor_version = protocol + 7;
+
     if (strncmp("HTTP/1.", protocol, 7) != 0 || !((*minor_version == '0') || (*minor_version == '1'))) {
         send505(con);
         apiResetCon(con, thread);
         return;
     }
+
+    con->minor_version = (*minor_version == '1') ? 1 : 0;
+
     // check only after the request line as it can be somewhat long (minor efficiency)
     if (strcasestr(eol, "\nConnection: close\r\n")) {
         con->keepalive = 0;
-    } else if (*minor_version == '1') {
+    } else if (con->minor_version == 1 || strcasestr(eol, "\nConnection: keep-alive\r\n")) {
         con->keepalive = 1;
     }
     if (strncmp(request->buffer, "GET", 3) != 0) {
@@ -1532,12 +1536,14 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
 
     p = safe_snprintf(p, end,
             "HTTP/1.1 200 OK\r\n"
-            "Server: readsb/3.1442\r\n"
-            "Content-Type: %s\r\n"
-            "Connection: keep-alive\r\n"
-            "Cache-Control: no-store\r\n"
-            "Content-Length: %d\r\n\r\n",
-            con->content_type, content_len);
+            "server: readsb/3.1442\r\n"
+            "content-type: %s\r\n"
+            "connection: %s\r\n"
+            "cache-control: no-store\r\n"
+            "content-length: %d\r\n\r\n",
+            con->content_type,
+            con->keepalive ? "keep-alive" : "close",
+            content_len);
 
     int hlen = p - header;
     //fprintf(stderr, "hlen %d\n", hlen);
