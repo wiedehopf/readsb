@@ -1474,12 +1474,12 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
         // request not complete
         return;
     }
-    if (eol - request->buffer < 9) {
+    char *protocol = eol - 9;
+    if (protocol < request->buffer) {
         send505(con);
         apiResetCon(con, thread);
         return;
     }
-    char *protocol = eol - 9;
     char *minor_version = protocol + 7;
     if (strncmp("HTTP/1.", protocol, 7) != 0 || !((*minor_version == '0') || (*minor_version == '1'))) {
         send505(con);
@@ -1501,7 +1501,8 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
 
     // end of header processing, put \0 to discard anything but the first line
     *eol = '\0';
-    if (strstr(request->buffer, "?status HTTP")) {
+    char *status = protocol - 8;
+    if (status > request->buffer && strstr(status, "?status ")) {
         if (Modes.exitSoon) {
             send503(con);
         } else {
