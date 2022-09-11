@@ -1027,6 +1027,9 @@ static void send400(struct apiCon *con) {
 static void send405(struct apiCon *con) {
     sendStatus(con, "405 Method Not Allowed");
 }
+static void send505(struct apiCon *con) {
+    sendStatus(con, "505 HTTP Version Not Supported");
+}
 static void send503(struct apiCon *con) {
     sendStatus(con, "503 Service Unavailable");
 }
@@ -1470,7 +1473,22 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
         // request not complete
         return;
     }
-    if (strcasestr(request->buffer, "\r\nConnection: Keep-Alive\r\n")) {
+    if (eol - request->buffer < 9) {
+        send505(con);
+        apiResetCon(con, thread);
+        return;
+    }
+    char *protocol = eol - 9;
+    char *minor_version = protocol + 7;
+    if (strncmp("HTTP/1.", protocol, 7) != 0 || !((*minor_version == '0') || (*minor_version == '1'))) {
+        send505(con);
+        apiResetCon(con, thread);
+        return;
+    }
+    // check only after the request line as it can be somewhat long (minor efficiency)
+    if (strcasestr(eol, "\nConnection: close\r\n")) {
+        con->keepalive = 0;
+    } else if (*minor_version == '1') {
         con->keepalive = 1;
     }
     if (strncmp(request->buffer, "GET", 3) != 0) {
@@ -1478,6 +1496,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
         apiResetCon(con, thread);
         return;
     }
+    //fprintf(stderr, "%s\n", request->buffer);
 
     // end of header processing, put \0 to discard anything but the first line
     *eol = '\0';
@@ -1490,9 +1509,6 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
         apiResetCon(con, thread);
         return;
     }
-
-    request->buffer[request->len] = '\0';
-    //fprintf(stderr, "%s\n", request->buffer);
 
     con->content_type = "multipart/mixed";
     struct char_buffer reply = parseFetch(con, request, thread);
