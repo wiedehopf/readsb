@@ -1010,6 +1010,7 @@ static void sendStatus(struct apiCon *con, const char *http_status) {
     "HTTP/1.1 %s\r\n"
     "Server: readsb/3.1442\r\n"
     "Connection: %s\r\n"
+    "Cache-Control: no-store\r\n"
     "Content-Length: 0\r\n\r\n",
     http_status,
     con->keepalive ? "keep-alive" : "close");
@@ -1531,8 +1532,9 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
     p = safe_snprintf(p, end,
             "HTTP/1.1 200 OK\r\n"
             "Server: readsb/3.1442\r\n"
-            "Connection: keep-alive\r\n"
             "Content-Type: %s\r\n"
+            "Connection: keep-alive\r\n"
+            "Cache-Control: no-store\r\n"
             "Content-Length: %d\r\n\r\n",
             con->content_type, content_len);
 
