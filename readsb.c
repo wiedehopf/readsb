@@ -71,9 +71,13 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state);
 static void cleanup_and_exit(int code);
 
 void setExit(int arg) {
-    Modes.exit = arg; // Signal to threads that we are done
+    // Signal to main loop that program is exiting soon, delay depends on cli arguments
+    // see main loop for details
+
+    Modes.exitSoon = arg;
+
     uint64_t one = 1;
-    ssize_t res = write(Modes.exitEventfd, &one, sizeof(one));
+    ssize_t res = write(Modes.exitSoonEventfd, &one, sizeof(one));
     MODES_NOTUSED(res);
 }
 static void sigintHandler(int dummy) {
@@ -2263,7 +2267,8 @@ int main(int argc, char **argv) {
     }
 
     // signal handling stuff
-    Modes.exitEventfd = eventfd(0, EFD_NONBLOCK);
+    Modes.exitNowEventfd = eventfd(0, EFD_NONBLOCK);
+    Modes.exitSoonEventfd = eventfd(0, EFD_NONBLOCK);
     signal(SIGINT, sigintHandler);
     signal(SIGTERM, sigtermHandler);
     signal(SIGUSR1, SIG_IGN);
@@ -2346,15 +2351,6 @@ int main(int argc, char **argv) {
             writeInternalState();
         }
     }
-    if (0) {
-        // db update on startup
-        if (!Modes.exit) {
-            dbUpdate(mstime());
-        }
-        if (!Modes.exit) {
-            dbFinishUpdate();
-        }
-    }
 
     if (Modes.sdr_type != SDR_NONE) {
         threadCreate(&Threads.reader, NULL, readerEntryPoint, NULL);
@@ -2394,7 +2390,7 @@ int main(int argc, char **argv) {
 
     threadCreate(&Threads.upkeep, NULL, upkeepEntryPoint, NULL);
 
-    int mainEpfd = my_epoll_create();
+    int mainEpfd = my_epoll_create(&Modes.exitSoonEventfd);
     struct epoll_event *events = NULL;
     int maxEvents = 1;
     epollAllocEvents(&events, &maxEvents);
@@ -2409,6 +2405,21 @@ int main(int argc, char **argv) {
     startWatch(&mainloopTimer);
     while (!Modes.exit) {
         if (epoll_wait(mainEpfd, events, maxEvents, 5 * SECONDS) > 0) {
+            if (Modes.exitSoon) {
+                if (Modes.api) {
+                    // delay for 150 ms, then exit, this is for graceful api shutdown
+                    msleep(150);
+                }
+                // Signal to threads that program is exiting
+                Modes.exit = Modes.exitSoon;
+                uint64_t one = 1;
+                ssize_t res = write(Modes.exitNowEventfd, &one, sizeof(one));
+                MODES_NOTUSED(res);
+            } else if (!Modes.exit) {
+                // this shouldn't happen
+                fprintf(stderr, "wtf? too2Mee7\n");
+                msleep(50);
+            }
             continue;
         }
 

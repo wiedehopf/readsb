@@ -487,6 +487,7 @@ struct _Modes
     unsigned first_filled_buffer; // Entry in mag_buffers that has valid data and will be demodulated next. If equal to next_free_buffer, there is no unprocessed data.
     unsigned trailing_samples; // extra trailing samples in magnitude buffers
     int volatile exit; // Exit from the main loop when true
+    int volatile exitSoon;
     int fd; // --ifile option file descriptor
     input_format_t input_format; // --iformat option
     iq_convert_fn converter_function;
@@ -500,7 +501,8 @@ struct _Modes
     char aneterr[ANET_ERR_LEN];
     struct net_service_group services_in; // Active services which primarily receive data
     struct net_service_group services_out; // Active services which primarily send data
-    int exitEventfd;
+    int exitNowEventfd;
+    int exitSoonEventfd;
 
     int net_epfd; // epoll fd used for most network stuff
     int net_event_count;

@@ -1001,7 +1001,7 @@ static void apiResetCon(struct apiCon *con, struct apiThread *thread) {
     con->lastReset = mstime();
 }
 
-static void sendError(int fd, const char *http_status) {
+static void sendStatus(struct apiCon *con, const char *http_status) {
     char buf[256];
     char *p = buf;
     char *end = buf + sizeof(buf);
@@ -1009,24 +1009,29 @@ static void sendError(int fd, const char *http_status) {
     p = safe_snprintf(p, end,
     "HTTP/1.1 %s\r\n"
     "Server: readsb/3.1442\r\n"
-    "Connection: keep-alive\r\n"
+    "Connection: %s\r\n"
     "Content-Length: 0\r\n\r\n",
-    http_status);
+    http_status,
+    con->keepalive ? "keep-alive" : "close");
 
-    int res = send(fd, buf, strlen(buf), 0);
+    int res = send(con->fd, buf, strlen(buf), 0);
     MODES_NOTUSED(res);
 }
-static void send400(int fd) {
-    sendError(fd, "400 Bad Request");
+
+static void send200(struct apiCon *con) {
+    sendStatus(con, "200 OK");
 }
-static void send405(int fd) {
-    sendError(fd, "405 Method Not Allowed");
+static void send400(struct apiCon *con) {
+    sendStatus(con, "400 Bad Request");
 }
-static void send503(int fd) {
-    sendError(fd, "503 ServiceUnavailable");
+static void send405(struct apiCon *con) {
+    sendStatus(con, "405 Method Not Allowed");
 }
-static void send500(int fd) {
-    sendError(fd, "500 Internal Server Error");
+static void send503(struct apiCon *con) {
+    sendStatus(con, "503 Service Unavailable");
+}
+static void send500(struct apiCon *con) {
+    sendStatus(con, "500 Internal Server Error");
 }
 
 
@@ -1406,7 +1411,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
 
     size_t requestMax = 1024 + 13 * API_REQ_LIST_MAX;
     if (request->len > requestMax) {
-        send400(fd);
+        send400(con);
         apiResetCon(con, thread);
         return;
     }
@@ -1420,7 +1425,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
     if (!request->buffer) {
         fprintf(stderr, "FATAL: apiReadRequest request->buffer malloc fail\n");
         setExit(2);
-        send503(con->fd);
+        send503(con);
         apiCloseCon(con, thread);
         return;
     }
@@ -1451,6 +1456,8 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
         return;
     }
 
+    int oldlen = request->len;
+
     if (nread > 0) {
         request->len += nread;
         // terminate string
@@ -1458,7 +1465,8 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
     }
 
 
-    if (!memchr(request->buffer, '\n', request->len) || !strstr(request->buffer, "\r\n\r\n")) {
+    char *eol = memchr(request->buffer, '\n', request->len);
+    if (!eol || !strstr(request->buffer + imax(0, oldlen - 4), "\r\n\r\n")) {
         // request not complete
         return;
     }
@@ -1466,7 +1474,19 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
         con->keepalive = 1;
     }
     if (strncmp(request->buffer, "GET", 3) != 0) {
-        send405(fd);
+        send405(con);
+        apiResetCon(con, thread);
+        return;
+    }
+
+    // end of header processing, put \0 to discard anything but the first line
+    *eol = '\0';
+    if (strstr(request->buffer, "?status HTTP")) {
+        if (Modes.exitSoon) {
+            send503(con);
+        } else {
+            send200(con);
+        }
         apiResetCon(con, thread);
         return;
     }
@@ -1478,7 +1498,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
     struct char_buffer reply = parseFetch(con, request, thread);
     if (reply.len == 0) {
         //fprintf(stderr, "parseFetch returned invalid\n");
-        send400(fd);
+        send400(con);
         apiResetCon(con, thread);
         return;
     }
@@ -1555,7 +1575,7 @@ static void acceptCon(struct apiCon *con, struct apiThread *thread) {
             int64_t now = mstime();
             for (int j = 0; j < Modes.api_fds_per_thread; j++) {
                 if (now - thread->cons[j].lastReset > 5 * SECONDS) {
-                    send503(con->fd);
+                    send503(con);
                     apiCloseCon(con, thread);
                 }
             }
@@ -1563,7 +1583,7 @@ static void acceptCon(struct apiCon *con, struct apiThread *thread) {
         // reject new connection if we still don't have a free connection
         if (con->open) {
             fprintf(stderr, "too man concurrent connections, reject new connection, send 503 :/\n");
-            send503(fd);
+            send503(con);
             if (shutClose(fd) != 0) {
                 perror("accept: shutClose failed when rejecting a new connection:");
             }
@@ -1613,7 +1633,7 @@ static void *apiThreadEntryPoint(void *arg) {
 
     thread->cctx = ZSTD_createCCtx();
 
-    thread->epfd = my_epoll_create();
+    thread->epfd = my_epoll_create(&Modes.exitNowEventfd);
 
     for (int i = 0; i < Modes.apiService.listener_count; ++i) {
         struct apiCon *con = Modes.apiListeners[i];
@@ -1638,6 +1658,7 @@ static void *apiThreadEntryPoint(void *arg) {
         }
         count = epoll_wait(thread->epfd, events, maxEvents, 5 * SECONDS);
 
+
         if (loop++ % 12 == 0) {
             struct timespec used = { 0 };
             end_cpu_timing(&cpu_timer, &used);
@@ -1650,7 +1671,7 @@ static void *apiThreadEntryPoint(void *arg) {
         // first try and send out data that hasn't been sent yet
         for (int i = 0; i < count; i++) {
             struct epoll_event event = events[i];
-            if (event.data.ptr == &Modes.exitEventfd)
+            if (event.data.ptr == &Modes.exitNowEventfd)
                 continue;
 
             struct apiCon *con = event.data.ptr;
@@ -1673,7 +1694,7 @@ static void *apiThreadEntryPoint(void *arg) {
                             con->open);
                 }
 
-                send500(con->fd);
+                send500(con);
                 apiCloseCon(con, thread);
                 continue;
             }
@@ -1681,7 +1702,7 @@ static void *apiThreadEntryPoint(void *arg) {
         // accept new connection and read unread http requests
         for (int i = 0; i < count; i++) {
             struct epoll_event event = events[i];
-            if (event.data.ptr == &Modes.exitEventfd)
+            if (event.data.ptr == &Modes.exitNowEventfd)
                 continue;
 
             struct apiCon *con = event.data.ptr;

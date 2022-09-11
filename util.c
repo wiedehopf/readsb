@@ -471,15 +471,15 @@ ssize_t check_write(int fd, const void *buf, size_t count, const char *error_con
     return res;
 }
 
-int my_epoll_create() {
+int my_epoll_create(int *event_fd_ptr) {
     int fd = epoll_create(32); // argument positive, ignored
     if (fd == -1) {
         perror("FATAL: epoll_create() failed:");
         exit(1);
     }
     // add exit signaling eventfd, we want that for all our epoll fds
-    struct epoll_event epollEvent = { .events = EPOLLIN, .data = { .ptr = &Modes.exitEventfd }};
-    if (epoll_ctl(fd, EPOLL_CTL_ADD, Modes.exitEventfd, &epollEvent)) {
+    struct epoll_event epollEvent = { .events = EPOLLIN, .data = { .ptr = event_fd_ptr }};
+    if (epoll_ctl(fd, EPOLL_CTL_ADD, *event_fd_ptr, &epollEvent)) {
         perror("epoll_ctl fail:");
         exit(1);
     }

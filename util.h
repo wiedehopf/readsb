@@ -142,7 +142,7 @@ void log_with_timestamp(const char *format, ...) __attribute__ ((format(printf, 
 int64_t roundSeconds(int interval, int offset, int64_t epoch_ms);
 ssize_t check_write(int fd, const void *buf, size_t count, const char *error_context);
 
-int my_epoll_create();
+int my_epoll_create(int *event_fd_ptr);
 void epollAllocEvents(struct epoll_event **events, int *maxEvents);
 
 char *sprint_uuid(uint64_t id1, uint64_t id2, char *p);

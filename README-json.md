@@ -197,6 +197,12 @@ The keys are:
   * total: number of aircraft in the aircraft array
   * ptime: time in milliseconds it took to parse the request and create the json output
 
+  ```
+  ?status
+  ```
+  * Status code 200 during normal operation
+  * Status code 503 starting 150 ms before the server stops responding
+
 ## history_0.json, history_1.json, ..., history_119.json
 
 These files are historical copies of aircraft.json at (by default) 30 second intervals. They follow exactly the

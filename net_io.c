@@ -691,18 +691,22 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
             p = end + 1;
         }
         if (unix) {
-            if (strstr(buf, ".sock")) {
-                // unlink files which have sock in the path ... some rudimentary protection against users shooting themselves in the foot
-                unlink(buf);
+            if (service->unixSocket) {
+                fprintf(stderr, "Multiple unix sockets per service are not supported! %s (%s): %s\n",
+                        buf, service->descr, Modes.aneterr);
+                exit(1);
             }
+
+            sfree(service->unixSocket);
+            service->unixSocket = strdup(buf);
+
+            unlink(service->unixSocket);
             int fd = anetUnixSocket(Modes.aneterr, buf, SOCK_NONBLOCK);
             if (fd == ANET_ERR) {
                 fprintf(stderr, "Error opening the listening port %s (%s): %s\n",
                         buf, service->descr, Modes.aneterr);
                 exit(1);
             }
-            sfree(service->unixSocket);
-            service->unixSocket = strdup(buf);
             if (chmod(service->unixSocket, 0666) != 0) {
                 perror("serviceListen: couldn't set permissions for unix socket due to:");
             }
@@ -827,7 +831,7 @@ void modesInitNet(void) {
 
     signal(SIGPIPE, SIG_IGN);
 
-    Modes.net_epfd = my_epoll_create();
+    Modes.net_epfd = my_epoll_create(&Modes.exitNowEventfd);
 
     // set up listeners
     raw_out = serviceInit(&Modes.services_out, "Raw TCP output", &Modes.raw_out, raw_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
@@ -3744,7 +3748,7 @@ static void handleEpoll(struct net_service_group *group, struct messageBuffer *m
         group->event_progress += 1;
 
         struct epoll_event event = Modes.net_events[k];
-        if (event.data.ptr == &Modes.exitEventfd) {
+        if (event.data.ptr == &Modes.exitNowEventfd) {
             return;
         }
 
