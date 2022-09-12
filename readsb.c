@@ -2246,6 +2246,13 @@ static void *miscEntryPoint(void *arg) {
 
 int main(int argc, char **argv) {
 
+    for (int k = 0; k < argc; k++) {
+        fprintf(stderr, "%s", argv[k]);
+        if (k < argc - 1) {
+            fprintf(stderr, " ");
+        }
+    }
+    fprintf(stderr, "\n");
     if (0) {
         unlink("test.gz");
         gzipFile("test");
