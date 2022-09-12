@@ -1660,11 +1660,12 @@ static void updateAltitude(int64_t now, struct aircraft *a, struct modesMessage 
 
     // just trust messages with this source implicitely and rate the altitude as max reliable
     // if we get the occasional altitude excursion that's acceptable and preferable to not capturing implausible altitude changes for example before a crash
-    if (mm->crc == 0 && mm->source >= SOURCE_JAERO)
+    if (mm->crc == 0 && (mm->source >= SOURCE_JAERO || mm->source == SOURCE_SBS)) {
         good_crc = ALTITUDE_BARO_RELIABLE_MAX;
-
-    if (mm->source == SOURCE_SBS || mm->source == SOURCE_MLAT)
+    }
+    if (mm->source == SOURCE_MLAT) {
         good_crc = ALTITUDE_BARO_RELIABLE_MAX/2 - 1;
+    }
 
     if (a->baro_alt > 50175 && mm->alt_q_bit && a->alt_reliable > ALTITUDE_BARO_RELIABLE_MAX/4) {
         good_crc = 0;
@@ -1923,9 +1924,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (mm->baro_alt_valid &&
             (mm->source >= a->baro_alt_valid.source
              || Modes.debug_bogus
-             || (trackDataAge(now, &a->baro_alt_valid) > 10 * 1000
+             || (trackDataAge(now, &a->baro_alt_valid) > 10 * SECONDS
                  && a->baro_alt_valid.source != SOURCE_JAERO
                  && a->baro_alt_valid.source != SOURCE_SBS)
+             || trackDataAge(now, &a->baro_alt_valid) > 30 * SECONDS
             )
        ) {
         updateAltitude(now, a, mm);
