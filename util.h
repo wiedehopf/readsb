@@ -37,6 +37,10 @@
 #define SECONDS (1000LL)
 #define MS (1LL)
 
+
+#define litLen(literal) (sizeof(literal) - 1)
+#define byteMatch(s1, literal) (memcmp(s1, literal, litLen(literal)) == 0)
+
 int tryJoinThread(pthread_t *thread, int64_t timeout);
 typedef struct {
     pthread_t pthread;

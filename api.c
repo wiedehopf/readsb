@@ -1414,16 +1414,17 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
 
     struct char_buffer *request = &con->request;
 
-    size_t requestMax = 1024 + 13 * API_REQ_LIST_MAX;
+    int end_pad = 32;
+    size_t requestMax = 1024 + 13 * API_REQ_LIST_MAX + end_pad;
     if (request->len > requestMax) {
         send400(con);
         apiResetCon(con, thread);
         return;
     }
     if (!request->alloc) {
-        request->alloc = 4096;
+        request->alloc = 2048;
         request->buffer = realloc(request->buffer, request->alloc);
-    } else if (request->len + 512 > request->alloc) {
+    } else if (request->len + end_pad + 512 > request->alloc) {
         request->alloc = requestMax;
         request->buffer = realloc(request->buffer, request->alloc);
     }
@@ -1434,7 +1435,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
         apiCloseCon(con, thread);
         return;
     }
-    toRead = request->alloc - request->len - 1; // leave an extra byte we can set \0
+    toRead = (request->alloc - end_pad) - request->len;
     nread = recv(fd, request->buffer + request->len, toRead, 0);
 
     if (Modes.debug_api) {
@@ -1470,54 +1471,67 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
     }
 
 
-    char *eol = memchr(request->buffer, '\n', request->len);
-    if (!eol || !strstr(request->buffer + imax(0, oldlen - 4), "\r\n\r\n")) {
+    int req_len = request->len;
+    char *req_start = request->buffer;
+    char *newline = memchr(req_start + oldlen, '\n', req_len);
+    if (!newline || !strstr(req_start + imax(0, oldlen - 4), "\r\n\r\n")) {
         // request not complete
         return;
     }
-    char *protocol = eol - 9;
-    if (protocol < request->buffer) {
+    char *eol = newline + 1;
+    char *req_end = req_start + req_len;
+    char *protocol = eol - litLen("HTTP/1.x\r\n"); // points to H
+    if (protocol < req_start) {
         send505(con);
         apiResetCon(con, thread);
         return;
     }
-    char *minor_version = protocol + 7;
 
-    if (strncmp("HTTP/1.", protocol, 7) != 0 || !((*minor_version == '0') || (*minor_version == '1'))) {
+    // set end padding to zeros for byteMatch (memcmp) use without regrets
+    memset(req_end, 0, end_pad);
+
+    int isGET = byteMatch(req_start, "GET");
+    char *minor_version = protocol + litLen("HTTP/1.");
+    if (!byteMatch(protocol, "HTTP/1.") || !((*minor_version == '0') || (*minor_version == '1'))) {
         send505(con);
         apiResetCon(con, thread);
         return;
     }
-    int notGET = (strncmp(request->buffer, "GET", 3) != 0);
+    con->minor_version = (*minor_version == '1') ? 1 : 0;
 
     // parseFetch expects lower cased input
     // lower case entire request
     // HTTP / GET checks are done above as they are case sensitive
     _unroll_32
-    for (uint32_t k = 0; k < request->len; k++) {
-        request->buffer[k] = tolower(request->buffer[k]);
+    for (int k = 0; k < req_len; k++) {
+        req_start[k] = tolower(req_start[k]);
     }
 
-    con->minor_version = (*minor_version == '1') ? 1 : 0;
+    // header parsing
+    char *hl = eol;
+    con->keepalive = con->minor_version == 1 ? 1 : 0;
+    while (hl < req_end && (eol = memchr(hl, '\n', req_end - hl))) {
+        *eol = '\0';
 
-    // check only after the request line as it can be somewhat long (minor efficiency)
-    if (strstr(eol, "\nconnection: close\r\n")) {
-        con->keepalive = 0;
-    } else if (con->minor_version == 1 || strstr(eol, "\nconnection: keep-alive\r\n")) {
-        con->keepalive = 1;
+        if (byteMatch(hl, "connection")) {
+            if (strstr(hl, "close")) {
+                con->keepalive = 0;
+            } else if (con->keepalive || strstr(hl, "keep-alive")) {
+                con->keepalive = 1;
+            }
+        }
+        hl = eol + 1;
     }
 
-    if (notGET) {
+    if (!isGET) {
         send405(con);
         apiResetCon(con, thread);
         return;
     }
     //fprintf(stderr, "%s\n", request->buffer);
 
-    // end of header processing, put \0 to discard anything but the first line
-    *eol = '\0';
-    char *status = protocol - 8;
-    if (status > request->buffer && strstr(status, "?status ")) {
+    char *status = protocol - litLen("?status ");
+    if (status > req_start && byteMatch(status, "?status ")) {
         if (Modes.exitSoon) {
             send503(con);
         } else {
