@@ -51,6 +51,7 @@ void threadInit(threadT *thread, char *name);
 void threadCreate(threadT *thread, const pthread_attr_t *attr, void *(*start_routine) (void *), void *arg);
 void threadTimedWait(threadT *thread, struct timespec *ts, int64_t increment);
 void threadSignalJoin(threadT *thread);
+int threadAffinity(int core_id);
 
 struct char_buffer {
     char *buffer;

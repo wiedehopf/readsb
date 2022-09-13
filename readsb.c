@@ -1708,6 +1708,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         Modes.debug_lastStatus = 1;
                     }
                 }
+                if (strcmp(token[0], "apiThreads") == 0) {
+                    Modes.apiThreadCount = atoi(token[1]);
+                }
                 if (strcmp(token[0], "accept_synthetic") == 0) {
                     Modes.dump_accept_synthetic_now = 1;
                 }

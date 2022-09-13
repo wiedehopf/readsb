@@ -313,6 +313,18 @@ void threadSignalJoin(threadT *thread) {
     }
 }
 
+int threadAffinity(int core_id) {
+    int num_cores = Modes.num_procs;
+    if (core_id < 0 || core_id >= num_cores)
+        return EINVAL;
+
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+
+    return sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
+}
+
 struct char_buffer readWholeFile(int fd, char *errorContext) {
     struct char_buffer cb = {0};
     struct stat fileinfo = {0};

@@ -1655,6 +1655,10 @@ static void *apiThreadEntryPoint(void *arg) {
     struct apiThread *thread = (struct apiThread *) arg;
     srandom(get_seed());
 
+    int core = imax(0, Modes.num_procs - Modes.apiThreadCount + thread->index);
+    //fprintf(stderr, "%d\n", core);
+    threadAffinity(core);
+
 
     thread->cctx = ZSTD_createCCtx();
 
@@ -1778,7 +1782,9 @@ static void *apiUpdateEntryPoint(void *arg) {
 
 void apiBufferInit() {
     // 1 api thread per 2 cores as we assume nginx running on the same box, better chances not swamping the CPU under high API load scenarios
-    Modes.apiThreadCount = imax(1, Modes.num_procs / 2);
+    if (Modes.apiThreadCount <= 0) {
+        Modes.apiThreadCount = imax(1, Modes.num_procs - (Modes.num_procs > 6 ? 2 : 1));
+    }
 
     size_t size = sizeof(struct apiThread) * Modes.apiThreadCount;
     Modes.apiThread = cmalloc(size);
