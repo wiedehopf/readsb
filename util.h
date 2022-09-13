@@ -40,6 +40,7 @@
 
 #define litLen(literal) (sizeof(literal) - 1)
 #define byteMatch(s1, literal) (memcmp(s1, literal, litLen(literal)) == 0)
+#define byteMatch0(s1, literal) (memcmp(s1, literal, sizeof(literal)) == 0)
 
 int tryJoinThread(pthread_t *thread, int64_t timeout);
 typedef struct {

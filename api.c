@@ -1091,7 +1091,7 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
         if (value) {
             //fprintf(stderr, "%s=%s\n", option, value);
             // handle parameters WITH associated value
-            if (strcmp(option, "box") == 0) {
+            if (byteMatch0(option, "box")) {
                 options->is_box = 1;
 
                 double *box = options->box;
@@ -1106,9 +1106,9 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                 if (box[0] > box[1])
                     return invalid;
 
-            } else if (strcmp(option, "closest") == 0 || strcmp(option, "circle") == 0) {
+            } else if (byteMatch0(option, "closest") || byteMatch0(option, "circle")) {
                 options->is_circle = 1;
-                if (strcmp(option, "closest") == 0) {
+                if (byteMatch0(option, "closest")) {
                     options->closest = 1;
                 }
                 struct apiCircle *circle = &options->circle;
@@ -1131,7 +1131,7 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                 if (circle->lon > 180 || circle->lon < -180)
                     return invalid;
 
-            } else if (strcmp(option, "find_hex") == 0 || strcmp(option, "hexlist") == 0) {
+            } else if (byteMatch0(option, "find_hex") || byteMatch0(option, "hexlist")) {
                 options->is_hexList = 1;
 
                 int hexCount = 0;
@@ -1158,7 +1158,7 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                 }
 
                 options->hexCount = hexCount;
-            } else if (strcmp(option, "find_callsign") == 0) {
+            } else if (byteMatch0(option, "find_callsign")) {
                 options->is_callsignList = 1;
 
                 int callsignCount = 0;
@@ -1178,7 +1178,7 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                     return invalid;
 
                 options->callsignCount = callsignCount;
-            } else if (strcmp(option, "find_reg") == 0) {
+            } else if (byteMatch0(option, "find_reg")) {
                 options->is_regList = 1;
 
                 int regCount = 0;
@@ -1198,8 +1198,8 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                     return invalid;
 
                 options->regCount = regCount;
-            } else if (strcmp(option, "find_type") == 0 || strcmp(option, "filter_type") == 0) {
-                if (strcmp(option, "find_type") == 0) {
+            } else if (byteMatch0(option, "find_type") || byteMatch0(option, "filter_type")) {
+                if (byteMatch0(option, "find_type")) {
                     options->is_typeList = 1;
                 } else {
                     options->filter_typeList = 1;
@@ -1222,27 +1222,27 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                     return invalid;
 
                 options->typeCount = typeCount;
-            } else if (strcmp(option, "filter_callsign_exact") == 0) {
+            } else if (byteMatch0(option, "filter_callsign_exact")) {
 
                 options->filter_callsign_exact = 1;
 
                 memset(options->callsign_exact, 0x0, sizeof(options->callsign_exact));
                 strncpy(options->callsign_exact, value, 8);
 
-            } else if (strcmp(option, "filter_callsign_prefix") == 0) {
+            } else if (byteMatch0(option, "filter_callsign_prefix")) {
 
                 options->filter_callsign_prefix = 1;
 
                 memset(options->callsign_prefix, 0x0, sizeof(options->callsign_prefix));
                 strncpy(options->callsign_prefix, value, 8);
 
-            } else if (strcmp(option, "above_alt_baro") == 0) {
+            } else if (byteMatch0(option, "above_alt_baro")) {
                 options->filter_alt_baro = 1;
                 options->above_alt_baro = strtol(value, NULL, 10);
-            } else if (strcmp(option, "below_alt_baro") == 0) {
+            } else if (byteMatch0(option, "below_alt_baro")) {
                 options->filter_alt_baro = 1;
                 options->below_alt_baro = strtol(value, NULL, 10);
-            } else if (strcmp(option, "filter_squawk") == 0) {
+            } else if (byteMatch0(option, "filter_squawk")) {
                 options->filter_squawk = 1;
                 //int dec = strtol(value, NULL, 10);
                 //options->squawk = (dec / 1000) * 16*16*16 + (dec / 100 % 10) * 16*16 + (dec / 10 % 10) * 16 + (dec % 10);
@@ -1255,30 +1255,30 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
             }
         } else {
             // handle parameters WITHOUT associated value
-            if (strcmp(option, "json") == 0) {
+            if (byteMatch0(option, "json")) {
                 // this is the default
-            } else if (strcmp(option, "jv2") == 0) {
+            } else if (byteMatch0(option, "jv2")) {
                 options->jamesv2 = 1;
-            } else if (strcmp(option, "zstd") == 0) {
+            } else if (byteMatch0(option, "zstd")) {
                 options->zstd = 1;
-            } else if (strcmp(option, "bincraft") == 0) {
+            } else if (byteMatch0(option, "bincraft")) {
                 options->binCraft = 1;
-            } else if (strcmp(option, "all") == 0) {
+            } else if (byteMatch0(option, "all")) {
                 options->all = 1;
-            } else if (strcmp(option, "all_with_pos") == 0) {
+            } else if (byteMatch0(option, "all_with_pos")) {
                 options->all_with_pos = 1;
-            } else if (strcmp(option, "filter_with_pos") == 0) {
+            } else if (byteMatch0(option, "filter_with_pos")) {
                 options->filter_with_pos = 1;
-            } else if (strcmp(option, "filter_mil") == 0) {
+            } else if (byteMatch0(option, "filter_mil")) {
                 options->filter_dbFlag = 1;
                 options->filter_mil = 1;
-            } else if (strcmp(option, "filter_interesting") == 0) {
+            } else if (byteMatch0(option, "filter_interesting")) {
                 options->filter_dbFlag = 1;
                 options->filter_interesting = 1;
-            } else if (strcmp(option, "filter_pia") == 0) {
+            } else if (byteMatch0(option, "filter_pia")) {
                 options->filter_dbFlag = 1;
                 options->filter_pia = 1;
-            } else if (strcmp(option, "filter_ladd") == 0) {
+            } else if (byteMatch0(option, "filter_ladd")) {
                 options->filter_dbFlag = 1;
                 options->filter_ladd = 1;
             } else {
