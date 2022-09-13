@@ -1053,6 +1053,7 @@ static int parseDoubles(char *p, double *results, int max) {
     return count;
 }
 
+// expects lower cased input
 static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *request, struct apiThread *thread) {
     struct char_buffer invalid = { 0 };
     char *p;
@@ -1090,7 +1091,7 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
         if (value) {
             //fprintf(stderr, "%s=%s\n", option, value);
             // handle parameters WITH associated value
-            if (strcasecmp(option, "box") == 0) {
+            if (strcmp(option, "box") == 0) {
                 options->is_box = 1;
 
                 double *box = options->box;
@@ -1105,9 +1106,9 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                 if (box[0] > box[1])
                     return invalid;
 
-            } else if (strcasecmp(option, "closest") == 0 || strcasecmp(option, "circle") == 0) {
+            } else if (strcmp(option, "closest") == 0 || strcmp(option, "circle") == 0) {
                 options->is_circle = 1;
-                if (strcasecmp(option, "closest") == 0) {
+                if (strcmp(option, "closest") == 0) {
                     options->closest = 1;
                 }
                 struct apiCircle *circle = &options->circle;
@@ -1130,7 +1131,7 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                 if (circle->lon > 180 || circle->lon < -180)
                     return invalid;
 
-            } else if (strcasecmp(option, "find_hex") == 0 || strcasecmp(option, "hexList") == 0) {
+            } else if (strcmp(option, "find_hex") == 0 || strcmp(option, "hexlist") == 0) {
                 options->is_hexList = 1;
 
                 int hexCount = 0;
@@ -1157,7 +1158,7 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                 }
 
                 options->hexCount = hexCount;
-            } else if (strcasecmp(option, "find_callsign") == 0) {
+            } else if (strcmp(option, "find_callsign") == 0) {
                 options->is_callsignList = 1;
 
                 int callsignCount = 0;
@@ -1177,7 +1178,7 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                     return invalid;
 
                 options->callsignCount = callsignCount;
-            } else if (strcasecmp(option, "find_reg") == 0) {
+            } else if (strcmp(option, "find_reg") == 0) {
                 options->is_regList = 1;
 
                 int regCount = 0;
@@ -1197,8 +1198,8 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                     return invalid;
 
                 options->regCount = regCount;
-            } else if (strcasecmp(option, "find_type") == 0 || strcasecmp(option, "filter_type") == 0) {
-                if (strcasecmp(option, "find_type") == 0) {
+            } else if (strcmp(option, "find_type") == 0 || strcmp(option, "filter_type") == 0) {
+                if (strcmp(option, "find_type") == 0) {
                     options->is_typeList = 1;
                 } else {
                     options->filter_typeList = 1;
@@ -1221,27 +1222,27 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                     return invalid;
 
                 options->typeCount = typeCount;
-            } else if (strcasecmp(option, "filter_callsign_exact") == 0) {
+            } else if (strcmp(option, "filter_callsign_exact") == 0) {
 
                 options->filter_callsign_exact = 1;
 
                 memset(options->callsign_exact, 0x0, sizeof(options->callsign_exact));
                 strncpy(options->callsign_exact, value, 8);
 
-            } else if (strcasecmp(option, "filter_callsign_prefix") == 0) {
+            } else if (strcmp(option, "filter_callsign_prefix") == 0) {
 
                 options->filter_callsign_prefix = 1;
 
                 memset(options->callsign_prefix, 0x0, sizeof(options->callsign_prefix));
                 strncpy(options->callsign_prefix, value, 8);
 
-            } else if (strcasecmp(option, "above_alt_baro") == 0) {
+            } else if (strcmp(option, "above_alt_baro") == 0) {
                 options->filter_alt_baro = 1;
                 options->above_alt_baro = strtol(value, NULL, 10);
-            } else if (strcasecmp(option, "below_alt_baro") == 0) {
+            } else if (strcmp(option, "below_alt_baro") == 0) {
                 options->filter_alt_baro = 1;
                 options->below_alt_baro = strtol(value, NULL, 10);
-            } else if (strcasecmp(option, "filter_squawk") == 0) {
+            } else if (strcmp(option, "filter_squawk") == 0) {
                 options->filter_squawk = 1;
                 //int dec = strtol(value, NULL, 10);
                 //options->squawk = (dec / 1000) * 16*16*16 + (dec / 100 % 10) * 16*16 + (dec / 10 % 10) * 16 + (dec % 10);
@@ -1254,30 +1255,30 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
             }
         } else {
             // handle parameters WITHOUT associated value
-            if (strcasecmp(option, "json") == 0) {
+            if (strcmp(option, "json") == 0) {
                 // this is the default
-            } else if (strcasecmp(option, "jv2") == 0) {
+            } else if (strcmp(option, "jv2") == 0) {
                 options->jamesv2 = 1;
-            } else if (strcasecmp(option, "zstd") == 0) {
+            } else if (strcmp(option, "zstd") == 0) {
                 options->zstd = 1;
-            } else if (strcasecmp(option, "binCraft") == 0) {
+            } else if (strcmp(option, "bincraft") == 0) {
                 options->binCraft = 1;
-            } else if (strcasecmp(option, "all") == 0) {
+            } else if (strcmp(option, "all") == 0) {
                 options->all = 1;
-            } else if (strcasecmp(option, "all_with_pos") == 0) {
+            } else if (strcmp(option, "all_with_pos") == 0) {
                 options->all_with_pos = 1;
-            } else if (strcasecmp(option, "filter_with_pos") == 0) {
+            } else if (strcmp(option, "filter_with_pos") == 0) {
                 options->filter_with_pos = 1;
-            } else if (strcasecmp(option, "filter_mil") == 0) {
+            } else if (strcmp(option, "filter_mil") == 0) {
                 options->filter_dbFlag = 1;
                 options->filter_mil = 1;
-            } else if (strcasecmp(option, "filter_interesting") == 0) {
+            } else if (strcmp(option, "filter_interesting") == 0) {
                 options->filter_dbFlag = 1;
                 options->filter_interesting = 1;
-            } else if (strcasecmp(option, "filter_pia") == 0) {
+            } else if (strcmp(option, "filter_pia") == 0) {
                 options->filter_dbFlag = 1;
                 options->filter_pia = 1;
-            } else if (strcasecmp(option, "filter_ladd") == 0) {
+            } else if (strcmp(option, "filter_ladd") == 0) {
                 options->filter_dbFlag = 1;
                 options->filter_ladd = 1;
             } else {
@@ -1487,16 +1488,26 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
         apiResetCon(con, thread);
         return;
     }
+    int notGET = (strncmp(request->buffer, "GET", 3) != 0);
+
+    // parseFetch expects lower cased input
+    // lower case entire request
+    // HTTP / GET checks are done above as they are case sensitive
+    _unroll_32
+    for (uint32_t k = 0; k < request->len; k++) {
+        request->buffer[k] = tolower(request->buffer[k]);
+    }
 
     con->minor_version = (*minor_version == '1') ? 1 : 0;
 
     // check only after the request line as it can be somewhat long (minor efficiency)
-    if (strcasestr(eol, "\nConnection: close\r\n")) {
+    if (strstr(eol, "\nconnection: close\r\n")) {
         con->keepalive = 0;
-    } else if (con->minor_version == 1 || strcasestr(eol, "\nConnection: keep-alive\r\n")) {
+    } else if (con->minor_version == 1 || strstr(eol, "\nconnection: keep-alive\r\n")) {
         con->keepalive = 1;
     }
-    if (strncmp(request->buffer, "GET", 3) != 0) {
+
+    if (notGET) {
         send405(con);
         apiResetCon(con, thread);
         return;

@@ -348,6 +348,17 @@ typedef enum {
 #define likely(x)       __builtin_expect((x),1)
 #define unlikely(x)     __builtin_expect((x),0)
 
+
+#if defined(__llvm__)
+#define _unroll_8 _Pragma ("unroll 8")
+#define _unroll_16 _Pragma ("unroll 16")
+#define _unroll_32 _Pragma ("unroll 16")
+#elif defined(__GNUC__)
+#define _unroll_8 _Pragma ("GCC unroll 8")
+#define _unroll_16 _Pragma ("GCC unroll 16")
+#define _unroll_32 _Pragma ("GCC unroll 16")
+#endif
+
 void setExit(int arg);
 int priorityTasksPending();
 void priorityTasksRun();
