@@ -305,7 +305,7 @@ static struct errorinfo *prepareErrorTable(int bits, int max_correct, int max_de
 #ifdef CRCDEBUG
     {
         // Check the table.
-        unsigned char *msg = malloc(bits / 8);
+        unsigned char *msg = cmalloc(bits / 8);
 
         for (i = 0; i < usedsize; ++i) {
             int j;

@@ -380,8 +380,12 @@ static inline void *malloc_or_exit(size_t alignment, size_t size, const char *fi
     return buf;
 }
 
-// currently normal malloc, no alignment
+// use memory alignment only for arm ....
+#if defined(__arm__) || defined(__aarch64__)
+#define cmalloc(size) malloc_or_exit(MemoryAlignment, size, __FILE__, __LINE__)
+#else
 #define cmalloc(size) malloc_or_exit(0, size, __FILE__, __LINE__)
+#endif
 
 // Include subheaders after all the #defines are in place
 

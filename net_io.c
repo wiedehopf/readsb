@@ -2462,7 +2462,7 @@ static int handleCommandSocket(struct client *c, char *p, int remote, int64_t no
             fprintf(stderr, "commandSocket deleteTrace: not enough tokens\n");
             return 0;
         }
-        struct hexInterval* new = malloc(sizeof(struct hexInterval));
+        struct hexInterval* new = cmalloc(sizeof(struct hexInterval));
         new->hex = (uint32_t) strtol(t1, NULL, 16);
         new->from = (int64_t) strtol(t2, NULL, 10);
         new->to = (int64_t) strtol(t3, NULL, 10);

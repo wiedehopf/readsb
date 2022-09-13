@@ -1065,7 +1065,7 @@ struct char_buffer generateGlobeBin(int globe_index, int mil, threadpool_buffer_
     struct char_buffer cb = { 0 };
     int64_t now = mstime();
     struct aircraft *a;
-    ssize_t alloc = 4096;
+    ssize_t alloc = 4096 + 4 * sizeof(struct binCraft);
 
     struct craftArray *ca = NULL;
 
@@ -1147,18 +1147,13 @@ struct char_buffer generateGlobeBin(int globe_index, int mil, threadpool_buffer_
             continue;
         // check if we have enough space
         if ((p + 2 * sizeof(struct binCraft)) >= end) {
-            int used = p - buf;
-            alloc *= 2;
-            buf = (char *) realloc(buf, alloc);
-            p = buf + used;
-            end = buf + alloc;
+            fprintf(stderr, "buffer insufficient globeBin\n");
+            break;
         }
 
         toBinCraft(a, (struct binCraft *) p, now);
         p += sizeof(struct binCraft);
 
-        if (p >= end)
-            fprintf(stderr, "buffer overrun globeBin\n");
     }
 
     ca_unlock_read(ca);
@@ -1186,7 +1181,7 @@ struct char_buffer generateGlobeJson(int globe_index, threadpool_buffer_t *pbuff
     }
     ca_lock_read(ca);
 
-    alloc += ca->len * 1024; // 1024 bytes per potential aircraft object
+    alloc += ca->len * 2048; // 2048 bytes per potential aircraft object
 
     char *buf = check_grow_threadpool_buffer_t(pbuffer, alloc);
 
@@ -1242,7 +1237,8 @@ struct char_buffer generateGlobeJson(int globe_index, threadpool_buffer_t *pbuff
             continue;
 
         // check if we have enough space
-        if ((p + 2000) >= end) {
+        // disable this due to passbuffer .... this would be a memleak
+        if (0 && (p + 2000) >= end) {
             int used = p - buf;
             alloc *= 2;
             buf = (char *) realloc(buf, alloc);
@@ -1254,8 +1250,10 @@ struct char_buffer generateGlobeJson(int globe_index, threadpool_buffer_t *pbuff
         p = sprintAircraftObject(p, end, a, now, 0, NULL);
         p = safe_snprintf(p, end, ",");
 
-        if (p >= end)
+        if (p >= end) {
             fprintf(stderr, "buffer overrun aircraft json\n");
+            break;
+        }
     }
 
     if (*(p-1) == ',')
@@ -1279,7 +1277,7 @@ struct char_buffer generateAircraftJson(int64_t onlyRecent){
 
     ca_lock_read(ca);
 
-    size_t alloc = 4096 + ca->len * sizeof(struct binCraft); // The initial buffer is resized as needed
+    size_t alloc = 4096 + ca->len * 2048; // The initial buffer is resized as needed
 
     char *buf = cmalloc(alloc);
     char *p = buf;

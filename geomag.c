@@ -175,6 +175,10 @@ int geomag_init()
 ");
 
     wmm_lines = malloc(sizeof(char*) * 256);
+    if (!wmm_lines) {
+        fprintf(stderr, "malloc fail in geomag.c\n");
+        return -1;
+    }
     wmm_index = 0;
 
     char *saveptr = NULL;

@@ -681,19 +681,19 @@ double bearing(double lat0, double lon0, double lat1, double lon1) {
 
 // allocate a group of task_info
 task_group_t *allocate_task_group(uint32_t count) {
-    task_group_t *group = malloc(sizeof(task_group_t));
+    task_group_t *group = cmalloc(sizeof(task_group_t));
     group->task_count = count;
-    group->infos = malloc(count * sizeof(task_info_t));
+    group->infos = cmalloc(count * sizeof(task_info_t));
     memset(group->infos, 0x0, count * sizeof(task_info_t));
     /*
     for (uint32_t k = 0; k < count; k++) {
         task_info_t *info = &group->infos[k];
         info->buffer_count = buffer_count;
-        info->buffers = malloc(buffer_count * sizeof(buffer_t));
+        info->buffers = cmalloc(buffer_count * sizeof(buffer_t));
         memset(info->buffers, 0x0, buffer_count * sizeof(buffer_t));
     }
     */
-    group->tasks = malloc(count * sizeof(threadpool_task_t));
+    group->tasks = cmalloc(count * sizeof(threadpool_task_t));
     memset(group->tasks, 0x0, count * sizeof(threadpool_task_t));
 
     return group;

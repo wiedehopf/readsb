@@ -202,7 +202,7 @@ bool rtlsdrOpen(void) {
             return false;
         }
 
-        gains = malloc(numgains * sizeof (int));
+        gains = cmalloc(numgains * sizeof (int));
         if (rtlsdr_get_tuner_gains(RTLSDR.dev, gains) != numgains) {
             fprintf(stderr, "rtlsdr: error getting tuner gains\n");
             free(gains);
