@@ -1039,16 +1039,26 @@ static void send500(struct apiCon *con) {
 }
 
 
-static int parseDoubles(char *p, double *results, int max) {
-    char *saveptr = NULL;
-    char *endptr = NULL;
+static int parseDoubles(char *start, char *end, double *results, int max) {
     int count = 0;
-    char *tok = strtok_r(p, ",", &saveptr);
-    while (tok && count < max) {
-        results[count] = strtod(tok, &endptr);
-        if (tok != endptr)
-            count++;
-        tok = strtok_r(NULL, ",", &saveptr);
+    char *sot;
+    char *eot = start - 1;
+    char *endptr = NULL;
+    //fprintf(stderr, "%s\n", start);
+    while ((sot = eot + 1) < end) {
+        eot = memchr(sot, ',', end - sot);
+        if (!eot) {
+            eot = end; // last token memchr returns NULL and eot is set to end
+        }
+        *eot = '\0';
+
+        results[count++] = strtod(sot, &endptr);
+        if (eot != endptr) {
+            return -1;
+        }
+        if (count > max) {
+            return -1;
+        }
     }
     return count;
 }
@@ -1056,8 +1066,6 @@ static int parseDoubles(char *p, double *results, int max) {
 // expects lower cased input
 static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *request, struct apiThread *thread) {
     struct char_buffer invalid = { 0 };
-    char *p;
-    char *saveptr;
 
     char *req = request->buffer;
 
@@ -1084,10 +1092,18 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
 
     options->request_received = microtime();
 
-    while ((p = strsep(&query, "&"))) {
-        //fprintf(stderr, "%s\n", p);
+    char *sot;
+    char *eot = query - 1;
+    while ((sot = eot + 1) < eoq) {
+        eot = memchr(sot, '&', eoq - sot);
+        if (!eot) {
+            eot = eoq; // last token memchr returns NULL and eot is set to eoq
+        }
+        *eot = '\0';
+
+        char *p = sot;
         char *option = strsep(&p, "=");
-        char *value = strsep(&p, "=");
+        char *value = p;
         if (value) {
             //fprintf(stderr, "%s=%s\n", option, value);
             // handle parameters WITH associated value
@@ -1095,7 +1111,7 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                 options->is_box = 1;
 
                 double *box = options->box;
-                int count = parseDoubles(value, box, 4);
+                int count = parseDoubles(value, eot, box, 4);
                 if (count < 4)
                     return invalid;
 
@@ -1113,7 +1129,7 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                 }
                 struct apiCircle *circle = &options->circle;
                 double numbers[3];
-                int count = parseDoubles(value, numbers, 3);
+                int count = parseDoubles(value, eot, numbers, 3);
                 if (count < 3)
                     return invalid;
 
@@ -1138,7 +1154,7 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                 int maxCount = API_REQ_LIST_MAX;
                 uint32_t *hexList = options->hexList;
 
-                saveptr = NULL;
+                char *saveptr = NULL;
                 char *endptr = NULL;
                 char *tok = strtok_r(value, ",", &saveptr);
                 while (tok && hexCount < maxCount) {
@@ -1165,7 +1181,7 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                 int maxCount = API_REQ_LIST_MAX;
                 char *callsignList = options->callsignList;
 
-                saveptr = NULL;
+                char *saveptr = NULL;
                 char *endptr = NULL;
                 char *tok = strtok_r(value, ",", &saveptr);
                 while (tok && callsignCount < maxCount) {
@@ -1185,7 +1201,7 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                 int maxCount = API_REQ_LIST_MAX;
                 char *regList = options->regList;
 
-                saveptr = NULL;
+                char *saveptr = NULL;
                 char *endptr = NULL;
                 char *tok = strtok_r(value, ",", &saveptr);
                 while (tok && regCount < maxCount) {
@@ -1209,7 +1225,7 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                 int maxCount = API_REQ_LIST_MAX;
                 char *typeList = options->typeList;
 
-                saveptr = NULL;
+                char *saveptr = NULL;
                 char *endptr = NULL;
                 char *tok = strtok_r(value, ",", &saveptr);
                 while (tok && typeCount < maxCount) {
@@ -1478,7 +1494,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
         // request not complete
         return;
     }
-    char *eol = newline + 1;
+    char *eol = memchr(req_start, '\n', req_len) + 1; // we already know we have at least one newline
     char *req_end = req_start + req_len;
     char *protocol = eol - litLen("HTTP/1.x\r\n"); // points to H
     if (protocol < req_start) {
@@ -1529,6 +1545,14 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
         return;
     }
     //fprintf(stderr, "%s\n", request->buffer);
+    thread->request_len_sum += req_len;
+    thread->request_count++;
+    if (thread->request_count % (1000 * 1000) == 0) {
+        int64_t avg = thread->request_len_sum / thread->request_count;
+        thread->request_len_sum = 0;
+        thread->request_count = 0;
+        fprintf(stderr, "API average req_len: %d\n", (int) avg);
+    }
 
     char *status = protocol - litLen("?status ");
     if (status > req_start && byteMatch(status, "?status ")) {

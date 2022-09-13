@@ -123,10 +123,13 @@ struct apiThread {
     int eventfd;
     int openFDs;
     int responseBytesBuffered;
-    struct apiCon *cons;
     int nextCon;
+    struct apiCon *cons;
     int64_t antiSpam[8];
     ZSTD_CCtx* cctx;
+    // for producing average request len numbers
+    int64_t request_len_sum;
+    int64_t request_count;
 };
 
 void apiBufferInit();
