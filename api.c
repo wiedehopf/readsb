@@ -1373,13 +1373,17 @@ static void apiSendData(struct apiCon *con, struct apiThread *thread) {
         return;
     }
 
-    // non recoverable error
-    if (nwritten < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
-        if (antiSpam(&thread->antiSpam[0], 5 * SECONDS)) {
-            fprintf(stderr, "apiSendData fail: %s (was trying to send %d bytes)\n", strerror(errno), toSend);
+    if (nwritten < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+            // no progress, make sure EPOLLOUT is set.
+        } else {
+            // non recoverable error, close connection
+            if (antiSpam(&thread->antiSpam[0], 5 * SECONDS)) {
+                fprintf(stderr, "apiSendData fail: %s (was trying to send %d bytes)\n", strerror(errno), toSend);
+            }
+            apiCloseCon(con, thread);
+            return;
         }
-        apiCloseCon(con, thread);
-        return;
     }
 
     //fprintf(stderr, "wrote only %d of %d\n", nwritten, toSend);
@@ -1619,11 +1623,24 @@ static void acceptCon(struct apiCon *con, struct apiThread *thread) {
 
     // accept at most 16 connections per epoll_wait wakeup and thread
     for (int j = 0; j < 16; j++) {
-        errno = 0;
 
         int fd = accept4(listen_fd, saddr, &slen, SOCK_NONBLOCK);
         if (fd < 0) {
-            break;
+            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+                break;
+            } else if (errno == EMFILE) {
+                if (antiSpam(&thread->antiSpam[5], 5 * SECONDS)) {
+                    fprintf(stderr, "<3>Out of file descriptors accepting api clients, "
+                            "exiting to make sure we don't remain in a broken state!\n");
+                }
+                setExit(2);
+                break;
+            } else {
+                if (antiSpam(&thread->antiSpam[6], 5 * SECONDS)) {
+                    fprintf(stderr, "api acceptCon(): Error accepting new connection: errno: %d %s\n", errno, strerror(errno));
+                }
+                break;
+            }
         }
 
         // when starving for connections, close old connections
@@ -1680,20 +1697,6 @@ static void acceptCon(struct apiCon *con, struct apiThread *thread) {
 
         if (epoll_ctl(thread->epfd, op, fd, &epollEvent)) {
             perror("acceptCon() epoll_ctl fail:");
-        }
-    }
-    if (errno) {
-        if (errno == EMFILE) {
-            if (antiSpam(&thread->antiSpam[5], 5 * SECONDS)) {
-                fprintf(stderr, "<3>Out of file descriptors accepting api clients, "
-                        "exiting to make sure we don't remain in a broken state!\n");
-            }
-            Modes.exit = 2;
-
-        } else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
-            if (antiSpam(&thread->antiSpam[6], 5 * SECONDS)) {
-                fprintf(stderr, "api acceptCon(): Error accepting new connection: errno: %d %s\n", errno, strerror(errno));
-            }
         }
     }
 }
