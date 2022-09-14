@@ -966,8 +966,10 @@ static void apiCloseCon(struct apiCon *con, struct apiThread *thread) {
     reply->alloc = 0;
 
     con->open = 0;
-    thread->openFDs--;
-    //fprintf(stderr, "%2d %5d\n", thread->index, thread->openFDs);
+    thread->conCount--;
+    // put it back on the stack of free connection structs
+    thread->stack[thread->stackCount++] = con;
+    //fprintf(stderr, "%2d %5d\n", thread->index, thread->conCount);
 }
 
 static void apiResetCon(struct apiCon *con, struct apiThread *thread) {
@@ -1001,7 +1003,7 @@ static void apiResetCon(struct apiCon *con, struct apiThread *thread) {
     con->lastReset = mstime();
 }
 
-static void sendStatus(struct apiCon *con, const char *http_status) {
+static void sendStatus(int fd, int keepalive, const char *http_status) {
     char buf[256];
     char *p = buf;
     char *end = buf + sizeof(buf);
@@ -1013,29 +1015,29 @@ static void sendStatus(struct apiCon *con, const char *http_status) {
     "cache-control: no-store\r\n"
     "content-length: 0\r\n\r\n",
     http_status,
-    con->keepalive ? "keep-alive" : "close");
+    keepalive ? "keep-alive" : "close");
 
-    int res = send(con->fd, buf, strlen(buf), 0);
+    int res = send(fd, buf, strlen(buf), 0);
     MODES_NOTUSED(res);
 }
 
-static void send200(struct apiCon *con) {
-    sendStatus(con, "200 OK");
+static void send200(int fd, int keepalive) {
+    sendStatus(fd, keepalive, "200 OK");
 }
-static void send400(struct apiCon *con) {
-    sendStatus(con, "400 Bad Request");
+static void send400(int fd, int keepalive) {
+    sendStatus(fd, keepalive, "400 Bad Request");
 }
-static void send405(struct apiCon *con) {
-    sendStatus(con, "405 Method Not Allowed");
+static void send405(int fd, int keepalive) {
+    sendStatus(fd, keepalive, "405 Method Not Allowed");
 }
-static void send505(struct apiCon *con) {
-    sendStatus(con, "505 HTTP Version Not Supported");
+static void send505(int fd, int keepalive) {
+    sendStatus(fd, keepalive, "505 HTTP Version Not Supported");
 }
-static void send503(struct apiCon *con) {
-    sendStatus(con, "503 Service Unavailable");
+static void send503(int fd, int keepalive) {
+    sendStatus(fd, keepalive, "503 Service Unavailable");
 }
-static void send500(struct apiCon *con) {
-    sendStatus(con, "500 Internal Server Error");
+static void send500(int fd, int keepalive) {
+    sendStatus(fd, keepalive, "500 Internal Server Error");
 }
 
 
@@ -1419,7 +1421,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
 
     // delay processing requests until we have more memory
     if (thread->responseBytesBuffered > 512 * 1024 * 1024) {
-        if (antiSpam(&thread->antiSpam[3], 5 * SECONDS)) {
+        if (antiSpam(&thread->antiSpam[2], 5 * SECONDS)) {
             fprintf(stderr, "Delaying request processing due to per thread memory limit: 512 MB\n");
         }
         return;
@@ -1433,7 +1435,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
     int end_pad = 32;
     size_t requestMax = 1024 + 13 * API_REQ_LIST_MAX + end_pad;
     if (request->len > requestMax) {
-        send400(con);
+        send400(con->fd, con->keepalive);
         apiResetCon(con, thread);
         return;
     }
@@ -1447,7 +1449,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
     if (!request->buffer) {
         fprintf(stderr, "FATAL: apiReadRequest request->buffer malloc fail\n");
         setExit(2);
-        send503(con);
+        send503(con->fd, con->keepalive);
         apiCloseCon(con, thread);
         return;
     }
@@ -1498,7 +1500,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
     char *req_end = req_start + req_len;
     char *protocol = eol - litLen("HTTP/1.x\r\n"); // points to H
     if (protocol < req_start) {
-        send505(con);
+        send505(con->fd, con->keepalive);
         apiResetCon(con, thread);
         return;
     }
@@ -1509,7 +1511,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
     int isGET = byteMatch(req_start, "GET");
     char *minor_version = protocol + litLen("HTTP/1.");
     if (!byteMatch(protocol, "HTTP/1.") || !((*minor_version == '0') || (*minor_version == '1'))) {
-        send505(con);
+        send505(con->fd, con->keepalive);
         apiResetCon(con, thread);
         return;
     }
@@ -1540,7 +1542,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
     }
 
     if (!isGET) {
-        send405(con);
+        send405(con->fd, con->keepalive);
         apiResetCon(con, thread);
         return;
     }
@@ -1557,9 +1559,9 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
     char *status = protocol - litLen("?status ");
     if (status > req_start && byteMatch(status, "?status ")) {
         if (Modes.exitSoon) {
-            send503(con);
+            send503(con->fd, con->keepalive);
         } else {
-            send200(con);
+            send200(con->fd, con->keepalive);
         }
         apiResetCon(con, thread);
         return;
@@ -1569,7 +1571,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct 
     struct char_buffer reply = parseFetch(con, request, thread);
     if (reply.len == 0) {
         //fprintf(stderr, "parseFetch returned invalid\n");
-        send400(con);
+        send400(con->fd, con->keepalive);
         apiResetCon(con, thread);
         return;
     }
@@ -1615,57 +1617,53 @@ static void acceptCon(struct apiCon *con, struct apiThread *thread) {
     socklen_t slen = sizeof(storage);
 
 
-    // accept at most 128 connections per epoll_wait wakeup and thread
-    for (int j = 0; j < 128; j++) {
+    // accept at most 16 connections per epoll_wait wakeup and thread
+    for (int j = 0; j < 16; j++) {
         errno = 0;
 
         int fd = accept4(listen_fd, saddr, &slen, SOCK_NONBLOCK);
         if (fd < 0) {
             break;
         }
-        thread->openFDs++;
-
-        struct apiCon *con;
-        int tryCounter = 0;
-        // search a 16th of the connections starting from current index
-        do {
-            con = &thread->cons[thread->nextCon];
-            thread->nextCon = (thread->nextCon + 1) % Modes.api_fds_per_thread;
-        } while (con->open && tryCounter++ < Modes.api_fds_per_thread / 16);
-
-        if (con->open) {
-            // linear search all connections
-            for (int j = 0; j < Modes.api_fds_per_thread; j++) {
-                if (!thread->cons[j].open) {
-                    con = &thread->cons[j];
-                    break;
-                }
-            }
-        }
 
         // when starving for connections, close old connections
-        if (con->open) {
-            fprintf(stderr, "starving for connections, send 503 and close connections connected longer than 5 seconds\n");
+        if (!thread->stackCount) {
             int64_t now = mstime();
-            for (int j = 0; j < Modes.api_fds_per_thread; j++) {
-                if (now - thread->cons[j].lastReset > 5 * SECONDS) {
-                    send503(con);
-                    apiCloseCon(con, thread);
+            int64_t bounce_delay = 5 * SECONDS;
+            if (now > thread->next_bounce) {
+                thread->next_bounce = now + bounce_delay / 20;
+                if (antiSpam(&thread->antiSpam[3], 5 * SECONDS)) {
+                    fprintf(stderr, "starving for connections, closing all connections idle for 5 or more seconds\n");
+                }
+                for (int j = 0; j < Modes.api_fds_per_thread; j++) {
+                    struct apiCon *con = &thread->cons[j];
+                    if (now - con->lastReset > bounce_delay) {
+                        apiCloseCon(con, thread);
+                    }
                 }
             }
         }
+
+
         // reject new connection if we still don't have a free connection
-        if (con->open) {
-            fprintf(stderr, "too man concurrent connections, reject new connection, send 503 :/\n");
-            send503(con);
+        if (!thread->stackCount) {
+            if (antiSpam(&thread->antiSpam[4], 5 * SECONDS)) {
+                fprintf(stderr, "too many concurrent connections, rejecting new connections, sendng 503s :/\n");
+            }
+            send503(fd, 0);
             if (shutClose(fd) != 0) {
-                perror("accept: shutClose failed when rejecting a new connection:");
+                if (antiSpam(&thread->antiSpam[4], 5 * SECONDS)) {
+                    perror("accept: shutClose failed when rejecting a new connection:");
+                }
             }
             return;
         }
 
+        // take a free connection from the stack
+        struct apiCon *con = thread->stack[--thread->stackCount];
         memset(con, 0, sizeof(struct apiCon));
 
+        thread->conCount++;
         con->open = 1;
         con->fd = fd;
 
@@ -1686,14 +1684,14 @@ static void acceptCon(struct apiCon *con, struct apiThread *thread) {
     }
     if (errno) {
         if (errno == EMFILE) {
-            if (antiSpam(&thread->antiSpam[2], 5 * SECONDS)) {
+            if (antiSpam(&thread->antiSpam[5], 5 * SECONDS)) {
                 fprintf(stderr, "<3>Out of file descriptors accepting api clients, "
                         "exiting to make sure we don't remain in a broken state!\n");
             }
             Modes.exit = 2;
 
         } else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
-            if (antiSpam(&thread->antiSpam[2], 5 * SECONDS)) {
+            if (antiSpam(&thread->antiSpam[6], 5 * SECONDS)) {
                 fprintf(stderr, "api acceptCon(): Error accepting new connection: errno: %d %s\n", errno, strerror(errno));
             }
         }
@@ -1708,6 +1706,15 @@ static void *apiThreadEntryPoint(void *arg) {
     //fprintf(stderr, "%d\n", core);
     threadAffinity(core);
 
+
+    thread->cons = cmalloc(Modes.api_fds_per_thread * sizeof(struct apiCon));
+    memset(thread->cons, 0x0, Modes.api_fds_per_thread * sizeof(struct apiCon));
+
+    thread->stack = cmalloc(Modes.api_fds_per_thread * sizeof(struct apiCon *));
+    for (int k = 0; k < Modes.api_fds_per_thread; k++) {
+        thread->stack[k] = &thread->cons[k];
+        thread->stackCount++;
+    }
 
     thread->cctx = ZSTD_createCCtx();
 
@@ -1743,7 +1750,7 @@ static void *apiThreadEntryPoint(void *arg) {
             int micro = (int) (used.tv_sec * 1000LL * 1000LL + used.tv_nsec / 1000LL);
             atomic_fetch_add(&Modes.apiWorkerCpuMicro, micro);
             start_cpu_timing(&cpu_timer);
-            //fprintf(stderr, "%2d %5d\n", thread->index, thread->openFDs);
+            //fprintf(stderr, "%2d %5d\n", thread->index, thread->conCount);
         }
 
         // first try and send out data that hasn't been sent yet
@@ -1762,7 +1769,7 @@ static void *apiThreadEntryPoint(void *arg) {
             }
 
             if (con->wakeups++ > 512 * 1024) {
-                if (antiSpam(&thread->antiSpam[4], 5 * SECONDS)) {
+                if (antiSpam(&thread->antiSpam[7], 5 * SECONDS)) {
                     fprintf(stderr, "connection triggered too many events (bad webserver logic), send 500 :/ (EPOLLIN: %d, EPOLLOUT: %d) "
                             "(reply.len: %d, bytesSent: %d, request.len: %d open: %d)\n",
                             (event.events & EPOLLIN), (event.events & EPOLLOUT),
@@ -1772,7 +1779,7 @@ static void *apiThreadEntryPoint(void *arg) {
                             con->open);
                 }
 
-                send500(con);
+                send500(con->fd, con->keepalive);
                 apiCloseCon(con, thread);
                 continue;
             }
@@ -1795,9 +1802,22 @@ static void *apiThreadEntryPoint(void *arg) {
         }
     }
 
+    for (int j = 0; j < Modes.api_fds_per_thread; j++) {
+        struct apiCon *con = &thread->cons[j];
+        if (con->open) {
+            apiCloseCon(con, thread);
+        }
+    }
+
+
+    sfree(events);
+
     ZSTD_freeCCtx(thread->cctx);
     close(thread->epfd);
-    sfree(events);
+
+    sfree(thread->stack);
+    sfree(thread->cons);
+
     return NULL;
 }
 
@@ -1898,8 +1918,6 @@ void apiInit() {
     Modes.api_fds_per_thread = Modes.max_fds * 7 / 8 / Modes.apiThreadCount;
     //fprintf(stderr, "Modes.api_fds_per_thread: %d\n", Modes.api_fds_per_thread);
     for (int i = 0; i < Modes.apiThreadCount; i++) {
-        Modes.apiThread[i].cons = cmalloc(Modes.api_fds_per_thread * sizeof(struct apiCon));
-        memset(Modes.apiThread[i].cons, 0x0, Modes.api_fds_per_thread * sizeof(struct apiCon));
         Modes.apiThread[i].index = i;
         pthread_create(&Modes.apiThread[i].thread, NULL, apiThreadEntryPoint, &Modes.apiThread[i]);
     }
@@ -1907,7 +1925,6 @@ void apiInit() {
 void apiCleanup() {
     for (int i = 0; i < Modes.apiThreadCount; i++) {
         pthread_join(Modes.apiThread[i].thread, NULL);
-        sfree(Modes.apiThread[i].cons);
     }
     struct net_service *service = &Modes.apiService;
 
