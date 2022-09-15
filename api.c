@@ -1416,12 +1416,7 @@ static void apiShutdown(struct apiCon *con, struct apiThread *thread) {
     apiCloseCon(con, thread);
 }
 
-static void apiReadRequest(struct apiCon *con, struct apiThread *thread, struct epoll_event event) {
-
-    if (event.events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
-        apiShutdown(con, thread);
-        return;
-    }
+static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
 
     // delay processing requests until we have more memory
     if (thread->responseBytesBuffered > 512 * 1024 * 1024) {
@@ -1756,19 +1751,29 @@ static void *apiThreadEntryPoint(void *arg) {
             //fprintf(stderr, "%2d %5d\n", thread->index, thread->conCount);
         }
 
-        // first try and send out data that hasn't been sent yet
         for (int i = 0; i < count; i++) {
             struct epoll_event event = events[i];
             if (event.data.ptr == &Modes.exitNowEventfd)
                 continue;
 
             struct apiCon *con = event.data.ptr;
-            if (con->accept) {
+            if (con->accept && (event.events & EPOLLIN)) {
+                acceptCon(con, thread);
                 continue;
             }
 
-            if (con->open && (event.events & EPOLLOUT)) {
-                apiSendData(con, thread);
+            if (event.events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
+                apiShutdown(con, thread);
+                continue;
+            }
+
+            if (con->open) {
+                if (event.events & EPOLLIN) {
+                    apiReadRequest(con, thread);
+                }
+                if (event.events & EPOLLOUT) {
+                    apiSendData(con, thread);
+                }
             }
 
             if (con->wakeups++ > 512 * 1024) {
@@ -1786,22 +1791,7 @@ static void *apiThreadEntryPoint(void *arg) {
                 apiCloseCon(con, thread);
                 continue;
             }
-        }
-        // accept new connection and read unread http requests
-        for (int i = 0; i < count; i++) {
-            struct epoll_event event = events[i];
-            if (event.data.ptr == &Modes.exitNowEventfd)
-                continue;
 
-            struct apiCon *con = event.data.ptr;
-            if (con->accept) {
-                acceptCon(con, thread);
-                continue;
-            }
-
-            if (con->open && (event.events & (EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP))) {
-                apiReadRequest(con, thread, event);
-            }
         }
     }
 
