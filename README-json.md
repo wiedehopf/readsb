@@ -252,22 +252,25 @@ oldest history entry. To load history, you should:
 
 Example :
 ```json
-{"icao":"0d8300",
-    "r":"YV3382",
-    "t":"LJ31",
-    "desc":"Bombardier Learjet 31 A",
-    "timestamp": 1609275898.495,
+{
+    "icao":"3c66b0",
+    "r":"D-AIUP",
+    "t":"A320",
+    "dbFlags":0,
+    "desc":"AIRBUS A-320",
+    "timestamp": 1663259853.016,
     "trace":[
-        [0.0,30.404617,-86.476566,-300,0.7,0.0,1,0,
-    {"type":"adsb_icao","flight":"YV3382  ","alt_geom":-75,"track":0.00,"baro_rate":0,"squawk":"1604","emergency":"none","category":"A1","nic":8,"rc":186,"version":2,"nic_baro":1,"nac_p":10,"nac_v":2,"sil":3,"sil_type":"perhour","gva":2,"sda":2,"alert":0,"spi":0}],
-    [95.1,30.404617,-86.476575,-300,0.7,0.0,0,0,null],
-    [136.3,30.404617,-86.476575,-300,0.7,0.0,0,0,null],
-    [162.3,30.404846,-86.476782,-300,0.7,0.0,1,0,null],
-    [254.4,30.375614,-86.448889,525,37.8,142.5,1,64,
-    {"type":"adsb_icao","alt_geom":675,"track":142.52,"baro_rate":64,"category":"A1","nic":8,"rc":186,"version":2,"nac_v":2,"sil_type":"perhour","alert":0,"spi":1}],
-    [303.2,30.347078,-86.418896,1275,171.9,136.7,1,448,null],
-    [327.0,30.332932,-86.403647,1900,171.9,137.1,1,1664,null]
-    ]
+        [7016.59,49.263300,10.614239,25125,446.5,309.0,0,-2176,
+            {"type":"adsb_icao","flight":"DLH7YA  ","alt_geom":25875,"ias":335,"tas":484,"mach":0.796,"wd":297,"ws":40,"oat":-30,"tat":1,"track":309.00,"track_rate":-0.53,"roll":-10.72,"mag_heading":304.28,"true_heading":308.02,"baro_rate":-2176,"geom_rate":-2208,"squawk":"1000","category":"A3","nav_qnh":1012.8,"nav_altitude_mcp":14016,"nic":8,"rc":186,"version":2,"nic_baro":1,"nac_p":8,"nac_v":0,"sil":3,"sil_type":"perhour","gva":2,"sda":2,"alert":0,"spi":0},
+            "adsb_icao",25875,-2208,335,-10.7],
+        [7024.85,49.273589,10.593278,24825,446.0,306.6,0,-2176,null,"adsb_icao",25550,-2144,337,-1.6],
+        [7035.67,49.286865,10.565890,24425,446.8,306.5,0,-2176,null,"adsb_icao",25150,-2144,339,0.3],
+        [7046.71,49.300403,10.537985,24025,446.8,306.5,0,-2176,null,"adsb_icao",24775,-2176,341,0.3],
+        [7057.80,49.314042,10.509941,23625,445.2,306.7,0,-2176,
+            {"type":"adsb_icao","flight":"DLH7YA  ","alt_geom":24325,"ias":339,"tas":482,"mach":0.784,"wd":296,"ws":37,"oat":-24,"tat":6,"track":306.69,"track_rate":0.00,"roll":0.18,"mag_heading":302.17,"true_heading":305.89,"baro_rate":-2176,"geom_rate":-2176,"squawk":"1000","category":"A3","nav_qnh":1012.8,"nav_altitude_mcp":14016,"nic":8,"rc":186,"version":2,"nic_baro":1,"nac_p":8,"nac_v":0,"sil":3,"sil_type":"perhour","gva":2,"sda":2,"alert":0,"spi":0},
+            "adsb_icao",24325,-2176,339,0.2],
+        [7068.82,49.327469,10.482225,23250,443.2,306.6,0,-2112,null,"adsb_icao",23925,-2144,340,0.2],
+        [7080.53,49.341694,10.452841,22875,441.2,306.4,0,-1728,null,"adsb_icao",23550,-1728,341,-0.2]
 }
 ```
 
