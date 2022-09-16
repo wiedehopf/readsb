@@ -132,6 +132,7 @@ static struct argp_option optionsReadsb[] = {
     {"net-json-port-interval", OptNetJsonPortInterval, "<seconds>", 0, "Set minimum interval between outputs per aircraft for TCP json output, default: 0.0 (every position)", 2},
     {"net-json-port-include-noposition", OptNetJsonPortNoPos, 0, 0, "TCP json position output: include aircraft without position (state is sent for aircraft for every DF11 with CRC if the aircraft hasn't sent a position in the last 10 seconds and interval allowing)", 2},
     {"net-api-port", OptNetApiPorts, "<port>", 0, "TCP API listen port (in contrast to other listeners, only a single port is allowed) (update frequency controlled by write-json-every parameter) (default: 0)", 2},
+    {"api-shutdown-delay", OptApiShutdownDelay, "<seconds>", 0, "Shutdown delay to server remaining API queries, new queries get a 503 response (default: 0)", 2},
     {"tar1090-use-api", OptTar1090UseApi, 0, 0, "when running with globe-index, signal tar1090 use the readsb API to get data, requires webserver mapping of /tar1090/re-api to proxy_pass the requests to the --net-api-port, see nginx-readsb-api.conf in the tar1090 repository for details", 2},
     {"net-beast-reduce-out-port", OptNetBeastReducePorts, "<ports>", 0, "TCP BeastReduce output listen ports (default: 0)", 2},
     {"net-beast-reduce-interval", OptNetBeastReduceInterval, "<seconds>", 0, "BeastReduce data update interval, longer means less data (default: 0.250, valid range: 0.000 - 14.999)", 2},

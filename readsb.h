@@ -809,6 +809,8 @@ struct _Modes
 
     int lastRangeDirHour;
     ALIGNED struct distCoords rangeDirs[RANGEDIRS_IVALS][RANGEDIRS_BUCKETS];
+
+    int64_t apiShutdownDelay;
 };
 
 extern struct _Modes Modes;
@@ -1141,6 +1143,7 @@ enum {
     OptNetJsonPortInterval,
     OptNetJsonPortNoPos,
     OptNetApiPorts,
+    OptApiShutdownDelay,
     OptTar1090UseApi,
     OptNetRoSize,
     OptNetRoRate,

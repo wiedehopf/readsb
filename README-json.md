@@ -201,7 +201,6 @@ The keys are:
   ?status
   ```
   * Status code 200 during normal operation
-  * Status code 503 starting 150 ms before the server stops responding
 
 ## history_0.json, history_1.json, ..., history_119.json
 

@@ -207,6 +207,8 @@ static void configSetDefaults(void) {
 
     Modes.binCraftVersion = 20220916;
     Modes.messageRateMult = 1.0f;
+
+    Modes.apiShutdownDelay = 0 * SECONDS;
 }
 //
 //=========================================================================
@@ -1609,6 +1611,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.net_output_api_ports = strdup(arg);
             Modes.api = 1;
             break;
+        case OptApiShutdownDelay:
+            Modes.apiShutdownDelay = atof(arg) * SECONDS;
+            break;
         case OptNetSbsInPorts:
             sfree(Modes.net_input_sbs_ports);
             Modes.net_input_sbs_ports = strdup(arg);
@@ -1703,7 +1708,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (!token[0]) {
                     break;
                 }
-                if (strcmp(token[0], "lastStatus") == 0) {
+                if (strcasecmp(token[0], "lastStatus") == 0) {
                     if (token[1]) {
                         Modes.debug_lastStatus = atoi(token[1]);
                         fprintf(stderr, "lastStatus: %d\n", Modes.debug_lastStatus);
@@ -1711,22 +1716,22 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         Modes.debug_lastStatus = 1;
                     }
                 }
-                if (strcmp(token[0], "apiThreads") == 0) {
+                if (strcasecmp(token[0], "apiThreads") == 0) {
                     Modes.apiThreadCount = atoi(token[1]);
                 }
-                if (strcmp(token[0], "accept_synthetic") == 0) {
+                if (strcasecmp(token[0], "accept_synthetic") == 0) {
                     Modes.dump_accept_synthetic_now = 1;
                 }
-                if (strcmp(token[0], "dump_reduce") == 0) {
+                if (strcasecmp(token[0], "dump_reduce") == 0) {
                     Modes.dump_reduce = 1;
                     fprintf(stderr, "Modes.dump_reduce: %d\n", Modes.dump_reduce);
                 }
-                if (strcmp(token[0], "ping_reject") == 0 && token[1]) {
+                if (strcasecmp(token[0], "ping_reject") == 0 && token[1]) {
                     Modes.ping_reject = atoi(token[1]);
                     Modes.ping_reduce = Modes.ping_reject / 2;
                 }
 
-                if (strcmp(token[0], "messageRateMult") == 0 && token[1]) {
+                if (strcasecmp(token[0], "messageRateMult") == 0 && token[1]) {
                     Modes.messageRateMult = atof(token[1]);
                 }
             }
@@ -2423,9 +2428,10 @@ int main(int argc, char **argv) {
     while (!Modes.exit) {
         if (epoll_wait(mainEpfd, events, maxEvents, 5 * SECONDS) > 0) {
             if (Modes.exitSoon) {
-                if (Modes.api) {
-                    // delay for 150 ms, then exit, this is for graceful api shutdown
-                    msleep(150);
+                if (Modes.apiShutdownDelay) {
+                    // delay for graceful api shutdown
+                    fprintf(stderr, "Waiting %.3f seconds (--api-shutdown-delay) ...\n", Modes.apiShutdownDelay / 1000.0);
+                    msleep(Modes.apiShutdownDelay);
                 }
                 // Signal to threads that program is exiting
                 Modes.exit = Modes.exitSoon;
