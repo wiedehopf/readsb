@@ -86,6 +86,8 @@ int nogps(int64_t now, struct aircraft *a);
 #define DISCARD_CACHE (4)
 #define CPR_CACHE (4)
 
+#define MESSAGE_RATE_CALC_POINTS (2)
+
 typedef enum
 {
     REDUCE_RARE,
@@ -555,10 +557,13 @@ struct aircraft
 
   char zeroStart;
 
-  uint32_t disc_cache_index;
-  struct cpr_cache disc_cache[DISCARD_CACHE];
+  float messageRate;
+  uint16_t messageRateAcc[MESSAGE_RATE_CALC_POINTS];
+  int64_t nextMessageRateCalc;
 
+  uint32_t disc_cache_index;
   uint32_t cpr_cache_index;
+  struct cpr_cache disc_cache[DISCARD_CACHE];
   struct cpr_cache cpr_cache[CPR_CACHE];
 
   // keep trace cache after cpr / disc cache

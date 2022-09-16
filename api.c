@@ -640,6 +640,11 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *op
         uint32_t resultCount = count;
         memWrite(p, resultCount);
 
+        int32_t dummy = 0;
+        memWrite(p, dummy);
+
+        memWrite(p, Modes.binCraftVersion);
+
 #undef memWrite
         if (p - payload > (int) elementSize) {
             fprintf(stderr, "apiBin: too many details in first element\n");

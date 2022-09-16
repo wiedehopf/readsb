@@ -204,6 +204,8 @@ static void configSetDefaults(void) {
 
     Modes.ping_reduce = PING_REDUCE;
     Modes.ping_reject = PING_REJECT;
+
+    Modes.binCraftVersion = 20220916;
 }
 //
 //=========================================================================

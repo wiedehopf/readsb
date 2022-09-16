@@ -79,6 +79,23 @@ static uint16_t simpleHash(uint64_t receiverId) {
 
 static float knots_to_meterpersecond = (1852.0 / 3600.0);
 
+static void calculateMessageRate(struct aircraft *a, int64_t now) {
+    float sum = 0.0f;
+    float mult = REMOVE_STALE_INTERVAL / 1000.0f;
+    float multSum = 0.0f;
+    for (int k = 0; k < MESSAGE_RATE_CALC_POINTS; k++) {
+        sum += a->messageRateAcc[k] * mult;
+        multSum += mult;
+        mult *= 0.7f;
+    }
+
+    a->messageRate = sum / multSum;
+    a->nextMessageRateCalc = now + REMOVE_STALE_INTERVAL;
+
+    memmove(&a->messageRateAcc[1], &a->messageRateAcc[0], sizeof(uint16_t) * (MESSAGE_RATE_CALC_POINTS - 1));
+    a->messageRateAcc[0] = 0;
+}
+
 
 // Should we accept some new data from the given source?
 // If so, update the validity and return 1
@@ -1812,6 +1829,12 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         return NULL;
     }
 
+
+    a->messageRateAcc[0]++;
+    if (now > a->nextMessageRateCalc) {
+        calculateMessageRate(a, now);
+    }
+
     if (mm->signalLevel > 0) {
 
         a->signalLevel[a->signalNext % 8] = mm->signalLevel;
@@ -3414,6 +3437,11 @@ void updateValidities(struct aircraft *a, int64_t now) {
     updateValidity(&a->acas_ra_valid, now, TRACK_EXPIRE);
     updateValidity(&a->mlat_pos_valid, now, TRACK_EXPIRE);
     updateValidity(&a->pos_reliable_valid, now, TRACK_EXPIRE);
+
+
+    if (now > a->nextMessageRateCalc) {
+        calculateMessageRate(a, now);
+    }
 }
 
 static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, int64_t now, double bad_lat, double bad_lon) {

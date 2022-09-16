@@ -1029,6 +1029,8 @@ struct char_buffer generateAircraftBin(threadpool_buffer_t *pbuffer) {
     memWrite(p, receiver_lat);
     memWrite(p, receiver_lon);
 
+    memWrite(p, Modes.binCraftVersion);
+
     if (p - buf > (int) elementSize)
         fprintf(stderr, "buffer overrun aircrafBin\n");
 
@@ -1130,6 +1132,14 @@ struct char_buffer generateGlobeBin(int globe_index, int mil, threadpool_buffer_
 
     uint32_t messageCount = Modes.stats_current.messages_total + Modes.stats_alltime.messages_total;
     memWrite(p, messageCount);
+
+    int32_t dummy1 = 0;
+    memWrite(p, dummy1);
+
+    int32_t dummy2 = 0;
+    memWrite(p, dummy2);
+
+    memWrite(p, Modes.binCraftVersion);
 
     if (p - buf > (int) elementSize)
         fprintf(stderr, "buffer overrun globeBin\n");

@@ -185,7 +185,11 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now) {
     }
     new->extraFlags |= ((nogps(now, a)) << 0);
 
-    new->messages = (uint16_t) a->messages;
+    if (Modes.json_globe_index) {
+        new->messages = (uint16_t) nearbyint(10 * a->messageRate);
+    } else {
+        new->messages = (uint16_t) a->messages;
+    }
 
     new->position_valid = trackDataValid(&a->pos_reliable_valid);
 
