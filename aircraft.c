@@ -185,7 +185,7 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now) {
     }
     new->extraFlags |= ((nogps(now, a)) << 0);
 
-    if (Modes.json_globe_index) {
+    if (Modes.json_globe_index || Modes.apiShutdownDelay) {
         new->messages = (uint16_t) nearbyint(10 * a->messageRate);
     } else {
         new->messages = (uint16_t) a->messages;
