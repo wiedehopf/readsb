@@ -89,7 +89,7 @@ static void calculateMessageRate(struct aircraft *a, int64_t now) {
         mult *= 0.7f;
     }
 
-    a->messageRate = sum / multSum;
+    a->messageRate = sum / multSum * Modes.messageRateMult;
     a->nextMessageRateCalc = now + REMOVE_STALE_INTERVAL;
 
     memmove(&a->messageRateAcc[1], &a->messageRateAcc[0], sizeof(uint16_t) * (MESSAGE_RATE_CALC_POINTS - 1));

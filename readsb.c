@@ -206,6 +206,7 @@ static void configSetDefaults(void) {
     Modes.ping_reject = PING_REJECT;
 
     Modes.binCraftVersion = 20220916;
+    Modes.messageRateMult = 1.0f;
 }
 //
 //=========================================================================
@@ -1723,6 +1724,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (strcmp(token[0], "ping_reject") == 0 && token[1]) {
                     Modes.ping_reject = atoi(token[1]);
                     Modes.ping_reduce = Modes.ping_reject / 2;
+                }
+
+                if (strcmp(token[0], "messageRateMult") == 0 && token[1]) {
+                    Modes.messageRateMult = atof(token[1]);
                 }
             }
             break;
