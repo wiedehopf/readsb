@@ -755,3 +755,23 @@ void gzipFile(char *filename) {
         return;
     }
 }
+
+
+
+
+// get the first <maxTokens> tokens from a string separated by any bytes in <delim> and place them in the provided char pointer array tokens
+// the array of token pointers is set to NULL before populating it
+// stringp / delim work just like strsep(3), this is just a wrapper to easily extract multiple tokens from a string
+// the pointer pointed at by stringp will be modified
+int32_t tokenize(char **restrict stringp, char *restrict delim, char **restrict tokens, int maxTokens) {
+    memset(tokens, 0x0, sizeof(char *) * maxTokens);
+    int32_t k = 0;
+    while (k < maxTokens) {
+        tokens[k] = strsep(stringp, delim);
+        if (!tokens[k]) {
+            break;
+        }
+        k++;
+    }
+    return k;
+}

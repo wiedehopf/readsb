@@ -243,4 +243,6 @@ static inline void *check_grow_threadpool_buffer_t(threadpool_buffer_t *buffer, 
 
 void gzipFile(char *file);
 
+int32_t tokenize(char **restrict stringp, char *restrict delim, char **restrict tokens, int maxTokens);
+
 #endif
