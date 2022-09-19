@@ -1158,6 +1158,17 @@ static void backgroundTasks(int64_t now) {
     }
 }
 
+static void print_commandline(int argc, char **argv) {
+    fprintf(stderr, "invoked by: ");
+    for (int k = 0; k < argc; k++) {
+        fprintf(stderr, "%s", argv[k]);
+        if (k < argc - 1) {
+            fprintf(stderr, " ");
+        }
+    }
+    fprintf(stderr, "\n");
+}
+
 //=========================================================================
 // Clean up memory prior to exit.
 static void cleanup_and_exit(int code) {
@@ -1905,11 +1916,7 @@ int parseCommandLine(int argc, char **argv) {
     struct argp argp = {options, parse_opt, args_doc, doc, NULL, NULL, NULL};
 
     if (argp_parse(&argp, argc, argv, ARGP_NO_EXIT, 0, 0)) {
-        fprintf(stderr, "Command line used:\n");
-        for (int i = 0; i < argc; i++) {
-            fprintf(stderr, "%s ", argv[i]);
-        }
-        fprintf(stderr, "\n");
+        print_commandline(argc, argv);
         cleanup_and_exit(1);
     }
     if (argc >= 2 && (
@@ -1922,6 +1929,9 @@ int parseCommandLine(int argc, char **argv) {
        ) {
         exit(0);
     }
+
+    print_commandline(argc, argv);
+
     log_with_timestamp("readsb starting up.");
     fprintf(stderr, VERSION_STRING"\n");
 
@@ -2261,13 +2271,6 @@ static void *miscEntryPoint(void *arg) {
 
 int main(int argc, char **argv) {
 
-    for (int k = 0; k < argc; k++) {
-        fprintf(stderr, "%s", argv[k]);
-        if (k < argc - 1) {
-            fprintf(stderr, " ");
-        }
-    }
-    fprintf(stderr, "\n");
     if (0) {
         unlink("test.gz");
         gzipFile("test");
