@@ -1077,15 +1077,18 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
     char *req = request->buffer;
 
     // GET URL HTTPVERSION
-    // skip URL to after ? which signifies start of query options
-    char *query = memchr(req, '?', request->len) + 1;
-    if (!query)
+    char *query = memchr(req, '?', request->len);
+    if (!query) {
         return invalid;
+    }
+    // skip URL to after ? which signifies start of query options
+    query++;
 
     // find end of query
     char *eoq = memchr(query, ' ', request->len);
-    if (!eoq)
+    if (!eoq) {
         return invalid;
+    }
 
     // we only want the URL
     *eoq = '\0';
