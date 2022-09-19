@@ -1,5 +1,5 @@
 PROGNAME=readsb
-READSB_VERSION := "$(shell { date -d@`git show -s --format=format:%ct` +3.14.%y%m%d && echo -n 'wiedehopf git: ' && git describe --abbrev --dirty --always && git show -s --format=format:"(committed: %cd)" | tr -cd '[a-z],[A-Z],[0-9],:, ,\-,_,(,)';} || echo -n \"unknown version, compiled on $(date +%y%m%d)\")"
+READSB_VERSION := "$(shell echo -n `cat version`; { git show -s --format=format: && echo -n ' wiedehopf git: ' && git describe --abbrev --dirty --always && git show -s --format=format:"(committed: %cd)" | tr -cd '[a-z],[A-Z],[0-9],:, ,\-,_,(,)';} || echo -n ' compiled on '`date +%y%m%d` )"
 
 RTLSDR ?= no
 BLADERF ?= no
