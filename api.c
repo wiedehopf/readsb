@@ -1410,15 +1410,17 @@ static void apiSendData(struct apiCon *con, struct apiThread *thread) {
     return;
 }
 
-static void apiShutdown(struct apiCon *con, struct apiThread *thread) {
+static void apiShutdown(struct apiCon *con, struct apiThread *thread, int line, int err) {
     if (con->bytesSent != con->reply.len) {
         if (antiSpam(&thread->antiSpam[1], 5 * SECONDS)) {
             fprintf(stderr, "Connection shutdown with incomplete or no reply sent."
-                    " (reply.len: %d, bytesSent: %d, request.len: %d open: %d)\n",
+                    " (reply.len: %d, bytesSent: %d, request.len: %d open: %d line: %d errno: %s)\n",
                     (int) con->reply.len,
                     (int) con->bytesSent,
                     (int) con->request.len,
-                    con->open);
+                    con->open,
+                    line,
+                    err ? strerror(err) : "-");
         }
     }
     apiCloseCon(con, thread);
@@ -1471,12 +1473,12 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
         if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
             return;
         }
-        apiShutdown(con, thread);
+        apiShutdown(con, thread, __LINE__, errno);
         return;
     }
 
     if (nread == 0) {
-        apiShutdown(con, thread);
+        apiShutdown(con, thread, __LINE__, 0);
         return;
     }
 
@@ -1503,6 +1505,9 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
         // request not complete
         return;
     }
+
+    thread->requestCount++;
+
     char *eol = memchr(req_start, '\n', req_len) + 1; // we already know we have at least one newline
     char *req_end = req_start + req_len;
     char *protocol = eol - litLen("HTTP/1.x\r\n"); // points to H
@@ -1742,21 +1747,27 @@ static void *apiThreadEntryPoint(void *arg) {
 
     struct timespec cpu_timer;
     start_cpu_timing(&cpu_timer);
-    uint32_t loop = 0;
+    int64_t next_stats_sync = 0;
     while (!Modes.exit) {
         if (count == maxEvents) {
             epollAllocEvents(&events, &maxEvents);
         }
         count = epoll_wait(thread->epfd, events, maxEvents, 5 * SECONDS);
 
+        int64_t now = mstime();
+        if (now > next_stats_sync) {
+            next_stats_sync = now + 1 * SECONDS;
 
-        if (loop++ % 12 == 0) {
             struct timespec used = { 0 };
             end_cpu_timing(&cpu_timer, &used);
             int micro = (int) (used.tv_sec * 1000LL * 1000LL + used.tv_nsec / 1000LL);
             atomic_fetch_add(&Modes.apiWorkerCpuMicro, micro);
             start_cpu_timing(&cpu_timer);
             //fprintf(stderr, "%2d %5d\n", thread->index, thread->conCount);
+
+            unsigned int requestCount = thread->requestCount;
+            atomic_fetch_add(&Modes.apiRequestCounter, requestCount);
+            thread->requestCount = 0;
         }
 
         for (int i = 0; i < count; i++) {
@@ -1771,7 +1782,11 @@ static void *apiThreadEntryPoint(void *arg) {
             }
 
             if (event.events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
-                apiShutdown(con, thread);
+                if (con->open) {
+                    apiReadRequest(con, thread);
+                } else {
+                    apiShutdown(con, thread, __LINE__, 0);
+                }
                 continue;
             }
 

@@ -1745,6 +1745,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (strcasecmp(token[0], "messageRateMult") == 0 && token[1]) {
                     Modes.messageRateMult = atof(token[1]);
                 }
+                if (strcasecmp(token[0], "incrementId") == 0) {
+                    Modes.incrementId = 1;
+                }
             }
             break;
 

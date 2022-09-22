@@ -92,6 +92,7 @@ struct stats
   struct timespec remove_stale_cpu;
   struct timespec api_worker_cpu;
   struct timespec api_update_cpu;
+  uint64_t api_request_count;
   // remote messages:
   uint32_t remote_received_modeac;
   uint32_t remote_received_modes;

@@ -594,6 +594,7 @@ struct _Modes
     int8_t api; // enable api output
     int apiThreadCount;
     atomic_int apiWorkerCpuMicro;
+    atomic_uint apiRequestCounter;
     atomic_int recentTraceWrites;
     atomic_int fullTraceWrites;
     atomic_int permTraceWrites;
@@ -643,6 +644,7 @@ struct _Modes
     int8_t debug_provoke_segfault;
     int8_t debug_position_timing;
     int8_t debug_lastStatus;
+    int8_t incrementId;
     int8_t dump_accept_synthetic_now;
     int8_t syntethic_now_suppress_errors;
     int8_t tar1090_use_api;

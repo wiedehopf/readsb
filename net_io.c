@@ -2545,6 +2545,9 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now, 
     ch = *p++; /// Get the message type
 
     mm->receiverId = c->receiverId;
+    if (unlikely(Modes.incrementId)) {
+        mm->receiverId += now / (10 * MINUTES);
+    }
 
     if (ch == '2') {
         msgLen = MODES_SHORT_MSG_BYTES;

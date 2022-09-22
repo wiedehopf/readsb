@@ -122,6 +122,7 @@ struct apiThread {
     int epfd;
     int eventfd;
     int responseBytesBuffered;
+    uint32_t requestCount;
     int conCount;
     int stackCount;
     struct apiCon *cons;

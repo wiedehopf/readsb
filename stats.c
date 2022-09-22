@@ -317,6 +317,8 @@ void add_stats(const struct stats *st1, const struct stats *st2, struct stats *t
         target->pos_by_type[i] = st1->pos_by_type[i] + st2->pos_by_type[i];
     }
 
+    target->api_request_count = st1->api_request_count + st2->api_request_count;
+
     target->recentTraceWrites = st1->recentTraceWrites + st2->recentTraceWrites;
     target->fullTraceWrites = st1->fullTraceWrites + st2->fullTraceWrites;
     target->permTraceWrites = st1->permTraceWrites + st2->permTraceWrites;
@@ -406,6 +408,8 @@ static void lockCurrent() {
     Modes.stats_current.api_worker_cpu.tv_sec += micro / (1000LL * 1000LL);
     Modes.stats_current.api_worker_cpu.tv_nsec += 1000LL * (micro % (1000LL * 1000LL));
     normalize_timespec(&Modes.stats_current.api_worker_cpu);
+
+    Modes.stats_current.api_request_count += atomic_exchange(&Modes.apiRequestCounter, 0);
 
     Modes.stats_current.recentTraceWrites += atomic_exchange(&Modes.recentTraceWrites, 0);
     Modes.stats_current.fullTraceWrites += atomic_exchange(&Modes.fullTraceWrites, 0);
@@ -799,6 +803,7 @@ struct char_buffer generatePromFile(int64_t now) {
     p = safe_snprintf(p, end, "readsb_cpu_api_workers %llu\n", CPU_MILLIS(api_worker));
 #undef CPU_MILLIS
 
+    p = safe_snprintf(p, end, "readsb_api_request_count %llu\n", (unsigned long long) st->api_request_count);
     p = safe_snprintf(p, end, "readsb_tracewrites_recent %u\n", st->recentTraceWrites);
     p = safe_snprintf(p, end, "readsb_tracewrites_full %u\n", st->fullTraceWrites);
     p = safe_snprintf(p, end, "readsb_tracewrites_perm %u\n", st->permTraceWrites);
