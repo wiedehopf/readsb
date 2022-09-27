@@ -104,7 +104,6 @@
 #include <sys/mman.h>
 
 
-
 #include "compat/compat.h"
 
 // ============================= #defines ===============================
@@ -350,19 +349,23 @@ typedef enum {
 
 
 #if defined(__llvm__)
+
 #define _unroll_8 _Pragma ("unroll 8")
 #define _unroll_16 _Pragma ("unroll 16")
 #define _unroll_32 _Pragma ("unroll 32")
-#elif defined(__GNUC__)
-#if defined __GNUC_PREREQ && __GNUC_PREREQ(8,0)
+
+#elif defined(__GNUC__) && __GNUC__ >= 8
+
 #define _unroll_8 _Pragma ("GCC unroll 8")
 #define _unroll_16 _Pragma ("GCC unroll 16")
 #define _unroll_32 _Pragma ("GCC unroll 32")
+
 #else
+
 #define _unroll_8
 #define _unroll_16
 #define _unroll_32
-#endif
+
 #endif
 
 void setExit(int arg);
