@@ -232,6 +232,13 @@ Don't write recent(1), full(2), either(3) traces
       --write-globe-history=<dir>
                              Extended Globe History
       --write-json=<dir>     Periodically write json output to <dir>
+      --aircraft-json-seen-by-list
+                             Write receiver ids of receivers who have seen
+                             an aircraft to aircraft.json
+      --aircraft-json-seen-by-list-timeout=<timeout>
+                             Remove receiver id from the list if there was no update
+                             for more than <timeout> seconds
+                             (int, default: 3 s, set 0 to disable timeout)
       --write-json-binCraft-only=<n>
                              Use only binary binCraft format for globe files
                              (1), for aircraft.json as well (2)

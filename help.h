@@ -92,6 +92,8 @@ static struct argp_option optionsReadsb[] = {
     {"dcfilter", OptDcFilter, 0, OPTION_HIDDEN, "Apply a 1Hz DC filter to input data (requires more CPU)", 1},
     {"enable-biastee", OptBiasTee, 0, OPTION_HIDDEN, "Enable bias tee on supporting interfaces (default: disabled)", 1},
     {"write-json", OptJsonDir, "<dir>", 0, "Periodically write json output to <dir>", 1},
+    {"aircraft-json-seen-by-list", OptAircraftJsonSeenByList, 0, 0, "Write receiver ids of receivers who have seen an aircraft to aircraft.json", 1},
+    {"aircraft-json-seen-by-list-timeout", OptAircraftJsonSeenByListTimeout, "<timeout>", 0, "Remove receiver id from the list if there was no update for more than <timeout> seconds (int, default: 3 s, set 0 to disable timeout)", 1},
     {"write-prom", OptPromFile, "<filepath>", 0, "Periodically write prometheus output to <filepath>", 1},
     {"write-globe-history", OptGlobeHistoryDir, "<dir>", 0, "Extended Globe History", 1},
     {"write-state", OptStateDir, "<dir>", 0, "Write state to disk to have traces after a restart", 1},

@@ -33,8 +33,9 @@ void printACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, st
 void logACASInfoShort(uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, int64_t now);
 
 char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *MV, struct aircraft *a, struct modesMessage *mm, int64_t now);
-char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, int printMode, struct modesMessage *mm);
+char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, int printMode, struct modesMessage *mm, bool includeSeenByList);
 char *sprintAircraftRecent(char *p, char *end, struct aircraft *a, int64_t now, int printMode, struct modesMessage *mm, int64_t recent);
+size_t calculateSeenByListJsonSize(struct aircraft *a, int64_t now);
 struct char_buffer generateAircraftJson(int64_t onlyRecent);
 struct char_buffer generateAircraftBin(threadpool_buffer_t *pbuffer);
 struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int start, int last, threadpool_buffer_t *buffer, int64_t startStamp);

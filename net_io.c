@@ -2204,7 +2204,7 @@ void jsonPositionOutput(struct modesMessage *mm, struct aircraft *a) {
 
     char *end = p + buflen;
 
-    p = sprintAircraftObject(p, end, a, mm->sysTimestamp, 2, NULL);
+    p = sprintAircraftObject(p, end, a, mm->sysTimestamp, 2, NULL, false);
 
     if (p + 1 < end) {
         *p++ = '\n';

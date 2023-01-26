@@ -209,6 +209,8 @@ static void configSetDefaults(void) {
     Modes.messageRateMult = 1.0f;
 
     Modes.apiShutdownDelay = 0 * SECONDS;
+
+    Modes.aircraft_json_seen_by_list_timeout = 3;
 }
 //
 //=========================================================================
@@ -1464,6 +1466,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             sfree(Modes.json_dir);
             Modes.json_dir = strdup(arg);
             break;
+        case OptAircraftJsonSeenByList:
+            Modes.aircraft_json_seen_by_list = 1;
+            break;
+        case OptAircraftJsonSeenByListTimeout:
+            Modes.aircraft_json_seen_by_list_timeout = atoi(arg);
+        break;
         case OptHeatmap:
             Modes.heatmap = 1;
             if (atof(arg) > 0)

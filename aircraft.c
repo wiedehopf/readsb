@@ -124,6 +124,8 @@ void freeAircraft(struct aircraft *a) {
     }
     traceCleanup(a);
 
+    clearAircraftSeenByList(a);
+
     memset(a, 0xff, sizeof (struct aircraft));
     free(a);
 }
@@ -818,4 +820,15 @@ void updateTypeReg(struct aircraft *a) {
     ) {
         a->dbFlags |= 1;
     }
+}
+
+void clearAircraftSeenByList(struct aircraft *a)
+{
+    struct seenByReceiverIdLlEntry *current = a->seenByReceiverIds;
+    while(current) {
+        struct seenByReceiverIdLlEntry *toDelete = current;
+        current = current->next;
+        free(toDelete);
+    }
+    a->seenByReceiverIds = NULL;
 }

@@ -1762,6 +1762,42 @@ discard_alt:
 // Receive new messages and update tracked aircraft state
 //
 
+static void processReceiverId(struct modesMessage *mm, struct aircraft *a) {
+    // Append new seen by receiver id entry or update an existing entry
+    if (mm->client) {
+        struct seenByReceiverIdLlEntry *current = NULL;
+        // This is the first entry
+        if (a->seenByReceiverIds == NULL) {
+            current = calloc(1, sizeof(struct seenByReceiverIdLlEntry));
+            a->seenByReceiverIds = current;
+        } else {
+            // Find an existing entry for the same receiver id or append a new entry
+            current = a->seenByReceiverIds;
+            bool match = false;
+            while (current) {
+                if (current->receiverId == mm->client->receiverId && current->receiverId2 == mm->client->receiverId2) {
+                    match = true;
+                    break;
+                } else if (!current->next) {
+                    break;
+                }
+
+                current = current->next;
+            }
+
+            if (!match) {
+                current->next = calloc(1, sizeof(struct seenByReceiverIdLlEntry));
+                current = current->next;
+            }
+        }
+
+        // Set receiver id and timestamp
+        current->receiverId = mm->client->receiverId;
+        current->receiverId2 = mm->client->receiverId2;
+        current->lastTimestamp = mm->sysTimestamp;
+    }
+}
+
 struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     ++Modes.stats_current.messages_total;
     if (mm->msgtype == DFTYPE_MODEAC) {
@@ -1829,6 +1865,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         return NULL;
     }
 
+    if (Modes.json_dir && Modes.aircraft_json_seen_by_list)
+        processReceiverId(mm, a);
 
     a->messageRateAcc[0]++;
     if (now > a->nextMessageRateCalc) {
@@ -2681,6 +2719,10 @@ static void removeStaleRange(void *arg, threadpool_threadbuffers_t * buffer_grou
         struct aircraft **nextPointer = &(Modes.aircraft[j]);
         while (*nextPointer) {
             struct aircraft *a = *nextPointer;
+
+            if (!includeAircraftJson(info->now, a))
+                clearAircraftSeenByList(a);
+
             if (
                     (!a->seenPosReliable && a->seen < noposTimeout)
                     || (

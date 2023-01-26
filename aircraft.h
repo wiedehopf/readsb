@@ -36,6 +36,8 @@ struct aircraft *aircraftGet(uint32_t addr);
 struct aircraft *aircraftCreate(uint32_t addr);
 void freeAircraft(struct aircraft *a);
 
+void clearAircraftSeenByList(struct aircraft *a);
+
 typedef struct dbEntry {
     struct dbEntry *next;
     uint32_t addr;

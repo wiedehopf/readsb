@@ -746,6 +746,8 @@ struct _Modes
     char *filename; // Input form file, --ifile option
     char *net_bind_address; // Bind address
     char *json_dir; // Path to json base directory, or NULL not to write json.
+    int8_t aircraft_json_seen_by_list;
+    int aircraft_json_seen_by_list_timeout; // Timeout in seconds
     char *globe_history_dir;
     char *state_dir;
     char *state_parent_dir;
@@ -1116,6 +1118,8 @@ enum {
     OptShowOnly,
     OptFilterDF,
     OptJsonDir,
+    OptAircraftJsonSeenByList,
+    OptAircraftJsonSeenByListTimeout,
     OptJsonGzip,
     OptJsonOnlyBin,
     OptEnableBinGz,

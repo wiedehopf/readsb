@@ -99,6 +99,7 @@ The keys are:
    * oat, tat: outer/static air temperature (C) and total air temperature (C) are calculated from mach number and true airspeed (typically somewhat inaccurate at lower altitudes / mach numbers below 0.5, calculation is inhibited for mach < 0.395)
    * acas_ra: experimental, subject to change, see format here: https://github.com/wiedehopf/readsb/blob/ca5b8257bb6176854eb18ecd96761e107fbb12fa/json_out.c#L249
    * gpsOkBefore: experimental, subject to change: aircraft lost GPS / GPS heavily degraded, it was working well before this timestamp, only displayed for 15 min after GPS is lost / degraded
+   * seenByReceiverIds: An array of receiver ids that have provided updates for the aircraft along with their last timestamp. Only present if --aircraft-json-seen-by-list is provided.
 
 (Section references (2.2.xyz) refer to DO-260B.)
 

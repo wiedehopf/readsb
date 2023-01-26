@@ -796,14 +796,6 @@ static inline void apiGenerateJson(struct apiBuffer *buffer, int64_t now) {
     char *end = buffer->json + alloc;
 
     for (int i = 0; i < buffer->len; i++) {
-        if ((p + 2000) >= end) {
-            int used = p - buffer->json;
-            alloc *= 2;
-            buffer->json = (char *) realloc(buffer->json, alloc);
-            p = buffer->json + used;
-            end = buffer->json + alloc;
-        }
-
         struct apiEntry *entry = &buffer->list[i];
         struct aircraft *a = aircraftGet(entry->bin.hex);
 
@@ -814,6 +806,23 @@ static inline void apiGenerateJson(struct apiBuffer *buffer, int64_t now) {
             entry->jsonOffset.len = 0;
             continue;
         }
+
+        // Make sure
+        size_t seenByListSize = 0;
+        if (Modes.aircraft_json_seen_by_list)
+            // Better double the size to account for any new entries that are added between
+            // size calculation and the call to sprintAircraftObject()
+            seenByListSize = calculateSeenByListJsonSize(a, now) * 2;
+        if (p + 2000 + seenByListSize >= end) {
+            int used = p - buffer->json;
+            alloc *= 2;
+            if (used + 2000 + seenByListSize > alloc)
+                alloc += seenByListSize;
+            buffer->json = (char *) realloc(buffer->json, alloc);
+            p = buffer->json + used;
+            end = buffer->json + alloc;
+        }
+
         uint32_t hash;
 
         hash = hexHash(entry->bin.hex);
@@ -832,7 +841,7 @@ static inline void apiGenerateJson(struct apiBuffer *buffer, int64_t now) {
         char *start = p;
 
         *p++ = '\n';
-        p = sprintAircraftObject(p, end, a, now, 0, NULL);
+        p = sprintAircraftObject(p, end, a, now, 0, NULL, true);
         *p++ = ',';
 
 

@@ -304,10 +304,20 @@ struct traceCache {
     char *json;
 };
 
+struct seenByReceiverIdLlEntry {
+    struct seenByReceiverIdLlEntry *next; // Next entry
+    uint64_t receiverId;
+    uint64_t receiverId2;
+    int64_t lastTimestamp;
+};
+
 /* Structure used to describe the state of one tracked aircraft */
 struct aircraft
 {
   struct aircraft *next; // Next aircraft in our linked list
+
+  struct seenByReceiverIdLlEntry *seenByReceiverIds;
+
   uint32_t addr; // ICAO address
   addrtype_t addrtype; // highest priority address type seen for this aircraft
   int64_t seen; // Time (millis) at which the last packet with reliable address was received

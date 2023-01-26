@@ -235,7 +235,7 @@ void logACASInfoShort(uint32_t addr, unsigned char *bytes, struct aircraft *a, s
         char *p = buf;
         char *end = buf + sizeof(buf);
 
-        p = sprintAircraftObject(p, end, a, now, 0, mm);
+        p = sprintAircraftObject(p, end, a, now, 0, mm, false);
         p = safe_snprintf(p, end, "\n");
 
         if (p - buf >= (int) sizeof(buf) - 1) {
@@ -600,7 +600,7 @@ char *sprintACASInfoShort(char *p, char *end, uint32_t addr, unsigned char *byte
     return p;
 }
 
-char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, int printMode, struct modesMessage *mm) {
+char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, int printMode, struct modesMessage *mm, bool includeSeenByList) {
 
     // printMode == 0: aircraft.json / globe.json / apiBuffer
     // printMode == 1: trace.json
@@ -611,6 +611,30 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
         p = safe_snprintf(p, end, "\"now\" : %.3f,", now / 1000.0);
     if (printMode != 1)
         p = safe_snprintf(p, end, "\"hex\":\"%s%06x\",", (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
+
+    // Include all receivers that pushed an update in the last n seconds
+    if (includeSeenByList && Modes.aircraft_json_seen_by_list) {
+        p = safe_snprintf(p, end, "\"seenByReceiverIds\":[");
+
+        struct seenByReceiverIdLlEntry *current = a->seenByReceiverIds;
+        bool first = true;
+        while(current) {
+            // This entry is too old, ignore it
+            if (Modes.aircraft_json_seen_by_list_timeout > 0 && current->lastTimestamp + Modes.aircraft_json_seen_by_list_timeout * 1000 < now) {
+                current = current->next;
+                continue;
+            }
+
+            char uuid[64];
+            sprint_uuid(current->receiverId, current->receiverId2, uuid);
+            p = safe_snprintf(p, end, "%s{\"receiverId\":\"%s\",\"lastTimestamp\":%ld}", first ? "" : ",", uuid, current->lastTimestamp);
+            first = false;
+
+            current = current->next;
+        }
+        p = safe_snprintf(p, end, "],");
+    }
+
     p = safe_snprintf(p, end, "\"type\":\"%s\"", addrtype_enum_string(a->addrtype));
     if (trackDataValid(&a->callsign_valid)) {
         char buf[128];
@@ -948,6 +972,27 @@ char *sprintAircraftRecent(char *p, char *end, struct aircraft *a, int64_t now, 
     return p;
 }
 
+size_t calculateSeenByListJsonSize(struct aircraft *a, int64_t now)
+{
+    if (!Modes.aircraft_json_seen_by_list || !Modes.json_dir)
+        return 0;
+
+    // Base property
+    size_t size = 23; // The empty array
+    struct seenByReceiverIdLlEntry *current = a->seenByReceiverIds;
+    while(current) {
+        if (Modes.aircraft_json_seen_by_list_timeout > 0 && current->lastTimestamp + Modes.aircraft_json_seen_by_list_timeout * 1000 < now) {
+            current = current->next;
+            continue;
+        }
+
+        size += 90; // Length of one entry object with INT64_MAX as timestamp and trailing comma
+        current = current->next;
+    }
+
+    return size;
+}
+
 int includeAircraftJson(int64_t now, struct aircraft *a) {
     if (unlikely(a == NULL)) {
         fprintf(stderr, "includeAircraftJson: got NULL pointer\n");
@@ -1257,7 +1302,7 @@ struct char_buffer generateGlobeJson(int globe_index, threadpool_buffer_t *pbuff
         }
 
         p = safe_snprintf(p, end, "\n");
-        p = sprintAircraftObject(p, end, a, now, 0, NULL);
+        p = sprintAircraftObject(p, end, a, now, 0, NULL, false);
         p = safe_snprintf(p, end, ",");
 
         if (p >= end) {
@@ -1324,7 +1369,7 @@ struct char_buffer generateAircraftJson(int64_t onlyRecent){
         if (onlyRecent) {
             p = sprintAircraftRecent(p, end, a, now, 0, NULL, onlyRecent);
         } else {
-            p = sprintAircraftObject(p, end, a, now, 0, NULL);
+            p = sprintAircraftObject(p, end, a, now, 0, NULL, false);
         }
 
         if (p - beforeSprint < 5) {
@@ -1420,7 +1465,7 @@ static char *sprintTracePoint(char *p, char *end, struct state *state, struct st
         from_state_all(state_all, state, ac, now);
 
         p = safe_snprintf(p, end, ",");
-        p = sprintAircraftObject(p, end, ac, now, 1, NULL);
+        p = sprintAircraftObject(p, end, ac, now, 1, NULL, false);
     } else {
         p = safe_snprintf(p, end, ",null");
     }
