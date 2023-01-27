@@ -2346,10 +2346,14 @@ int main(int argc, char **argv) {
     if (Modes.json_dir && Modes.json_globe_index) {
         char pathbuf[PATH_MAX];
         snprintf(pathbuf, PATH_MAX, "%s/traces", Modes.json_dir);
-        mkdir(pathbuf, 0755);
+        if (mkdir(pathbuf, 0755) && errno != EEXIST) {
+            perror(pathbuf);
+        }
         for (int i = 0; i < 256; i++) {
             snprintf(pathbuf, PATH_MAX, "%s/traces/%02x", Modes.json_dir, i);
-            mkdir(pathbuf, 0755);
+            if (mkdir(pathbuf, 0755) && errno != EEXIST) {
+                perror(pathbuf);
+            }
         }
     }
 
