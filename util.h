@@ -156,6 +156,8 @@ char *sprint_uuid1_partial(uint64_t id1, char *p);
 char *sprint_uuid1(uint64_t id1, char *p);
 char *sprint_uuid2(uint64_t id2, char *p);
 
+int mkdir_error(const char *path, mode_t mode, FILE *err_stream);
+
 double greatcircle(double lat0, double lon0, double lat1, double lon1, int approx);
 double bearing(double lat0, double lon0, double lat1, double lon1);
 

@@ -563,6 +563,14 @@ char *sprint_uuid(uint64_t id1, uint64_t id2, char *p) {
     return p;
 }
 
+int mkdir_error(const char *path, mode_t mode, FILE *err_stream) {
+    int err = mkdir(path, mode);
+    if (err != 0 && errno != EEXIST && err_stream) {
+        fprintf(err_stream, "mkdir: %s (%s)\n", strerror(errno), path);
+    }
+    return err;
+}
+
 // Distance between points on a spherical earth.
 // This has up to 0.5% error because the earth isn't actually spherical
 // (but we don't use it in situations where that matters)

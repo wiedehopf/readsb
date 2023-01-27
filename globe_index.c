@@ -418,21 +418,16 @@ static void createDateDir(char *base_dir, struct tm *utc, char *dateDir) {
         char pathbuf[PATH_MAX];
 
         snprintf(pathbuf, PATH_MAX, "%s/%s", base_dir, yy);
-        if (mkdir(pathbuf, 0755) && errno != EEXIST) {
-            perror(pathbuf);
-        }
+        mkdir_error(pathbuf, 0755, stderr);
+
         snprintf(pathbuf, PATH_MAX, "%s/%s/%s", base_dir, yy, mm);
-        if (mkdir(pathbuf, 0755) && errno != EEXIST) {
-            perror(pathbuf);
-        }
+        mkdir_error(pathbuf, 0755, stderr);
     }
     sprintDateDir(base_dir, utc, dateDir);
 
     //fprintf(stderr, "making sure directory exists: %s\n", dateDir);
 
-    if (mkdir(dateDir, 0755) && errno != EEXIST) {
-        perror(dateDir);
-    }
+    mkdir_error(dateDir, 0755, stderr);
 }
 
 static void scheduleMemBothWrite(struct aircraft *a, int64_t schedTime) {
@@ -3287,18 +3282,14 @@ int handleHeatmap(int64_t now) {
         base_dir = Modes.heatmap_dir;
     }
 
-    if (mkdir(base_dir, 0755) && errno != EEXIST) {
-        perror(base_dir);
-    }
+    mkdir_error(base_dir, 0755, stderr);
 
     char dateDir[PATH_MAX * 3/4];
 
     createDateDir(base_dir, &utc, dateDir);
 
     snprintf(pathbuf, PATH_MAX, "%s/heatmap", dateDir);
-    if (mkdir(pathbuf, 0755) && errno != EEXIST) {
-        perror(pathbuf);
-    }
+    mkdir_error(pathbuf, 0755, stderr);
 
     snprintf(pathbuf, PATH_MAX, "%s/heatmap/%02d.bin.ttf", dateDir, half_hour);
     snprintf(tmppath, PATH_MAX, "%s.readsb_tmp", pathbuf);
@@ -3379,10 +3370,8 @@ void checkNewDay(int64_t now) {
         createDateDir(Modes.globe_history_dir, &utcFifteenAgo, dateDir);
 
         snprintf(filename, PATH_MAX, "%s/traces", dateDir);
-        int err = mkdir(filename, 0700);
-        if (err && errno != EEXIST) {
-            perror(filename);
-        }
+        int err = mkdir_error(filename, 0755, stderr);
+
         if (Modes.trace_hist_only) {
             chmod(filename, 0755);
         }
@@ -3392,9 +3381,7 @@ void checkNewDay(int64_t now) {
         if (!err) {
             for (int i = 0; i < 256; i++) {
                 snprintf(filename, PATH_MAX, "%s/traces/%02x", dateDir, i);
-                if (mkdir(filename, 0755) && errno != EEXIST) {
-                    perror(filename);
-                }
+                mkdir_error(filename, 0755, stderr);
             }
         }
     }
@@ -3438,10 +3425,7 @@ void checkNewDayAcas(int64_t now) {
         createDateDir(Modes.globe_history_dir, &utc, dateDir);
 
         snprintf(filename, PATH_MAX, "%s/acas", dateDir);
-        if (mkdir(filename, 0755) && errno != EEXIST) {
-            perror(filename);
-        }
-
+        mkdir_error(filename, 0755, stderr);
 
         if (Modes.acasFD1 > -1)
             close(Modes.acasFD1);
