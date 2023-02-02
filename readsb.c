@@ -1270,6 +1270,7 @@ static int make_net_connector(char *arg) {
     }
     if (strcmp(con->protocol, "beast_out") != 0
             && strcmp(con->protocol, "beast_reduce_out") != 0
+            && strcmp(con->protocol, "beast_reduce_plus_out") != 0
             && strcmp(con->protocol, "beast_in") != 0
             && strcmp(con->protocol, "raw_out") != 0
             && strcmp(con->protocol, "raw_in") != 0
@@ -1289,7 +1290,7 @@ static int make_net_connector(char *arg) {
             && strcmp(con->protocol, "uat_in") != 0
        ) {
         fprintf(stderr, "--net-connector: Unknown protocol: %s\n", con->protocol);
-        fprintf(stderr, "Supported protocols: beast_out, beast_in, beast_reduce_out, raw_out, raw_in, \n"
+        fprintf(stderr, "Supported protocols: beast_out, beast_in, beast_reduce_out, beast_reduce_plus_out, raw_out, raw_in, \n"
                 "sbs_out, sbs_out_replay, sbs_out_mlat, sbs_out_jaero, \n"
                 "sbs_in, sbs_in_mlat, sbs_in_jaero, \n"
                 "vrs_out, json_out, gpsd_in, uat_in\n");

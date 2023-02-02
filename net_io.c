@@ -335,11 +335,11 @@ static struct client *createSocketClient(struct net_service *service, int fd) {
 
 static int sendUUID(struct client *c, int64_t now) {
     struct net_connector *con = c->con;
-    // sending UUID if hostname matches adsbexchange
+    // sending UUID if hostname matches adsbexchange or for beast_reduce_plus output
     char uuid[130];
     uuid[0] = '\0';
     if ((c->sendq && c->sendq_len + 256 < c->sendq_max)
-            && ( (strstr(con->address, "feed") && strstr(con->address, ".adsbexchange.com")) || Modes.debug_ping || Modes.debug_send_uuid)) {
+            && ((con && con->enable_uuid_ping) || (con && strstr(con->address, "feed") && strstr(con->address, ".adsbexchange.com")) || Modes.debug_ping || Modes.debug_send_uuid)) {
         int fd = open(Modes.uuidFile, O_RDONLY);
         // try legacy / adsbexchange image path as hardcoded fallback
         if (fd == -1) {
@@ -963,9 +963,12 @@ void modesInitNet(void) {
             con->service = beast_out;
         else if (strcmp(con->protocol, "beast_in") == 0)
             con->service = Modes.beast_in_service;
-        if (strcmp(con->protocol, "beast_reduce_out") == 0)
+        else if (strcmp(con->protocol, "beast_reduce_out") == 0)
             con->service = beast_reduce_out;
-        else if (strcmp(con->protocol, "raw_out") == 0)
+        else if (strcmp(con->protocol, "beast_reduce_plus_out") == 0) {
+            con->service = beast_reduce_out;
+            con->enable_uuid_ping = 1;
+        } else if (strcmp(con->protocol, "raw_out") == 0)
             con->service = raw_out;
         else if (strcmp(con->protocol, "raw_in") == 0)
             con->service = raw_in;
