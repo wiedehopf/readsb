@@ -1611,7 +1611,10 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
     int hlen = p - header;
     //fprintf(stderr, "hlen %d\n", hlen);
     if (hlen >= API_REQ_PADSTART) {
-        fprintf(stderr, "API_REQ_PADSTART insufficient\n");
+        fprintf(stderr, "API error: API_REQ_PADSTART insufficient\n");
+        send500(con->fd, con->keepalive);
+        apiResetCon(con, thread);
+        return;
     }
 
     // increase bytesSent counter so we don't transmit the empty buffer before the header
