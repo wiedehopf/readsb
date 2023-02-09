@@ -401,13 +401,13 @@ static inline void *malloc_or_exit(size_t alignment, size_t size, const char *fi
     }
     if (unlikely(!buf)) {
         setExit(2); // irregular exit ... soon
-        fprintf(stderr, "FATAL: aligned_alloc failed: %s:%d\n", file, line);
+        fprintf(stderr, "FATAL: malloc_or_exit() failed: %s:%d\n", file, line);
     }
     return buf;
 }
 
 // use memory alignment only for arm ....
-#if defined(__arm__) || defined(__aarch64__)
+#if defined(__arm__)
 #define cmalloc(size) malloc_or_exit(MemoryAlignment, size, __FILE__, __LINE__)
 #else
 #define cmalloc(size) malloc_or_exit(0, size, __FILE__, __LINE__)
