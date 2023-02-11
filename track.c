@@ -685,7 +685,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         inrange = override;
     }
 
-    if (receiverRangeExceeded && Modes.netReceiverId) {
+    if (receiverRangeExceeded && Modes.garbage_ports) {
         mm->pos_receiver_range_exceeded = 1;
         inrange = 0; // far outside receiver area
         mm->pos_ignore = 1;
