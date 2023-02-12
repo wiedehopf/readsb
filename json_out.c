@@ -716,9 +716,32 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
                     a->latReliable, a->lonReliable, a->pos_nic_reliable, a->pos_rc_reliable,
                 (now < a->pos_reliable_valid.updated) ? 0 : ((now - a->pos_reliable_valid.updated) / 1000.0));
 #if defined(TRACKS_UUID)
-            char uuid[32]; // needs 18 chars and null byte
-            sprint_uuid1(a->lastPosReceiverId, uuid);
-            p = safe_snprintf(p, end, ",\"rId\":\"%s\"", uuid);
+            {
+                char uuid[32]; // needs 18 chars and null byte
+                sprint_uuid1(a->lastPosReceiverId, uuid);
+                p = safe_snprintf(p, end, ",\"rId\":\"%s\"", uuid);
+            }
+#endif
+#if defined(PRINT_UUIDS)
+            {
+                char uuid[32]; // needs 18 chars and null byte
+                p = safe_snprintf(p, end, ",\"recentReceiverIds\":[");
+                int64_t printNewer = now - 3 * SECONDS;
+                int first = 1;
+                for (int i = 0; i < RECENT_RECEIVER_IDS; i++) {
+                    idTime *entry = &a->recentReceiverIds[i];
+                    if (entry->id != 0 && entry->time > printNewer) {
+                        if (first) {
+                            first = 0;
+                        } else {
+                            p = safe_snprintf(p, end, ",");
+                        }
+                        sprint_uuid1(entry->id, uuid);
+                        p = safe_snprintf(p, end, "\"%s\"", uuid);
+                    }
+                }
+                p = safe_snprintf(p, end, "]");
+            }
 #endif
             if (Modes.userLocationValid) {
                 p = safe_snprintf(p, end, ",\"r_dst\":%.3f,\"r_dir\":%.1f", a->receiver_distance / 1852.0, a->receiver_direction);
@@ -772,11 +795,6 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
     if (a->pos_reliable_valid.source == SOURCE_SBS)
         p = safe_snprintf(p, end, ",\"sbs_other\": true");
     */
-    if (Modes.netReceiverIdPrint) {
-        char uuid[32]; // needs 18 chars and null byte
-        sprint_uuid1(a->lastPosReceiverId, uuid);
-        p = safe_snprintf(p, end, ",\"rId\":%s", uuid);
-    }
 
     if (printMode != 1) {
         p = safe_snprintf(p, end, ",\"mlat\":");
@@ -885,11 +903,6 @@ char *sprintAircraftRecent(char *p, char *end, struct aircraft *a, int64_t now, 
             p = safe_snprintf(p, end, ",\"version\":%d", a->adsb_version);
         if (a->category != 0)
             p = safe_snprintf(p, end, ",\"category\":\"%02X\"", a->category);
-        if (Modes.netReceiverIdPrint) {
-            char uuid[32]; // needs 18 chars and null byte
-            sprint_uuid1(a->lastPosReceiverId, uuid);
-            p = safe_snprintf(p, end, ",\"rId\":%s", uuid);
-        }
     }
 
     if (recent > trackDataAge(now, &a->nic_baro_valid))

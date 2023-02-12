@@ -7,6 +7,7 @@ PLUTOSDR ?= no
 AGGRESSIVE ?= no
 HAVE_BIASTEE ?= no
 TRACKS_UUID ?= no
+PRINT_UUIDS ?= no
 
 DIALECT = -std=c11
 CFLAGS = $(DIALECT) -W -D_GNU_SOURCE -D_DEFAULT_SOURCE -Wall -Werror -fno-common -O2
@@ -65,6 +66,10 @@ endif
 
 ifeq ($(TRACKS_UUID), yes)
   CFLAGS += -DTRACKS_UUID
+endif
+
+ifeq ($(PRINT_UUIDS), yes)
+  CFLAGS += -DPRINT_UUIDS
 endif
 
 ifeq ($(RTLSDR), yes)

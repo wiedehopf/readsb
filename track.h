@@ -83,6 +83,14 @@ int nogps(int64_t now, struct aircraft *a);
 
 #define RECEIVERIDBUFFER (12)
 
+#define RECENT_RECEIVER_IDS (32)
+
+typedef struct
+{
+    uint64_t id;
+    int64_t time;
+} idTime;
+
 #define DISCARD_CACHE (4)
 #define CPR_CACHE (4)
 
@@ -361,7 +369,7 @@ struct aircraft
   uint16_t nogpsCounter;
   uint16_t receiverIdsNext;
   int64_t seenPosReliable; // last time we saw a reliable position
-  int64_t lastPosReceiverId;
+  uint64_t lastPosReceiverId;
 
   // ---- the following section has 9 instead of 8 times 8 bytes. but that's not critical as long as the 8 byte alignment is ok
 
@@ -574,6 +582,11 @@ struct aircraft
   uint32_t trace_chunk_overall_bytes;
 
   int8_t initialTraceWriteDone;
+
+#if defined(PRINT_UUIDS)
+  int recentReceiverIdsNext;
+  idTime recentReceiverIds[RECENT_RECEIVER_IDS];
+#endif
 
   char zeroEnd;
 };
