@@ -79,6 +79,25 @@ static uint16_t simpleHash(uint64_t receiverId) {
 
 static float knots_to_meterpersecond = (1852.0 / 3600.0);
 
+static void calculateMessageRateGlobal(int64_t now) {
+    float sum = 0.0f;
+    float mult = REMOVE_STALE_INTERVAL / 1000.0f;
+    float multSum = 0.0f;
+    for (int k = 0; k < MESSAGE_RATE_CALC_POINTS; k++) {
+        sum += Modes.messageRateAcc[k] * mult;
+        multSum += mult;
+        mult *= 0.7f;
+    }
+
+    Modes.messageRate = sum / multSum * Modes.messageRateMult;
+    Modes.nextMessageRateCalc = now + REMOVE_STALE_INTERVAL;
+
+    memmove(&Modes.messageRateAcc[1], &Modes.messageRateAcc[0], sizeof(uint16_t) * (MESSAGE_RATE_CALC_POINTS - 1));
+    Modes.messageRateAcc[0] = 0;
+
+    //fprintf(stderr, "%.3f\n", Modes.messageRate);
+}
+
 static void calculateMessageRate(struct aircraft *a, int64_t now) {
     float sum = 0.0f;
     float mult = REMOVE_STALE_INTERVAL / 1000.0f;
@@ -1782,7 +1801,15 @@ discard_alt:
 //
 
 struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
+    int64_t now = mm->sysTimestamp;
+
     ++Modes.stats_current.messages_total;
+
+    Modes.messageRateAcc[0]++;
+    if (now > Modes.nextMessageRateCalc) {
+        calculateMessageRateGlobal(now);
+    }
+
     if (mm->msgtype == DFTYPE_MODEAC) {
         // Mode A/C, just count it (we ignore SPI)
         modeAC_count[modeAToIndex(mm->squawk)]++;
@@ -1790,8 +1817,6 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     }
     if (mm->decodeResult < 0)
         return NULL;
-
-    int64_t now = mm->sysTimestamp;
 
     struct aircraft *a;
     unsigned int cpr_new = 0;
@@ -2784,6 +2809,11 @@ static void activeUpdate(int64_t now) {
 
 // run activeUpdate and remove stale aircraft for a fraction of the entire hashtable
 void trackRemoveStale(int64_t now) {
+
+    if (now > Modes.nextMessageRateCalc) {
+        calculateMessageRateGlobal(now);
+    }
+
     // update the active aircraft list
     //fprintf(stderr, "activeUpdate\n");
     activeUpdate(now);

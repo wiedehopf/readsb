@@ -94,8 +94,6 @@ typedef struct
 #define DISCARD_CACHE (4)
 #define CPR_CACHE (4)
 
-#define MESSAGE_RATE_CALC_POINTS (2)
-
 typedef enum
 {
     REDUCE_RARE,

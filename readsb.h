@@ -149,6 +149,7 @@
 
 #define CANARY (0x665225ca79e653a3)
 
+#define MESSAGE_RATE_CALC_POINTS (2)
 
 // size of various on stack buffers used across the code, let's just be conservative and assume 1 MB of stack
 // without heavy recursion 3 of those stack buffers can be in use at the same time, at most we expect to to be in use
@@ -614,6 +615,10 @@ struct _Modes
     atomic_int *apiFlip;
     struct apiThread *apiThread;
     pthread_mutex_t apiFlipMutex; // mutex to read apiFlip
+
+    float messageRate;
+    uint32_t messageRateAcc[MESSAGE_RATE_CALC_POINTS];
+    int64_t nextMessageRateCalc;
 
     // Configuration
     int8_t nfix_crc; // Number of crc bit error(s) to correct
