@@ -994,7 +994,7 @@ struct char_buffer generateAircraftBin(threadpool_buffer_t *pbuffer) {
 
     struct craftArray *ca = &Modes.aircraftActive;
     ca_lock_read(ca);
-    size_t alloc = 4096 + ca->len * sizeof(struct binCraft);
+    size_t alloc = 4096 + (ca->len + 2) * sizeof(struct binCraft);
 
     char *buf = check_grow_threadpool_buffer_t(pbuffer, alloc);
     char *p = buf;
@@ -1045,7 +1045,7 @@ struct char_buffer generateAircraftBin(threadpool_buffer_t *pbuffer) {
     memWrite(p, Modes.binCraftVersion);
 
     if (p - buf > (int) elementSize)
-        fprintf(stderr, "buffer overrun aircrafBin\n");
+        fprintf(stderr, "aircraftBin: header too large oos4tooT\n");
 
     p = buf + elementSize;
 
@@ -1058,7 +1058,7 @@ struct char_buffer generateAircraftBin(threadpool_buffer_t *pbuffer) {
         }
         // check if we have enough space
         if ((p + 2 * sizeof(struct binCraft)) >= end) {
-            fprintf(stderr, "buffer overrun aircraftBin\n");
+            fprintf(stderr, "increase buffer size: iXok9ieD\n");
             break;
         }
 
