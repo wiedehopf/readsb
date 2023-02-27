@@ -357,7 +357,7 @@ typedef enum {
 
 #elif defined(__GNUC__)
 
-#if __GNUC__ >= 7
+#if __GNUC__ >= 8
 #define _unroll_8 _Pragma ("GCC unroll 8")
 #define _unroll_16 _Pragma ("GCC unroll 16")
 #define _unroll_32 _Pragma ("GCC unroll 32")
