@@ -336,20 +336,28 @@ static struct client *createSocketClient(struct net_service *service, int fd) {
 static int sendUUID(struct client *c, int64_t now) {
     struct net_connector *con = c->con;
     // sending UUID if hostname matches adsbexchange or for beast_reduce_plus output
-    char uuid[130];
+    char uuid[150];
     uuid[0] = '\0';
-    if ((c->sendq && c->sendq_len + 256 < c->sendq_max)
-            && ((con && con->enable_uuid_ping) || (con && strstr(con->address, "feed") && strstr(con->address, ".adsbexchange.com")) || Modes.debug_ping || Modes.debug_send_uuid)) {
-        int fd = open(Modes.uuidFile, O_RDONLY);
-        // try legacy / adsbexchange image path as hardcoded fallback
-        if (fd == -1) {
-            fd = open("/boot/adsbx-uuid", O_RDONLY);
-        }
+    if ((c->sendq && c->sendq_len + 256 < c->sendq_max) && con
+            && (con->enable_uuid_ping || (strstr(con->address, "feed") && strstr(con->address, ".adsbexchange.com")) || Modes.debug_ping || Modes.debug_send_uuid)) {
+
         int res = -1;
-        if (fd != -1) {
-            res = read(fd, uuid, 128);
-            close(fd);
+
+        if (con->uuid) {
+            strncpy(uuid, con->uuid, 135);
+            res = strlen(uuid);
+        } else {
+            int fd = open(Modes.uuidFile, O_RDONLY);
+            // try legacy / adsbexchange image path as hardcoded fallback
+            if (fd == -1) {
+                fd = open("/boot/adsbx-uuid", O_RDONLY);
+            }
+            if (fd != -1) {
+                res = read(fd, uuid, 128);
+                close(fd);
+            }
         }
+
         if (res >= 28) {
             if (uuid[res - 1] == '\n') {
                 // remove trailing newline

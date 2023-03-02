@@ -1244,18 +1244,40 @@ static int make_net_connector(char *arg) {
     char* token[maxTokens];
     tokenize(&connect_string, ",", token, maxTokens);
 
-    int k = 0;
-    con->address = con->address0 = token[k++];
-    con->port = con->port0 = token[k++];
-    con->protocol = token[k++];
+    int m = 0;
+    for(int k = 0; k < 128 && token[k]; k++) {
 
-    if (token[k] && strcmp(token[k], "silent_fail") == 0) {
-        k++;
-        con->silent_fail = 1;
+        if (strcmp(token[k], "silent_fail") == 0) {
+            con->silent_fail = 1;
+            continue; // don't increase m counter
+        }
+
+        if (strncmp(token[k], "uuid=", 5) == 0) {
+            con->uuid = cmalloc(140);
+            strncpy(con->uuid, token[k] + 5, 135);
+            fprintf(stderr, "con->uuid: %s\n", con->uuid);
+            continue; // don't increase m counter
+        }
+
+
+        if (m == 0) {
+            con->address = con->address0 = token[k];
+        }
+        if (m == 1) {
+            con->port = con->port0 = token[k];
+        }
+        if (m == 2) {
+            con->protocol = token[k];
+        }
+        if (m == 3) {
+            con->address1 = token[k];
+        }
+        if (m == 4) {
+            con->port1 = token[k];
+        }
+
+        m++;
     }
-
-    con->address1 = token[k++];
-    con->port1 = token[k++];
 
 
     if (pthread_mutex_init(&con->mutex, NULL)) {

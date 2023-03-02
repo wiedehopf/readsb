@@ -173,6 +173,7 @@ struct net_connector
     pthread_mutex_t mutex;
     struct client dummyClient; // client struct for epoll connection handling before we have a fully established connection
     int enable_uuid_ping;
+    char *uuid;
 };
 
 // Common writer state for all output sockets of one type
