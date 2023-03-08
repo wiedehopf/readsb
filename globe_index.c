@@ -3449,20 +3449,25 @@ void checkNewDayAcas(int64_t now) {
     }
 }
 
+void writeRangeDirs() {
+    if (!Modes.state_dir || !Modes.outline_json) {
+        return;
+    }
+
+    char pathbuf[PATH_MAX];
+    snprintf(pathbuf, PATH_MAX, "%s/rangeDirs.gz", Modes.state_dir);
+    gzFile gzfp = gzopen(pathbuf, "wb");
+    if (gzfp) {
+        writeGz(gzfp, &Modes.lastRangeDirHour, sizeof(Modes.lastRangeDirHour), pathbuf);
+        writeGz(gzfp, Modes.rangeDirs, sizeof(Modes.rangeDirs), pathbuf);
+        gzclose(gzfp);
+    }
+}
 static void writeInternalMiscTask(void *arg, threadpool_threadbuffers_t * buffers) {
     MODES_NOTUSED(arg);
     MODES_NOTUSED(buffers);
 
-    if (Modes.state_dir && Modes.outline_json) {
-        char pathbuf[PATH_MAX];
-        snprintf(pathbuf, PATH_MAX, "%s/rangeDirs.gz", Modes.state_dir);
-        gzFile gzfp = gzopen(pathbuf, "wb");
-        if (gzfp) {
-            writeGz(gzfp, &Modes.lastRangeDirHour, sizeof(Modes.lastRangeDirHour), pathbuf);
-            writeGz(gzfp, Modes.rangeDirs, sizeof(Modes.rangeDirs), pathbuf);
-            gzclose(gzfp);
-        }
-    }
+    writeRangeDirs();
 }
 
 static void readInternalMiscTask(void *arg, threadpool_threadbuffers_t * buffers) {

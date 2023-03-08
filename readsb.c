@@ -2176,6 +2176,14 @@ static void miscStuff(int64_t now) {
             free(writeJsonToFile(Modes.json_dir, "outline.json", generateOutlineJson()).buffer);
             nextOutlineWrite = now + 15 * SECONDS;
         }
+
+        if (!Modes.state_only_on_exit) {
+            static int64_t nextRangeDirsWrite;
+            if (now > nextRangeDirsWrite) {
+                nextRangeDirsWrite = now + 5 * MINUTES;
+                writeRangeDirs();
+            }
+        }
     }
 
     // don't do everything at once ... this stuff isn't that time critical it'll get its turn
