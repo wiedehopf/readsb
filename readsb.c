@@ -1771,6 +1771,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (strcasecmp(token[0], "incrementId") == 0) {
                     Modes.incrementId = 1;
                 }
+                if (strcasecmp(token[0], "omitGlobeFiles") == 0) {
+                    Modes.omitGlobeFiles = 1;
+                }
             }
             break;
 
@@ -2430,14 +2433,14 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (Modes.json_globe_index) {
+    if (Modes.json_globe_index && !Modes.omitGlobeFiles) {
         threadCreate(&Threads.globeBin, NULL, globeBinEntryPoint, NULL);
     }
 
     if (Modes.json_dir) {
         threadCreate(&Threads.json, NULL, jsonEntryPoint, NULL);
 
-        if (Modes.json_globe_index) {
+        if (Modes.json_globe_index && !Modes.omitGlobeFiles) {
             // globe_xxxx.json
             threadCreate(&Threads.globeJson, NULL, globeJsonEntryPoint, NULL);
         }

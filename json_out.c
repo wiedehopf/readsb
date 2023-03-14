@@ -1969,8 +1969,9 @@ open:
 
     if (gzip) {
         gzFile gzfp = gzdopen(fd, "wb");
-        if (!gzfp)
+        if (!gzfp) {
             goto error_1;
+        }
 
         int gBufSize = 128 * 1024;
         if (len < 16 * 1024) {
