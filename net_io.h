@@ -145,6 +145,7 @@ struct client
 // Client connection
 struct net_connector
 {
+    char *connect_string;
     char *address;
     char *address0;
     char *address1;

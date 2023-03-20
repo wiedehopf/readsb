@@ -1238,11 +1238,11 @@ static int make_net_connector(char *arg) {
     }
     struct net_connector *con = &Modes.net_connectors[Modes.net_connectors_count++];
     memset(con, 0x0, sizeof(struct net_connector));
-    char *connect_string = strdup(arg);
+    con->connect_string = strdup(arg);
 
     int maxTokens = 128;
     char* token[maxTokens];
-    tokenize(&connect_string, ",", token, maxTokens);
+    tokenize(&con->connect_string, ",", token, maxTokens);
 
     int m = 0;
     for(int k = 0; k < 128 && token[k]; k++) {
@@ -1253,9 +1253,8 @@ static int make_net_connector(char *arg) {
         }
 
         if (strncmp(token[k], "uuid=", 5) == 0) {
-            con->uuid = cmalloc(140);
-            strncpy(con->uuid, token[k] + 5, 135);
-            fprintf(stderr, "con->uuid: %s\n", con->uuid);
+            con->uuid = token[k] + 5;
+            //fprintf(stderr, "con->uuid: %s\n", con->uuid);
             continue; // don't increase m counter
         }
 

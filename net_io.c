@@ -4156,7 +4156,7 @@ void cleanupNetwork(void) {
         if (con->gai_request_in_progress) {
             pthread_join(con->thread, NULL);
         }
-        sfree(con->address0);
+        sfree(con->connect_string);
         freeaddrinfo(con->addr_info);
         pthread_mutex_destroy(&con->mutex);
     }
