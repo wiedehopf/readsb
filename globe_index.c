@@ -828,8 +828,9 @@ static int load_aircraft(char **p, char *end, int64_t now, threadpool_buffer_t *
         return -1;
     }
 
-    ssize_t oldSize = *((uint64_t *) *p);
-    *p += sizeof(uint64_t);
+    uint64_t tmp_u64;
+    *p += memcpySize(&tmp_u64, *p, sizeof(tmp_u64));
+    ssize_t oldSize = tmp_u64;
 
     if (end - *p < oldSize) {
         return -1;
@@ -928,8 +929,11 @@ static int load_aircraft(char **p, char *end, int64_t now, threadpool_buffer_t *
         if (a->trace_len > Modes.traceMax) {
             fprintf(stderr, "%06x unexpectedly long trace: %d!\n", a->addr, a->trace_len);
         }
-        ssize_t oldFourStateSize = *((uint64_t *) *p);
-        *p += sizeof(uint64_t);
+
+        uint64_t tmp_u64;
+        *p += memcpySize(&tmp_u64, *p, sizeof(tmp_u64));
+        ssize_t oldFourStateSize = tmp_u64;
+
         if (oldFourStateSize != sizeof(fourState)) {
             fprintf(stderr, "%06x sizeof(fourState) / SFOUR definition has changed, aborting state loading!\n", a->addr);
             traceCleanupNoUnlink(a);
@@ -2914,8 +2918,7 @@ static int load_aircrafts(char *p, char *end, char *filename, int64_t now, threa
     while (end - p > 0) {
         uint64_t value = 0;
         if (end - p >= (long) sizeof(value)) {
-            value = *((uint64_t *) p);
-            p += sizeof(value);
+            p += memcpySize(&value, p, sizeof(value));
         }
 
         if (value != STATE_SAVE_MAGIC) {
@@ -3031,11 +3034,9 @@ void load_blob(char *blob, threadpool_threadbuffers_t * buffer_group) {
             uint64_t value = 0;
             uint64_t compressed_len = 0;
             if (end - p >= (long) (sizeof(value) + sizeof(compressed_len))) {
-                value = *((uint64_t *) p);
-                p += sizeof(value);
+                p += memcpySize(&value, p, sizeof(value));
 
-                compressed_len = *((uint64_t *) p);
-                p += sizeof(compressed_len);
+                p += memcpySize(&compressed_len, p, sizeof(compressed_len));
             }
             //fprintf(stderr, "%d %08lld\n", blob, (long long) compressed_len);
 
