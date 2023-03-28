@@ -6,12 +6,11 @@ about readsb operation to collectd for later graphing.
 
 ## Reading the json files
 
-There are two ways to obtain the json files:
+To read the json files, you can either:
 
- * By HTTP from the external webserver that readsb is feeding. The json is served from the data/ path, e.g. http://somehost/readsb/data/aircraft.json
- * As a file in the directory specified by --write-json on readsb command line.
+ * Read the latest files in the `/run/readsb` directory (default).
+ * Set a custom directory on the server using the `--write-json` argument in the readsb command line interface.
 
-The HTTP versions are always up to date.
 The file versions are written periodically; for aircraft, typically once a second, for stats, once a minute.
 The file versions are updated to a temporary file, then atomically renamed to the right path, so you should never see partial copies.
 
