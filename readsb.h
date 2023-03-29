@@ -738,6 +738,7 @@ struct _Modes
     char *net_input_beast_ports; // List of Beast input TCP ports
     char *net_output_beast_ports; // List of Beast output TCP ports
     char *net_output_beast_reduce_ports; // List of Beast output TCP ports
+    char *net_output_asterix_ports; // List of Asterix output TCP ports
     char *net_output_json_ports;
     char *net_output_api_ports;
     char *garbage_ports;
@@ -1156,6 +1157,8 @@ enum {
     OptNetJaeroInPorts,
     OptNetBiPorts,
     OptNetBoPorts,
+    OptNetAsteriskInPorts,
+    OptNetAsteriskOutPorts,
     OptNetBeastReducePorts,
     OptNetBeastReduceInterval,
     OptNetBeastReduceFilterAlt,

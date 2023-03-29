@@ -1597,6 +1597,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             sfree(Modes.net_input_beast_ports);
             Modes.net_input_beast_ports = strdup(arg);
             break;
+        case OptNetAsteriskOutPorts:
+            sfree(Modes.net_output_asterix_ports);
+            Modes.net_output_asterix_ports = strdup(arg);
+            break;
         case OptNetBeastReducePorts:
             sfree(Modes.net_output_beast_reduce_ports);
             Modes.net_output_beast_reduce_ports = strdup(arg);

@@ -119,6 +119,7 @@ static struct argp_option optionsReadsb[] = {
     {"net-only", OptNetOnly, 0, 0, "Enable just networking, no RTL device or file used", 2},
     {"net-bind-address", OptNetBindAddr, "<ip>", 0, "IP address to bind to (default: Any; Use 127.0.0.1 for private)", 2},
     {"net-bo-port", OptNetBoPorts, "<ports>", 0, "TCP Beast output listen ports (default: 0)", 2},
+    {"net-ao-port", OptNetAsteriskOutPorts, "<ports>", 0, "TCP Asterisk output listen ports (default: 0)", 2},
     {"net-ri-port", OptNetRiPorts, "<ports>", 0, "TCP raw input listen ports  (default: 0)", 2},
     {"net-ro-port", OptNetRoPorts, "<ports>", 0, "TCP raw output listen ports (default: 0)", 2},
     {"net-sbs-port", OptNetSbsPorts, "<ports>", 0, "TCP BaseStation output listen ports (default: 0)", 2},

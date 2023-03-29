@@ -60,7 +60,6 @@
 #include <netdb.h>
 #include <poll.h>
 #include <sys/sendfile.h>
-#include "ais_charset.c"
 
 #include "uat2esnt/uat2esnt.h"
 
@@ -193,6 +192,19 @@ static struct net_service *serviceInit(struct net_service_group *group, const ch
     return service;
 }
 
+static char *ais_charset = "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_ !\"#$%&'()*+,-./0123456789:;<=>?";
+static uint8_t char_to_ais(int ch)
+{
+    char *match;
+    if (!ch)
+        return 32;
+
+    match = strchr(ais_charset, ch);
+    if (match)
+        return (uint8_t)(match - ais_charset);
+    else
+        return 32;
+}
 
 static int sendFiveHeartbeats(struct client *c, int64_t now) {
     // send 5 heartbeats to signal that we are a client that can accomodate feedback .... some counterparts crash if they get stuff they don't understand
@@ -679,9 +691,9 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
         int newfds[16];
         int nfds, i;
 
-        int unix = 0;
+        int unixSocket = 0;
         if (strncmp(p, "unix:", 5) == 0) {
-            unix = 1;
+            unixSocket = 1;
             p += 5;
         }
 
@@ -699,7 +711,7 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
             buf[len] = 0;
             p = end + 1;
         }
-        if (unix) {
+        if (unixSocket) {
             if (service->unixSocket) {
                 fprintf(stderr, "Multiple unix sockets per service are not supported! %s (%s): %s\n",
                         buf, service->descr, Modes.aneterr);
@@ -1757,7 +1769,6 @@ static void modesSendRawOutput(struct modesMessage *mm) {
 // Write raw output to TCP clients
 //
 static void modesSendAsterixOutput(struct modesMessage *mm) {
-    int msgLen = 1; 
     uint8_t category;
     if (mm->from_mlat) // CAT 20
         return;
@@ -1765,37 +1776,18 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
         return;
     else { // CAT 21
         category = 21;
-        bool item_010;
-        bool item_040;
-        bool item_130;
-        bool item_131;
-        bool item_150;
-        bool item_151;
-        bool item_080;
-        bool item_073;
-        bool item_075;
-        bool item_140;
-        bool item_090;
-        bool item_210;
-        bool item_070;
-        bool item_145;
-        bool item_152;
-        bool item_200;
-        bool item_155;
-        bool item_157;
-        bool item_160;
-        bool item_077;
-        bool item_170;
-        bool item_020;
-        bool item_008;
-        
-        item_010 = true;
-        msgLen +=2;
+        uint8_t fspec[7];
+        for (size_t i = 0; i < 7; i++)
+        {
+            fspec[i] = 0;
+        }
+        fspec[0] |= 1UL << 7;
         uint8_t sac = 000;
         uint8_t sic = 001;
+        uint16_t item_010_value = (sac << 8) + sic;
         
-        item_040 = true;
-        msgLen++;
+        fspec[0] |= 1UL << 6;
+        
         uint item_040_primary;
         if (mm->addrtype <= 3 )
             item_040_primary = 0;
@@ -1807,29 +1799,27 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
         uint item_040_ext1 = 0;
         if (mm->airground == AG_GROUND)
             item_040_ext1 += 64;
+            /*
         if (mm->opstatus.valid == 0)
             item_040_ext1 +=2;
+            */
         if (item_040_ext1){
-            msgLen++;
             item_040_primary += 1;
         }
-        item_130 = false;
-        item_131 = false;
-        int32_t lat;
-        int32_t lon;
-        uint64_t item_131_value;
+        uint64_t item_131_value = 0;
         if(mm->cpr_decoded){
-            item_131 = true;
-            item_073 = true;
-            msgLen += 11;
+            fspec[0] |= 1UL << 1;
+            fspec[1] |= 1UL << 3;
+            int32_t lat;
+            int32_t lon;
             lat = mm->decoded_lat / (180 / pow(2,30));
             lon = mm->decoded_lon / (180 / pow(2,30));
-            item_131_value = (lat << 32) + lon;
+            item_131_value = ((unsigned long long)lat << 32) + lon;
         }
-        uint16_t item_150_value;
+
+        uint16_t item_150_value = 0x69;
         if(mm->ias_valid || mm->mach_valid){
-            item_150 = true;
-            msgLen +=2;
+            fspec[1] |= 1UL << 6;;
             if (mm->mach_valid){
                 item_150_value = (1 << 15);
                 item_150_value += mm->mach * 1000;
@@ -1838,94 +1828,85 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
                 item_150_value = ((mm->ias) / 3600) * pow(2,14);
             }
         }
-        uint16_t item_151_value;
+        uint16_t item_151_value = 0x42;
         if(mm->tas_valid){
-            item_151 = true;
-            msgLen += 2;
+            fspec[1] |= 1UL << 5;
             item_151_value = mm->tas;
         }
-        item_080 = true;
-        msgLen += 3;
-        
-        int item_073_value;
-        if (item_073){
-            time_t midnight = (time / 86400) * 86400000;
-            item_073_value = (mm->timestamp) - midnight;
+        fspec[1] |= 1UL << 4;
+        uint item_080_value = mm->addr;
+        int item_073_value = 0;
+        if (fspec[1] & 0b1000){
+            long midnight = (long)(time(NULL) / 86400) * 86400000;
+            item_073_value = (mm->sysTimestamp) - midnight;
             if (item_073_value < 0)
-                item_073_value += 86400
+                item_073_value += 86400;
             item_073_value = (int)(item_073_value * 0.128);
         }
 
-        item_075 = false;
+        //fspec[1] |= 1UL << 1;
 
-        int item_140_value;
+        int16_t item_140_value = 0;
         if (mm->geom_alt_valid){
-            item_140 = true;
-            msgLen +=2;
+            fspec[2] |= 1UL << 6;
             if(mm->geom_alt_unit == UNIT_FEET)
                 item_140_value = mm->geom_alt / 6.25;
             else
                 item_140_value = mm->geom_alt / 20.5053;
         }
 
-        item_090 = true;
-        msgLen++;
-        int item_080_primary = 0;
+        fspec[2] |= 1UL << 5;
+        
+        uint8_t item_090_primary = 0;
         if (mm->accuracy.nac_v_valid)
-            item_080_primary += mm->accuracy.nac_v << 5;
+            item_090_primary += mm->accuracy.nac_v << 5;
         if (mm->cpr_decoded)
-            item_080_primary += mm->cpr_nucp << 1;
-        int item_080_ext1 = 0;
+            item_090_primary += mm->cpr_nucp << 1;
+        uint8_t item_090_ext1 = 0;
         if (mm->accuracy.nic_baro_valid)
-            item_080_ext1 += mm->accuracy.nic_baro << 7;
+            item_090_ext1 += mm->accuracy.nic_baro << 7;
         if (mm->accuracy.sil_type != SIL_INVALID)
-            item_080_ext1 += mm->accuracy.sil << 5;
+            item_090_ext1 += mm->accuracy.sil << 5;
         if (mm->accuracy.nac_p_valid)
-            item_080_ext1 += mm->accuracy.nac_p << 1;
-        if (item_080_ext1){
-            msgLen++;
-            item_080_primary++;
+            item_090_ext1 += mm->accuracy.nac_p << 1;
+        if (item_090_ext1){
+            item_090_primary++;
         }
-        int item_080_ext2 = 0;
+        uint8_t item_090_ext2 = 0;
         if (mm->accuracy.sil_type == SIL_PER_SAMPLE)
-            item_080_ext2 += 1 << 5;
+            item_090_ext2 += 1 << 5;
         if (mm->accuracy.sda_valid)
-            item_080_ext2 += mm->accuracy.sda << 3;
+            item_090_ext2 += mm->accuracy.sda << 3;
         if (mm->accuracy.gva_valid)
-            item_080_ext2 += mm->accuracy.gva << 1;
-        if (item_080_ext2){
-            msgLen++;
-            item_080_ext1++;
+            item_090_ext2 += mm->accuracy.gva << 1;
+        if (item_090_ext2){
+            item_090_ext1++;
         }
+        //fspec[2] |= 1UL << 4;
 
-        item_210 = false;
-
-        uint16_t item_070_value;
+        uint16_t item_070_value = 0;
         if(mm->squawk_valid){
-            msgLen +=2;
-            item_070 = true;
+            fspec[2] |= 1UL << 3;
             item_070_value = mm->squawk;
         }
 
-        int16_t item_145_value;
+        int16_t item_145_value = 0;
         if(mm->baro_alt_valid){
-            msgLen +=2;
-            item_145 = true;
-            item_145_value = mm->baro_alt * 4;
+            fspec[2] |= 1UL << 1;
+            item_145_value = mm->baro_alt / 25;
             if (mm->baro_alt_unit == UNIT_METERS)
-                item_145_value = (int)(mm-> baro_alt * 3.2808)
+                item_145_value = (int)(mm-> baro_alt * 3.2808);
         }
 
-        uint16_t item_152_value;
+        uint16_t item_152_value = 0;
         if(mm->heading_valid && mm->heading_type == HEADING_MAGNETIC){
-            item_152 = true;
-            msgLen +=2;
+            fspec[3] |= 1UL << 7;
             item_152_value = mm->heading * (pow(2,16) / 360);
         }
 
         uint8_t item_200_value = 0;
         if (mm->nav.modes_valid){
-            if (mm->nav.modes && 0b00000010)
+            if (mm->nav.modes & 0b00000010)
                 item_200_value += 1 << 6;
         }
         if (mm->emergency_valid)
@@ -1934,66 +1915,53 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
             item_200_value += (mm->alert);
         else if (mm->spi_valid && mm->spi)
             item_200_value +=3;
-        if (item_200_value){
-            item_200 = true;
-            msgLen++;
+        if (mm->spi_valid || mm->alert_valid || mm->emergency_valid || mm->nav.modes_valid){
+            fspec[3] |= 1UL << 6;
         }
         
         uint16_t item_155_value = 0;
         if (mm->baro_rate_valid){
-            item_155 = true;
-            msgLen += 2;
-            double adj_baro_rate = mm->baro_rate * 3.125;
-            item_155_value = (adj_baro_rate >> 1);
+            fspec[3] |= 1UL << 5;
+            item_155_value = ((int16_t)(mm->baro_rate / 3.125)) >> 1;
         }
 
         uint16_t item_157_value = 0;
         if (mm->geom_rate_valid){
-            item_157 = true;
-            msgLen += 2;
-            double adj_geom_rate = mm->geom_rate * 3.125;
-            item_157_value = (adj_geom_rate >> 1);
+            fspec[3] |= 1UL << 4;
+            item_157_value = ((int16_t)(mm->geom_rate / 3.125)) >> 1;
         }
 
         uint32_t item_160_value = 0;
-        if (mm->gs_valid && mm->track_valid && mm->calculated_track != -1){
-            item_160 = true;
-            msgLen += 4;
+        if (mm->gs_valid && mm->track_valid && mm->calculated_track != -1 && mm->heading_type == HEADING_GROUND_TRACK){
+            fspec[3] |= 1UL << 3;
             double adj_gs = mm->gs.v0 * 4.5511;
             item_160_value += ((int)adj_gs << 16);
-            double adj_trk = mm->track * 182.0444;
+            double adj_trk = mm->heading * 182.0444;
             item_160_value += ((uint16_t)adj_trk);
         }
-
-        item_077 = true;
-        msgLen += 3;
-        int midnight = (time / 86400) * 86400;
+/*
+        fspec[3] |= 1UL << 1;
+        long midnight = ((long)time / 86400L) * 86400000L;
         int item_077_value = time - midnight;
-
+*/
         uint64_t item_170_value = 0;
         if(mm->callsign_valid){
-            item_170 = true;
-            msgLen += 6;
+            fspec[4] |= 1UL << 7;
             for (int i = 0; i < 7; i++)
             {
-                char *letter = strchr(ais_charset, mm->callsign[i]);
-                if (letter){
-                    item_170_value = item_170_value << 6;
-                    item_170_value += (letter - ais_charset);
-                }
+                uint8_t ch = char_to_ais(mm->callsign[i]);
+                item_170_value = (item_170_value << 6) + (ch & 0x3F);
             }
         }
-        uint8_t item_020_value;
+        uint8_t item_020_value = 0;
         if (mm->category_valid){
-            item_020 = true;
-            msgLen += 1;
+            fspec[4] |= 1UL << 6;
             item_020_value = mm->category;
         }
 
         uint8_t item_008_value = 0;
         if (mm->opstatus.valid){
-            item_008 = true;
-            msgLen += 1;
+            fspec[5] |= 1UL << 7;
             item_008_value += (mm->opstatus.om_acas_ra << 7);
             item_008_value += (mm->opstatus.cc_tc << 5);
             item_008_value += (mm->opstatus.cc_ts << 4);
@@ -2001,14 +1969,166 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
             item_008_value += (mm->opstatus.cc_cdti << 2);
         }
 
-        char *p = prepareWrite(&Modes.asterix_out, msgLen * 2);
-        memset(p, &category, 1);
-        p += 1;
-        memcpy(p, &msgLen, 2);
-        p += 1;
-        completeWrite(&Modes.asterix_out, p);
+        for (int i = 5; i >= 0; i--)
+        {
+            if (fspec[i + 1]){
+                fspec[i] |= 1;
+            }
+        }
+        unsigned char bytes[Modes.net_output_flush_size];
+        for (int i = 0; i < Modes.net_output_flush_size; i++){
+            bytes[i] = 0;
+        }
+        int p = 4;
+        for (size_t i = 1; i < 7; i++)
+        {
+            if (fspec[i]){
+                bytes[p] = fspec[i];
+                p++;
+                //printf("%u", p); printf("%s", "/"); printf("%u", msgLen);printf("%s", " fp"); printf("%lu", i); printf("%s", " ");
+            }
+        }
+        bytes[0] = category;
+        bytes[3] = fspec[0];
+        if (fspec[0] & 0b10000000){
+            bytes[p] = (item_010_value >> 8) & 0xFF;
+            bytes[p + 1] = (item_010_value) & 0xFF;
+            p += 2;
+            // diag
+        }
+        if (fspec[0] & 0b01000000){
+            bytes[p] = item_040_primary;
+            p++;
+            // diag
+            if(item_040_primary & 0x1){
+                bytes[p] = item_040_ext1;
+                p++;
+                // diag
+            }
+        }
+        if (fspec[0] & 0b00000010){
+            bytes[p] = (item_131_value >> 56) & 0xFF;
+            bytes[p + 1] = (item_131_value >> 48) & 0xFF;
+            bytes[p + 2] = (item_131_value >> 40) & 0xFF;
+            bytes[p + 3] = (item_131_value >> 32) & 0xFF;
+            bytes[p + 4] = (item_131_value >> 24) & 0xFF;
+            bytes[p + 5] = (item_131_value >> 16) & 0xFF;
+            bytes[p + 6] = (item_131_value >> 8) & 0xFF;
+            bytes[p + 7] = (item_131_value) & 0xFF;
+            p += 8;
+            // diag
+        }
+        if (fspec[1] & 0b01000000){
+            bytes[p] = (item_150_value >> 8) & 0xFF;
+            bytes[p + 1] = (item_150_value) & 0xFF;
+            p += 2;
+            // diag
+        }
+        if (fspec[1] & 0b00100000){
+            bytes[p] = (item_151_value >> 8) & 0xFF;
+            bytes[p + 1] = (item_151_value) & 0xFF;
+            p += 2;
+            // diag
+        }
+        if (fspec[1] & 0b00010000){
+            bytes[p] = (item_080_value >> 16) & 0xFF;
+            bytes[p + 1] = (item_080_value >> 8) & 0xFF;
+            bytes[p + 2] = (item_080_value) & 0xFF;
+            p += 3;
+            // diag
+        }
+        if (fspec[1] & 0b00001000){
+            bytes[p] = (item_073_value >> 16) & 0xFF;
+            bytes[p + 1] = (item_073_value >> 8) & 0xFF;
+            bytes[p + 2] = (item_073_value) & 0xFF;
+            p += 3;
+        }
+        if (fspec[2] & 0b01000000){
+            bytes[p] = (item_140_value >> 8) & 0xFF;
+            bytes[p + 1] = (item_140_value) & 0xFF;
+            p += 2;
+        }
+        if (fspec[2] & 0b00100000){
+            bytes[p] = item_090_primary;
+            p++;
+            if(item_090_ext1){
+                bytes[p] = item_090_ext1;
+                p++;
+                if(item_090_ext2){
+                    bytes[p] = item_090_ext2;
+                    p++;
+                }
+            }
+        }
+        if (fspec[2] & 0b00001000){
+            bytes[p] = (item_070_value >> 8) & 0xFF;
+            bytes[p + 1] = (item_070_value) & 0xFF;
+            p += 2;
+        }
+        if (fspec[2] & 0b00000010){
+            bytes[p] = (item_145_value >> 8) & 0xFF;
+            bytes[p + 1] = (item_145_value) & 0xFF;
+            p += 2;
+        }
+        if (fspec[3] & 0b10000000){
+            bytes[p] = (item_152_value >> 8) & 0xFF;
+            bytes[p + 1] = (item_152_value) & 0xFF;
+            p += 2;
+        }
+        if (fspec[3] & 0b01000000){
+            bytes[p] = item_200_value;
+            p ++;
+        }
+        if (fspec[3] & 0b00100000){
+            bytes[p] = (item_155_value >> 8) & 0xFF;
+            bytes[p + 1] = (item_155_value) & 0xFF;
+            p += 2;
+        }
+        if (fspec[3] & 0b00010000){
+            bytes[p] = (item_157_value >> 8) & 0xFF;
+            bytes[p + 1] = (item_157_value) & 0xFF;
+            p += 2;
+        }
+        if (fspec[3] & 0b00001000){
+            bytes[p] = (item_160_value >> 24) & 0xFF;
+            bytes[p + 1] = (item_160_value >> 16) & 0xFF;
+            bytes[p + 2] = (item_160_value >> 8) & 0xFF;
+            bytes[p + 3] = (item_160_value) & 0xFF;
+            p += 4;
+        }/*
+        if (fspec[3] && 0b00000010){
+            memcpy(p, &item_077_value, 3);
+            p += 3;
+        }*/
+        if (fspec[4] & 0b10000000){
+            bytes[p] = (uint8_t)((item_170_value >> 40) & 0xFF);
+            bytes[p + 1] = (uint8_t)((item_170_value >> 32) & 0xFF);
+            bytes[p + 2] = (uint8_t)((item_170_value >> 24) & 0xFF);
+            bytes[p + 3] = (uint8_t)((item_170_value >> 16) & 0xFF);
+            bytes[p + 4] = (uint8_t)((item_170_value >> 8) & 0xFF);
+            bytes[p + 5] = (uint8_t)((item_170_value) & 0xFF);
+            p += 6;
+        }
+        if (fspec[4] & 0b01000000){
+            bytes[p] = item_020_value;
+            p++;
+        }
+        if (fspec[5] & 0b10000000){
+            bytes[p] = item_008_value;
+            p++;
+        }
+
+        uint16_t msgLen = p;
+        bytes[1] = (msgLen >> 8) & 0xFF;
+        bytes[2] = msgLen & 0xFF;
+        char *w = prepareWrite(&Modes.asterix_out, msgLen);
+        memcpy(w, &bytes, msgLen);
+        w += msgLen;
+        completeWrite(&Modes.asterix_out, w);
+        
     }
 }
+
 //
 //=========================================================================
 //
@@ -2810,7 +2930,7 @@ static int handleBeastCommand(struct client *c, char *p, int remote, int64_t now
 //
 // to save a couple cycles we remove the escapes in the calling function and expect nonescaped messages here
 static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now, struct messageBuffer *mb) {
-    int msgLen = 0;
+    uint16_t msgLen = 0;
     int j;
     unsigned char ch;
     struct modesMessage *mm = netGetMM(mb);
@@ -4557,6 +4677,9 @@ static void outputMessage(struct modesMessage *mm) {
         }
         if (Modes.dump_fw && (!Modes.dump_reduce || mm->reduce_forward)) {
             modesDumpBeastData(mm);
+        }
+        if (Modes.asterix_out.connections){
+            modesSendAsterixOutput(mm);
         }
     }
 
