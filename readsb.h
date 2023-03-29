@@ -584,6 +584,7 @@ struct _Modes
     struct net_writer sbs_out_jaero; // SBS-format output
     struct net_writer sbs_out_prio; // SBS-format output
     struct net_writer json_out; // SBS-format output
+    struct net_writer asterix_out; // Asterix CAT021 output
     struct net_writer feedmap_out; // SBS-format output
     struct net_writer vrs_out; // SBS-format output
     struct net_writer fatsv_out; // FATSV-format output

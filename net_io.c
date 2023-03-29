@@ -60,6 +60,7 @@
 #include <netdb.h>
 #include <poll.h>
 #include <sys/sendfile.h>
+#include "ais_charset.c"
 
 #include "uat2esnt/uat2esnt.h"
 
@@ -831,6 +832,7 @@ void modesInitNet(void) {
     struct net_service *sbs_out_mlat;
     struct net_service *sbs_out_jaero;
     struct net_service *sbs_out_prio;
+    struct net_service *asterix_out;
     struct net_service *sbs_in;
     struct net_service *sbs_in_mlat;
     struct net_service *sbs_in_jaero;
@@ -871,6 +873,9 @@ void modesInitNet(void) {
     sbs_out_jaero = serviceInit(&Modes.services_out, "SBS TCP output JAERO", &Modes.sbs_out_jaero, sbs_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
 
     serviceListen(sbs_out_jaero, Modes.net_bind_address, Modes.net_output_jaero_ports, Modes.net_epfd);
+
+    asterix_out = serviceInit(&Modes.services_out, "ASTERIX CAT021 output", &Modes.asterix_out, no_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    serviceListen(asterix_out, Modes.net_bind_address, Modes.net_output_asterix_ports, Modes.net_epfd);
 
     int sbs_port_len = strlen(Modes.net_output_sbs_ports);
     int pos = sbs_port_len - 1;
@@ -988,6 +993,8 @@ void modesInitNet(void) {
             con->service = feedmap_out;
         else if (strcmp(con->protocol, "sbs_out") == 0)
             con->service = sbs_out;
+        else if (strcmp(con->protocol, "asterix_out") == 0)
+            con->service = asterix_out;
         else if (strcmp(con->protocol, "sbs_in") == 0)
             con->service = sbs_in;
         else if (strcmp(con->protocol, "sbs_in_mlat") == 0)
@@ -1744,6 +1751,264 @@ static void modesSendRawOutput(struct modesMessage *mm) {
     completeWrite(&Modes.raw_out, p);
 }
 
+//
+//=========================================================================
+//
+// Write raw output to TCP clients
+//
+static void modesSendAsterixOutput(struct modesMessage *mm) {
+    int msgLen = 1; 
+    uint8_t category;
+    if (mm->from_mlat) // CAT 20
+        return;
+    if (mm->from_tisb)
+        return;
+    else { // CAT 21
+        category = 21;
+        bool item_010;
+        bool item_040;
+        bool item_130;
+        bool item_131;
+        bool item_150;
+        bool item_151;
+        bool item_080;
+        bool item_073;
+        bool item_075;
+        bool item_140;
+        bool item_090;
+        bool item_210;
+        bool item_070;
+        bool item_145;
+        bool item_152;
+        bool item_200;
+        bool item_155;
+        bool item_157;
+        bool item_160;
+        bool item_077;
+        bool item_170;
+        bool item_020;
+        bool item_008;
+        
+        item_010 = true;
+        msgLen +=2;
+        uint8_t sac = 000;
+        uint8_t sic = 001;
+        
+        item_040 = true;
+        msgLen++;
+        uint item_040_primary;
+        if (mm->addrtype <= 3 )
+            item_040_primary = 0;
+        else
+            item_040_primary = 3;
+        item_040_primary *= 32;
+        if (mm->alt_q_bit == 0)
+            item_040_primary += 8;
+        uint item_040_ext1 = 0;
+        if (mm->airground == AG_GROUND)
+            item_040_ext1 += 64;
+        if (mm->opstatus.valid == 0)
+            item_040_ext1 +=2;
+        if (item_040_ext1){
+            msgLen++;
+            item_040_primary += 1;
+        }
+        item_130 = false;
+        item_131 = false;
+        int32_t lat;
+        int32_t lon;
+        uint64_t item_131_value;
+        if(mm->cpr_decoded){
+            item_131 = true;
+            item_073 = true;
+            msgLen += 11;
+            lat = mm->decoded_lat / (180 / pow(2,30));
+            lon = mm->decoded_lon / (180 / pow(2,30));
+            item_131_value = (lat << 32) + lon;
+        }
+        uint16_t item_150_value;
+        if(mm->ias_valid || mm->mach_valid){
+            item_150 = true;
+            msgLen +=2;
+            if (mm->mach_valid){
+                item_150_value = (1 << 15);
+                item_150_value += mm->mach * 1000;
+            }
+            else{
+                item_150_value = ((mm->ias) / 3600) * pow(2,14);
+            }
+        }
+        uint16_t item_151_value;
+        if(mm->tas_valid){
+            item_151 = true;
+            msgLen += 2;
+            item_151_value = mm->tas;
+        }
+        item_080 = true;
+        msgLen += 3;
+        
+        int item_073_value;
+        if (item_073){
+            time_t midnight = (time / 86400) * 86400000;
+            item_073_value = (mm->timestamp) - midnight;
+            if (item_073_value < 0)
+                item_073_value += 86400
+            item_073_value = (int)(item_073_value * 0.128);
+        }
+
+        item_075 = false;
+
+        int item_140_value;
+        if (mm->geom_alt_valid){
+            item_140 = true;
+            msgLen +=2;
+            if(mm->geom_alt_unit == UNIT_FEET)
+                item_140_value = mm->geom_alt / 6.25;
+            else
+                item_140_value = mm->geom_alt / 20.5053;
+        }
+
+        item_090 = true;
+        msgLen++;
+        int item_080_primary = 0;
+        if (mm->accuracy.nac_v_valid)
+            item_080_primary += mm->accuracy.nac_v << 5;
+        if (mm->cpr_decoded)
+            item_080_primary += mm->cpr_nucp << 1;
+        int item_080_ext1 = 0;
+        if (mm->accuracy.nic_baro_valid)
+            item_080_ext1 += mm->accuracy.nic_baro << 7;
+        if (mm->accuracy.sil_type != SIL_INVALID)
+            item_080_ext1 += mm->accuracy.sil << 5;
+        if (mm->accuracy.nac_p_valid)
+            item_080_ext1 += mm->accuracy.nac_p << 1;
+        if (item_080_ext1){
+            msgLen++;
+            item_080_primary++;
+        }
+        int item_080_ext2 = 0;
+        if (mm->accuracy.sil_type == SIL_PER_SAMPLE)
+            item_080_ext2 += 1 << 5;
+        if (mm->accuracy.sda_valid)
+            item_080_ext2 += mm->accuracy.sda << 3;
+        if (mm->accuracy.gva_valid)
+            item_080_ext2 += mm->accuracy.gva << 1;
+        if (item_080_ext2){
+            msgLen++;
+            item_080_ext1++;
+        }
+
+        item_210 = false;
+
+        uint16_t item_070_value;
+        if(mm->squawk_valid){
+            msgLen +=2;
+            item_070 = true;
+            item_070_value = mm->squawk;
+        }
+
+        int16_t item_145_value;
+        if(mm->baro_alt_valid){
+            msgLen +=2;
+            item_145 = true;
+            item_145_value = mm->baro_alt * 4;
+            if (mm->baro_alt_unit == UNIT_METERS)
+                item_145_value = (int)(mm-> baro_alt * 3.2808)
+        }
+
+        uint16_t item_152_value;
+        if(mm->heading_valid && mm->heading_type == HEADING_MAGNETIC){
+            item_152 = true;
+            msgLen +=2;
+            item_152_value = mm->heading * (pow(2,16) / 360);
+        }
+
+        uint8_t item_200_value = 0;
+        if (mm->nav.modes_valid){
+            if (mm->nav.modes && 0b00000010)
+                item_200_value += 1 << 6;
+        }
+        if (mm->emergency_valid)
+            item_200_value += (mm->emergency << 2);
+        if (mm->alert_valid)
+            item_200_value += (mm->alert);
+        else if (mm->spi_valid && mm->spi)
+            item_200_value +=3;
+        if (item_200_value){
+            item_200 = true;
+            msgLen++;
+        }
+        
+        uint16_t item_155_value = 0;
+        if (mm->baro_rate_valid){
+            item_155 = true;
+            msgLen += 2;
+            double adj_baro_rate = mm->baro_rate * 3.125;
+            item_155_value = (adj_baro_rate >> 1);
+        }
+
+        uint16_t item_157_value = 0;
+        if (mm->geom_rate_valid){
+            item_157 = true;
+            msgLen += 2;
+            double adj_geom_rate = mm->geom_rate * 3.125;
+            item_157_value = (adj_geom_rate >> 1);
+        }
+
+        uint32_t item_160_value = 0;
+        if (mm->gs_valid && mm->track_valid && mm->calculated_track != -1){
+            item_160 = true;
+            msgLen += 4;
+            double adj_gs = mm->gs.v0 * 4.5511;
+            item_160_value += ((int)adj_gs << 16);
+            double adj_trk = mm->track * 182.0444;
+            item_160_value += ((uint16_t)adj_trk);
+        }
+
+        item_077 = true;
+        msgLen += 3;
+        int midnight = (time / 86400) * 86400;
+        int item_077_value = time - midnight;
+
+        uint64_t item_170_value = 0;
+        if(mm->callsign_valid){
+            item_170 = true;
+            msgLen += 6;
+            for (int i = 0; i < 7; i++)
+            {
+                char *letter = strchr(ais_charset, mm->callsign[i]);
+                if (letter){
+                    item_170_value = item_170_value << 6;
+                    item_170_value += (letter - ais_charset);
+                }
+            }
+        }
+        uint8_t item_020_value;
+        if (mm->category_valid){
+            item_020 = true;
+            msgLen += 1;
+            item_020_value = mm->category;
+        }
+
+        uint8_t item_008_value = 0;
+        if (mm->opstatus.valid){
+            item_008 = true;
+            msgLen += 1;
+            item_008_value += (mm->opstatus.om_acas_ra << 7);
+            item_008_value += (mm->opstatus.cc_tc << 5);
+            item_008_value += (mm->opstatus.cc_ts << 4);
+            item_008_value += (mm->opstatus.cc_arv << 3);
+            item_008_value += (mm->opstatus.cc_cdti << 2);
+        }
+
+        char *p = prepareWrite(&Modes.asterix_out, msgLen * 2);
+        memset(p, &category, 1);
+        p += 1;
+        memcpy(p, &msgLen, 2);
+        p += 1;
+        completeWrite(&Modes.asterix_out, p);
+    }
+}
 //
 //=========================================================================
 //
