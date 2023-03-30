@@ -4266,7 +4266,7 @@ static void outputMessage(struct modesMessage *mm) {
         }
 
         if (ac && (!Modes.sbsReduce || mm->reduce_forward)) {
-            if ((!is_mlat || Modes.forward_mlat) && Modes.sbs_out.connections) {
+            if ((!is_mlat || Modes.forward_mlat_sbs) && Modes.sbs_out.connections) {
                 modesSendSBSOutput(mm, ac, &Modes.sbs_out);
             }
             if (is_mlat && Modes.sbs_out_mlat.connections) {

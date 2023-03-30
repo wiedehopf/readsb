@@ -671,7 +671,8 @@ struct _Modes
     int8_t netReceiverIdPrint;
     int8_t netReceiverIdJson;
     int8_t netIngest;
-    int8_t forward_mlat; // allow forwarding of mlat messages to output ports
+    int8_t forward_mlat; // forward beast mlat messages to beast output ports
+    int8_t forward_mlat_sbs; // forward mlat messages to sbs output ports
     int8_t quiet; // Suppress stdout
     int8_t interactive; // Interactive mode
     int8_t stats_range_histo; // Collect/show a range histogram?
@@ -1096,6 +1097,7 @@ enum {
     OptModeAc,
     OptModeAcAuto,
     OptForwardMlat,
+    OptForwardMlatSbs,
     OptLat,
     OptLon,
     OptMaxRange,
