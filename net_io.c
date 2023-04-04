@@ -1770,43 +1770,42 @@ static void modesSendRawOutput(struct modesMessage *mm) {
 //
 static void modesSendAsterixOutput(struct modesMessage *mm) {
     uint8_t category;
+    unsigned char bytes[Modes.net_output_flush_size * 2];
+    for (int i = 0; i < Modes.net_output_flush_size * 2; i++){
+        bytes[i] = 0;
+    }
+    int p = 0;
     if (mm->from_mlat) // CAT 20
         return;
     if (mm->from_tisb)
         return;
     else { // CAT 21
-        category = 21;
+        bytes[0] = 21;
         uint8_t fspec[7];
         for (size_t i = 0; i < 7; i++)
         {
             fspec[i] = 0;
         }
         fspec[0] |= 1UL << 7;
-        uint8_t sac = 000;
-        uint8_t sic = 001;
-        uint16_t item_010_value = (sac << 8) + sic;
+        bytes[p++] = 000; //SAC
+        bytes[p++] = 001; //SIC
         
         fspec[0] |= 1UL << 6;
         
-        uint item_040_primary;
-        if (mm->addrtype <= 3 )
-            item_040_primary = 0;
-        else
-            item_040_primary = 3;
-        item_040_primary *= 32;
+        if (mm->addrtype >= 3 )
+            bytes[p] |= (3 << 5);
+
         if (mm->alt_q_bit == 0)
-            item_040_primary += 8;
-        uint item_040_ext1 = 0;
+            bytes[p] |= 3;
+        
         if (mm->airground == AG_GROUND)
-            item_040_ext1 += 64;
-            /*
-        if (mm->opstatus.valid == 0)
-            item_040_ext1 +=2;
-            */
-        if (item_040_ext1){
-            item_040_primary += 1;
+            bytes[p + 1] |= 1 << 6;
+        if (bytes[p + 1]){
+            bytes[p] |= 1;
+            p++
         }
-        uint64_t item_131_value = 0;
+        p++;
+        
         if(mm->cpr_decoded){
             fspec[0] |= 1UL << 1;
             fspec[1] |= 1UL << 3;
@@ -1814,108 +1813,117 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
             int32_t lon;
             lat = mm->decoded_lat / (180 / pow(2,30));
             lon = mm->decoded_lon / (180 / pow(2,30));
-            item_131_value = ((unsigned long long)lat << 32) + lon;
+            bytes[p++] = (lat & 0xFF000000) >> 24;
+            bytes[p++] = (lat & 0xFF0000) >> 16;
+            bytes[p++] = (lat & 0xFF00) >> 8;
+            bytes[p++] = (lat & 0xFF);
+            bytes[p++] = (lon & 0xFF000000) >> 24;
+            bytes[p++] = (lon & 0xFF0000) >> 16;
+            bytes[p++] = (lon & 0xFF00) >> 8;
+            bytes[p++] = (lon & 0xFF);
         }
 
-        uint16_t item_150_value = 0x69;
         if(mm->ias_valid || mm->mach_valid){
-            fspec[1] |= 1UL << 6;;
+            fspec[1] |= 1UL << 6;
+            uint16_t speedval;
             if (mm->mach_valid){
-                item_150_value = (1 << 15);
-                item_150_value += mm->mach * 1000;
+                bytes[p] = (1 << 15);
+                speedval = mm->mach * 1000;
             }
             else{
-                item_150_value = ((mm->ias) / 3600) * pow(2,14);
+                speedval = (mm->ias / 3600) * pow(2,14);
             }
+            bytes[p++] |= (speedval & 0x7f00) >> 8;
+            bytes[p++] = (speedval & 0xff);
         }
-        uint16_t item_151_value = 0x42;
         if(mm->tas_valid){
             fspec[1] |= 1UL << 5;
-            item_151_value = mm->tas;
+            bytes[p++] = (mm->tas & 0x7f00) >> 8;
+            bytes[p++] = (mm->tas & 0xff);
         }
         fspec[1] |= 1UL << 4;
-        uint item_080_value = mm->addr;
-        int item_073_value = 0;
+        bytes[p++] = (mm->addr & 0xff0000) >> 16;
+        bytes[p++] = (mm->addr & 0xff00) >> 16;
+        bytes[p++] = (mm->addr & 0xff);
         if (fspec[1] & 0b1000){
             long midnight = (long)(time(NULL) / 86400) * 86400000;
-            item_073_value = (mm->sysTimestamp) - midnight;
-            if (item_073_value < 0)
-                item_073_value += 86400;
-            item_073_value = (int)(item_073_value * 0.128);
+            int tsm = (mm->sysTimestamp) - midnight;
+            if (tsm < 0)
+                tsm += 86400;
+            tsm = (int)(tsm * 0.128);
+            bytes[p++] = (tsm & 0xff00) >> 8;
+            bytes[p++] = tsm & 0xff;
         }
 
         //fspec[1] |= 1UL << 1;
 
-        int16_t item_140_value = 0;
         if (mm->geom_alt_valid){
             fspec[2] |= 1UL << 6;
+            int16_t alt;
             if(mm->geom_alt_unit == UNIT_FEET)
-                item_140_value = mm->geom_alt / 6.25;
+                alt = mm->geom_alt / 6.25;
             else
-                item_140_value = mm->geom_alt / 20.5053;
+                alt = mm->geom_alt / 20.5053;
+            bytes[p++] = (alt & 0xff00) >> 8;
+            bytes[p++] = alt & 0xff;
         }
 
         fspec[2] |= 1UL << 5;
         
-        uint8_t item_090_primary = 0;
         if (mm->accuracy.nac_v_valid)
-            item_090_primary += mm->accuracy.nac_v << 5;
+            bytes[p] += mm->accuracy.nac_v << 5;
         if (mm->cpr_decoded)
-            item_090_primary += mm->cpr_nucp << 1;
-        uint8_t item_090_ext1 = 0;
+            bytes[p] |= mm->cpr_nucp << 1;
         if (mm->accuracy.nic_baro_valid)
-            item_090_ext1 += mm->accuracy.nic_baro << 7;
+            bytes[p + 1] |= mm->accuracy.nic_baro << 7;
         if (mm->accuracy.sil_type != SIL_INVALID)
-            item_090_ext1 += mm->accuracy.sil << 5;
+            bytes[p + 1] |= mm->accuracy.sil << 5;
         if (mm->accuracy.nac_p_valid)
-            item_090_ext1 += mm->accuracy.nac_p << 1;
-        if (item_090_ext1){
-            item_090_primary++;
+            bytes[p + 1] |= mm->accuracy.nac_p << 1;
+        if (bytes[p + 1]){
+            bytes[p] |= 1;
+            p++;
         }
         uint8_t item_090_ext2 = 0;
         if (mm->accuracy.sil_type == SIL_PER_SAMPLE)
-            item_090_ext2 += 1 << 5;
+            bytes[p + 1] |= 1 << 5;
         if (mm->accuracy.sda_valid)
-            item_090_ext2 += mm->accuracy.sda << 3;
+            bytes[p + 1] |= mm->accuracy.sda << 3;
         if (mm->accuracy.gva_valid)
-            item_090_ext2 += mm->accuracy.gva << 1;
-        if (item_090_ext2){
-            item_090_ext1++;
+            bytes[p + 1] |= mm->accuracy.gva << 1;
+        if (bytes[p + 1]){
+            bytes[p] |= 1;
+            p++;
         }
         //fspec[2] |= 1UL << 4;
-        uint8_t item_210_value = 0;
         if (mm->opstatus.valid == 0){
             fspec[2] |= 1UL << 4;
-            item_210_value += mm->opstatus.version << 3;
-            if (mm->opstatus.cc_uat_in)
-                item_210_value += 1;
-            else if (mm->opstatus.cc_1090_in)
-                item_210_value += 2;
+            bytes[p++] += mm->opstatus.version << 3;
         }
-    
-
-        uint16_t item_070_value = 0;
         if(mm->squawk_valid){
             fspec[2] |= 1UL << 3;
             int squawk = mm->squawk;
-            item_070_value += (squawk & 0x7000) >> 3;
-            item_070_value += (squawk & 0x700) >> 2;
-            item_070_value += (squawk & 0x70) >> 1;
-            item_070_value += (squawk & 0x7);
+            bytes[p] |= (squawk & 0x700) >> 3;
+            bytes[p++] |= (squawk & 0x400) >> 2;
+            bytes[p] |= (squawk & 0x300) >> 2;
+            bytes[p] |= (squawk & 0x70) >> 1;
+            bytes[p++] |= (squawk & 0x7);
         }
 
-        int16_t item_145_value = 0;
         if(mm->baro_alt_valid){
             fspec[2] |= 1UL << 1;
-            item_145_value = mm->baro_alt / 25;
+            int16_t value = mm->baro_alt / 25;
             if (mm->baro_alt_unit == UNIT_METERS)
-                item_145_value = (int)(mm-> baro_alt * 3.2808);
+                value = (int)(mm-> baro_alt * 3.2808);
+            bytes[p++] = (value & 0xff00) >> 8;
+            bytes[p++] = value & 0xff;
         }
 
-        uint16_t item_152_value = 0;
         if(mm->heading_valid && mm->heading_type == HEADING_MAGNETIC){
             fspec[3] |= 1UL << 7;
-            item_152_value = mm->heading * (pow(2,16) / 360);
+            uint16_t value = mm->heading * (pow(2,16) / 360);
+            bytes[p++] = (value & 0xff00) >> 8;
+            bytes[p++] = value & 0xff;
         }
 
         uint8_t item_200_value = 0;
@@ -1989,11 +1997,7 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
                 fspec[i] |= 1;
             }
         }
-        unsigned char bytes[Modes.net_output_flush_size];
-        for (int i = 0; i < Modes.net_output_flush_size; i++){
-            bytes[i] = 0;
-        }
-        int p = 4;
+        
         for (size_t i = 1; i < 7; i++)
         {
             if (fspec[i]){
@@ -2002,8 +2006,8 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
                 //printf("%u", p); printf("%s", "/"); printf("%u", msgLen);printf("%s", " fp"); printf("%lu", i); printf("%s", " ");
             }
         }
-        bytes[0] = category;
-        bytes[3] = fspec[0];
+        //bytes[0] = category;
+        //bytes[3] = fspec[0];
         if (fspec[0] & 0b10000000){
             bytes[p] = (item_010_value >> 8) & 0xFF;
             bytes[p + 1] = (item_010_value) & 0xFF;
