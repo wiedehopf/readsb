@@ -2276,8 +2276,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         }
 
         if (bytes && (checkAcasRaValid(bytes, mm, 0))) {
-            if (accept_data(&a->acas_ra_valid, mm->source, mm, a, REDUCE_RARE)) {
-                mm->reduce_forward = 1;
+            if (accept_data(&a->acas_ra_valid, mm->source, mm, a, REDUCE_OFTEN)) {
+                if (memcmp(a->acas_ra, bytes, sizeof(a->acas_ra)) != 0) {
+                    mm->reduce_forward = 1;
+                }
                 memcpy(a->acas_ra, bytes, sizeof(a->acas_ra));
                 logACASInfoShort(mm->addr, bytes, a, mm, mm->sysTimestamp);
             }

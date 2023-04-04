@@ -1426,6 +1426,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptForwardMlat:
             Modes.forward_mlat = 1;
             break;
+        case OptForwardMlatSbs:
+            Modes.forward_mlat_sbs = 1;
+            break;
         case OptOnlyAddr:
             Modes.onlyaddr = 1;
             break;
