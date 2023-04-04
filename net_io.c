@@ -1883,11 +1883,25 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
             item_090_ext1++;
         }
         //fspec[2] |= 1UL << 4;
+        uint8_t item_210_value = 0;
+        if (mm->opstatus.valid == 0){
+            fspec[2] |= 1UL << 4;
+            item_210_value += mm->opstatus.version << 3;
+            if (mm->opstatus.cc_uat_in)
+                item_210_value += 1;
+            else if (mm->opstatus.cc_1090_in)
+                item_210_value += 2;
+        }
+    
 
         uint16_t item_070_value = 0;
         if(mm->squawk_valid){
             fspec[2] |= 1UL << 3;
-            item_070_value = mm->squawk;
+            int squawk = mm->squawk;
+            item_070_value += (squawk & 0x7000) >> 3;
+            item_070_value += (squawk & 0x700) >> 2;
+            item_070_value += (squawk & 0x70) >> 1;
+            item_070_value += (squawk & 0x7);
         }
 
         int16_t item_145_value = 0;
@@ -2059,6 +2073,10 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
                     p++;
                 }
             }
+        }
+        if (fspec[2] & 0b00010000){
+            bytes[p] = (item_210_value);
+            p += 1;
         }
         if (fspec[2] & 0b00001000){
             bytes[p] = (item_070_value >> 8) & 0xFF;
