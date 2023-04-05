@@ -1766,7 +1766,7 @@ static void modesSendRawOutput(struct modesMessage *mm) {
 //
 //=========================================================================
 //
-// Write raw output to TCP clients
+// Write ASTERIX output to TCP clients
 //
 static void modesSendAsterixOutput(struct modesMessage *mm) {
     uint8_t category;
@@ -1780,35 +1780,36 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
     if (mm->from_tisb)
         return;
     else { // CAT 21
-        bytes[0] = 21;
+        category = 21;
         uint8_t fspec[7];
         for (size_t i = 0; i < 7; i++)
         {
             fspec[i] = 0;
         }
-        fspec[0] |= 1UL << 7;
+        // I021/010 Data Source Identification 
+        fspec[0] |= 1 << 7;
         bytes[p++] = 000; //SAC
         bytes[p++] = 001; //SIC
         
-        fspec[0] |= 1UL << 6;
-        
+        // I021/040 Target Report Descriptor
+        fspec[0] |= 1 << 6;
         if (mm->addrtype >= 3 )
             bytes[p] |= (3 << 5);
 
         if (mm->alt_q_bit == 0)
-            bytes[p] |= 3;
+            bytes[p] |= (1 << 3);
         
         if (mm->airground == AG_GROUND)
             bytes[p + 1] |= 1 << 6;
         if (bytes[p + 1]){
             bytes[p] |= 1;
-            p++
+            p++;
         }
         p++;
         
+        // I021/131 Position in WGS-84 co-ordinates, high res.
         if(mm->cpr_decoded){
-            fspec[0] |= 1UL << 1;
-            fspec[1] |= 1UL << 3;
+            fspec[0] |= 1 << 1;
             int32_t lat;
             int32_t lon;
             lat = mm->decoded_lat / (180 / pow(2,30));
@@ -1822,12 +1823,12 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
             bytes[p++] = (lon & 0xFF00) >> 8;
             bytes[p++] = (lon & 0xFF);
         }
-
+        // I021/150 Air Speed
         if(mm->ias_valid || mm->mach_valid){
-            fspec[1] |= 1UL << 6;
+            fspec[1] |= 1 << 6;
             uint16_t speedval;
             if (mm->mach_valid){
-                bytes[p] = (1 << 15);
+                bytes[p] = (1 << 7);
                 speedval = mm->mach * 1000;
             }
             else{
@@ -1836,29 +1837,49 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
             bytes[p++] |= (speedval & 0x7f00) >> 8;
             bytes[p++] = (speedval & 0xff);
         }
+
+        // I021/151 True Air Speed 
         if(mm->tas_valid){
-            fspec[1] |= 1UL << 5;
+            fspec[1] |= 1 << 5;
             bytes[p++] = (mm->tas & 0x7f00) >> 8;
             bytes[p++] = (mm->tas & 0xff);
         }
-        fspec[1] |= 1UL << 4;
+
+        // I021/080 Target Address
+        fspec[1] |= 1 << 4;
         bytes[p++] = (mm->addr & 0xff0000) >> 16;
-        bytes[p++] = (mm->addr & 0xff00) >> 16;
+        bytes[p++] = (mm->addr & 0xff00) >> 8;
         bytes[p++] = (mm->addr & 0xff);
-        if (fspec[1] & 0b1000){
+
+        // I021/073 Time of Message Reception of Position 
+        if (fspec[0] & 0b10){
+            fspec[1] |= 1 << 3;
             long midnight = (long)(time(NULL) / 86400) * 86400000;
             int tsm = (mm->sysTimestamp) - midnight;
             if (tsm < 0)
-                tsm += 86400;
+                tsm += 86400000;
             tsm = (int)(tsm * 0.128);
+            bytes[p++] = (tsm & 0xff0000) >> 16;
             bytes[p++] = (tsm & 0xff00) >> 8;
             bytes[p++] = tsm & 0xff;
         }
 
-        //fspec[1] |= 1UL << 1;
+        //  I021/075 Time of Message Reception of Velocity
+        if (mm->gs_valid && mm->heading_valid && mm->heading_type == HEADING_GROUND_TRACK){
+            fspec[1] |= 1 << 1;
+            long midnight = (long)(time(NULL) / 86400) * 86400000;
+            int tsm = (mm->sysTimestamp) - midnight;
+            if (tsm < 0)
+                tsm += 86400000;
+            tsm = (int)(tsm * 0.128);
+            bytes[p++] = (tsm & 0xff0000) >> 16;
+            bytes[p++] = (tsm & 0xff00) >> 8;
+            bytes[p++] = tsm & 0xff;
+        }
 
+        // I021/140 Geometric Height
         if (mm->geom_alt_valid){
-            fspec[2] |= 1UL << 6;
+            fspec[2] |= 1 << 6;
             int16_t alt;
             if(mm->geom_alt_unit == UNIT_FEET)
                 alt = mm->geom_alt / 6.25;
@@ -1868,8 +1889,8 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
             bytes[p++] = alt & 0xff;
         }
 
-        fspec[2] |= 1UL << 5;
-        
+        // I021/090 Quality Indicators
+        fspec[2] |= 1 << 5;
         if (mm->accuracy.nac_v_valid)
             bytes[p] += mm->accuracy.nac_v << 5;
         if (mm->cpr_decoded)
@@ -1884,7 +1905,6 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
             bytes[p] |= 1;
             p++;
         }
-        uint8_t item_090_ext2 = 0;
         if (mm->accuracy.sil_type == SIL_PER_SAMPLE)
             bytes[p + 1] |= 1 << 5;
         if (mm->accuracy.sda_valid)
@@ -1895,23 +1915,36 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
             bytes[p] |= 1;
             p++;
         }
-        //fspec[2] |= 1UL << 4;
-        if (mm->opstatus.valid == 0){
-            fspec[2] |= 1UL << 4;
-            bytes[p++] += mm->opstatus.version << 3;
-        }
-        if(mm->squawk_valid){
-            fspec[2] |= 1UL << 3;
-            int squawk = mm->squawk;
-            bytes[p] |= (squawk & 0x700) >> 3;
-            bytes[p++] |= (squawk & 0x400) >> 2;
-            bytes[p] |= (squawk & 0x300) >> 2;
-            bytes[p] |= (squawk & 0x70) >> 1;
-            bytes[p++] |= (squawk & 0x7);
+        p++;
+
+        // I021/210 MOPS Version
+        if (mm->opstatus.valid){
+            fspec[2] |= 1 << 4;
+            bytes[p++] += (mm->opstatus.version) << 3;
         }
 
+        // I021/070 Mode 3/A Code
+        if(mm->squawk_valid){
+            fspec[2] |= 1 << 3;
+            uint16_t squawk = mm->squawk;
+            bytes[p]   |= ((squawk & 0x7000)) >> 11;
+            bytes[p++] |= ((squawk & 0x0400)) >> 10;
+            bytes[p]   |= ((squawk & 0x0300)) >> 2;
+            bytes[p]   |= ((squawk & 0x0070)) >> 1;
+            bytes[p++] |= ((squawk & 0x0007));
+        }
+
+        // I021/230 Roll Angle
+        if(mm->roll_valid){
+            fspec[2] |= 1 << 2;
+            int16_t roll = mm->roll * 100;
+            bytes[p++] = (roll & 0xFF00) >> 8;
+            bytes[p++] = (roll & 0xFF);
+        }
+
+        // I021/145 Flight Level 
         if(mm->baro_alt_valid){
-            fspec[2] |= 1UL << 1;
+            fspec[2] |= 1 << 1;
             int16_t value = mm->baro_alt / 25;
             if (mm->baro_alt_unit == UNIT_METERS)
                 value = (int)(mm-> baro_alt * 3.2808);
@@ -1919,85 +1952,115 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
             bytes[p++] = value & 0xff;
         }
 
+        // I021/152 Magnetic Heading
         if(mm->heading_valid && mm->heading_type == HEADING_MAGNETIC){
-            fspec[3] |= 1UL << 7;
-            uint16_t value = mm->heading * (pow(2,16) / 360);
+            fspec[3] |= 1 << 7;
+            double adj_trk = mm->heading * 182.0444;
+            uint16_t trk = (int)adj_trk;
+            bytes[p++] = (trk & 0xff00) >> 8;
+            bytes[p++] = trk & 0xff;
+        }
+
+        // I021/200 Target Status
+        if (mm->spi_valid || mm->alert_valid || mm->emergency_valid || mm->nav.modes_valid){
+            fspec[3] |= 1 << 6;
+            if (mm->nav.modes_valid){
+                if (mm->nav.modes & 0b00000010)
+                    bytes[p] |= 1 << 6;
+            }
+            if (mm->emergency_valid)
+                bytes[p] |= (mm->emergency << 2);
+            if (mm->alert_valid)
+                bytes[p] |= (mm->alert);
+            else if (mm->spi_valid && mm->spi)
+                bytes[p] |=3;
+            p++;
+        }
+        
+        // I021/155 Barometric Vertical Rate 
+        if (mm->baro_rate_valid){
+            fspec[3] |= 1 << 5;
+            int value = ((int16_t)(mm->baro_rate / 3.125)) >> 1;
             bytes[p++] = (value & 0xff00) >> 8;
             bytes[p++] = value & 0xff;
         }
 
-        uint8_t item_200_value = 0;
-        if (mm->nav.modes_valid){
-            if (mm->nav.modes & 0b00000010)
-                item_200_value += 1 << 6;
+        // I021/157 Geometric Vertical Rate 
+        if (mm->geom_rate_valid){
+            fspec[3] |= 1 << 4;
+            int value = ((int16_t)(mm->geom_rate / 3.125)) >> 1;
+            bytes[p++] = (value & 0xff00) >> 8;
+            bytes[p++] = value & 0xff;
         }
-        if (mm->emergency_valid)
-            item_200_value += (mm->emergency << 2);
-        if (mm->alert_valid)
-            item_200_value += (mm->alert);
-        else if (mm->spi_valid && mm->spi)
-            item_200_value +=3;
-        if (mm->spi_valid || mm->alert_valid || mm->emergency_valid || mm->nav.modes_valid){
-            fspec[3] |= 1UL << 6;
+
+        // I021/160 Airborne Ground Vector 
+        if (mm->gs_valid && mm->heading_valid && mm->heading_type == HEADING_GROUND_TRACK){
+            fspec[3] |= 1 << 3;
+            double adj_gs = mm->gs.v0 * 4.5511;
+            bytes[p++] = ((int)adj_gs & 0xff00) >> 8;
+            bytes[p++] = (int)adj_gs & 0xff;
+            double adj_trk = mm->heading * 182.0444;
+            uint16_t trk = (int)adj_trk;
+            bytes[p++] = (trk & 0xff00) >> 8;
+            bytes[p++] = trk & 0xff;
+        }
+
+        // I021/077 Time of Report Transmission 
+        {
+            fspec[3] |= 1 << 1;
+            long midnight = (long)(time(NULL) / 86400) * 86400000;
+            int tsm = mstime() - midnight;
+            if (tsm < 0)
+                tsm += 86400000;
+            tsm = (int)(tsm * 0.128);
+            bytes[p++] = (tsm & 0xff0000) >> 16;
+            bytes[p++] = (tsm & 0xff00) >> 8;
+            bytes[p++] = tsm & 0xff;
         }
         
-        uint16_t item_155_value = 0;
-        if (mm->baro_rate_valid){
-            fspec[3] |= 1UL << 5;
-            item_155_value = ((int16_t)(mm->baro_rate / 3.125)) >> 1;
-        }
-
-        uint16_t item_157_value = 0;
-        if (mm->geom_rate_valid){
-            fspec[3] |= 1UL << 4;
-            item_157_value = ((int16_t)(mm->geom_rate / 3.125)) >> 1;
-        }
-
-        uint32_t item_160_value = 0;
-        if (mm->gs_valid && mm->track_valid && mm->calculated_track != -1 && mm->heading_type == HEADING_GROUND_TRACK){
-            fspec[3] |= 1UL << 3;
-            double adj_gs = mm->gs.v0 * 4.5511;
-            item_160_value += ((int)adj_gs << 16);
-            double adj_trk = mm->heading * 182.0444;
-            item_160_value += ((uint16_t)adj_trk);
-        }
-/*
-        fspec[3] |= 1UL << 1;
-        long midnight = ((long)time / 86400L) * 86400000L;
-        int item_077_value = time - midnight;
-*/
-        uint64_t item_170_value = 0;
+        // I021/170 Target Identification
         if(mm->callsign_valid){
-            fspec[4] |= 1UL << 7;
-            for (int i = 0; i < 7; i++)
+            fspec[4] |= 1 << 7;
+            uint64_t enc_callsign = 0;
+            for (int i = 0; i <= 7; i++)
             {
                 uint8_t ch = char_to_ais(mm->callsign[i]);
-                item_170_value = (item_170_value << 6) + (ch & 0x3F);
+                enc_callsign = (enc_callsign << 6) + (ch & 0x3F);
             }
+            bytes[p++] = (enc_callsign & 0xff0000000000) >> 40;
+            bytes[p++] = (enc_callsign & 0xff00000000) >> 32;
+            bytes[p++] = (enc_callsign & 0xff000000) >> 24;
+            bytes[p++] = (enc_callsign & 0xff0000) >> 16;
+            bytes[p++] = (enc_callsign & 0xff00) >> 8;
+            bytes[p++] = (enc_callsign & 0xff);
         }
-        uint8_t item_020_value = 0;
+
+        // I021/020 Emitter Category
         if (mm->category_valid){
-            fspec[4] |= 1UL << 6;
-            item_020_value = mm->category;
+            fspec[4] |= 1 << 6;
+            bytes[p++] = mm->category;
         }
 
-        uint8_t item_008_value = 0;
+        // I021/008 Aircraft Operational Status
         if (mm->opstatus.valid){
-            fspec[5] |= 1UL << 7;
-            item_008_value += (mm->opstatus.om_acas_ra << 7);
-            item_008_value += (mm->opstatus.cc_tc << 5);
-            item_008_value += (mm->opstatus.cc_ts << 4);
-            item_008_value += (mm->opstatus.cc_arv << 3);
-            item_008_value += (mm->opstatus.cc_cdti << 2);
+            fspec[5] |= 1 << 7;
+            bytes[p] |= (mm->opstatus.om_acas_ra << 7);
+            bytes[p] |= (mm->opstatus.cc_tc << 5);
+            bytes[p] |= (mm->opstatus.cc_ts << 4);
+            bytes[p] |= (mm->opstatus.cc_arv << 3);
+            bytes[p] |= (mm->opstatus.cc_cdti << 2);
+            p++;
         }
 
+        int fspec_len = 1;
         for (int i = 5; i >= 0; i--)
         {
             if (fspec[i + 1]){
                 fspec[i] |= 1;
+                fspec_len++;
             }
         }
-        
+        /*
         for (size_t i = 1; i < 7; i++)
         {
             if (fspec[i]){
@@ -2005,147 +2068,20 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
                 p++;
                 //printf("%u", p); printf("%s", "/"); printf("%u", msgLen);printf("%s", " fp"); printf("%lu", i); printf("%s", " ");
             }
-        }
-        //bytes[0] = category;
-        //bytes[3] = fspec[0];
-        if (fspec[0] & 0b10000000){
-            bytes[p] = (item_010_value >> 8) & 0xFF;
-            bytes[p + 1] = (item_010_value) & 0xFF;
-            p += 2;
-            // diag
-        }
-        if (fspec[0] & 0b01000000){
-            bytes[p] = item_040_primary;
-            p++;
-            // diag
-            if(item_040_primary & 0x1){
-                bytes[p] = item_040_ext1;
-                p++;
-                // diag
-            }
-        }
-        if (fspec[0] & 0b00000010){
-            bytes[p] = (item_131_value >> 56) & 0xFF;
-            bytes[p + 1] = (item_131_value >> 48) & 0xFF;
-            bytes[p + 2] = (item_131_value >> 40) & 0xFF;
-            bytes[p + 3] = (item_131_value >> 32) & 0xFF;
-            bytes[p + 4] = (item_131_value >> 24) & 0xFF;
-            bytes[p + 5] = (item_131_value >> 16) & 0xFF;
-            bytes[p + 6] = (item_131_value >> 8) & 0xFF;
-            bytes[p + 7] = (item_131_value) & 0xFF;
-            p += 8;
-            // diag
-        }
-        if (fspec[1] & 0b01000000){
-            bytes[p] = (item_150_value >> 8) & 0xFF;
-            bytes[p + 1] = (item_150_value) & 0xFF;
-            p += 2;
-            // diag
-        }
-        if (fspec[1] & 0b00100000){
-            bytes[p] = (item_151_value >> 8) & 0xFF;
-            bytes[p + 1] = (item_151_value) & 0xFF;
-            p += 2;
-            // diag
-        }
-        if (fspec[1] & 0b00010000){
-            bytes[p] = (item_080_value >> 16) & 0xFF;
-            bytes[p + 1] = (item_080_value >> 8) & 0xFF;
-            bytes[p + 2] = (item_080_value) & 0xFF;
-            p += 3;
-            // diag
-        }
-        if (fspec[1] & 0b00001000){
-            bytes[p] = (item_073_value >> 16) & 0xFF;
-            bytes[p + 1] = (item_073_value >> 8) & 0xFF;
-            bytes[p + 2] = (item_073_value) & 0xFF;
-            p += 3;
-        }
-        if (fspec[2] & 0b01000000){
-            bytes[p] = (item_140_value >> 8) & 0xFF;
-            bytes[p + 1] = (item_140_value) & 0xFF;
-            p += 2;
-        }
-        if (fspec[2] & 0b00100000){
-            bytes[p] = item_090_primary;
-            p++;
-            if(item_090_ext1){
-                bytes[p] = item_090_ext1;
-                p++;
-                if(item_090_ext2){
-                    bytes[p] = item_090_ext2;
-                    p++;
-                }
-            }
-        }
-        if (fspec[2] & 0b00010000){
-            bytes[p] = (item_210_value);
-            p += 1;
-        }
-        if (fspec[2] & 0b00001000){
-            bytes[p] = (item_070_value >> 8) & 0xFF;
-            bytes[p + 1] = (item_070_value) & 0xFF;
-            p += 2;
-        }
-        if (fspec[2] & 0b00000010){
-            bytes[p] = (item_145_value >> 8) & 0xFF;
-            bytes[p + 1] = (item_145_value) & 0xFF;
-            p += 2;
-        }
-        if (fspec[3] & 0b10000000){
-            bytes[p] = (item_152_value >> 8) & 0xFF;
-            bytes[p + 1] = (item_152_value) & 0xFF;
-            p += 2;
-        }
-        if (fspec[3] & 0b01000000){
-            bytes[p] = item_200_value;
-            p ++;
-        }
-        if (fspec[3] & 0b00100000){
-            bytes[p] = (item_155_value >> 8) & 0xFF;
-            bytes[p + 1] = (item_155_value) & 0xFF;
-            p += 2;
-        }
-        if (fspec[3] & 0b00010000){
-            bytes[p] = (item_157_value >> 8) & 0xFF;
-            bytes[p + 1] = (item_157_value) & 0xFF;
-            p += 2;
-        }
-        if (fspec[3] & 0b00001000){
-            bytes[p] = (item_160_value >> 24) & 0xFF;
-            bytes[p + 1] = (item_160_value >> 16) & 0xFF;
-            bytes[p + 2] = (item_160_value >> 8) & 0xFF;
-            bytes[p + 3] = (item_160_value) & 0xFF;
-            p += 4;
-        }/*
-        if (fspec[3] && 0b00000010){
-            memcpy(p, &item_077_value, 3);
-            p += 3;
         }*/
-        if (fspec[4] & 0b10000000){
-            bytes[p] = (uint8_t)((item_170_value >> 40) & 0xFF);
-            bytes[p + 1] = (uint8_t)((item_170_value >> 32) & 0xFF);
-            bytes[p + 2] = (uint8_t)((item_170_value >> 24) & 0xFF);
-            bytes[p + 3] = (uint8_t)((item_170_value >> 16) & 0xFF);
-            bytes[p + 4] = (uint8_t)((item_170_value >> 8) & 0xFF);
-            bytes[p + 5] = (uint8_t)((item_170_value) & 0xFF);
-            p += 6;
-        }
-        if (fspec[4] & 0b01000000){
-            bytes[p] = item_020_value;
-            p++;
-        }
-        if (fspec[5] & 0b10000000){
-            bytes[p] = item_008_value;
-            p++;
-        }
-
-        uint16_t msgLen = p;
-        bytes[1] = (msgLen >> 8) & 0xFF;
-        bytes[2] = msgLen & 0xFF;
+        uint16_t msgLen = p + 3 + fspec_len;
+        uint8_t msgLenA = (msgLen & 0xFF00) >> 8;
+        uint8_t msgLenB = msgLen & 0xFF;
         char *w = prepareWrite(&Modes.asterix_out, msgLen);
-        memcpy(w, &bytes, msgLen);
-        w += msgLen;
+        memcpy(w, &category, 1);
+        w++;
+        memcpy(w, &msgLenA, 1);
+        memcpy(w + 1, &msgLenB, 1);
+        w+=2;
+        memcpy(w, &fspec, fspec_len);
+        w += fspec_len;
+        memcpy(w, &bytes, p);
+        w += p;
         completeWrite(&Modes.asterix_out, w);
         
     }
