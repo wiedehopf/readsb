@@ -3434,18 +3434,22 @@ void checkNewDayAcas(int64_t now) {
             close(Modes.acasFD2);
 
 
-        snprintf(filename, PATH_MAX, "%s/acas/acas.csv", dateDir);
-        Modes.acasFD1 = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0644);
-        if (Modes.acasFD1 < 0) {
-            fprintf(stderr, "open failed:");
-            perror(filename);
+        if (Modes.enableAcasCsv) {
+            snprintf(filename, PATH_MAX, "%s/acas/acas.csv", dateDir);
+            Modes.acasFD1 = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0644);
+            if (Modes.acasFD1 < 0) {
+                fprintf(stderr, "open failed:");
+                perror(filename);
+            }
         }
 
-        snprintf(filename, PATH_MAX, "%s/acas/acas.json", dateDir);
-        Modes.acasFD2 = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0644);
-        if (Modes.acasFD2 < 0) {
-            fprintf(stderr, "open failed:");
-            perror(filename);
+        if (Modes.enableAcasJson) {
+            snprintf(filename, PATH_MAX, "%s/acas/acas.json", dateDir);
+            Modes.acasFD2 = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0644);
+            if (Modes.acasFD2 < 0) {
+                fprintf(stderr, "open failed:");
+                perror(filename);
+            }
         }
     }
 }

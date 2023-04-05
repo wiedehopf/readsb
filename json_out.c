@@ -241,7 +241,7 @@ void logACASInfoShort(uint32_t addr, unsigned char *bytes, struct aircraft *a, s
         if (p - buf >= (int) sizeof(buf) - 1) {
             fprintf(stderr, "logACAS json buffer insufficient!\n");
         } else {
-            check_write(Modes.acasFD2, buf, p - buf, "acas.csv");
+            check_write(Modes.acasFD2, buf, p - buf, "acas.json");
         }
     }
 }

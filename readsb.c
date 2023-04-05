@@ -209,6 +209,10 @@ static void configSetDefaults(void) {
     Modes.messageRateMult = 1.0f;
 
     Modes.apiShutdownDelay = 0 * SECONDS;
+
+    // default this on
+    Modes.enableAcasCsv = 1;
+    Modes.enableAcasJson = 1;
 }
 //
 //=========================================================================
@@ -1775,6 +1779,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 }
                 if (strcasecmp(token[0], "omitGlobeFiles") == 0) {
                     Modes.omitGlobeFiles = 1;
+                }
+                if (strcasecmp(token[0], "disableAcasCsv") == 0) {
+                    Modes.enableAcasCsv = 0;
+                }
+                if (strcasecmp(token[0], "disableAcasJson") == 0) {
+                    Modes.enableAcasJson = 0;
                 }
             }
             break;

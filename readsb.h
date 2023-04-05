@@ -660,6 +660,8 @@ struct _Modes
     int8_t debug_lastStatus;
     int8_t incrementId;
     int8_t omitGlobeFiles;
+    int8_t enableAcasCsv;
+    int8_t enableAcasJson;
     int8_t dump_accept_synthetic_now;
     int8_t syntethic_now_suppress_errors;
     int8_t tar1090_use_api;
