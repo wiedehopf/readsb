@@ -1464,7 +1464,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
     if (!recent) {
         elapsed2 = lapWatch(&watch);
     }
-    if (focus || elapsed1 > 50 || elapsed2 > 50) {
+    if (focus || ((elapsed1 > 50 || elapsed2 > 50) && counter1 + counter2 + counter3 + counter4 + counter5 > 2000)) {
         fprintf(stderr, "%06x mark_legs loop1: %.3f loop2: %.3f counter1 %d counter2 %d counter3 %d counter4 %d counter5 %d\n",
                 a->addr, elapsed1 / 1000.0, elapsed2 / 1000.0,
                 counter1,
