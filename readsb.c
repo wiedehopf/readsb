@@ -1604,9 +1604,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             sfree(Modes.net_output_asterix_ports);
             Modes.net_output_asterix_ports = strdup(arg);
             break;
-        case OptNetAsterixReducePorts:
-            sfree(Modes.net_output_asterix_reduce_ports);
-            Modes.net_output_asterix_reduce_ports = strdup(arg);
+        case OptNetAsterixReduce:
+            Modes.asterixReduce = 1;
             break;
         case OptNetBeastReducePorts:
             sfree(Modes.net_output_beast_reduce_ports);

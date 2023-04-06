@@ -845,7 +845,6 @@ void modesInitNet(void) {
     struct net_service *sbs_out_jaero;
     struct net_service *sbs_out_prio;
     struct net_service *asterix_out;
-    struct net_service *asterix_reduce_out;
     struct net_service *sbs_in;
     struct net_service *sbs_in_mlat;
     struct net_service *sbs_in_jaero;
@@ -889,8 +888,6 @@ void modesInitNet(void) {
 
     asterix_out = serviceInit(&Modes.services_out, "ASTERIX output", &Modes.asterix_out, no_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(asterix_out, Modes.net_bind_address, Modes.net_output_asterix_ports, Modes.net_epfd);
-    asterix_reduce_out = serviceInit(&Modes.services_out, "ASTERIX output", &Modes.asterix_reduce_out, no_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
-    serviceListen(asterix_reduce_out, Modes.net_bind_address, Modes.net_output_asterix_reduce_ports, Modes.net_epfd);
 
     int sbs_port_len = strlen(Modes.net_output_sbs_ports);
     int pos = sbs_port_len - 1;
@@ -4671,11 +4668,8 @@ static void outputMessage(struct modesMessage *mm) {
         if (Modes.dump_fw && (!Modes.dump_reduce || mm->reduce_forward)) {
             modesDumpBeastData(mm);
         }
-        if (Modes.asterix_out.connections){
+        if (Modes.asterix_out.connections && (!Modes.asterixReduce || mm->reduce_forward)){
             modesSendAsterixOutput(mm, &Modes.asterix_out);
-        }
-        if (mm->reduce_forward && Modes.asterix_reduce_out.connections) {
-            modesSendAsterixOutput(mm, &Modes.asterix_reduce_out);
         }
     }
 

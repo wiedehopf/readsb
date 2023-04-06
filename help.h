@@ -122,7 +122,7 @@ static struct argp_option optionsReadsb[] = {
     {"net-bo-port", OptNetBoPorts, "<ports>", 0, "TCP Beast output listen ports (default: 0)", 2},
     {"net-ao-port", OptNetAsterixOutPorts, "<ports>", 0, "TCP Asterix output listen ports (default: 0)", 2},
     {"net-ai-port", OptNetAsterixInPorts, "<ports>", 0, "TCP Asterix input listen ports (default: 0)", 2},
-    {"net-asterix-reduce-out-port", OptNetAsterixReducePorts, "<ports>", 0, "TCP AsterixReduce output listen ports (default: 0)", 2},
+    {"net-asterix-reduce", OptNetAsterixReduce, 0, 0, "Apply beast reduce logic and interval to ASTERIX outputs", 2},
     {"net-ri-port", OptNetRiPorts, "<ports>", 0, "TCP raw input listen ports  (default: 0)", 2},
     {"net-ro-port", OptNetRoPorts, "<ports>", 0, "TCP raw output listen ports (default: 0)", 2},
     {"net-sbs-port", OptNetSbsPorts, "<ports>", 0, "TCP BaseStation output listen ports (default: 0)", 2},

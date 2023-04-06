@@ -319,6 +319,9 @@ TCP json position output: include aircraft without
       --net-sbs-port=<ports> TCP BaseStation output listen ports (default: 0)
       --net-sbs-reduce       Apply beast reduce logic and interval to SBS
                              outputs
+      --net-ao-port=<ports>  TCP ASTERIX output listen ports (default: 0)
+      --net-asterix-reduce   Apply beast reduce logic and interval to ASTERIX
+                             outputs
       --net-verbatim         Forward messages unchanged
       --net-vrs-interval=<seconds>
                              TCP VRS json output interval (default: 5.0)
