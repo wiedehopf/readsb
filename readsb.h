@@ -584,7 +584,8 @@ struct _Modes
     struct net_writer sbs_out_jaero; // SBS-format output
     struct net_writer sbs_out_prio; // SBS-format output
     struct net_writer json_out; // SBS-format output
-    struct net_writer asterix_out; // Asterix CAT021 output
+    struct net_writer asterix_out; // Asterix output
+    struct net_writer asterix_reduce_out; // Asterix output
     struct net_writer feedmap_out; // SBS-format output
     struct net_writer vrs_out; // SBS-format output
     struct net_writer fatsv_out; // FATSV-format output
@@ -740,6 +741,7 @@ struct _Modes
     char *net_output_beast_ports; // List of Beast output TCP ports
     char *net_output_beast_reduce_ports; // List of Beast output TCP ports
     char *net_output_asterix_ports; // List of Asterix output TCP ports
+    char *net_output_asterix_reduce_ports; // List of Asterix output TCP ports
     char *net_output_json_ports;
     char *net_output_api_ports;
     char *garbage_ports;
@@ -1159,8 +1161,9 @@ enum {
     OptNetJaeroInPorts,
     OptNetBiPorts,
     OptNetBoPorts,
-    OptNetAsteriskInPorts,
-    OptNetAsteriskOutPorts,
+    OptNetAsterixInPorts,
+    OptNetAsterixOutPorts,
+    OptNetAsterixReducePorts,
     OptNetBeastReducePorts,
     OptNetBeastReduceInterval,
     OptNetBeastReduceFilterAlt,

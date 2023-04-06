@@ -845,6 +845,7 @@ void modesInitNet(void) {
     struct net_service *sbs_out_jaero;
     struct net_service *sbs_out_prio;
     struct net_service *asterix_out;
+    struct net_service *asterix_reduce_out;
     struct net_service *sbs_in;
     struct net_service *sbs_in_mlat;
     struct net_service *sbs_in_jaero;
@@ -886,8 +887,10 @@ void modesInitNet(void) {
 
     serviceListen(sbs_out_jaero, Modes.net_bind_address, Modes.net_output_jaero_ports, Modes.net_epfd);
 
-    asterix_out = serviceInit(&Modes.services_out, "ASTERIX CAT021 output", &Modes.asterix_out, no_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    asterix_out = serviceInit(&Modes.services_out, "ASTERIX output", &Modes.asterix_out, no_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(asterix_out, Modes.net_bind_address, Modes.net_output_asterix_ports, Modes.net_epfd);
+    asterix_reduce_out = serviceInit(&Modes.services_out, "ASTERIX output", &Modes.asterix_reduce_out, no_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    serviceListen(asterix_reduce_out, Modes.net_bind_address, Modes.net_output_asterix_reduce_ports, Modes.net_epfd);
 
     int sbs_port_len = strlen(Modes.net_output_sbs_ports);
     int pos = sbs_port_len - 1;
@@ -1768,11 +1771,18 @@ static void modesSendRawOutput(struct modesMessage *mm) {
 //
 // Write ASTERIX output to TCP clients
 //
-static void modesSendAsterixOutput(struct modesMessage *mm) {
+static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *writer) {
+    struct aircraft *ac = mm->aircraft;
+    int64_t now = mstime();
     uint8_t category;
     unsigned char bytes[Modes.net_output_flush_size * 2];
     for (int i = 0; i < Modes.net_output_flush_size * 2; i++){
         bytes[i] = 0;
+    }
+    uint8_t fspec[7];
+    for (size_t i = 0; i < 7; i++)
+    {
+        fspec[i] = 0;
     }
     int p = 0;
     if (mm->from_mlat) // CAT 20
@@ -1781,11 +1791,7 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
         return;
     else { // CAT 21
         category = 21;
-        uint8_t fspec[7];
-        for (size_t i = 0; i < 7; i++)
-        {
-            fspec[i] = 0;
-        }
+        
         // I021/010 Data Source Identification 
         fspec[0] |= 1 << 7;
         bytes[p++] = 000; //SAC
@@ -2009,7 +2015,7 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
         {
             fspec[3] |= 1 << 1;
             long midnight = (long)(time(NULL) / 86400) * 86400000;
-            int tsm = mstime() - midnight;
+            int tsm = now - midnight;
             if (tsm < 0)
                 tsm += 86400000;
             tsm = (int)(tsm * 0.128);
@@ -2039,6 +2045,35 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
         if (mm->category_valid){
             fspec[4] |= 1 << 6;
             bytes[p++] = mm->category;
+        }
+
+        // I021/220 Met Information
+        if (ac && ((now < ac->oat_updated + TRACK_EXPIRE) || (now < ac->wind_updated + TRACK_EXPIRE && abs(ac->wind_altitude - ac->baro_alt) < 500))){
+            fspec[4] |= 1 << 5;
+            bool wind = false;
+            bool temp = false;
+            if (now < ac->wind_updated + TRACK_EXPIRE && abs(ac->wind_altitude - ac->baro_alt) < 500){
+                bytes[p] |= 0xC0;
+                wind = true;
+            }
+            if (now < ac->oat_updated + TRACK_EXPIRE){
+                bytes[p] |= 0x20;
+                temp = true;
+            }
+            p++;
+            if (wind){
+                uint16_t ws = (int)(ac->wind_speed);
+                uint16_t wd = (int)(ac->wind_direction);
+                bytes[p++] = (ws & 0xFF00) >> 8;
+                bytes[p++] = ws & 0xFF;
+                bytes[p++] = (wd & 0xFF00) >> 8;
+                bytes[p++] = wd & 0xFF;
+            }
+            if (temp){
+                int16_t oat = (int16_t)((ac->oat) * 4);
+                bytes[p++] = (oat & 0xFF00) >> 8;
+                bytes[p++] = oat & 0xFF;
+            }
         }
 
         // I021/008 Aircraft Operational Status
@@ -2072,7 +2107,7 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
         uint16_t msgLen = p + 3 + fspec_len;
         uint8_t msgLenA = (msgLen & 0xFF00) >> 8;
         uint8_t msgLenB = msgLen & 0xFF;
-        char *w = prepareWrite(&Modes.asterix_out, msgLen);
+        char *w = prepareWrite(writer, msgLen);
         memcpy(w, &category, 1);
         w++;
         memcpy(w, &msgLenA, 1);
@@ -2082,7 +2117,7 @@ static void modesSendAsterixOutput(struct modesMessage *mm) {
         w += fspec_len;
         memcpy(w, &bytes, p);
         w += p;
-        completeWrite(&Modes.asterix_out, w);
+        completeWrite(writer, w);
         
     }
 }
@@ -4637,7 +4672,10 @@ static void outputMessage(struct modesMessage *mm) {
             modesDumpBeastData(mm);
         }
         if (Modes.asterix_out.connections){
-            modesSendAsterixOutput(mm);
+            modesSendAsterixOutput(mm, &Modes.asterix_out);
+        }
+        if (mm->reduce_forward && Modes.asterix_reduce_out.connections) {
+            modesSendAsterixOutput(mm, &Modes.asterix_reduce_out);
         }
     }
 
