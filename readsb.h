@@ -384,7 +384,8 @@ void priorityTasksRun();
 
 static inline void *malloc_or_exit(size_t alignment, size_t size, const char *file, int line) {
     void *buf = NULL;
-    if (alignment) {
+    if (alignment && 0) {
+        // disabled for the moment
         size_t mod = size % alignment;
         if (mod != 0) {
             size += (alignment - mod);
@@ -402,13 +403,13 @@ static inline void *malloc_or_exit(size_t alignment, size_t size, const char *fi
     }
     if (unlikely(!buf)) {
         setExit(2); // irregular exit ... soon
-        fprintf(stderr, "FATAL: malloc_or_exit() failed: %s:%d\n", file, line);
+        fprintf(stderr, "FATAL: malloc_or_exit() of size %lld failed: %s:%d (insufficient memory?)\n", (long long) size, file, line);
     }
     return buf;
 }
 
-// use memory alignment only for arm ....
-#if defined(__arm__)
+// disable this ... maybe it test in the future if it makes a diff if i'm bored
+#if 0
 #define cmalloc(size) malloc_or_exit(MemoryAlignment, size, __FILE__, __LINE__)
 #else
 #define cmalloc(size) malloc_or_exit(0, size, __FILE__, __LINE__)
