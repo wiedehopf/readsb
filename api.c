@@ -1950,7 +1950,11 @@ void apiInit() {
         con->events = EPOLLIN | EPOLLEXCLUSIVE;
     }
 
-    Modes.api_fds_per_thread = imax(1, Modes.max_fds * 7 / 8 / Modes.apiThreadCount);
+    Modes.api_fds_per_thread = Modes.max_fds * 7 / 8 / Modes.apiThreadCount;
+    if (Modes.api_fds_per_thread < 1) {
+        Modes.api_fds_per_thread = 1;
+        fprintf(stderr, "WARNING: Setting Modes.api_fds_per_thread = 1 because it was %d\n", Modes.api_fds_per_thread);
+    }
     //fprintf(stderr, "Modes.api_fds_per_thread: %d\n", Modes.api_fds_per_thread);
     for (int i = 0; i < Modes.apiThreadCount; i++) {
         Modes.apiThread[i].index = i;
