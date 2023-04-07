@@ -2168,8 +2168,9 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                 // ignore other airground status indication
             } else if (accept_data(&a->airground_valid, mm->source, mm, a, REDUCE_RARE)) {
                 focusGroundstateChange(a, mm, 1, now, mm->airground);
-                if (mm->airground != a->airground)
+                if (mm->airground != a->airground) {
                     mm->reduce_forward = 1;
+                }
                 a->airground = mm->airground;
             }
         }
@@ -2368,8 +2369,9 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                     && (a->last_cpr_type == CPR_SURFACE || mm->airground == AG_AIRBORNE)
                     && accept_data(&a->airground_valid, mm->source, mm, a, REDUCE_RARE)) {
                 focusGroundstateChange(a, mm, 2, now, AG_AIRBORNE);
-                if (mm->airground != a->airground)
+                if (mm->airground != a->airground) {
                     mm->reduce_forward = 1;
+                }
                 a->airground = AG_AIRBORNE;
             }
             // old or shitty transponders can continue sending CPR_AIRBORNE while on the ground
@@ -2380,15 +2382,17 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                     && a->airground == AG_GROUND
                     && accept_data(&a->airground_valid, mm->source, mm, a, REDUCE_RARE)) {
                 focusGroundstateChange(a, mm, 2, now, AG_UNCERTAIN);
-                if (mm->airground != a->airground)
+                if (mm->airground != a->airground) {
                     mm->reduce_forward = 1;
+                }
                 a->airground = AG_UNCERTAIN;
             }
             if (mm->cpr_type == CPR_SURFACE
                     && accept_data(&a->airground_valid, mm->source, mm, a, REDUCE_RARE)) {
                 focusGroundstateChange(a, mm, 2, now, AG_GROUND);
-                if (mm->airground != a->airground)
+                if (mm->airground != a->airground) {
                     mm->reduce_forward = 1;
+                }
                 a->airground = AG_GROUND;
             }
         }
