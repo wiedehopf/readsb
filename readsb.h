@@ -414,9 +414,6 @@ static inline void *malloc_or_exit(size_t alignment, size_t size, const char *fi
 #define cmalloc(size) malloc_or_exit(0, size, __FILE__, __LINE__)
 #endif
 
-
-#define PP fprintf(stderr, "%s %d\n", __FILE__, __LINE__)
-
 // Include subheaders after all the #defines are in place
 
 #include "toString.h"

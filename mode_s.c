@@ -1875,15 +1875,15 @@ void displayModesMessage(struct modesMessage *mm) {
     else if (mm->timestamp == MAGIC_UAT_TIMESTAMP)
         printf("This is a synthetic UAT message.\n");
     else
-        printf("receiverTime: %.2fus\n", mm->timestamp / 12.0);
+        printf("receiverTime: %27.2fus\n", mm->timestamp / 12.0);
 
     if (1 || !Modes.debug_bogus) {
-        time_t nowTime = nearbyint(mm->sysTimestamp / 1000.0);
+        time_t nowTime = floor(mm->sysTimestamp / 1000.0);
         struct tm local;
         gmtime_r(&nowTime, &local);
         char timebuf[512];
         strftime(timebuf, 128, "%T", &local);
-        printf("utcTime: %s.%lld epoch: %.3f\n", timebuf, (long long) mm->sysTimestamp % 1000, mm->sysTimestamp / 1000.0);
+        printf("utcTime: %s.%03lld epoch: %.3f\n", timebuf, (long long) mm->sysTimestamp % 1000, mm->sysTimestamp / 1000.0);
     }
 
     if (mm->sbs_in) {

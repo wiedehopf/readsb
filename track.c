@@ -58,6 +58,8 @@ uint32_t modeAC_lastcount[4096];
 uint32_t modeAC_match[4096];
 uint32_t modeAC_age[4096];
 
+#define PPforward if (0) {fprintf(stderr, "%s %d\n", __FILE__, __LINE__);}
+
 static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, int64_t now, double bad_lat, double bad_lon);
 static void position_bad(struct modesMessage *mm, struct aircraft *a);
 static void calc_wind(struct aircraft *a, int64_t now);
@@ -209,6 +211,7 @@ static int accept_data(data_validity *d, datasource_t source, struct modesMessag
         d->next_reduce_forward = now + reduceInterval;
 
         mm->reduce_forward = 1;
+        PPforward;
     }
     return 1;
 }
@@ -1801,6 +1804,7 @@ discard_alt:
 //
 
 struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
+    struct aircraft *res = NULL;
     int64_t now = mm->sysTimestamp;
 
     ++Modes.stats_current.messages_total;
@@ -1813,10 +1817,13 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (mm->msgtype == DFTYPE_MODEAC) {
         // Mode A/C, just count it (we ignore SPI)
         modeAC_count[modeAToIndex(mm->squawk)]++;
-        return NULL;
+        res = NULL;
+        goto exit;
     }
-    if (mm->decodeResult < 0)
-        return NULL;
+    if (mm->decodeResult < 0) {
+        res = NULL;
+        goto exit;
+    }
 
     struct aircraft *a;
     unsigned int cpr_new = 0;
@@ -1849,7 +1856,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             a = aircraftCreate(mm->addr); // ., create a new record for it,
         } else {
             //fprintf(stderr, "%06x: !a && !addressReliable(mm)\n", mm->addr);
-            return NULL;
+            res = NULL;
+            goto exit;
         }
     }
 
@@ -1860,7 +1868,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         haveScratch = true;
         // messages from receivers classified garbage with position get processed to see if they still send garbage
     } else if (mm->garbage) {
-        return NULL;
+        res = NULL;
+        goto exit;
     }
 
     // only count the aircraft as "seen" for reliable messages with CRC
@@ -1870,7 +1879,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
     // don't use messages with unreliable CRC too long after receiving a reliable address from an aircraft
     if (now - a->seen > 45 * SECONDS) {
-        return NULL;
+        res = NULL;
+        goto exit;
     }
 
 
@@ -2007,6 +2017,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         if (a->squawkTentative != mm->squawk && now - a->seen < 15 * SECONDS && will_accept_data(&a->squawk_valid, mm->source, mm, a)) {
             a->squawk_valid.next_reduce_forward = now + currentReduceInterval(now);
             mm->reduce_forward = 1;
+            PPforward;
             changeTentative = 1;
         }
         if (a->squawkTentative == mm->squawk && now - a->squawkTentativeChanged > 750 && accept_data(&a->squawk_valid, mm->source, mm, a, REDUCE_RARE)) {
@@ -2054,6 +2065,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     if (mm->emergency_valid && accept_data(&a->emergency_valid, mm->source, mm, a, REDUCE_RARE)) {
         if (a->emergency != mm->emergency) {
             mm->reduce_forward = 1;
+            PPforward;
         }
         a->emergency = mm->emergency;
     }
@@ -2170,6 +2182,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                 focusGroundstateChange(a, mm, 1, now, mm->airground);
                 if (mm->airground != a->airground) {
                     mm->reduce_forward = 1;
+                    PPforward;
                 }
                 a->airground = mm->airground;
             }
@@ -2259,6 +2272,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             if (now > a->next_reduce_forward_status) {
                 a->next_reduce_forward_status = now + 4 * currentReduceInterval(now);
                 mm->reduce_forward = 1;
+                PPforward;
             }
         }
     }
@@ -2280,6 +2294,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             if (accept_data(&a->acas_ra_valid, mm->source, mm, a, REDUCE_OFTEN)) {
                 if (memcmp(a->acas_ra, bytes, sizeof(a->acas_ra)) != 0) {
                     mm->reduce_forward = 1;
+                    PPforward;
                 }
                 memcpy(a->acas_ra, bytes, sizeof(a->acas_ra));
                 logACASInfoShort(mm->addr, bytes, a, mm, mm->sysTimestamp);
@@ -2371,6 +2386,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                 focusGroundstateChange(a, mm, 2, now, AG_AIRBORNE);
                 if (mm->airground != a->airground) {
                     mm->reduce_forward = 1;
+                    PPforward;
                 }
                 a->airground = AG_AIRBORNE;
             }
@@ -2384,6 +2400,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                 focusGroundstateChange(a, mm, 2, now, AG_UNCERTAIN);
                 if (mm->airground != a->airground) {
                     mm->reduce_forward = 1;
+                    PPforward;
                 }
                 a->airground = AG_UNCERTAIN;
             }
@@ -2392,6 +2409,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                 focusGroundstateChange(a, mm, 2, now, AG_GROUND);
                 if (mm->airground != a->airground) {
                     mm->reduce_forward = 1;
+                    PPforward;
                 }
                 a->airground = AG_GROUND;
             }
@@ -2537,6 +2555,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         if (now > a->next_reduce_forward_DF11) {
             a->next_reduce_forward_DF11 = now + 4 * currentReduceInterval(now);
             mm->reduce_forward = 1;
+            PPforward;
         }
     }
 
@@ -2590,10 +2609,53 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     // even the duplicates and the garbage
     if (Modes.netIngest && mm->cpr_valid) {
         mm->reduce_forward = 1;
+        PPforward;
     }
 
     mm->aircraft = a;
-    return (a);
+    res = a;
+
+exit:
+
+    struct aircraft *ac = res;
+
+    //fprintf(stderr, "epoch: %.6f\n", mm->sysTimestamp / 1000.0);
+
+    // In non-interactive non-quiet mode, display messages on standard output
+    if (
+            !Modes.quiet
+            || (Modes.show_only != BADDR && (mm->addr == Modes.show_only || mm->maybe_addr == Modes.show_only))
+            || (Modes.debug_7700 && ac && ac->squawk == 0x7700 && trackDataValid(&ac->squawk_valid))
+       ) {
+        displayModesMessage(mm);
+    }
+
+    if (Modes.debug_bogus) {
+
+        if (!Modes.synthetic_now) {
+            Modes.startup_time = mstime() - mm->timestamp / 12000U;
+        }
+        Modes.synthetic_now = Modes.startup_time + mm->timestamp / 12000U;
+
+        if (mm->addr != HEX_UNKNOWN && !(mm->addr & MODES_NON_ICAO_ADDRESS)) {
+            ac = aircraftCreate(mm->addr);
+        }
+        if (ac && ac->messages == 1 && ac->registration[0] == 0) {
+            fprintf(stdout, "%6llx %5.1f not in DB: %06x\n",
+                    (long long) mm->timestamp % 0x1000000,
+                    10 * log10(mm->signalLevel),
+                    mm->addr);
+            //displayModesMessage(mm);
+        } else if (0 && !ac) {
+            if (mm->addr != HEX_UNKNOWN && !dbGet(mm->addr, Modes.dbIndex))
+                displayModesMessage(mm);
+            if (mm->addr == HEX_UNKNOWN && !dbGet(mm->maybe_addr, Modes.dbIndex))
+                displayModesMessage(mm);
+        }
+    }
+
+
+    return res;
 }
 
 //
