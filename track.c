@@ -2615,9 +2615,11 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     mm->aircraft = a;
     res = a;
 
+    struct aircraft *ac;
+
 exit:
 
-    struct aircraft *ac = res;
+    ac = res;
 
     //fprintf(stderr, "epoch: %.6f\n", mm->sysTimestamp / 1000.0);
 
@@ -2653,8 +2655,6 @@ exit:
                 displayModesMessage(mm);
         }
     }
-
-
     return res;
 }
 
