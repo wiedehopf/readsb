@@ -1892,6 +1892,14 @@ void apiBufferInit() {
         buffer->callsignHash = cmalloc(API_BUCKETS * sizeof(struct apiEntry*));
     }
     apiUpdate(); // run an initial apiUpdate
+
+    Modes.apiBufferInitDone++;
+    if (Modes.apiBufferInitDone != 1) {
+        fprintf(stderr, "FATAL: buffer init call fail %d\n", Modes.apiBufferInitDone);
+        setExit(2);
+        return;
+    }
+
     threadCreate(&Threads.apiUpdate, NULL, apiUpdateEntryPoint, NULL);
 }
 
@@ -1913,6 +1921,11 @@ void apiBufferCleanup() {
 }
 
 void apiInit() {
+    if (Modes.apiBufferInitDone != 1) {
+        fprintf(stderr, "FATAL: buffer init call fail %d\n", Modes.apiBufferInitDone);
+        setExit(2);
+        return;
+    }
     Modes.apiService.descr = "API output";
     serviceListen(&Modes.apiService, Modes.net_bind_address, Modes.net_output_api_ports, -1);
     fprintf(stderr, "\n");
@@ -1937,7 +1950,7 @@ void apiInit() {
         con->events = EPOLLIN | EPOLLEXCLUSIVE;
     }
 
-    Modes.api_fds_per_thread = Modes.max_fds * 7 / 8 / Modes.apiThreadCount;
+    Modes.api_fds_per_thread = imax(1, Modes.max_fds * 7 / 8 / Modes.apiThreadCount);
     //fprintf(stderr, "Modes.api_fds_per_thread: %d\n", Modes.api_fds_per_thread);
     for (int i = 0; i < Modes.apiThreadCount; i++) {
         Modes.apiThread[i].index = i;

@@ -193,8 +193,17 @@ static void configSetDefaults(void) {
     //receiverTest();
 
     struct rlimit limits;
-    getrlimit(RLIMIT_NOFILE, &limits);
-    Modes.max_fds = limits.rlim_cur;
+    int res = getrlimit(RLIMIT_NOFILE, &limits);
+    if (res != 0) {
+        fprintf(stderr, "WARNING: getrlimit(RLIMIT_NOFILE, &limits) returned the following error: \"%s\". Assuming bad limit query function, using up to 64 file descriptors \n",
+                strerror(errno));
+        Modes.max_fds = 64;
+    } else if (limits.rlim_cur < 64) {
+        fprintf(stderr, "WARNING: getrlimit(RLIMIT_NOFILE, &limits) returned less than 64 fds for readsb to work with. Assuming bad limit query function, using up to 64 file descriptors. Fix RLIMIT!\n");
+        Modes.max_fds = 64;
+    } else {
+        Modes.max_fds = limits.rlim_cur;
+    }
 
     Modes.sdr_buf_size = 16 * 16 * 1024;
 

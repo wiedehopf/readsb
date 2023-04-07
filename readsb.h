@@ -603,6 +603,7 @@ struct _Modes
 
     int8_t apiUpdate; // creates json snippets also by non api stuff
     int8_t api; // enable api output
+    int8_t apiBufferInitDone;
     int apiThreadCount;
     atomic_int apiWorkerCpuMicro;
     atomic_uint apiRequestCounter;
