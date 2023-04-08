@@ -198,11 +198,18 @@ static void configSetDefaults(void) {
         fprintf(stderr, "WARNING: getrlimit(RLIMIT_NOFILE, &limits) returned the following error: \"%s\". Assuming bad limit query function, using up to 64 file descriptors \n",
                 strerror(errno));
         Modes.max_fds = 64;
-    } else if (limits.rlim_cur < 64) {
-        fprintf(stderr, "WARNING: getrlimit(RLIMIT_NOFILE, &limits) returned less than 64 fds for readsb to work with. Assuming bad limit query function, using up to 64 file descriptors. Fix RLIMIT!\n");
-        Modes.max_fds = 64;
     } else {
-        Modes.max_fds = limits.rlim_cur;
+        uint64_t limit = limits.rlim_cur;
+        // check limit for unreasonableness
+        if (limit < (uint64_t) 64) {
+            fprintf(stderr, "WARNING: getrlimit(RLIMIT_NOFILE, &limits) returned less than 64 fds for readsb to work with. Assuming bad limit query function, using up to 64 file descriptors. Fix RLIMIT!\n");
+            Modes.max_fds = 64;
+        } else if (limit > (uint64_t) INT32_MAX) {
+            fprintf(stderr, "WARNING: getrlimit(RLIMIT_NOFILE, &limits) returned more than INT32_MAX ... This is just weird.\n");
+            Modes.max_fds = INT32_MAX;
+        } else {
+            Modes.max_fds = (int) limit;
+        }
     }
 
     Modes.sdr_buf_size = 16 * 16 * 1024;
