@@ -204,6 +204,8 @@ static void configSetDefaults(void) {
         if (limit < (uint64_t) 64) {
             fprintf(stderr, "WARNING: getrlimit(RLIMIT_NOFILE, &limits) returned less than 64 fds for readsb to work with. Assuming bad limit query function, using up to 64 file descriptors. Fix RLIMIT!\n");
             Modes.max_fds = 64;
+        } else if (limits.rlim_cur == RLIM_INFINITY) {
+            Modes.max_fds = INT32_MAX;
         } else if (limit > (uint64_t) INT32_MAX) {
             fprintf(stderr, "WARNING: getrlimit(RLIMIT_NOFILE, &limits) returned more than INT32_MAX ... This is just weird.\n");
             Modes.max_fds = INT32_MAX;
@@ -211,6 +213,8 @@ static void configSetDefaults(void) {
             Modes.max_fds = (int) limit;
         }
     }
+    Modes.max_fds -= 32; // reserve some fds for things we don't account for later like json writing.
+                         // this is an high estimate ... if ppl run out of fds for other stuff they should up rlimit
 
     Modes.sdr_buf_size = 16 * 16 * 1024;
 
@@ -2139,6 +2143,14 @@ static void configAfterParse() {
         Modes.net_only = 1;
     } else {
         Modes.net_only = 0;
+    }
+
+    if (Modes.api) {
+        Modes.max_fds_api = Modes.max_fds / 2;
+        Modes.max_fds_net = Modes.max_fds / 2;
+    } else {
+        Modes.max_fds_api = 0;
+        Modes.max_fds_net = Modes.max_fds;
     }
 }
 
