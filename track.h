@@ -387,6 +387,7 @@ struct aircraft
   float oat;
   int64_t wind_updated;
   int64_t oat_updated;
+  int64_t tat_updated;
 
   // ----
 

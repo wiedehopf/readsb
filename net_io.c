@@ -1769,7 +1769,6 @@ static void modesSendRawOutput(struct modesMessage *mm) {
 // Write ASTERIX output to TCP clients
 //
 static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *writer) {
-    struct aircraft *ac = mm->aircraft;
     int64_t now = mstime();
     uint8_t category;
     unsigned char bytes[Modes.net_output_flush_size * 2];
@@ -2045,29 +2044,32 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
         }
 
         // I021/220 Met Information
-        if (ac && ((now < ac->oat_updated + TRACK_EXPIRE) || (now < ac->wind_updated + TRACK_EXPIRE && abs(ac->wind_altitude - ac->baro_alt) < 500))){
+        //if (ac && ((now < ac->oat_updated + TRACK_EXPIRE) || (now < ac->wind_updated + TRACK_EXPIRE && abs(ac->wind_altitude - ac->baro_alt) < 500))){
+        if (mm->wind_valid || mm->oat_valid || mm->turbulence_valid || mm->static_pressure_valid || mm->humidity_valid) {
             fspec[4] |= 1 << 5;
             bool wind = false;
             bool temp = false;
-            if (now < ac->wind_updated + TRACK_EXPIRE && abs(ac->wind_altitude - ac->baro_alt) < 500){
+            //if (now < ac->wind_updated + TRACK_EXPIRE && abs(ac->wind_altitude - ac->baro_alt) < 500){
+            if (mm->wind_valid) {
                 bytes[p] |= 0xC0;
                 wind = true;
             }
-            if (now < ac->oat_updated + TRACK_EXPIRE){
+            //if (now < ac->oat_updated + TRACK_EXPIRE){
+            if (mm->oat_valid) {
                 bytes[p] |= 0x20;
                 temp = true;
             }
             p++;
             if (wind){
-                uint16_t ws = (int)(ac->wind_speed);
-                uint16_t wd = (int)(ac->wind_direction);
+                uint16_t ws = (int)(mm->wind_speed);
+                uint16_t wd = (int)(mm->wind_direction);
                 bytes[p++] = (ws & 0xFF00) >> 8;
                 bytes[p++] = ws & 0xFF;
                 bytes[p++] = (wd & 0xFF00) >> 8;
                 bytes[p++] = wd & 0xFF;
             }
             if (temp){
-                int16_t oat = (int16_t)((ac->oat) * 4);
+                int16_t oat = (int16_t)((mm->oat) * 4);
                 bytes[p++] = (oat & 0xFF00) >> 8;
                 bytes[p++] = oat & 0xFF;
             }
@@ -2084,6 +2086,35 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
             p++;
         }
 
+        // I021/295 Data Ages
+        /*
+        if (fspec[4] == 0b100000){
+            fspec[5] |= 1 << 1;
+            bytes[p++] |= 1;
+            bytes[p++] |= 1;
+            bytes[p++] |= 1 << 2;
+            if((now < ac->wind_updated + TRACK_EXPIRE && abs(ac->wind_altitude - ac->baro_alt) < 500) && 
+              (now < ac->oat_updated + TRACK_EXPIRE)) {
+                uint64_t wind_age = now - ac->wind_updated;
+                uint64_t oat_age = now - ac->oat_updated;
+                if (wind_age > oat_age){
+                    bytes[p++] = (int)(wind_age / 100);
+                }
+                else {
+                    bytes[p++] = (int)(oat_age / 100);
+                }
+            }
+            else if (now < ac->wind_updated + TRACK_EXPIRE && abs(ac->wind_altitude - ac->baro_alt) < 500){
+                uint64_t wind_age = now - ac->wind_updated;
+                bytes[p++] = (int)(wind_age / 100);
+            }
+            else if (now < ac->oat_updated + TRACK_EXPIRE){
+                uint64_t oat_age = now - ac->oat_updated;
+                bytes[p++] = (int)(oat_age / 100);
+            }
+        }
+        */
+
         int fspec_len = 1;
         for (int i = 5; i >= 0; i--)
         {
@@ -2092,15 +2123,7 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
                 fspec_len++;
             }
         }
-        /*
-        for (size_t i = 1; i < 7; i++)
-        {
-            if (fspec[i]){
-                bytes[p] = fspec[i];
-                p++;
-                //printf("%u", p); printf("%s", "/"); printf("%u", msgLen);printf("%s", " fp"); printf("%lu", i); printf("%s", " ");
-            }
-        }*/
+        
         uint16_t msgLen = p + 3 + fspec_len;
         uint8_t msgLenA = (msgLen & 0xFF00) >> 8;
         uint8_t msgLenB = msgLen & 0xFF;

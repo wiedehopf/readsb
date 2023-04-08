@@ -1645,6 +1645,8 @@ static const char *commb_format_to_string(commb_format_t format) {
         return "BDS5,0 Track and turn report";
     case COMMB_HEADING_SPEED:
         return "BDS6,0 Heading and speed report";
+    case COMMB_METEOROLOGICAL_ROUTINE:
+        return "BDS4,4 Meteorological routine air report";
     default:
         return "unknown format";
     }

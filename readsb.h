@@ -256,7 +256,8 @@ typedef enum {
     COMMB_ACAS_RA,
     COMMB_VERTICAL_INTENT,
     COMMB_TRACK_TURN,
-    COMMB_HEADING_SPEED
+    COMMB_HEADING_SPEED,
+    COMMB_METEOROLOGICAL_ROUTINE
 } commb_format_t;
 
 typedef enum
@@ -941,6 +942,12 @@ struct modesMessage
     bool alt_q_bit;
     bool acas_ra_valid;
     bool geom_alt_derived;
+    bool wind_valid;
+    bool oat_valid;
+    bool static_pressure_valid;
+    bool turbulence_valid;
+    bool humidity_valid;
+    bool met_source_valid;
 
     bool squawk_emergency_valid;
     bool squawk_emergency;
@@ -996,6 +1003,15 @@ struct modesMessage
     double distance_traveled; // set in speed_check, zero is invalid
     double receiver_distance; // distance to receiver
     float calculated_track; // set in speed_check, -1 is invalid
+
+    // meteorological
+    int wind_speed;
+    float wind_direction;
+    float oat;
+    int static_pressure;
+    int turbulence;
+    float humidity;
+    int met_source;
 
     commb_format_t commb_format; // Inferred format of a comm-b message
 
