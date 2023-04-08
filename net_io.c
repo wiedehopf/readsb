@@ -3017,6 +3017,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now, 
 
     // record reception time as the time we read it.
     mm->sysTimestamp = now;
+    //fprintf(stderr, "epoch: %.6f\n", mm->sysTimestamp / 1000.0);
 
 
     ch = *p++; // Grab the signal level
@@ -4693,38 +4694,6 @@ static void outputMessage(struct modesMessage *mm) {
         }
         if (Modes.asterix_out.connections && (!Modes.asterixReduce || mm->reduce_forward)){
             modesSendAsterixOutput(mm, &Modes.asterix_out);
-        }
-    }
-
-    // In non-interactive non-quiet mode, display messages on standard output
-    if (
-            !Modes.quiet
-            || (Modes.show_only != BADDR && (mm->addr == Modes.show_only || mm->maybe_addr == Modes.show_only))
-            || (Modes.debug_7700 && ac && ac->squawk == 0x7700 && trackDataValid(&ac->squawk_valid))
-       ) {
-        displayModesMessage(mm);
-    }
-
-    if (Modes.debug_bogus) {
-        if (!Modes.synthetic_now) {
-            Modes.startup_time = mstime() - mm->timestamp / 12000U;
-        }
-        Modes.synthetic_now = Modes.startup_time + mm->timestamp / 12000U;
-
-        if (mm->addr != HEX_UNKNOWN && !(mm->addr & MODES_NON_ICAO_ADDRESS)) {
-            ac = aircraftCreate(mm->addr);
-        }
-        if (ac && ac->messages == 1 && ac->registration[0] == 0) {
-            fprintf(stdout, "%6llx %5.1f not in DB: %06x\n",
-                    (long long) mm->timestamp % 0x1000000,
-                    10 * log10(mm->signalLevel),
-                    mm->addr);
-            //displayModesMessage(mm);
-        } else if (0 && !ac) {
-            if (mm->addr != HEX_UNKNOWN && !dbGet(mm->addr, Modes.dbIndex))
-                displayModesMessage(mm);
-            if (mm->addr == HEX_UNKNOWN && !dbGet(mm->maybe_addr, Modes.dbIndex))
-                displayModesMessage(mm);
         }
     }
 

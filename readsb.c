@@ -193,8 +193,17 @@ static void configSetDefaults(void) {
     //receiverTest();
 
     struct rlimit limits;
-    getrlimit(RLIMIT_NOFILE, &limits);
-    Modes.max_fds = limits.rlim_cur;
+    int res = getrlimit(RLIMIT_NOFILE, &limits);
+    if (res != 0) {
+        fprintf(stderr, "WARNING: getrlimit(RLIMIT_NOFILE, &limits) returned the following error: \"%s\". Assuming bad limit query function, using up to 64 file descriptors \n",
+                strerror(errno));
+        Modes.max_fds = 64;
+    } else if (limits.rlim_cur < 64) {
+        fprintf(stderr, "WARNING: getrlimit(RLIMIT_NOFILE, &limits) returned less than 64 fds for readsb to work with. Assuming bad limit query function, using up to 64 file descriptors. Fix RLIMIT!\n");
+        Modes.max_fds = 64;
+    } else {
+        Modes.max_fds = limits.rlim_cur;
+    }
 
     Modes.sdr_buf_size = 16 * 16 * 1024;
 
@@ -209,6 +218,10 @@ static void configSetDefaults(void) {
     Modes.messageRateMult = 1.0f;
 
     Modes.apiShutdownDelay = 0 * SECONDS;
+
+    // default this on
+    Modes.enableAcasCsv = 1;
+    Modes.enableAcasJson = 1;
 }
 //
 //=========================================================================
@@ -1782,6 +1795,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 }
                 if (strcasecmp(token[0], "omitGlobeFiles") == 0) {
                     Modes.omitGlobeFiles = 1;
+                }
+                if (strcasecmp(token[0], "disableAcasCsv") == 0) {
+                    Modes.enableAcasCsv = 0;
+                }
+                if (strcasecmp(token[0], "disableAcasJson") == 0) {
+                    Modes.enableAcasJson = 0;
                 }
             }
             break;

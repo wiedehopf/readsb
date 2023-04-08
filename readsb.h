@@ -385,7 +385,8 @@ void priorityTasksRun();
 
 static inline void *malloc_or_exit(size_t alignment, size_t size, const char *file, int line) {
     void *buf = NULL;
-    if (alignment) {
+    if (alignment && 0) {
+        // disabled for the moment
         size_t mod = size % alignment;
         if (mod != 0) {
             size += (alignment - mod);
@@ -403,13 +404,13 @@ static inline void *malloc_or_exit(size_t alignment, size_t size, const char *fi
     }
     if (unlikely(!buf)) {
         setExit(2); // irregular exit ... soon
-        fprintf(stderr, "FATAL: malloc_or_exit() failed: %s:%d\n", file, line);
+        fprintf(stderr, "FATAL: malloc_or_exit() of size %lld failed: %s:%d (insufficient memory?)\n", (long long) size, file, line);
     }
     return buf;
 }
 
-// use memory alignment only for arm ....
-#if defined(__arm__)
+// disable this ... maybe it test in the future if it makes a diff if i'm bored
+#if 0
 #define cmalloc(size) malloc_or_exit(MemoryAlignment, size, __FILE__, __LINE__)
 #else
 #define cmalloc(size) malloc_or_exit(0, size, __FILE__, __LINE__)
@@ -604,6 +605,7 @@ struct _Modes
 
     int8_t apiUpdate; // creates json snippets also by non api stuff
     int8_t api; // enable api output
+    int8_t apiBufferInitDone;
     int apiThreadCount;
     atomic_int apiWorkerCpuMicro;
     atomic_uint apiRequestCounter;
@@ -662,6 +664,8 @@ struct _Modes
     int8_t debug_lastStatus;
     int8_t incrementId;
     int8_t omitGlobeFiles;
+    int8_t enableAcasCsv;
+    int8_t enableAcasJson;
     int8_t dump_accept_synthetic_now;
     int8_t syntethic_now_suppress_errors;
     int8_t tar1090_use_api;

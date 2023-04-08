@@ -1464,7 +1464,7 @@ static void mark_legs(traceBuffer tb, struct aircraft *a, int start, int recent)
     if (!recent) {
         elapsed2 = lapWatch(&watch);
     }
-    if (focus || elapsed1 > 50 || elapsed2 > 50) {
+    if (focus || ((elapsed1 > 50 || elapsed2 > 50) && counter1 + counter2 + counter3 + counter4 + counter5 > 2000)) {
         fprintf(stderr, "%06x mark_legs loop1: %.3f loop2: %.3f counter1 %d counter2 %d counter3 %d counter4 %d counter5 %d\n",
                 a->addr, elapsed1 / 1000.0, elapsed2 / 1000.0,
                 counter1,
@@ -3434,18 +3434,22 @@ void checkNewDayAcas(int64_t now) {
             close(Modes.acasFD2);
 
 
-        snprintf(filename, PATH_MAX, "%s/acas/acas.csv", dateDir);
-        Modes.acasFD1 = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0644);
-        if (Modes.acasFD1 < 0) {
-            fprintf(stderr, "open failed:");
-            perror(filename);
+        if (Modes.enableAcasCsv) {
+            snprintf(filename, PATH_MAX, "%s/acas/acas.csv", dateDir);
+            Modes.acasFD1 = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0644);
+            if (Modes.acasFD1 < 0) {
+                fprintf(stderr, "open failed:");
+                perror(filename);
+            }
         }
 
-        snprintf(filename, PATH_MAX, "%s/acas/acas.json", dateDir);
-        Modes.acasFD2 = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0644);
-        if (Modes.acasFD2 < 0) {
-            fprintf(stderr, "open failed:");
-            perror(filename);
+        if (Modes.enableAcasJson) {
+            snprintf(filename, PATH_MAX, "%s/acas/acas.json", dateDir);
+            Modes.acasFD2 = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0644);
+            if (Modes.acasFD2 < 0) {
+                fprintf(stderr, "open failed:");
+                perror(filename);
+            }
         }
     }
 }

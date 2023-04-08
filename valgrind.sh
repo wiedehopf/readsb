@@ -6,8 +6,8 @@ chown readsb /run/test
 source /etc/default/test
 cp -f readsb /tmp/test123
 
-FIRST=""
 FIRST="--error-exitcode=3 --exit-on-first-error=yes"
+FIRST="-s"
 
 MEM="--track-origins=yes"
 MEM="--show-leak-kinds=all --leak-check=full"

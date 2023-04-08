@@ -1859,7 +1859,7 @@ void displayModesMessage(struct modesMessage *mm) {
     }
 
     if (mm->signalLevel > 0)
-        printf("RSSI: %.1f dBFS   ", 10 * log10(mm->signalLevel));
+        printf("RSSI: %8.1f dBFS   ", 10 * log10(mm->signalLevel));
 
     printf("reduce_forward: %d\n", mm->reduce_forward);
 
@@ -1877,15 +1877,15 @@ void displayModesMessage(struct modesMessage *mm) {
     else if (mm->timestamp == MAGIC_UAT_TIMESTAMP)
         printf("This is a synthetic UAT message.\n");
     else
-        printf("receiverTime: %.2fus\n", mm->timestamp / 12.0);
+        printf("receiverTime: %27.2fus\n", mm->timestamp / 12.0);
 
     if (1 || !Modes.debug_bogus) {
-        time_t nowTime = nearbyint(mm->sysTimestamp / 1000.0);
+        time_t nowTime = floor(mm->sysTimestamp / 1000.0);
         struct tm local;
         gmtime_r(&nowTime, &local);
         char timebuf[512];
         strftime(timebuf, 128, "%T", &local);
-        printf("utcTime: %s.%lld epoch: %.3f\n", timebuf, (long long) mm->sysTimestamp % 1000, mm->sysTimestamp / 1000.0);
+        printf("utcTime: %s.%03lld epoch: %.3f\n", timebuf, (long long) mm->sysTimestamp % 1000, mm->sysTimestamp / 1000.0);
     }
 
     if (mm->sbs_in) {
@@ -1893,27 +1893,27 @@ void displayModesMessage(struct modesMessage *mm) {
     } else {
         switch (mm->msgtype) {
             case 0:
-                printf("DF:0 addr:%s VS:%u CC:%u SL:%u RI:%u AC:%u\n",
+                printf("DF:  0 addr:%s VS:%u CC:%u SL:%u RI:%u AC:%u\n",
                         addr, mm->VS, mm->CC, mm->SL, mm->RI, mm->AC);
                 break;
 
             case 4:
-                printf("DF:4 addr:%s FS:%u DR:%u UM:%u AC:%u\n",
+                printf("DF:  4 addr:%s FS:%u DR:%u UM:%u AC:%u\n",
                         addr, mm->FS, mm->DR, mm->UM, mm->AC);
                 break;
 
             case 5:
-                printf("DF:5 addr:%s FS:%u DR:%u UM:%u ID:%u\n",
+                printf("DF:  5 addr:%s FS:%u DR:%u UM:%u ID:%u\n",
                         addr, mm->FS, mm->DR, mm->UM, mm->ID);
                 break;
 
             case 11:
-                printf("DF:11 AA:%06X IID:%u CA:%u\n",
+                printf("DF: 11 AA:%06X IID:%u CA:%u\n",
                         mm->AA, mm->IID, mm->CA);
                 break;
 
             case 16:
-                printf("DF:16 addr:%s VS:%u SL:%u RI:%u AC:%u MV:",
+                printf("DF: 16 addr:%s VS:%u SL:%u RI:%u AC:%u MV:",
                         addr, mm->VS, mm->SL, mm->RI, mm->AC);
                 print_hex_bytes(mm->MV, sizeof (mm->MV));
                 printf("\n");
@@ -1923,28 +1923,28 @@ void displayModesMessage(struct modesMessage *mm) {
                 break;
 
             case 17:
-                printf("DF:17 AA:%06X CA:%u ME:",
+                printf("DF: 17 AA:%06X CA:%u ME:",
                         mm->AA, mm->CA);
                 print_hex_bytes(mm->ME, sizeof (mm->ME));
                 printf("\n");
                 break;
 
             case 18:
-                printf("DF:18 AA:%06X CF:%u ME:",
+                printf("DF: 18 AA:%06X CF:%u ME:",
                         mm->AA, mm->CF);
                 print_hex_bytes(mm->ME, sizeof (mm->ME));
                 printf("\n");
                 break;
 
             case 20:
-                printf("DF:20 addr:%s FS:%u DR:%u UM:%u AC:%u MB:",
+                printf("DF: 20 addr:%s FS:%u DR:%u UM:%u AC:%u MB:",
                         addr, mm->FS, mm->DR, mm->UM, mm->AC);
                 print_hex_bytes(mm->MB, sizeof (mm->MB));
                 printf("\n");
                 break;
 
             case 21:
-                printf("DF:21 addr:%s FS:%u DR:%u UM:%u ID:%u MB:",
+                printf("DF: 21 addr:%s FS:%u DR:%u UM:%u ID:%u MB:",
                         addr, mm->FS, mm->DR, mm->UM, mm->ID);
                 print_hex_bytes(mm->MB, sizeof (mm->MB));
                 printf("\n");
@@ -1958,7 +1958,7 @@ void displayModesMessage(struct modesMessage *mm) {
             case 29:
             case 30:
             case 31:
-                printf("DF:24 addr:%s KE:%u ND:%u MD:",
+                printf("DF: 24 addr:%s KE:%u ND:%u MD:",
                         addr, mm->KE, mm->ND);
                 print_hex_bytes(mm->MD, sizeof (mm->MD));
                 printf("\n");
@@ -2002,41 +2002,41 @@ void displayModesMessage(struct modesMessage *mm) {
     }
 
     if (mm->baro_alt_valid) {
-        printf("  Baro altitude: %d %s\n",
+        printf("  Baro altitude:           %8d %s\n",
                 mm->baro_alt,
                 altitude_unit_to_string(mm->baro_alt_unit));
     }
 
     if (mm->geom_alt_valid) {
-        printf("  Geom altitude: %d %s\n",
+        printf("  Geom altitude:           %8d %s\n",
                 mm->geom_alt,
                 altitude_unit_to_string(mm->geom_alt_unit));
     }
     if (mm->geom_alt_derived) {
-        printf("  Geom altitude (derived): %d %s\n",
+        printf("  Geom altitude (derived): %8d %s\n",
                 mm->geom_alt,
                 altitude_unit_to_string(mm->geom_alt_unit));
     }
 
     if (mm->geom_delta_valid) {
-        printf("  Geom - baro:   %d ft\n",
+        printf("  Geom - baro:   %8d ft\n",
                 mm->geom_delta);
     }
 
     if (mm->heading_valid) {
-        printf("  %-13s  %.1f\n", heading_type_to_string(mm->heading_type), mm->heading);
+        printf("  %-13s     %5.1f\n", heading_type_to_string(mm->heading_type), mm->heading);
     }
 
     if (mm->track_rate_valid) {
-        printf("  Track rate:    %.2f deg/sec %s\n", mm->track_rate, mm->track_rate < 0 ? "left" : mm->track_rate > 0 ? "right" : "");
+        printf("  Track rate:    %6.2f deg/sec %s\n", mm->track_rate, mm->track_rate < 0 ? "left" : mm->track_rate > 0 ? "right" : "");
     }
 
     if (mm->roll_valid) {
-        printf("  Roll:          %.1f degrees %s\n", mm->roll, mm->roll < -0.05 ? "left" : mm->roll > 0.05 ? "right" : "");
+        printf("  Roll:          %5.1f degrees %s\n", mm->roll, mm->roll < -0.05 ? "left" : mm->roll > 0.05 ? "right" : "");
     }
 
     if (mm->gs_valid) {
-        printf("  Groundspeed:   %.1f kt", mm->gs.selected);
+        printf("  Groundspeed:   %5.1f kt", mm->gs.selected);
         if (mm->gs.v0 != mm->gs.selected) {
             printf(" (v0: %.1f kt)", mm->gs.v0);
         }
@@ -2047,11 +2047,11 @@ void displayModesMessage(struct modesMessage *mm) {
     }
 
     if (mm->ias_valid) {
-        printf("  IAS:           %u kt\n", mm->ias);
+        printf("  IAS:           %3u kt\n", mm->ias);
     }
 
     if (mm->tas_valid) {
-        printf("  TAS:           %u kt\n", mm->tas);
+        printf("  TAS:           %3u kt\n", mm->tas);
     }
 
     if (mm->mach_valid) {
@@ -2059,11 +2059,11 @@ void displayModesMessage(struct modesMessage *mm) {
     }
 
     if (mm->baro_rate_valid) {
-        printf("  Baro rate:     %d ft/min\n", mm->baro_rate);
+        printf("  Baro rate:     %6d ft/min\n", mm->baro_rate);
     }
 
     if (mm->geom_rate_valid) {
-        printf("  Geom rate:     %d ft/min\n", mm->geom_rate);
+        printf("  Geom rate:     %6d ft/min\n", mm->geom_rate);
     }
 
     if (mm->squawk_valid) {
@@ -2088,8 +2088,8 @@ void displayModesMessage(struct modesMessage *mm) {
                 mm->cpr_odd ? "odd" : "even");
 
         if (mm->cpr_decoded) {
-            printf("  CPR latitude:  %.6f (%u)\n"
-                    "  CPR longitude: %.6f (%u)\n"
+            printf("  CPR latitude:  %11.6f (%5u)\n"
+                    "  CPR longitude: %11.6f (%5u)\n"
                     "  CPR decoding:  %s\n"
                     "  NIC:           %u\n"
                     "  Rc:            %.3f km / %.1f NM\n",
@@ -2197,11 +2197,11 @@ void displayModesMessage(struct modesMessage *mm) {
     }
 
     if (mm->nav.heading_valid)
-        printf("  Selected heading:        %.1f\n", mm->nav.heading);
+        printf("  Selected heading: %5.1f\n", mm->nav.heading);
     if (mm->nav.fms_altitude_valid)
-        printf("  FMS selected altitude:   %u ft\n", mm->nav.fms_altitude);
+        printf("  FMS selected altitude:      %5u ft\n", mm->nav.fms_altitude);
     if (mm->nav.mcp_altitude_valid)
-        printf("  MCP selected altitude:   %u ft\n", mm->nav.mcp_altitude);
+        printf("  MCP selected altitude:      %5u ft\n", mm->nav.mcp_altitude);
     if (mm->nav.qnh_valid)
         printf("  QNH:                     %.1f millibars\n", mm->nav.qnh);
     if (mm->nav.altitude_source != NAV_ALT_INVALID) {
