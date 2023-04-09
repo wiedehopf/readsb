@@ -51,6 +51,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include <sched.h>
 #include "readsb.h"
 #include "help.h"
 
@@ -773,7 +774,7 @@ static void *decodeEntryPoint(void *arg) {
 
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
-    int64_t now = mstime();
+    int64_t now;
     int64_t mono = mono_milli_seconds();
     if (Modes.net_only) {
         while (!Modes.exit) {
@@ -1166,7 +1167,7 @@ static void backgroundTasks(int64_t now) {
 
     static int64_t next_flip = 0;
     if (now >= next_flip) {
-        icaoFilterExpire(now);
+        icaoFilterExpire();
         next_flip = now + MODES_ICAO_FILTER_TTL;
     }
 
@@ -1777,7 +1778,11 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                     }
                 }
                 if (strcasecmp(token[0], "apiThreads") == 0) {
-                    Modes.apiThreadCount = atoi(token[1]);
+                    if (token[1]) {
+                        Modes.apiThreadCount = atoi(token[1]);
+                    } else {
+                        Modes.apiThreadCount = 1;
+                    }
                 }
                 if (strcasecmp(token[0], "accept_synthetic") == 0) {
                     Modes.dump_accept_synthetic_now = 1;
