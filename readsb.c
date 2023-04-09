@@ -774,7 +774,7 @@ static void *decodeEntryPoint(void *arg) {
 
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
-    int64_t now;
+    int64_t now = mstime();
     int64_t mono = mono_milli_seconds();
     if (Modes.net_only) {
         while (!Modes.exit) {
@@ -1780,8 +1780,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (strcasecmp(token[0], "apiThreads") == 0) {
                     if (token[1]) {
                         Modes.apiThreadCount = atoi(token[1]);
-                    } else {
-                        Modes.apiThreadCount = 1;
                     }
                 }
                 if (strcasecmp(token[0], "accept_synthetic") == 0) {
