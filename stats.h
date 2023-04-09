@@ -187,10 +187,10 @@ void display_total_short_range_stats();
 
 void add_timespecs (const struct timespec *x, const struct timespec *y, struct timespec *z);
 
-struct char_buffer generateStatusJson();
-struct char_buffer generateStatusProm();
-struct char_buffer generateStatsJson();
-struct char_buffer generatePromFile();
+struct char_buffer generateStatusJson(int64_t now);
+struct char_buffer generateStatusProm(int64_t now);
+struct char_buffer generateStatsJson(int64_t now);
+struct char_buffer generatePromFile(int64_t now);
 
 void statsUpdate(int64_t now);
 void checkDisplayStats(int64_t now);
