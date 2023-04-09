@@ -678,9 +678,9 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
         int newfds[16];
         int nfds, i;
 
-        int unix = 0;
+        int is_unix = 0;
         if (strncmp(p, "unix:", 5) == 0) {
-            unix = 1;
+            is_unix = 1;
             p += 5;
         }
 
@@ -698,7 +698,7 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
             buf[len] = 0;
             p = end + 1;
         }
-        if (unix) {
+        if (is_unix) {
             if (service->unixSocket) {
                 fprintf(stderr, "Multiple unix sockets per service are not supported! %s (%s): %s\n",
                         buf, service->descr, Modes.aneterr);
