@@ -224,7 +224,7 @@ typedef union __packed {
 
 void netUseMessage(struct modesMessage *mm);
 void netDrainMessageBuffers();
-struct modesMessage *netGetMM();
+struct modesMessage *netGetMM(struct messageBuffer *buf);
 
 
 #endif
