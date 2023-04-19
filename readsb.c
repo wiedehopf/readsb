@@ -356,6 +356,15 @@ int priorityTasksPending() {
 //
 
 void priorityTasksRun() {
+    if (0) {
+        int64_t now = mstime();
+        time_t nowTime = floor(now / 1000.0);
+        struct tm local;
+        gmtime_r(&nowTime, &local);
+        char timebuf[512];
+        strftime(timebuf, 128, "%T", &local);
+        printf("priorityTasksRun: utcTime: %s.%03lld epoch: %.3f\n", timebuf, (long long) now % 1000, now / 1000.0);
+    }
     pthread_mutex_lock(&Modes.hungTimerMutex);
     startWatch(&Modes.hungTimer1);
     pthread_mutex_unlock(&Modes.hungTimerMutex);
@@ -378,7 +387,7 @@ void priorityTasksRun() {
 
     static int64_t last_periodic_mono;
     int64_t periodic_interval = mono - last_periodic_mono;
-    if (periodic_interval > 5 * SECONDS && last_periodic_mono && !(Modes.syntethic_now_suppress_errors && Modes.synthetic_now)) {
+    if (periodic_interval > 5 * SECONDS && periodic_interval < 9999 * HOURS && last_periodic_mono && !(Modes.syntethic_now_suppress_errors && Modes.synthetic_now)) {
         fprintf(stderr, "<3> priorityTasksRun didn't run for %.1f seconds!\n", periodic_interval / 1000.0);
     }
     last_periodic_mono = mono;
@@ -408,7 +417,7 @@ void priorityTasksRun() {
         traceDelete();
 
         int64_t interval = mono - Modes.next_remove_stale;
-        if (interval > 5 * SECONDS && Modes.next_remove_stale && !(Modes.syntethic_now_suppress_errors && Modes.synthetic_now)) {
+        if (interval > 5 * SECONDS && interval < 9999 * HOURS && Modes.next_remove_stale && !(Modes.syntethic_now_suppress_errors && Modes.synthetic_now)) {
             fprintf(stderr, "<3> removeStale didn't run for %.1f seconds!\n", interval / 1000.0);
         }
 
@@ -781,6 +790,7 @@ static void *decodeEntryPoint(void *arg) {
             struct timespec start_time;
 
             // in case we're not waiting in backgroundTasks and priorityTasks doesn't have a chance to schedule
+            mono = mono_milli_seconds();
             if (mono > Modes.next_remove_stale + 5 * SECONDS) {
                 threadTimedWait(&Threads.decode, &ts, 1);
             }
@@ -861,8 +871,13 @@ static void *decodeEntryPoint(void *arg) {
                  */
                 threadTimedWait(&Threads.decode, &ts, 80);
             }
-            if (mono > Modes.next_remove_stale + 5 * SECONDS) {
-                threadTimedWait(&Threads.decode, &ts, 1);
+            mono = mono_milli_seconds();
+            // if removeStale is late by REMOVE_STALE_INTERVAL, force it to run
+            if (mono > Modes.next_remove_stale + REMOVE_STALE_INTERVAL) {
+                //fprintf(stderr, "%.3f >? %3.f\n", mono / 1000.0, (Modes.next_remove_stale + REMOVE_STALE_INTERVAL)/ 1000.0);
+                pthread_mutex_unlock(&Threads.decode.mutex);
+                priorityTasksRun();
+                pthread_mutex_lock(&Threads.decode.mutex);
             }
         }
         sdrCancel();
