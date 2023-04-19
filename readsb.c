@@ -1909,10 +1909,22 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptPlutoUri:
         case OptPlutoNetwork:
 #endif
-        case OptDeviceType:
+            if (Modes.sdr_type == SDR_NONE) {
+                fprintf(stderr, "ERROR: SDR / device type specific options must be specified AFTER the --device-type xyz parameter.\n");
+                return ARGP_ERR_UNKNOWN;
+            }
             /* Forward interface option to the specific device handler */
-            if (sdrHandleOption(key, arg) == false)
-                return 1;
+            if (sdrHandleOption(key, arg) == false) {
+                fprintf(stderr, "ERROR: Unknown SDR specific option / Mismatch between option and specified device type.\n");
+                return ARGP_ERR_UNKNOWN;
+            }
+            break;
+        case OptDeviceType:
+            // Select device type
+            if (sdrHandleOption(key, arg) == false) {
+                fprintf(stderr, "ERROR: Unknown device type:%s\n", arg);
+                return ARGP_ERR_UNKNOWN;
+            }
             break;
         case ARGP_KEY_ARG:
             return ARGP_ERR_UNKNOWN;
@@ -1980,6 +1992,7 @@ int parseCommandLine(int argc, char **argv) {
     struct argp argp = {options, parse_opt, args_doc, doc, NULL, NULL, NULL};
 
     if (argp_parse(&argp, argc, argv, ARGP_NO_EXIT, 0, 0)) {
+        fprintf(stderr, "Error parsing the given command line parameters, check readsb --usage and readsb --help for valid parameters.\n");
         print_commandline(argc, argv);
         cleanup_and_exit(1);
     }

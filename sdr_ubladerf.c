@@ -60,6 +60,8 @@ bool ubladeRFHandleOption(int argc, char *argv) {
                 uBladeRF.lpf_bandwidth = atoi(argv);
             }
             break;
+        default:
+            return false;
     }
     return true;
 }

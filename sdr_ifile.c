@@ -102,6 +102,8 @@ bool ifileHandleOption(int argc, char *argv) {
         case OptIfileThrottle:
             ifile.throttle = true;
             break;
+        default:
+            return false;
     }
     return true;
 }

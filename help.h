@@ -67,7 +67,7 @@ static struct argp_option optionsReadsb[] = {
     {"show-only", OptShowOnly, "<addr>", 0, "Show only messages by given ICAO on stdout", 1},
     {"filter-DF", OptFilterDF, "<type>", 0, "When displaying decoded ModeS messages on stdout only show this DF type", 1},
     {"aggressive", OptAggressive, 0, OPTION_HIDDEN, "Enable two-bit CRC error correction", 1},
-    {"device-type", OptDeviceType, "<type>", 0, "Select SDR type", 1},
+    {"device-type", OptDeviceType, "<type>", 0, "Select SDR type (this needs to be placed on the command line before any SDR type specific options)", 1},
     {"gain", OptGain, "<db>", 0, "Set gain (default: max gain. Use -10 for auto-gain)", 1},
     {"freq", OptFreq, "<hz>", 0, "Set frequency (default: 1090 MHz)", 1},
     {"interactive", OptInteractive, 0, 0, "Interactive mode refreshing data on screen. Implies --throttle", 1},
@@ -184,7 +184,7 @@ static struct argp_option optionsReadsb[] = {
     {0,0,0,0, "ifile-specific options, use with --ifile:", 7},
     {"ifile", OptIfileName, "<path>", 0, "Read samples from given file ('-' for stdin)", 7},
     {"iformat", OptIfileFormat, "<type>", 0, "Set sample format (UC8, SC16, SC16Q11)", 7},
-    {"throttle", OptIfileThrottle, 0, 0, "Process samples at the original capture speed", 7},
+    {"throttle", OptIfileThrottle, 0, 0, "Process samples at the original capture speed (must be specified after --device-type ifile)", 7},
 #ifdef ENABLE_PLUTOSDR
     {0,0,0,0, "ADALM-Pluto SDR options:", 8},
     {0,0,0, OPTION_DOC, "use with --device-type plutosdr", 8},

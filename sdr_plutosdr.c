@@ -57,6 +57,8 @@ bool plutosdrHandleOption(int argc, char *argv)
         case OptPlutoNetwork:
             PLUTOSDR.network = strdup(argv);
             break;
+        default:
+            return false;
     }
     return true;
 }

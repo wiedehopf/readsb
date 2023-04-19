@@ -150,6 +150,8 @@ bool rtlsdrHandleOption(int argc, char *argv) {
         case OptRtlSdrPpm:
             RTLSDR.ppm_error = atoi(argv);
             break;
+        default:
+            return false;
     }
     return true;
 }
