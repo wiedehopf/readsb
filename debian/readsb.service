@@ -15,8 +15,11 @@ ExecStart=/usr/bin/readsb \
  $RECEIVER_OPTIONS $DECODER_OPTIONS $NET_OPTIONS $JSON_OPTIONS \
  --write-json /run/readsb --quiet
 Type=simple
-Restart=on-failure
-RestartSec=30
+Type=simple
+Restart=always
+RestartSec=15
+StartLimitInterval=1
+StartLimitBurst=100
 Nice=-5
 
 [Install]
