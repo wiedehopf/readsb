@@ -2258,7 +2258,7 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
             bytes[p++] = (alt & 0xff00) >> 8;
             bytes[p++] = alt & 0xff;
         }
-	else if (mm->geom_delta_valid){
+	else if (mm->geom_delta_valid && mm->baro_alt_valid){
 	    fspec[2] |= 1 << 6;
 	    int16_t alt = (int)((mm->baro_alt + mm->geom_delta) / 6.25);
 	    bytes[p++] = (alt & 0xff00) >> 8;
