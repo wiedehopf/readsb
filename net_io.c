@@ -2066,19 +2066,19 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
 	    }
             if (fspec[3] & 0x8){ // ID021/160 Airborne Ground Vector
 	    	if (*p & 0x80){ //range exceeded
-		    p += 4;
-		}
-		else{
-		    uint16_t gs = ((*p & 0x7f) << 8) + ((*(p + 1) & 0xff) << 1);
-		    p += 2;
-		    uint16_t ta = ((*p & 0xff) << 8) + ((*(p + 1) & 0xff) << 1);
-		    p += 2;
-		    mm->gs_valid = true;
-		    mm->heading_valid = true;
-		    mm->heading_type = HEADING_GROUND_TRACK;
-		    mm->gs.v0 = gs * pow(2, -14) * 3600;
-		    mm->heading = ta * (360 / pow(2, 16));
-		}
+		        p += 4;
+            }
+            else{
+                uint16_t gs = ((*p & 0x7f) << 8) + ((*(p + 1) & 0xff));
+                p += 2;
+                uint16_t ta = ((*p & 0xff) << 8) + ((*(p + 1) & 0xff));
+                p += 2;
+                mm->gs_valid = true;
+                mm->heading_valid = true;
+                mm->heading_type = HEADING_GROUND_TRACK;
+                mm->gs.v0 = gs * pow(2, -14) * 3600;
+                mm->heading = ta * (360 / pow(2, 16));
+            }
 	    }
 	    if (fspec[3] & 0x4){ // ID021/165 Track Angle Rate
 	    	p += 2;
@@ -2375,7 +2375,7 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
         // I021/160 Airborne Ground Vector 
         if (mm->gs_valid && mm->heading_valid && mm->heading_type == HEADING_GROUND_TRACK){
             fspec[3] |= 1 << 3;
-            double adj_gs = (mm->gs.v0 / 3600.0) / pow(2, -14);
+            double adj_gs = mm->gs.v0 * 4.5511;
             bytes[p++] = ((int)adj_gs & 0x7f00) >> 8;
             bytes[p++] = (int)adj_gs & 0xff;
             double adj_trk = mm->heading * (pow(2,16) / 360.0);
