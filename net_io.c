@@ -2220,7 +2220,11 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
         bytes[p++] = (mm->addr & 0xff0000) >> 16;
         bytes[p++] = (mm->addr & 0xff00) >> 8;
         bytes[p++] = (mm->addr & 0xff);
-
+        struct aircraft *a = aircraftGet(mm->addr);
+        if (!a) { // If it's a currently unknown aircraft....
+            a = aircraftCreate(mm->addr); // ., create a new record for it,
+        }
+    
         // I021/073 Time of Message Reception of Position 
         if (fspec[0] & 0b10){
             fspec[1] |= 1 << 3;
@@ -2258,12 +2262,12 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
             bytes[p++] = (alt & 0xff00) >> 8;
             bytes[p++] = alt & 0xff;
         }
-	else if (mm->geom_delta_valid && mm->baro_alt_valid){
-	    fspec[2] |= 1 << 6;
-	    int16_t alt = (int)((mm->baro_alt + mm->geom_delta) / 6.25);
-	    bytes[p++] = (alt & 0xff00) >> 8;
-	    bytes[p++] = alt & 0xff;
-	}
+        else if (mm->geom_delta_valid){
+            fspec[2] |= 1 << 6;
+            int16_t alt = (int)((a->baro_alt + mm->geom_delta) / 6.25);
+            bytes[p++] = (alt & 0xff00) >> 8;
+            bytes[p++] = alt & 0xff;
+        }
         // I021/090 Quality Indicators
         fspec[2] |= 1 << 5;
         if (mm->accuracy.nac_v_valid)
