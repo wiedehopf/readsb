@@ -1850,273 +1850,272 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
     mm->sysTimestamp = -1;
     switch(category){
     	case 21: // ADS-B Message
-	;
-	    if(!(fspec[1] & 0x10)){ // no address. this is useless to us
-	    	free(fspec);
-		return -1;
-	    }
-	    if (fspec[0] & 0x80){ // ID021/010 Data Source Identification
-	        p += 2;
-	    }
-	    if (fspec[0] & 0x40){ // ID021/040 Target Report Descriptor
-	        uint8_t *trd = readFspec(&p);
-	        if (trd[1] & 0x40){
-		    mm->airground = AG_GROUND;
-		}
-		else {
-		    mm->airground = AG_AIRBORNE;
-		}
-		free(trd);
-	    }
-	    if (fspec[0] & 0x20){ // I021/161 Track Number
-	    	p += 2;
-	    }
-	    if (fspec[0] & 0x10){ // I021/015 Service Identification 
-               	p += 1;
+            if(!(fspec[1] & 0x10)){ // no address. this is useless to us
+                free(fspec);
+                return -1;
+            }
+            if (fspec[0] & 0x80){ // ID021/010 Data Source Identification
+                p += 2;
+            }
+            if (fspec[0] & 0x40){ // ID021/040 Target Report Descriptor
+                uint8_t *trd = readFspec(&p);
+                if (trd[1] & 0x40){
+                mm->airground = AG_GROUND;
+            }
+            else {
+                mm->airground = AG_AIRBORNE;
+            }
+            free(trd);
+            }
+            if (fspec[0] & 0x20){ // I021/161 Track Number
+                p += 2;
+            }
+            if (fspec[0] & 0x10){ // I021/015 Service Identification 
+                p += 1;
             }
             if (fspec[0] & 0x8){ // I021/071 Time of Applicability for Position 3
-               	mm->sysTimestamp = readAsterixTime(&p);           
-	    }
-	    if (fspec[0] & 0x4){ // I021/130 Position in WGS-84 co-ordinates
-	        int lat = (*p & 0xff) << 16;
-		lat += (*(p + 1) & 0xff) << 8;
-		lat += (*(p + 2) & 0xff);
-		p += 3;
-		int lon = (*p & 0xff) << 16;
-		lon += (*(p + 1) & 0xff) << 8;
-		lon += (*(p + 2) & 0xff);
-		p += 3;
-		if (lat >= 0x800000){
-		    lat -= 0x1000000;
-		}
-		if (lon >= 0x800000){
-		    lon -= 0x1000000;
-		}
-		double latitude = lat * (180 / pow(2, 23));
-		double longitude = lon * (180 / pow(2, 23));
-		if (latitude <= 90 && latitude >= -90 && longitude >= -180 && longitude <= 180){
-		    mm->cpr_decoded = true;
-		    mm->decoded_lat = latitude;
-		    mm->decoded_lon = longitude;
-		}
-	    }
-	    if (fspec[0] & 0x2){ // I021/131 Position in WGS-84 co-ordinates, high res.
-	        int lat = (*p & 0xff) << 24;
-		lat += (*(p + 1) & 0xff) << 16;
-		lat += (*(p + 2) & 0xff) << 8;
-		lat += (*(p + 3) & 0xff);
-		p += 4;
-		int lon = *p << 24;
-		lon += (*(p + 1) & 0xff) << 16;
-		lon += (*(p + 2) & 0xff) << 8;
-		lon += (*(p + 3) & 0xff);
-		p += 4;
-		double latitude = lat * (180 / pow(2, 30));
-		double longitude = lon * (180 / pow(2, 30));
-		if (latitude <= 90 && latitude >= -90 && longitude >= -180 && longitude <= 180){
-		    mm->sbs_pos_valid = true;
-		    mm->decoded_lat = latitude;
-		    mm->decoded_lon = longitude;
-		}
-	    }
-	    if (fspec[1] & 0x80){ // I021/072 Time of Applicability for Velocity
-	    	if (mm->sysTimestamp == -1){
-		    mm->sysTimestamp = readAsterixTime(&p);
-		}
-		else {
-		    p += 3;
-		}
-	    }
-	    if (fspec[1] & 0x40){ // I021/150 Air Speed
-		uint16_t raw_speed = (*p & 0x7f) << 8;
-		raw_speed += *(p + 1) & 0xff;
-	    	if (*p & 0x80){ //Mach
-		    mm->mach = raw_speed * 0.001;
-		    mm->mach_valid = true;
-		}
-		else{ // IAS
-		    mm->ias = (raw_speed * pow(2, -14)) * 3600;
-		    mm->ias_valid = true;
-		}
-		p += 2;
-	    }
-	    if (fspec[1] & 0x20){ // I021/151 True Airspeed
-		uint16_t raw_speed = (*p & 0x7f) << 8;
-		raw_speed += *(p + 1) & 0xff;
-	    	if (!(*p & 0x80)){
-		    mm->tas_valid = true;
-		    mm->tas = raw_speed;
-		}
-		p += 2;
-	    }			  // I021/080 Target Address
-	    mm->addr = (((*p & 0xff) << 16) + ((*(p + 1) & 0xff) << 8) + (*(p + 2) & 0xff)) & 0xffffff;
-	    p += 3;
-	    //printf("Addr: %x ", mm->addr);
-	    if (fspec[1] & 0x8){ // I021/073 Time of Message Reception of Position
-	    	if (mm->cpr_decoded){
-	            uint64_t ts = readAsterixTime(&p);
-		    if (fspec[1] & 0x4){ // I021/074 Time of Message Reception of Position=High Precision
-		        readAsterixHighPrecisionTime(&ts, &p);
-		    }
-		    if (mm->sysTimestamp == -1){
-		    	mm->sysTimestamp = ts;
-		    }
-		}
-		else if (fspec[1] & 0x4) {
-		    p += 7;
-		}
-		else {
-		    p += 3;
-		}
-	    }
-	    if (fspec[1] & 0x2){ // I021/075 Time of Message Reception of Velocity
-	    	if (mm->ias_valid || mm->mach_valid || mm->gs_valid){
-	            uint64_t ts = readAsterixTime(&p);
-		    if (fspec[2] & 0x80){ // I021/074 Time of Message Reception of Velocity=High Precision
-		        readAsterixHighPrecisionTime(&ts, &p);
-		    }
-		    if (mm->sysTimestamp == -1){
-		    	mm->sysTimestamp = ts;
-		    }
-		}
-		else if (fspec[2] & 0x80) {
-		    p += 7;
-		}
-		else {
-		    p += 3;
-		}
-	    }
-	    if (fspec[2] & 0x40){ // I021/140 Geometric Height
-	    	int16_t raw_alt = (((*p & 0xff) << 8) + (*(p + 1) & 0xff));
-		double alt = raw_alt * 6.25;
-		if (alt >= -1500 && alt <= 150000){
-		    mm->geom_alt_valid = true;
-		    mm->geom_alt_unit = UNIT_FEET;
-		    mm->geom_alt = alt;
-		}
-		p += 2;
-	    }
-	    if (fspec[2] & 0x20){ // I021/090 Quality Indicators
-	    	uint8_t *qi = readFspec(&p);
-                free(qi);
-	    }
-	    if (fspec[2] & 0x10){ // I021/210 MOPS Version
-	        mm->opstatus.version = ((*p) & 0x38) >> 3;
-		p++;
-		//uint8_t ltt = ((*p) & 0x7);
-	    }
-	    if (fspec[2] & 0x8){ // I021/070 Mode 3/A Code
-		mm->squawk += (((*p & 0xe) << 11) + ((*p & 0x1) << 10) + ((*(p + 1) & 0xC0) << 2) + ((*(p + 1) & 0x38) << 1) + ((*(p + 1) & 0x7))) ;
-		mm->squawk_valid = true;
-		p += 2;
-	    }
-	    if (fspec[2] & 0x4){ // I021/230 Roll Angle
-	    	int16_t roll = ((*p & 0xff) << 8) + (*(p + 1) & 0xff);
-	    	mm->roll = roll * 0.01;
-		mm->roll_valid = true;
-		p += 2;
-	    }
-	    if (fspec[2] & 0x2){ // I021/045 Flight Level
-	    	int16_t alt = ((*p & 0xff) << 8) + (*(p + 1) & 0xff);
-		mm->baro_alt_valid = true;
-		mm->baro_alt = alt * 25;
-		mm->baro_alt_unit = UNIT_FEET;
-		p += 2;
-	    }
-	    if (fspec[3] & 0x80){ // I021/152 Magnetic Heading
-	    	mm->heading_valid = true;
-		mm->heading_type = HEADING_MAGNETIC;
-		uint16_t heading = ((*p & 0xff) << 8) + (*(p + 1) & 0xff);
-		mm->heading = heading * (360 / pow(2, 16));
-		p += 2;
-	    }
-	    if (fspec[3] & 0x40){ // I021/200 Target Status
-	    	mm->spi_valid = true;
-		mm->alert_valid = true;
-		mm->emergency_valid = true;
-		mm->nav.modes_valid = true;
-		mm->nav.modes |= (*p & 0b01000000) >> 4;
-		mm->emergency = (*p & 0b00011100) >> 2;
-		mm->alert = (*p & 0b11);
-		mm->spi = (*p & 0b11) == 3;
-		p++;
-	    }
-	    if (fspec[3] & 0x20){ // ID021/155 Barometric Vertical Rate
-	    	if (*p & 0x80){ //range exceeded
-		    p += 2;
-		}
-		else{
-		    int16_t vr = ((*p & 0x7f) << 9) + ((*(p + 1) & 0xff) << 1);
-		    mm->baro_rate_valid = true;
-		    mm->baro_rate = vr * 3.125;
-		    p += 2;
-		}
-	    }
-	    if (fspec[3] & 0x10){ // ID021/157 Geometric Vertical Rate
-	    	if (*p & 0x80){ //range exceeded
-		    p += 2;
-		}
-		else{
-		    int16_t vr = ((*p & 0x7f) << 9) + ((*(p + 1) & 0xff) << 1);
-		    mm->geom_rate_valid = true;
-		    mm->geom_rate = vr * 3.125;
-		    p += 2;
-		}
-	    }
-            if (fspec[3] & 0x8){ // ID021/160 Airborne Ground Vector
-	    	if (*p & 0x80){ //range exceeded
-		        p += 4;
+                mm->sysTimestamp = readAsterixTime(&p);           
+            }
+            if (fspec[0] & 0x4){ // I021/130 Position in WGS-84 co-ordinates
+                int lat = (*p & 0xff) << 16;
+                lat += (*(p + 1) & 0xff) << 8;
+                lat += (*(p + 2) & 0xff);
+                p += 3;
+                int lon = (*p & 0xff) << 16;
+                lon += (*(p + 1) & 0xff) << 8;
+                lon += (*(p + 2) & 0xff);
+                p += 3;
+                if (lat >= 0x800000){
+                    lat -= 0x1000000;
+                }
+                if (lon >= 0x800000){
+                    lon -= 0x1000000;
+                }
+                double latitude = lat * (180 / pow(2, 23));
+                double longitude = lon * (180 / pow(2, 23));
+                if (latitude <= 90 && latitude >= -90 && longitude >= -180 && longitude <= 180){
+                    mm->cpr_decoded = true;
+                    mm->decoded_lat = latitude;
+                    mm->decoded_lon = longitude;
+                }
+            }
+            if (fspec[0] & 0x2){ // I021/131 Position in WGS-84 co-ordinates, high res.
+                int lat = (*p & 0xff) << 24;
+                lat += (*(p + 1) & 0xff) << 16;
+                lat += (*(p + 2) & 0xff) << 8;
+                lat += (*(p + 3) & 0xff);
+                p += 4;
+                int lon = *p << 24;
+                lon += (*(p + 1) & 0xff) << 16;
+                lon += (*(p + 2) & 0xff) << 8;
+                lon += (*(p + 3) & 0xff);
+                p += 4;
+                double latitude = lat * (180 / pow(2, 30));
+                double longitude = lon * (180 / pow(2, 30));
+                if (latitude <= 90 && latitude >= -90 && longitude >= -180 && longitude <= 180){
+                    mm->sbs_pos_valid = true;
+                    mm->decoded_lat = latitude;
+                    mm->decoded_lon = longitude;
+                }
+                }
+                if (fspec[1] & 0x80){ // I021/072 Time of Applicability for Velocity
+                    if (mm->sysTimestamp == -1){
+                    mm->sysTimestamp = readAsterixTime(&p);
+                }
+                else {
+                    p += 3;
+                }
+            }
+            if (fspec[1] & 0x40){ // I021/150 Air Speed
+                uint16_t raw_speed = (*p & 0x7f) << 8;
+                raw_speed += *(p + 1) & 0xff;
+                    if (*p & 0x80){ //Mach
+                    mm->mach = raw_speed * 0.001;
+                    mm->mach_valid = true;
+                }
+                else{ // IAS
+                    mm->ias = (raw_speed * pow(2, -14)) * 3600;
+                    mm->ias_valid = true;
+                }
+                p += 2;
+            }
+            if (fspec[1] & 0x20){ // I021/151 True Airspeed
+                uint16_t raw_speed = (*p & 0x7f) << 8;
+                raw_speed += *(p + 1) & 0xff;
+                    if (!(*p & 0x80)){
+                    mm->tas_valid = true;
+                    mm->tas = raw_speed;
+                }
+                p += 2;
+            }			  
+            // I021/080 Target Address
+            mm->addr = (((*p & 0xff) << 16) + ((*(p + 1) & 0xff) << 8) + (*(p + 2) & 0xff)) & 0xffffff;
+            p += 3;
+            if (fspec[1] & 0x8){ // I021/073 Time of Message Reception of Position
+                if (mm->cpr_decoded){
+                    uint64_t ts = readAsterixTime(&p);
+                    if (fspec[1] & 0x4){ // I021/074 Time of Message Reception of Position=High Precision
+                        readAsterixHighPrecisionTime(&ts, &p);
+                    }
+                    if (mm->sysTimestamp == -1){
+                        mm->sysTimestamp = ts;
+                    }
+                }
+                else if (fspec[1] & 0x4) {
+                    p += 7;
+                }
+                else {
+                    p += 3;
+                }
+            }
+            if (fspec[1] & 0x2){ // I021/075 Time of Message Reception of Velocity
+                if (mm->ias_valid || mm->mach_valid || mm->gs_valid){
+                    uint64_t ts = readAsterixTime(&p);
+                    if (fspec[2] & 0x80){ // I021/074 Time of Message Reception of Velocity=High Precision
+                        readAsterixHighPrecisionTime(&ts, &p);
+                    }
+                    if (mm->sysTimestamp == -1){
+                        mm->sysTimestamp = ts;
+                    }
+                }
+                else if (fspec[2] & 0x80) {
+                    p += 7;
+                }
+                else {
+                    p += 3;
+                }
+            }
+            if (fspec[2] & 0x40){ // I021/140 Geometric Height
+                int16_t raw_alt = (((*p & 0xff) << 8) + (*(p + 1) & 0xff));
+            double alt = raw_alt * 6.25;
+            if (alt >= -1500 && alt <= 150000){
+                mm->geom_alt_valid = true;
+                mm->geom_alt_unit = UNIT_FEET;
+                mm->geom_alt = alt;
+            }
+            p += 2;
+            }
+            if (fspec[2] & 0x20){ // I021/090 Quality Indicators
+                uint8_t *qi = readFspec(&p);
+                    free(qi);
+            }
+            if (fspec[2] & 0x10){ // I021/210 MOPS Version
+                mm->opstatus.version = ((*p) & 0x38) >> 3;
+            p++;
+            //uint8_t ltt = ((*p) & 0x7);
+            }
+            if (fspec[2] & 0x8){ // I021/070 Mode 3/A Code
+                mm->squawk += (((*p & 0xe) << 11) + ((*p & 0x1) << 10) + ((*(p + 1) & 0xC0) << 2) + ((*(p + 1) & 0x38) << 1) + ((*(p + 1) & 0x7))) ;
+                mm->squawk_valid = true;
+                p += 2;
+            }
+            if (fspec[2] & 0x4){ // I021/230 Roll Angle
+                int16_t roll = ((*p & 0xff) << 8) + (*(p + 1) & 0xff);
+                mm->roll = roll * 0.01;
+                mm->roll_valid = true;
+                p += 2;
+            }
+            if (fspec[2] & 0x2){ // I021/045 Flight Level
+                int16_t alt = ((*p & 0xff) << 8) + (*(p + 1) & 0xff);
+                mm->baro_alt_valid = true;
+                mm->baro_alt = alt * 25;
+                mm->baro_alt_unit = UNIT_FEET;
+                p += 2;
+            }
+            if (fspec[3] & 0x80){ // I021/152 Magnetic Heading
+                mm->heading_valid = true;
+                mm->heading_type = HEADING_MAGNETIC;
+                uint16_t heading = ((*p & 0xff) << 8) + (*(p + 1) & 0xff);
+                mm->heading = heading * (360 / pow(2, 16));
+                p += 2;
+            }
+            if (fspec[3] & 0x40){ // I021/200 Target Status
+                mm->spi_valid = true;
+                mm->alert_valid = true;
+                mm->emergency_valid = true;
+                mm->nav.modes_valid = true;
+                mm->nav.modes |= (*p & 0b01000000) >> 4;
+                mm->emergency = (*p & 0b00011100) >> 2;
+                mm->alert = (*p & 0b11);
+                mm->spi = (*p & 0b11) == 3;
+                p++;
+            }
+            if (fspec[3] & 0x20){ // ID021/155 Barometric Vertical Rate
+                if (*p & 0x80){ //range exceeded
+                p += 2;
             }
             else{
-                uint16_t gs = ((*p & 0x7f) << 8) + ((*(p + 1) & 0xff));
+                int16_t vr = ((*p & 0x7f) << 9) + ((*(p + 1) & 0xff) << 1);
+                mm->baro_rate_valid = true;
+                mm->baro_rate = vr * 3.125;
                 p += 2;
-                uint16_t ta = ((*p & 0xff) << 8) + ((*(p + 1) & 0xff));
-                p += 2;
-                mm->gs_valid = true;
-                mm->heading_valid = true;
-                mm->heading_type = HEADING_GROUND_TRACK;
-                mm->gs.v0 = gs * pow(2, -14) * 3600;
-                mm->heading = ta * (360 / pow(2, 16));
             }
-	    }
-	    if (fspec[3] & 0x4){ // ID021/165 Track Angle Rate
-	    	p += 2;
-	    }
-	    if (fspec[3] & 0x2){ // ID021/077 Time of Report Transmission
-		uint64_t tt = readAsterixTime(&p);
-		if (mm->sysTimestamp == -1){
-		    mm->sysTimestamp = tt;
-		}
-	    }
-	    if (fspec[4] & 0x80){ // ID021/170 Target Identification
-	    	uint64_t cs = ((uint64_t)(*p & 0xff) << 40) + ((uint64_t)(*(p + 1) & 0xff) << 32) + ((uint64_t)(*(p + 2) & 0xff) << 24) + ((uint64_t)(*(p + 3) & 0xff) << 16) + ((uint64_t)(*(p + 4) & 0xff) << 8) + (uint64_t)(*(p + 5) & 0xff);
-		char *callsign = mm->callsign;
-		callsign[0] = ais_charset[((cs & 0xFC0000000000) >> 42)];
-		callsign[1] = ais_charset[((cs & 0x3F000000000) >> 36)];
-		callsign[2] = ais_charset[((cs & 0xFC0000000) >> 30)];
-		callsign[3] = ais_charset[((cs & 0x3F000000) >> 24)];
-		callsign[4] = ais_charset[((cs & 0xFC0000) >> 18)];
-		callsign[5] = ais_charset[((cs & 0x3F000) >> 12)];
-		callsign[6] = ais_charset[((cs & 0xFC0) >> 6)];
-		callsign[7] = ais_charset[(cs & 0x3F)];
-		callsign[8] = 0;
-		mm->callsign_valid = 1;
-    		for (int i = 0; i < 8; ++i) {
-        	    if (
-                        (callsign[i] >= 'A' && callsign[i] <= 'Z')
-                        // -./0123456789
-                        || (callsign[i] >= '-' && callsign[i] <= '9')
-                        || callsign[i] == ' '
-                        || callsign[i] == '@'
-                    ) {
-                    // valid chars
-                    } else {
-                        mm->callsign_valid = 0;
-        	    }
-    		}
-	    p += 6;
-	    }
-
+            }
+            if (fspec[3] & 0x10){ // ID021/157 Geometric Vertical Rate
+                if (*p & 0x80){ //range exceeded
+                p += 2;
+            }
+            else{
+                int16_t vr = ((*p & 0x7f) << 9) + ((*(p + 1) & 0xff) << 1);
+                mm->geom_rate_valid = true;
+                mm->geom_rate = vr * 3.125;
+                p += 2;
+            }
+            }
+            if (fspec[3] & 0x8){ // ID021/160 Airborne Ground Vector
+                if (*p & 0x80){ //range exceeded
+                    p += 4;
+                }
+                else{
+                    uint16_t gs = ((*p & 0x7f) << 8) + ((*(p + 1) & 0xff));
+                    p += 2;
+                    uint16_t ta = ((*p & 0xff) << 8) + ((*(p + 1) & 0xff));
+                    p += 2;
+                    mm->gs_valid = true;
+                    mm->heading_valid = true;
+                    mm->heading_type = HEADING_GROUND_TRACK;
+                    mm->gs.v0 = gs * pow(2, -14) * 3600;
+                    mm->heading = ta * (360 / pow(2, 16));
+                }
+            }
+            if (fspec[3] & 0x4){ // ID021/165 Track Angle Rate
+                p += 2;
+            }
+            if (fspec[3] & 0x2){ // ID021/077 Time of Report Transmission
+            uint64_t tt = readAsterixTime(&p);
+            if (mm->sysTimestamp == -1){
+                mm->sysTimestamp = tt;
+            }
+            }
+            if (fspec[4] & 0x80){ // ID021/170 Target Identification
+                uint64_t cs = ((uint64_t)(*p & 0xff) << 40) + ((uint64_t)(*(p + 1) & 0xff) << 32) + ((uint64_t)(*(p + 2) & 0xff) << 24) + ((uint64_t)(*(p + 3) & 0xff) << 16) + ((uint64_t)(*(p + 4) & 0xff) << 8) + (uint64_t)(*(p + 5) & 0xff);
+                char *callsign = mm->callsign;
+                callsign[0] = ais_charset[((cs & 0xFC0000000000) >> 42)];
+                callsign[1] = ais_charset[((cs & 0x3F000000000) >> 36)];
+                callsign[2] = ais_charset[((cs & 0xFC0000000) >> 30)];
+                callsign[3] = ais_charset[((cs & 0x3F000000) >> 24)];
+                callsign[4] = ais_charset[((cs & 0xFC0000) >> 18)];
+                callsign[5] = ais_charset[((cs & 0x3F000) >> 12)];
+                callsign[6] = ais_charset[((cs & 0xFC0) >> 6)];
+                callsign[7] = ais_charset[(cs & 0x3F)];
+                callsign[8] = 0;
+                mm->callsign_valid = 1;
+                for (int i = 0; i < 8; ++i) {
+                    if (
+                            (callsign[i] >= 'A' && callsign[i] <= 'Z')
+                            // -./0123456789
+                            || (callsign[i] >= '-' && callsign[i] <= '9')
+                            || callsign[i] == ' '
+                            || callsign[i] == '@'
+                        ) {
+                        // valid chars
+                        } else {
+                            mm->callsign_valid = 0;
+                    }
+                }
+                p += 6;
+            }
+            break;
     }
     if (mm->sysTimestamp == -1){
         mm->sysTimestamp = mstime();
