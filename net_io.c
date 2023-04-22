@@ -1987,22 +1987,77 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
             }
             if (fspec[2] & 0x40){ // I021/140 Geometric Height
                 int16_t raw_alt = (((*p & 0xff) << 8) + (*(p + 1) & 0xff));
-            double alt = raw_alt * 6.25;
-            if (alt >= -1500 && alt <= 150000){
-                mm->geom_alt_valid = true;
-                mm->geom_alt_unit = UNIT_FEET;
-                mm->geom_alt = alt;
+                double alt = raw_alt * 6.25;
+                if (alt >= -1500 && alt <= 150000){
+                    mm->geom_alt_valid = true;
+                    mm->geom_alt_unit = UNIT_FEET;
+                    mm->geom_alt = alt;
+                }
+                p += 2;
             }
-            p += 2;
-            }
+            uint8_t *qi;
+            //uint8_t nucp_or_nic; 
+            uint8_t nucr_or_nacv;
+            uint8_t nicbaro;
+            uint8_t sil;
+            uint8_t nacp;
+            uint8_t sils;
+            uint8_t sda;
+            uint8_t gva;
+            //uint8_t pic;
             if (fspec[2] & 0x20){ // I021/090 Quality Indicators
-                uint8_t *qi = readFspec(&p);
-                    free(qi);
+                qi = readFspec(&p);
+                //nucp_or_nic = (qi[0] & 0x1e) >> 1;
+                nucr_or_nacv = (qi[0] & 0xe0) >> 5;
+                mm->accuracy.nac_v_valid = true;
+                mm->accuracy.nac_v = nucr_or_nacv;
+                if (qi[0] & 0x1){
+                    nicbaro = (qi[1] & 0x80) >> 7;
+                    sil = (qi[1] & 0x60) >> 5;
+                    mm->accuracy.sil = sil;
+                    nacp = (qi[1] & 0x1e) >> 1;
+                    if (qi[1] & 0x1){
+                        sils = (qi[2] & 0x20) >> 5;
+                        if (sils){
+                            mm->accuracy.sil_type = SIL_PER_SAMPLE;
+                        }
+                        else{
+                            mm->accuracy.sil_type = SIL_PER_HOUR;
+                        }
+                        sda = (qi[2] & 0x18) >> 3;
+                        gva = (qi[2] & 0x6) >> 1;
+                        //pic = (qi[3] & 0xf0) >> 4;
+                    }
+                    else{
+                        mm->accuracy.sil_type = SIL_UNKNOWN;
+                    }   
+                }
+                free(qi);
             }
             if (fspec[2] & 0x10){ // I021/210 MOPS Version
+                mm->opstatus.valid = true;
                 mm->opstatus.version = ((*p) & 0x38) >> 3;
-            p++;
-            //uint8_t ltt = ((*p) & 0x7);
+                p++;
+                switch(mm->opstatus.version){
+                    case 1:
+                        mm->accuracy.nac_p_valid = true;
+                        mm->accuracy.nac_p = nacp;
+                        mm->accuracy.nic_baro_valid = true;
+                        mm->accuracy.nic_baro = nicbaro;
+                        mm->accuracy.sil_type = SIL_UNKNOWN;
+                        break;
+                    case 2:
+                        mm->accuracy.nac_p_valid = true;
+                        mm->accuracy.nac_p = nacp;
+                        mm->accuracy.gva_valid = true;
+                        mm->accuracy.gva = gva;
+                        mm->accuracy.sda_valid = true;
+                        mm->accuracy.sda = sda;
+                        mm->accuracy.nic_baro_valid = true;
+                        mm->accuracy.nic_baro_valid = true;
+                        mm->accuracy.nic_baro = nicbaro;
+                        break;
+                }
             }
             if (fspec[2] & 0x8){ // I021/070 Mode 3/A Code
                 mm->squawk += (((*p & 0xe) << 11) + ((*p & 0x1) << 10) + ((*(p + 1) & 0xC0) << 2) + ((*(p + 1) & 0x38) << 1) + ((*(p + 1) & 0x7))) ;
@@ -2121,8 +2176,8 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
         mm->sysTimestamp = mstime();
     }
     free(fspec);
-    mm->decoded_nic = 0;
-    mm->decoded_rc = RC_UNKNOWN;
+    //mm->decoded_nic = 0;
+    //mm->decoded_rc = RC_UNKNOWN;
     netUseMessage(mm);
     return 0;    
 }
@@ -2452,13 +2507,18 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
 
         // I021/008 Aircraft Operational Status
         if (mm->opstatus.valid){
-            fspec[5] |= 1 << 7;
-            bytes[p] |= (mm->opstatus.om_acas_ra << 7);
-            bytes[p] |= (mm->opstatus.cc_tc << 5);
-            bytes[p] |= (mm->opstatus.cc_ts << 4);
-            bytes[p] |= (mm->opstatus.cc_arv << 3);
-            bytes[p] |= (mm->opstatus.cc_cdti << 2);
-            p++;
+            if (mm->opstatus.om_acas_ra || mm->opstatus.cc_tc || 
+            mm->opstatus.cc_ts || mm->opstatus.cc_arv || mm->opstatus.cc_cdti 
+            || !(mm->opstatus.cc_acas)){
+                fspec[5] |= 1 << 7;
+                bytes[p] |= (mm->opstatus.om_acas_ra & 0x1) << 7;
+                bytes[p] |= (mm->opstatus.cc_tc & 0x3) << 5;
+                bytes[p] |= (mm->opstatus.cc_ts & 0x1) << 4;
+                bytes[p] |= (mm->opstatus.cc_arv & 0x1) << 3;
+                bytes[p] |= (mm->opstatus.cc_cdti & 0x1) << 2;
+                bytes[p] |= (!(mm->opstatus.cc_acas) & 0x1) << 1;
+                p++;
+            }
         }
 
         // I021/295 Data Ages
