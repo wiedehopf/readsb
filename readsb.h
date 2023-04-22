@@ -552,6 +552,8 @@ struct _Modes
     pthread_mutex_t outputLock;
 
     int max_fds;
+    int max_fds_api;
+    int max_fds_net;
     int modesClientCount;
     int api_fds_per_thread;
     int total_aircraft_count;

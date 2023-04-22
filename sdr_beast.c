@@ -126,6 +126,8 @@ bool beastHandleOption(int argc, char *argv)
             Modes.mode_ac = 1;
             Modes.mode_ac_auto = 0;
             break;
+        default:
+            return false;
     }
     return true;
 }

@@ -64,6 +64,8 @@ bool bladeRFHandleOption(int argc, char *argv) {
                 BladeRF.lpf_bandwidth = atoi(argv);
             }
             break;
+        default:
+            return false;
     }
     return true;
 }

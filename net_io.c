@@ -692,9 +692,9 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
         int newfds[16];
         int nfds, i;
 
-        int unixSocket = 0;
+        int is_unix = 0;
         if (strncmp(p, "unix:", 5) == 0) {
-            unixSocket = 1;
+            is_unix = 1;
             p += 5;
         }
 
@@ -712,7 +712,7 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
             buf[len] = 0;
             p = end + 1;
         }
-        if (unixSocket) {
+        if (is_unix) {
             if (service->unixSocket) {
                 fprintf(stderr, "Multiple unix sockets per service are not supported! %s (%s): %s\n",
                         buf, service->descr, Modes.aneterr);
@@ -1067,14 +1067,13 @@ static void modesAcceptClients(struct client *c, int64_t now) {
     errno = 0;
     while ((fd = anetGenericAccept(Modes.aneterr, listen_fd, saddr, &slen, SOCK_NONBLOCK)) >= 0) {
 
-        int maxModesClients = Modes.max_fds * 7 / 8;
-        if (Modes.modesClientCount > maxModesClients) {
-            // drop new modes clients if the count nears max_fds ... we want some extra fds for other stuff
+        if (Modes.modesClientCount > Modes.max_fds_net) {
+            // drop new modes clients if the count gets near resource limits
             anetCloseSocket(c->fd);
             static int64_t antiSpam;
             if (now > antiSpam) {
                 antiSpam = now + 30 * SECONDS;
-                fprintf(stderr, "<3> Can't accept new connection, limited to %d clients, consider increasing ulimit!\n", maxModesClients);
+                fprintf(stderr, "<3> Can't accept new connection, limited to %d clients, consider increasing ulimit!\n", Modes.max_fds_net);
             }
         }
 

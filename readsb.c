@@ -51,6 +51,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include <sched.h>
 #include "readsb.h"
 #include "help.h"
 
@@ -198,12 +199,23 @@ static void configSetDefaults(void) {
         fprintf(stderr, "WARNING: getrlimit(RLIMIT_NOFILE, &limits) returned the following error: \"%s\". Assuming bad limit query function, using up to 64 file descriptors \n",
                 strerror(errno));
         Modes.max_fds = 64;
-    } else if (limits.rlim_cur < 64) {
-        fprintf(stderr, "WARNING: getrlimit(RLIMIT_NOFILE, &limits) returned less than 64 fds for readsb to work with. Assuming bad limit query function, using up to 64 file descriptors. Fix RLIMIT!\n");
-        Modes.max_fds = 64;
     } else {
-        Modes.max_fds = limits.rlim_cur;
+        uint64_t limit = limits.rlim_cur;
+        // check limit for unreasonableness
+        if (limit < (uint64_t) 64) {
+            fprintf(stderr, "WARNING: getrlimit(RLIMIT_NOFILE, &limits) returned less than 64 fds for readsb to work with. Assuming bad limit query function, using up to 64 file descriptors. Fix RLIMIT!\n");
+            Modes.max_fds = 64;
+        } else if (limits.rlim_cur == RLIM_INFINITY) {
+            Modes.max_fds = INT32_MAX;
+        } else if (limit > (uint64_t) INT32_MAX) {
+            fprintf(stderr, "WARNING: getrlimit(RLIMIT_NOFILE, &limits) returned more than INT32_MAX ... This is just weird.\n");
+            Modes.max_fds = INT32_MAX;
+        } else {
+            Modes.max_fds = (int) limit;
+        }
     }
+    Modes.max_fds -= 32; // reserve some fds for things we don't account for later like json writing.
+                         // this is an high estimate ... if ppl run out of fds for other stuff they should up rlimit
 
     Modes.sdr_buf_size = 16 * 16 * 1024;
 
@@ -344,6 +356,15 @@ int priorityTasksPending() {
 //
 
 void priorityTasksRun() {
+    if (0) {
+        int64_t now = mstime();
+        time_t nowTime = floor(now / 1000.0);
+        struct tm local;
+        gmtime_r(&nowTime, &local);
+        char timebuf[512];
+        strftime(timebuf, 128, "%T", &local);
+        printf("priorityTasksRun: utcTime: %s.%03lld epoch: %.3f\n", timebuf, (long long) now % 1000, now / 1000.0);
+    }
     pthread_mutex_lock(&Modes.hungTimerMutex);
     startWatch(&Modes.hungTimer1);
     pthread_mutex_unlock(&Modes.hungTimerMutex);
@@ -366,7 +387,7 @@ void priorityTasksRun() {
 
     static int64_t last_periodic_mono;
     int64_t periodic_interval = mono - last_periodic_mono;
-    if (periodic_interval > 5 * SECONDS && last_periodic_mono && !(Modes.syntethic_now_suppress_errors && Modes.synthetic_now)) {
+    if (periodic_interval > 5 * SECONDS && periodic_interval < 9999 * HOURS && last_periodic_mono && !(Modes.syntethic_now_suppress_errors && Modes.synthetic_now)) {
         fprintf(stderr, "<3> priorityTasksRun didn't run for %.1f seconds!\n", periodic_interval / 1000.0);
     }
     last_periodic_mono = mono;
@@ -396,7 +417,7 @@ void priorityTasksRun() {
         traceDelete();
 
         int64_t interval = mono - Modes.next_remove_stale;
-        if (interval > 5 * SECONDS && Modes.next_remove_stale && !(Modes.syntethic_now_suppress_errors && Modes.synthetic_now)) {
+        if (interval > 5 * SECONDS && interval < 9999 * HOURS && Modes.next_remove_stale && !(Modes.syntethic_now_suppress_errors && Modes.synthetic_now)) {
             fprintf(stderr, "<3> removeStale didn't run for %.1f seconds!\n", interval / 1000.0);
         }
 
@@ -769,6 +790,7 @@ static void *decodeEntryPoint(void *arg) {
             struct timespec start_time;
 
             // in case we're not waiting in backgroundTasks and priorityTasks doesn't have a chance to schedule
+            mono = mono_milli_seconds();
             if (mono > Modes.next_remove_stale + 5 * SECONDS) {
                 threadTimedWait(&Threads.decode, &ts, 1);
             }
@@ -849,8 +871,13 @@ static void *decodeEntryPoint(void *arg) {
                  */
                 threadTimedWait(&Threads.decode, &ts, 80);
             }
-            if (mono > Modes.next_remove_stale + 5 * SECONDS) {
-                threadTimedWait(&Threads.decode, &ts, 1);
+            mono = mono_milli_seconds();
+            // if removeStale is late by REMOVE_STALE_INTERVAL, force it to run
+            if (mono > Modes.next_remove_stale + REMOVE_STALE_INTERVAL) {
+                //fprintf(stderr, "%.3f >? %3.f\n", mono / 1000.0, (Modes.next_remove_stale + REMOVE_STALE_INTERVAL)/ 1000.0);
+                pthread_mutex_unlock(&Threads.decode.mutex);
+                priorityTasksRun();
+                pthread_mutex_lock(&Threads.decode.mutex);
             }
         }
         sdrCancel();
@@ -1155,7 +1182,7 @@ static void backgroundTasks(int64_t now) {
 
     static int64_t next_flip = 0;
     if (now >= next_flip) {
-        icaoFilterExpire(now);
+        icaoFilterExpire();
         next_flip = now + MODES_ICAO_FILTER_TTL;
     }
 
@@ -1777,7 +1804,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                     }
                 }
                 if (strcasecmp(token[0], "apiThreads") == 0) {
-                    Modes.apiThreadCount = atoi(token[1]);
+                    if (token[1]) {
+                        Modes.apiThreadCount = atoi(token[1]);
+                    }
                 }
                 if (strcasecmp(token[0], "accept_synthetic") == 0) {
                     Modes.dump_accept_synthetic_now = 1;
@@ -1906,10 +1935,22 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptPlutoUri:
         case OptPlutoNetwork:
 #endif
-        case OptDeviceType:
+            if (Modes.sdr_type == SDR_NONE) {
+                fprintf(stderr, "ERROR: SDR / device type specific options must be specified AFTER the --device-type xyz parameter.\n");
+                return ARGP_ERR_UNKNOWN;
+            }
             /* Forward interface option to the specific device handler */
-            if (sdrHandleOption(key, arg) == false)
-                return 1;
+            if (sdrHandleOption(key, arg) == false) {
+                fprintf(stderr, "ERROR: Unknown SDR specific option / Mismatch between option and specified device type.\n");
+                return ARGP_ERR_UNKNOWN;
+            }
+            break;
+        case OptDeviceType:
+            // Select device type
+            if (sdrHandleOption(key, arg) == false) {
+                fprintf(stderr, "ERROR: Unknown device type:%s\n", arg);
+                return ARGP_ERR_UNKNOWN;
+            }
             break;
         case ARGP_KEY_ARG:
             return ARGP_ERR_UNKNOWN;
@@ -1977,6 +2018,7 @@ int parseCommandLine(int argc, char **argv) {
     struct argp argp = {options, parse_opt, args_doc, doc, NULL, NULL, NULL};
 
     if (argp_parse(&argp, argc, argv, ARGP_NO_EXIT, 0, 0)) {
+        fprintf(stderr, "Error parsing the given command line parameters, check readsb --usage and readsb --help for valid parameters.\n");
         print_commandline(argc, argv);
         cleanup_and_exit(1);
     }
@@ -2143,6 +2185,14 @@ static void configAfterParse() {
         Modes.net_only = 1;
     } else {
         Modes.net_only = 0;
+    }
+
+    if (Modes.api) {
+        Modes.max_fds_api = Modes.max_fds / 2;
+        Modes.max_fds_net = Modes.max_fds / 2;
+    } else {
+        Modes.max_fds_api = 0;
+        Modes.max_fds_net = Modes.max_fds;
     }
 }
 

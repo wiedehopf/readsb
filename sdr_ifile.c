@@ -102,6 +102,8 @@ bool ifileHandleOption(int argc, char *argv) {
         case OptIfileThrottle:
             ifile.throttle = true;
             break;
+        default:
+            return false;
     }
     return true;
 }
@@ -210,6 +212,7 @@ void ifileRun() {
         outbuf->sysTimestamp = outbuf->sampleTimestamp / 12000U + Modes.startup_time;
         outbuf->sysMicroseconds = outbuf->sampleTimestamp / 12U + Modes.startup_time * 1000;
 
+        //fprintf(stderr, "sysTimestamp %.3f\n", outbuf->sysTimestamp / 1000.0);
 
         toread = Modes.sdr_buf_samples * ifile.bytes_per_sample;
         r = ifile.readbuf;

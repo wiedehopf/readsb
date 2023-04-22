@@ -1950,7 +1950,7 @@ void apiInit() {
         con->events = EPOLLIN | EPOLLEXCLUSIVE;
     }
 
-    Modes.api_fds_per_thread = Modes.max_fds * 7 / 8 / Modes.apiThreadCount;
+    Modes.api_fds_per_thread = imin(Modes.max_fds_api / Modes.apiThreadCount, Modes.apiThreadCount * 4096);
     if (Modes.api_fds_per_thread < 1) {
         Modes.api_fds_per_thread = 1;
         fprintf(stderr, "WARNING: Setting Modes.api_fds_per_thread = 1 because it was %d\n", Modes.api_fds_per_thread);
