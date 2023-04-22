@@ -746,6 +746,7 @@ struct _Modes
     char *net_output_beast_ports; // List of Beast output TCP ports
     char *net_output_beast_reduce_ports; // List of Beast output TCP ports
     char *net_output_asterix_ports; // List of Asterix output TCP ports
+    char *net_input_asterix_ports; // List of Asterix input TCP ports
     char *net_output_json_ports;
     char *net_output_api_ports;
     char *garbage_ports;
