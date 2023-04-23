@@ -1971,7 +1971,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
             if (fspec[1] & 0x2){ // I021/075 Time of Message Reception of Velocity
                 if (mm->ias_valid || mm->mach_valid || mm->gs_valid){
                     uint64_t ts = readAsterixTime(&p);
-                    if (fspec[2] & 0x80){ // I021/074 Time of Message Reception of Velocity=High Precision
+                    if (fspec[2] & 0x80){ // I021/076 Time of Message Reception of Velocity=High Precision
                         readAsterixHighPrecisionTime(&ts, &p);
                     }
                     if (mm->sysTimestamp == -1){
@@ -2069,7 +2069,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 mm->roll_valid = true;
                 p += 2;
             }
-            if (fspec[2] & 0x2){ // I021/045 Flight Level
+            if (fspec[2] & 0x2){ // I021/145 Flight Level
                 int16_t alt = ((*p & 0xff) << 8) + (*(p + 1) & 0xff);
                 mm->baro_alt_valid = true;
                 mm->baro_alt = alt * 25;
