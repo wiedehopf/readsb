@@ -2301,7 +2301,7 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
         }
     
         // I021/073 Time of Message Reception of Position 
-        if (fspec[0] & 0b10){
+        if (fspec[0] & 0b110){
             fspec[1] |= 1 << 3;
             long midnight = (long)(time(NULL) / 86400) * 86400000;
             int tsm = (mm->sysTimestamp) - midnight;
