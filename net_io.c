@@ -2096,25 +2096,25 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
             }
             if (fspec[3] & 0x20){ // ID021/155 Barometric Vertical Rate
                 if (*p & 0x80){ //range exceeded
-                p += 2;
-            }
-            else{
-                int16_t vr = ((*p & 0x7f) << 9) + ((*(p + 1) & 0xff) << 1);
-                mm->baro_rate_valid = true;
-                mm->baro_rate = vr * 3.125;
-                p += 2;
-            }
+                    p += 2;
+                }
+                else{
+                    int16_t vr = ((*p & 0x7f) << 9) + ((*(p + 1) & 0xff) << 1);
+                    mm->baro_rate_valid = true;
+                    mm->baro_rate = vr * 3.125;
+                    p += 2;
+                }
             }
             if (fspec[3] & 0x10){ // ID021/157 Geometric Vertical Rate
                 if (*p & 0x80){ //range exceeded
-                p += 2;
-            }
-            else{
-                int16_t vr = ((*p & 0x7f) << 9) + ((*(p + 1) & 0xff) << 1);
-                mm->geom_rate_valid = true;
-                mm->geom_rate = vr * 3.125;
-                p += 2;
-            }
+                    p += 2;
+                }
+                else{
+                    int16_t vr = ((*p & 0x7f) << 9) + ((*(p + 1) & 0xff) << 1);
+                    mm->geom_rate_valid = true;
+                    mm->geom_rate = vr * 3.125;
+                    p += 2;
+                }
             }
             if (fspec[3] & 0x8){ // ID021/160 Airborne Ground Vector
                 if (*p & 0x80){ //range exceeded
@@ -2136,10 +2136,10 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 p += 2;
             }
             if (fspec[3] & 0x2){ // ID021/077 Time of Report Transmission
-            uint64_t tt = readAsterixTime(&p);
-            if (mm->sysTimestamp == -1){
-                mm->sysTimestamp = tt;
-            }
+                uint64_t tt = readAsterixTime(&p);
+                if (mm->sysTimestamp == -1){
+                    mm->sysTimestamp = tt;
+                }
             }
             if (fspec[4] & 0x80){ // ID021/170 Target Identification
                 uint64_t cs = ((uint64_t)(*p & 0xff) << 40) + ((uint64_t)(*(p + 1) & 0xff) << 32) + ((uint64_t)(*(p + 2) & 0xff) << 24) + ((uint64_t)(*(p + 3) & 0xff) << 16) + ((uint64_t)(*(p + 4) & 0xff) << 8) + (uint64_t)(*(p + 5) & 0xff);
