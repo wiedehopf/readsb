@@ -1952,7 +1952,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
             mm->addr = (((*p & 0xff) << 16) + ((*(p + 1) & 0xff) << 8) + (*(p + 2) & 0xff)) & 0xffffff;
             p += 3;
             if (fspec[1] & 0x8){ // I021/073 Time of Message Reception of Position
-                if (mm->cpr_decoded){
+                if (mm->cpr_decoded || mm->sbs_pos_valid){
                     uint64_t ts = readAsterixTime(&p);
                     if (fspec[1] & 0x4){ // I021/074 Time of Message Reception of Position=High Precision
                         readAsterixHighPrecisionTime(&ts, &p);
@@ -2230,7 +2230,7 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
         p++;
         
         // I021/130 Position in WGS-84 co-ordinates
-        if(mm->cpr_decoded){
+        if (mm->cpr_decoded || mm->sbs_pos_valid){
             fspec[0] |= 1 << 2;
             int32_t lat;
             int32_t lon;
@@ -2252,7 +2252,7 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
 
         // I021/131 Position in WGS-84 co-ordinates, high res.
         /*
-        if(mm->cpr_decoded){
+        if (mm->cpr_decoded || mm->sbs_pos_valid){
             fspec[0] |= 1 << 1;
             int32_t lat;
             int32_t lon;
