@@ -1918,8 +1918,8 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                     mm->decoded_lon = longitude;
                 }
                 }
-                if (fspec[1] & 0x80){ // I021/072 Time of Applicability for Velocity
-                    if (mm->sysTimestamp == -1){
+            if (fspec[1] & 0x80){ // I021/072 Time of Applicability for Velocity
+                if (mm->sysTimestamp == -1){
                     mm->sysTimestamp = readAsterixTime(&p);
                 }
                 else {
