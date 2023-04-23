@@ -1345,6 +1345,8 @@ static int make_net_connector(char *arg) {
             && strcmp(con->protocol, "sbs_out_mlat") != 0
             && strcmp(con->protocol, "sbs_out_jaero") != 0
             && strcmp(con->protocol, "sbs_out_prio") != 0
+            && strcmp(con->protocol, "asterix_out") != 0
+            && strcmp(con->protocol, "asterix_in") != 0
             && strcmp(con->protocol, "json_out") != 0
             && strcmp(con->protocol, "feedmap_out") != 0
             && strcmp(con->protocol, "gpsd_in") != 0
@@ -1354,6 +1356,7 @@ static int make_net_connector(char *arg) {
         fprintf(stderr, "Supported protocols: beast_out, beast_in, beast_reduce_out, beast_reduce_plus_out, raw_out, raw_in, \n"
                 "sbs_out, sbs_out_replay, sbs_out_mlat, sbs_out_jaero, \n"
                 "sbs_in, sbs_in_mlat, sbs_in_jaero, \n"
+                "sbs_out_prio, asterix_out, asterix_in, \n"
                 "vrs_out, json_out, gpsd_in, uat_in\n");
         return 1;
     }
