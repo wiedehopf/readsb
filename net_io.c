@@ -1894,7 +1894,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 double latitude = lat * (180 / pow(2, 23));
                 double longitude = lon * (180 / pow(2, 23));
                 if (latitude <= 90 && latitude >= -90 && longitude >= -180 && longitude <= 180){
-                    mm->cpr_decoded = true;
+                    mm->sbs_pos_valid = true;
                     mm->decoded_lat = latitude;
                     mm->decoded_lon = longitude;
                 }
@@ -2229,7 +2229,29 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
         }
         p++;
         
+        // I021/130 Position in WGS-84 co-ordinates
+        if(mm->cpr_decoded){
+            fspec[0] |= 1 << 2;
+            int32_t lat;
+            int32_t lon;
+            lat = mm->decoded_lat / (180 / pow(2,23));
+            lon = mm->decoded_lon / (180 / pow(2,23));
+            if (lat < 0){
+                lat += 0x1000000;
+            }
+            if (lon < 0){
+                lon += 0x1000000;
+            }
+            bytes[p++] = (lat & 0xFF0000) >> 16;
+            bytes[p++] = (lat & 0xFF00) >> 8;
+            bytes[p++] = (lat & 0xFF);
+            bytes[p++] = (lon & 0xFF0000) >> 16;
+            bytes[p++] = (lon & 0xFF00) >> 8;
+            bytes[p++] = (lon & 0xFF);
+        }
+
         // I021/131 Position in WGS-84 co-ordinates, high res.
+        /*
         if(mm->cpr_decoded){
             fspec[0] |= 1 << 1;
             int32_t lat;
@@ -2245,6 +2267,7 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
             bytes[p++] = (lon & 0xFF00) >> 8;
             bytes[p++] = (lon & 0xFF);
         }
+        */
         // I021/150 Air Speed
         if(mm->ias_valid || mm->mach_valid){
             fspec[1] |= 1 << 6;
