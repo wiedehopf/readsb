@@ -1998,12 +1998,12 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
             uint8_t *qi;
             //uint8_t nucp_or_nic; 
             uint8_t nucr_or_nacv;
-            uint8_t nicbaro;
+            uint8_t nicbaro = 0;
             uint8_t sil;
-            uint8_t nacp;
+            uint8_t nacp = 0;
             uint8_t sils;
-            uint8_t sda;
-            uint8_t gva;
+            uint8_t sda = 0;
+            uint8_t gva = 0;
             //uint8_t pic;
             if (fspec[2] & 0x20){ // I021/090 Quality Indicators
                 qi = readFspec(&p);
@@ -2053,7 +2053,6 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                         mm->accuracy.gva = gva;
                         mm->accuracy.sda_valid = true;
                         mm->accuracy.sda = sda;
-                        mm->accuracy.nic_baro_valid = true;
                         mm->accuracy.nic_baro_valid = true;
                         mm->accuracy.nic_baro = nicbaro;
                         break;
