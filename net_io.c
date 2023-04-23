@@ -1013,6 +1013,8 @@ void modesInitNet(void) {
             con->service = sbs_out;
         else if (strcmp(con->protocol, "asterix_out") == 0)
             con->service = asterix_out;
+        else if (strcmp(con->protocol, "asterix_in") == 0)
+            con->service = asterix_in;
         else if (strcmp(con->protocol, "sbs_in") == 0)
             con->service = sbs_in;
         else if (strcmp(con->protocol, "sbs_in_mlat") == 0)
