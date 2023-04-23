@@ -2520,6 +2520,12 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
             }
         }
 
+        // I021/400 Receiver ID
+        if (mm->receiverId){
+            fspec[5] |= 1 << 2;
+            bytes[p++] = (mm->receiverId) & 0xFF;
+        }
+
         // I021/295 Data Ages
         /*
         if (fspec[4] == 0b100000){
