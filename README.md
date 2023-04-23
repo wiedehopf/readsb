@@ -276,8 +276,8 @@ Don't write recent(1), full(2), either(3) traces
                              times (e.g. 127.0.0.1,23004,beast_out) Protocols:
                              beast_out, beast_in, raw_out, raw_in, sbs_in,
                              sbs_in_jaero, sbs_out, sbs_out_jaero, sbs_out_prio 
-                             vrs_out, asterix_out, asterx_in, gpsd_in (one failover 
-                             ip/address,port can be specified:
+                             vrs_out, json_out, asterix_out, asterix_in, 
+                             gpsd_in (one failover ip/address,port can be specified:
                              primary-address,primary-port,protocol,failover-address,failover-port)
       --net-connector-delay=<seconds>
                              Outbound re-connection delay (default: 30)
