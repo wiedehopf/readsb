@@ -85,7 +85,6 @@ static void sigintHandler(int dummy) {
     MODES_NOTUSED(dummy);
     setExit(1);
 
-    signal(SIGINT, SIG_DFL); // reset signal handler - bit extra safety
     log_with_timestamp("Caught SIGINT, shutting down...");
 }
 
@@ -93,7 +92,6 @@ static void sigtermHandler(int dummy) {
     MODES_NOTUSED(dummy);
     setExit(1);
 
-    signal(SIGTERM, SIG_DFL); // reset signal handler - bit extra safety
     log_with_timestamp("Caught SIGTERM, shutting down...");
 }
 
@@ -2666,7 +2664,6 @@ int main(int argc, char **argv) {
     // writes state if Modes.state_dir is set
     Modes.free_aircraft = 1;
     writeInternalState();
-
 
     if (Modes.exit != 1) {
         log_with_timestamp("Abnormal exit.");
