@@ -2525,6 +2525,14 @@ int main(int argc, char **argv) {
 
     threadCreate(&Threads.upkeep, NULL, upkeepEntryPoint, NULL);
 
+
+    if (Modes.debug_provoke_segfault) {
+        msleep(666);
+        fprintf(stderr, "debug=Z -> provoking SEGFAULT now!\n");
+        int *a = NULL;
+        *a = 0;
+    }
+
     int mainEpfd = my_epoll_create(&Modes.exitSoonEventfd);
     struct epoll_event *events = NULL;
     int maxEvents = 1;
@@ -2580,18 +2588,6 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "<3>FATAL: removeStale() interval %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed2 / SECONDS);
                 setExit(2);
                 break;
-            }
-        }
-
-        if (Modes.debug_provoke_segfault) {
-            static int64_t next_fail;
-            int64_t now = mstime();
-            if (next_fail == 0) {
-                next_fail = now + 3 * SECONDS;
-            } else if (now > next_fail) {
-                fprintf(stderr, "debug=Z -> provoking SEGFAULT now!\n");
-                int *a = NULL;
-                *a = 0;
             }
         }
     }
