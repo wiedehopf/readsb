@@ -1824,6 +1824,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (strcasecmp(token[0], "disableAcasJson") == 0) {
                     Modes.enableAcasJson = 0;
                 }
+                if (strcasecmp(token[0], "provokeSegfault") == 0) {
+                    Modes.debug_provoke_segfault = 1;
+                }
             }
             break;
 
@@ -1887,8 +1890,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                     case 'D': Modes.debug_send_uuid = 1;
                         break;
                     case 'd': Modes.debug_no_discard = 1;
-                        break;
-                    case 'Z': Modes.debug_provoke_segfault = 1;
                         break;
                     case 'y': Modes.debug_position_timing = 1;
                         break;
@@ -2586,7 +2587,7 @@ int main(int argc, char **argv) {
             static int64_t next_fail;
             int64_t now = mstime();
             if (next_fail == 0) {
-                next_fail = now + 15 * SECONDS;
+                next_fail = now + 3 * SECONDS;
             } else if (now > next_fail) {
                 fprintf(stderr, "debug=Z -> provoking SEGFAULT now!\n");
                 int *a = NULL;
