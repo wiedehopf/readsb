@@ -2171,6 +2171,72 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 }
                 p += 6;
             }
+            if (fspec[4] & 0x40){ // ID021/020 Emitter Category
+                int tc = 0;
+                int ca = 0;
+                uint8_t ecat = *p++ & 0xFF;
+                switch (ecat) {
+                    case 1:
+                    case 2:
+                    case 3:
+                    case 4:
+                    case 5:
+                    case 6:
+                        tc = 4;
+                        ca = ecat;
+                        break;
+                    case 10:
+                        tc = 4;
+                        ca = 7;
+                        break;
+                    case 11:
+                        tc = 3;
+                        ca = 1;
+                        break;
+                    case 12:
+                        tc = 3;
+                        ca = 2;
+                        break;
+                    case 13: 
+                        tc = 3;
+                        ca = 6;
+                        break;
+                    case 14:
+                        tc = 3;
+                        ca = 7;
+                        break;
+                    case 15: 
+                        tc = 3;
+                        ca = 4;
+                        break;
+                    case 16:
+                        tc = 3;
+                        ca = 3;
+                        break;
+                    case 20:
+                        tc = 2;
+                        ca = 1;
+                        break;
+                    case 21:
+                        tc = 2;
+                        ca = 3;
+                        break;
+                    case 22:
+                        tc = 2;
+                        ca = 4;
+                        break;
+                    case 23:
+                        tc = 2;
+                        ca = 5;
+                        break;
+                    case 24:
+                        tc = 2;
+                        ca = 6;
+                        break;
+                }
+                mm->category = ((0x0E - tc) << 4) | ca;
+                mm->category_valid = 1;
+            }
             break;
     }
     if (mm->sysTimestamp == -1){
@@ -2494,7 +2560,68 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
         // I021/020 Emitter Category
         if (mm->category_valid){
             fspec[4] |= 1 << 6;
-            bytes[p++] = mm->category;
+            int tc = 0x0e - ((mm->category & 0x1F0) >> 4);
+            int ca = mm->category & 7;
+            if (ca){
+                switch (tc) {
+                    case 1:
+                        break;
+                    case 2:
+                        switch (ca){
+                            case 1:
+                                bytes[p++] = 20;    
+                                break;
+                            case 3:
+                                bytes[p++] = 21;
+                                break;
+                            case 4:
+                            case 5:
+                            case 6:
+                            case 7:
+                                bytes[p++] = 22;
+                                break;
+                        }
+                        break;
+                    case 3:
+                        switch (ca){
+                            case 1:
+                                bytes[p++] = 11;
+                                break;
+                            case 2:
+                                bytes[p++] = 12;
+                                break;
+                            case 3:
+                                bytes[p++] = 16;
+                                break;
+                            case 4:
+                                bytes[p++] = 15;
+                                break;
+                            case 6:
+                                bytes[p++] = 13;
+                                break;
+                            case 7:
+                                bytes[p++] = 14;
+                                break;
+                        }
+                        break;
+                    case 4:
+                        switch (ca){
+                            case 1:
+                            case 2:
+                            case 3:
+                            case 4:
+                            case 5:
+                            case 6:   
+                                bytes[p++] = ca;
+                                break;
+                            case 7:
+                                bytes[p++] = 10;
+                        }
+                        break;
+                }
+            } else {
+                bytes[p++] = 0;
+            }
         }
 
         // I021/220 Met Information
