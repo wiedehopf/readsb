@@ -1861,13 +1861,17 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
             }
             if (fspec[0] & 0x40){ // ID021/040 Target Report Descriptor
                 uint8_t *trd = readFspec(&p);
+                mm->addrtype = (trd[1] & 0xE0) >> 5;
+                if (!(trd[0] & 0x18)){
+                    mm->alt_q_bit = 1;
+                }
                 if (trd[1] & 0x40){
-                mm->airground = AG_GROUND;
-            }
-            else {
-                mm->airground = AG_AIRBORNE;
-            }
-            free(trd);
+                    mm->airground = AG_GROUND;
+                }
+                else {
+                    mm->airground = AG_AIRBORNE;
+                }
+                free(trd);
             }
             if (fspec[0] & 0x20){ // I021/161 Track Number
                 p += 2;
@@ -2283,7 +2287,7 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
         
         // I021/040 Target Report Descriptor
         fspec[0] |= 1 << 6;
-        if (mm->addrtype >= 3 )
+        if (mm->addrtype > 0)
             bytes[p] |= (3 << 5);
 
         if (mm->alt_q_bit == 0)
