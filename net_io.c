@@ -1831,7 +1831,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
     //uint16_t msgLen = (*(p + 1) << 8) + *(p + 2);
     //int j;
     unsigned char category;
-    
+    bool mmvalid = false;
     struct modesMessage *mm = netGetMM(mb);
     mm->client = c;
     MODES_NOTUSED(c);
@@ -2241,15 +2241,21 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 mm->category = ((0x0E - tc) << 4) | ca;
                 mm->category_valid = 1;
             }
+            mmvalid = true;
             break;
     }
+    free(fspec);
     if (mm->sysTimestamp == -1){
         mm->sysTimestamp = mstime();
     }
-    free(fspec);
+    if (mmvalid){
+        netUseMessage(mm);
+    }
+    else {
+        free(mm);
+    }
     //mm->decoded_nic = 0;
     //mm->decoded_rc = RC_UNKNOWN;
-    netUseMessage(mm);
     return 0;    
 }
 
