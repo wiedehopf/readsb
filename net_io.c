@@ -2241,6 +2241,30 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 mm->category = ((0x0E - tc) << 4) | ca;
                 mm->category_valid = 1;
             }
+
+            if (fspec[4] & 0x20) { // I021/220 Met Information
+                uint8_t *met = readFspec(&p);
+                free(met);
+            }
+
+            if (fspec[4] & 0x10) { // I021/146 Selected Altitude
+                if (*p & 0x80 && *p & 0x60) {
+                    int16_t alt = (*p & 0x1F) << 8;
+                    alt += *(p + 1) & 0xFF;
+                    if (alt < 0x1000){
+                        if ((*p & 0x60) == 0x40) { // MCP
+                            mm->nav.mcp_altitude_valid = 1;
+                            mm->nav.mcp_altitude = alt * 25;
+                        }
+                        else if ((*p & 0x60) == 0x60) { //FMS
+                            mm->nav.fms_altitude_valid = 1;
+                            mm->nav.fms_altitude = alt * 25;
+                        }
+                    }
+                }
+                p += 2;
+            }
+
             mmvalid = true;
             break;
     }
@@ -2664,6 +2688,23 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
                 bytes[p++] = (oat & 0xFF00) >> 8;
                 bytes[p++] = oat & 0xFF;
             }
+        }
+
+        // I021/146 Selected Altitude
+        if (mm->nav.fms_altitude_valid || mm->nav.mcp_altitude_valid){
+            fspec[4] |= 1 << 4;
+            int alt = 0;
+            if (mm->nav.mcp_altitude_valid){
+                alt = mm->nav.mcp_altitude;
+                bytes[p] |= 0xC0;
+            }
+            else if (mm->nav.fms_altitude_valid){
+                alt = mm->nav.fms_altitude;
+                bytes[p] |= 0xE0;
+            }
+            alt /= 25;
+            bytes[p++] |= (alt & 0x1F00) >> 8;
+            bytes[p++] = (alt & 0xFF);
         }
 
         // I021/008 Aircraft Operational Status
