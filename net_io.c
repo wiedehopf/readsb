@@ -1837,7 +1837,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
     if (remote >= 64)
     	mm->source = remote - 64;
     else
-        mm->source = SOURCE_SBS;
+        mm->source = SOURCE_INDIRECT;
     mm->remote = 1;
     mm->sbs_in = 1;
     mm->signalLevel = 0;
@@ -1858,9 +1858,10 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
             if (fspec[0] & 0x80){ // ID021/010 Data Source Identification
                 p += 2;
             }
+            uint8_t addrtype = 3;
             if (fspec[0] & 0x40){ // ID021/040 Target Report Descriptor
                 uint8_t *trd = readFspec(&p);
-                mm->addrtype = (trd[1] & 0xE0) >> 5;
+                addrtype = (trd[0] & 0xE0) >> 5;
                 if (!(trd[0] & 0x18)){
                     mm->alt_q_bit = 1;
                 }
@@ -1955,6 +1956,9 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
             }			  
             // I021/080 Target Address
             mm->addr = (((*p & 0xff) << 16) + ((*(p + 1) & 0xff) << 8) + (*(p + 2) & 0xff)) & 0xffffff;
+            if (addrtype == 3){
+                mm->addr |= MODES_NON_ICAO_ADDRESS;
+            }
             p += 3;
             if (fspec[1] & 0x8){ // I021/073 Time of Message Reception of Position
                 if (mm->cpr_decoded || mm->sbs_pos_valid){
@@ -2042,6 +2046,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
             if (fspec[2] & 0x10){ // I021/210 MOPS Version
                 mm->opstatus.valid = true;
                 mm->opstatus.version = ((*p) & 0x38) >> 3;
+                uint8_t ltt = (*p) & 0x7; 
                 p++;
                 switch(mm->opstatus.version){
                     case 1:
@@ -2060,6 +2065,35 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                         mm->accuracy.sda = sda;
                         mm->accuracy.nic_baro_valid = true;
                         mm->accuracy.nic_baro = nicbaro;
+                        break;
+                }
+                switch (ltt) {
+                    case 0:
+                        if (!addrtype){ 
+                            mm->addrtype = ADDR_TISB_ICAO;
+                        }
+                        else{
+                            mm->addrtype = ADDR_TISB_OTHER;
+                        }
+                        break;
+                    case 1:
+                        if (!addrtype){
+                            mm->addrtype = ADDR_ADSR_ICAO;
+                        }
+                        else{
+                            mm->addrtype = ADDR_ADSR_OTHER;
+                        }
+                        break;
+                    case 2:
+                        if (!addrtype){
+                            mm->addrtype = ADDR_ADSB_ICAO;
+                        }
+                        else{
+                            mm->addrtype = ADDR_ADSB_OTHER;
+                        }
+                        break;
+                    default:
+                        mm->addrtype = ADDR_UNKNOWN;
                         break;
                 }
             }
@@ -2179,6 +2213,10 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 int ca = 0;
                 uint8_t ecat = *p++ & 0xFF;
                 switch (ecat) {
+                    case 0:
+                        tc = 0x0e;
+                        ca = 0;
+                        break;
                     case 1:
                     case 2:
                     case 3:
@@ -2263,7 +2301,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 }
                 p += 2;
             }
-	    netUseMessage(mm);
+	        netUseMessage(mm);
             break;
     }
     free(fspec);
@@ -2309,9 +2347,13 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
         
         // I021/040 Target Report Descriptor
         fspec[0] |= 1 << 6;
-        if (mm->addrtype > 0)
+        if (mm->addr & MODES_NON_ICAO_ADDRESS){
             bytes[p] |= (3 << 5);
-
+        }
+        else if (mm->addrtype == ADDR_ADSB_OTHER || mm->addrtype == ADDR_TISB_OTHER || mm->addrtype == ADDR_ADSR_OTHER){
+            bytes[p] |= (2 << 5);
+        }
+        
         if (mm->alt_q_bit == 0)
             bytes[p] |= (1 << 3);
         
@@ -2468,7 +2510,36 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
         // I021/210 MOPS Version
         if (mm->opstatus.valid){
             fspec[2] |= 1 << 4;
-            bytes[p++] += (mm->opstatus.version) << 3;
+            
+            if (mm->remote) {
+                switch (mm->addrtype){
+                    case ADDR_ADSB_ICAO:
+                    case ADDR_ADSB_OTHER:
+                        bytes[p] = 2;
+                        break;
+                    case ADDR_ADSR_ICAO:
+                    case ADDR_ADSR_OTHER:
+                        bytes[p] = 1;
+                        break;
+                    default:
+                        bytes[p] = 0;
+                        break;
+                }
+            }
+            else {
+                switch (mm->source){
+                    case SOURCE_ADSB:
+                        bytes[p] = 2;
+                        break;
+                    case SOURCE_ADSR:
+                        bytes[p] = 1;
+                        break;
+                    default:
+                        bytes[p] = 0;
+                        break;
+                }
+            }
+            bytes[p++] |= (mm->opstatus.version) << 3;
         }
 
         // I021/070 Mode 3/A Code
@@ -2649,7 +2720,10 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
                 bytes[p++] = 0;
             }
         }
-
+        else if (!(a->category)){
+            fspec[4] |= 1 << 6;
+            bytes[p++] = 0;
+        }
         // I021/220 Met Information
         //if (ac && ((now < ac->oat_updated + TRACK_EXPIRE) || (now < ac->wind_updated + TRACK_EXPIRE && abs(ac->wind_altitude - ac->baro_alt) < 500))){
         if (mm->wind_valid || mm->oat_valid || mm->turbulence_valid || mm->static_pressure_valid || mm->humidity_valid) {
