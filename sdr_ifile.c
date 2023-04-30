@@ -267,9 +267,8 @@ void ifileRun() {
 
 void ifileClose() {
     if (ifile.converter) {
-        cleanup_converter(ifile.converter_state);
+        cleanup_converter(&ifile.converter_state);
         ifile.converter = NULL;
-        ifile.converter_state = NULL;
     }
 
     if (ifile.readbuf) {

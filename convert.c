@@ -491,10 +491,10 @@ iq_convert_fn init_converter(input_format_t format,
     return converters_table[i].fn;
 }
 
-void cleanup_converter(struct converter_state *state) {
-    free(state);
-    free(uc8_lookup);
+void cleanup_converter(struct converter_state **state) {
+    sfree(uc8_lookup);
 #if defined(SC16Q11_TABLE_BITS)
-    free(sc16q11_lookup);
+    sfree(sc16q11_lookup);
 #endif
+    sfree(*state);
 }
