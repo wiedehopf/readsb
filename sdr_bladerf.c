@@ -485,9 +485,8 @@ out:
 
 void bladeRFClose() {
     if (BladeRF.converter) {
-        cleanup_converter(BladeRF.converter_state);
+        cleanup_converter(&BladeRF.converter_state);
         BladeRF.converter = NULL;
-        BladeRF.converter_state = NULL;
     }
 
     if (BladeRF.device) {

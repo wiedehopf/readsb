@@ -442,24 +442,32 @@ int writeGz(gzFile gzfp, void *source, int toWrite, char *errorContext) {
     return nwritten;
 }
 
-void log_with_timestamp(const char *format, ...) {
+void printTimestamp(FILE *stream, int64_t time_ms) {
     char timebuf[128];
-    char msg[1024];
+    char timebuf2[128];
     time_t now;
     struct tm local;
-    va_list ap;
 
-    now = time(NULL);
+    now = floor(time_ms / 1000.0);
     localtime_r(&now, &local);
-    strftime(timebuf, 128, "%c %Z", &local);
+    strftime(timebuf, 128, "%Y-%m-%d %T", &local);
     timebuf[127] = 0;
+    strftime(timebuf2, 128, "%Z", &local);
+    timebuf2[127] = 0;
+    fprintf(stream, "[%s.%03d %s] ", timebuf, (int) (time_ms % 1000), timebuf2);
+}
+
+void log_with_timestamp(const char *format, ...) {
+    char msg[1024];
+    va_list ap;
 
     va_start(ap, format);
     vsnprintf(msg, 1024, format, ap);
     va_end(ap);
     msg[1023] = 0;
 
-    fprintf(stderr, "%s  %s\n", timebuf, msg);
+    printTimestamp(stderr, mstime());
+    fprintf(stderr, "%s\n", msg);
 }
 
 int64_t roundSeconds(int interval, int offset, int64_t epoch_ms) {

@@ -43,6 +43,6 @@ iq_convert_fn init_converter (input_format_t format,
                               int filter_dc,
                               struct converter_state **out_state);
 
-void cleanup_converter (struct converter_state *state);
+void cleanup_converter (struct converter_state **state);
 
 #endif

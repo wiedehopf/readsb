@@ -403,9 +403,8 @@ void rtlsdrClose() {
     }
 
     if (RTLSDR.converter) {
-        cleanup_converter(RTLSDR.converter_state);
+        cleanup_converter(&RTLSDR.converter_state);
         RTLSDR.converter = NULL;
-        RTLSDR.converter_state = NULL;
     }
 
     free(RTLSDR.bounce_buffer);

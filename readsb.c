@@ -81,20 +81,16 @@ void setExit(int arg) {
     ssize_t res = write(Modes.exitSoonEventfd, &one, sizeof(one));
     MODES_NOTUSED(res);
 }
-static void sigintHandler(int dummy) {
-    MODES_NOTUSED(dummy);
+
+static void exitHandler(int sig) {
     setExit(1);
 
-    signal(SIGINT, SIG_DFL); // reset signal handler - bit extra safety
-    log_with_timestamp("Caught SIGINT, shutting down...");
-}
-
-static void sigtermHandler(int dummy) {
-    MODES_NOTUSED(dummy);
-    setExit(1);
-
-    signal(SIGTERM, SIG_DFL); // reset signal handler - bit extra safety
-    log_with_timestamp("Caught SIGTERM, shutting down...");
+    char *sigX = NULL;
+    if (sig == SIGTERM) { sigX = "SIGTERM"; }
+    if (sig == SIGINT) { sigX = "SIGINT"; }
+    if (sig == SIGQUIT) { sigX = "SIGQUIT"; }
+    if (sig == SIGHUP) { sigX = "SIGHUP"; }
+    log_with_timestamp("Caught %s, shutting down...", sigX);
 }
 
 void receiverPositionChanged(float lat, float lon, float alt) {
@@ -1838,6 +1834,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (strcasecmp(token[0], "disableAcasJson") == 0) {
                     Modes.enableAcasJson = 0;
                 }
+                if (strcasecmp(token[0], "provokeSegfault") == 0) {
+                    Modes.debug_provoke_segfault = 1;
+                }
             }
             break;
 
@@ -1901,8 +1900,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                     case 'D': Modes.debug_send_uuid = 1;
                         break;
                     case 'd': Modes.debug_no_discard = 1;
-                        break;
-                    case 'Z': Modes.debug_provoke_segfault = 1;
                         break;
                     case 'y': Modes.debug_position_timing = 1;
                         break;
@@ -2386,12 +2383,48 @@ static void *miscEntryPoint(void *arg) {
 
     pthread_exit(NULL);
 }
+static void _sigaction_range(struct sigaction *sa, int first, int last) {
+    int sig;
+    for (sig = first; sig <= last; ++sig) {
+        if (sigaction(sig, sa, NULL)) {
+            /* SIGKILL/SIGSTOP trigger EINVAL.  Ignore by default. */
+            if (errno != EINVAL) {
+                fprintf(stderr, "sigaction(%s[%i]) failed: %s\n", strsignal(sig), sig, strerror(errno));
+            }
+        }
+    }
+}
+static void configureSignals() {
+    // signal handling stuff
+    // block all signals while we maniplate signal handlers
+    sigset_t mask;
+    sigfillset(&mask);
+    sigprocmask(SIG_SETMASK, &mask, NULL);
+    // ignore all signals, then reenable some
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sigfillset(&sa.sa_mask);
+    sa.sa_handler = SIG_IGN;
+
+    _sigaction_range(&sa, 1, 31);
+
+    signal(SIGINT, exitHandler);
+    signal(SIGTERM, exitHandler);
+    signal(SIGQUIT, exitHandler);
+    signal(SIGHUP, exitHandler);
+
+    // unblock signals now that signals are configured
+    sigemptyset(&mask);
+    sigprocmask(SIG_SETMASK, &mask, NULL);
+}
 
 //
 //=========================================================================
 //
 
 int main(int argc, char **argv) {
+
+    configureSignals();
 
     if (0) {
         unlink("test.gz");
@@ -2413,12 +2446,9 @@ int main(int argc, char **argv) {
         return 3;
     }
 
-    // signal handling stuff
     Modes.exitNowEventfd = eventfd(0, EFD_NONBLOCK);
     Modes.exitSoonEventfd = eventfd(0, EFD_NONBLOCK);
-    signal(SIGINT, sigintHandler);
-    signal(SIGTERM, sigtermHandler);
-    signal(SIGUSR1, SIG_IGN);
+
 
     if (argc >= 2 && !strcmp(argv[1], "--structs")) {
         fprintf(stderr, VERSION_STRING"\n");
@@ -2538,6 +2568,14 @@ int main(int argc, char **argv) {
 
     threadCreate(&Threads.upkeep, NULL, upkeepEntryPoint, NULL);
 
+
+    if (Modes.debug_provoke_segfault) {
+        msleep(666);
+        fprintf(stderr, "debug=Z -> provoking SEGFAULT now!\n");
+        int *a = NULL;
+        *a = 0;
+    }
+
     int mainEpfd = my_epoll_create(&Modes.exitSoonEventfd);
     struct epoll_event *events = NULL;
     int maxEvents = 1;
@@ -2593,18 +2631,6 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "<3>FATAL: removeStale() interval %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed2 / SECONDS);
                 setExit(2);
                 break;
-            }
-        }
-
-        if (Modes.debug_provoke_segfault) {
-            static int64_t next_fail;
-            int64_t now = mstime();
-            if (next_fail == 0) {
-                next_fail = now + 15 * SECONDS;
-            } else if (now > next_fail) {
-                fprintf(stderr, "debug=Z -> provoking SEGFAULT now!\n");
-                int *a = NULL;
-                *a = 0;
             }
         }
     }
@@ -2683,7 +2709,6 @@ int main(int argc, char **argv) {
     // writes state if Modes.state_dir is set
     Modes.free_aircraft = 1;
     writeInternalState();
-
 
     if (Modes.exit != 1) {
         log_with_timestamp("Abnormal exit.");

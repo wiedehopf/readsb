@@ -124,7 +124,7 @@ void test(const char *what, input_format_t format, void **data, double sample_ra
     }
 
     fprintf(stderr, "\n");
-    cleanup_converter(state);
+    cleanup_converter(&state);
 
     double samples = 10.0 * iterations * MODES_MAG_BUF_SAMPLES;
     double nanos = total.tv_sec * 1e9 + total.tv_nsec;
