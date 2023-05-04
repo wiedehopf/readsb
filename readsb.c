@@ -2557,7 +2557,7 @@ int main(int argc, char **argv) {
 
     if (Modes.debug_provoke_segfault) {
         msleep(666);
-        fprintf(stderr, "debug=Z -> provoking SEGFAULT now!\n");
+        fprintf(stderr, "devel=provokeSegfault -> provoking SEGFAULT now!\n");
         int *a = NULL;
         *a = 0;
     }
