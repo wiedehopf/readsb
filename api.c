@@ -388,6 +388,7 @@ static int findInCircle(struct apiEntry *haystack, int haylen, struct apiOptions
                         matches[count] = *e;
                         *alloc += e->jsonOffset.len;
                         matches[count].distance = (float) dist;
+                        matches[count].direction = (float) bearing(lat, lon, e->bin.lat / 1E6, e->bin.lon / 1E6);
                         minDistance = dist;
                         found = true;
                     }
