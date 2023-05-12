@@ -385,17 +385,21 @@ static int findInCircle(struct apiEntry *haystack, int haylen, struct apiOptions
                     double dist = greatcircle(lat, lon, e->bin.lat / 1E6, e->bin.lon / 1E6, 0);
                     if (dist < radius && dist < minDistance) {
                         // first match is overwritten repeatedly
-                        matches[count] = *e;
-                        *alloc += e->jsonOffset.len;
-                        matches[count].distance = (float) dist;
+                        matches[0] = *e;
+                        matches[0].distance = (float) dist;
                         minDistance = dist;
                         found = true;
                     }
                 }
             }
         }
-        if (found)
+        if (found) {
+            // calculate bearing for (the only) match
+            struct apiEntry *e = &matches[0];
+            *alloc += e->jsonOffset.len;
+            e->direction = (float) bearing(lat, lon, e->bin.lat / 1E6, e->bin.lon / 1E6);
             count = 1;
+        }
     }
     if (!onlyClosest) {
         for (int k = 0; k < 2; k++) {
