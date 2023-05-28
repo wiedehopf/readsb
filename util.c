@@ -214,8 +214,10 @@ int64_t lapWatch(struct timespec *start_time) {
 // this is not cryptographic but much better than mstime() as a seed
 unsigned int get_seed() {
     struct timespec time;
+    unsigned int tmp_pid = getpid();
+    uintptr_t tmp_pthread = pthread_self();
     clock_gettime(CLOCK_REALTIME, &time);
-    return (time.tv_sec ^ time.tv_nsec ^ (getpid() << 16) ^ (uintptr_t) pthread_self());
+    return (time.tv_sec ^ time.tv_nsec ^ (tmp_pid << 16) ^ tmp_pthread);
 }
 
 // increment target by increment in ms, if result is in the past, set target to now.

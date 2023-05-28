@@ -29,6 +29,9 @@
 #define GZBUFFER_BIG (1 * 1024 * 1024)
 
 #include <stdint.h>
+#include <zlib.h>
+#include <stdio.h>
+#include <sys/epoll.h>
 
 #define sfree(x) do { free(x); x = NULL; } while (0)
 

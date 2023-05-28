@@ -29,6 +29,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVE
 //#include <sys/types.h>
 #include <unistd.h>
 #include <string.h>
+#include "util.h"
 
 
 #define ATOMIC_WORKER_LOCK (-1)
@@ -59,17 +60,6 @@ struct threadpool_t
 };
 
 static void *threadpool_threadproc(void *threadpool);
-
-static void normalize_timespec(struct timespec *ts) {
-    if (ts->tv_nsec >= 1000000000) {
-        ts->tv_sec += ts->tv_nsec / 1000000000;
-        ts->tv_nsec = ts->tv_nsec % 1000000000;
-    } else if (ts->tv_nsec < 0) {
-        long adjust = ts->tv_nsec / 1000000000 + 1;
-        ts->tv_sec -= adjust;
-        ts->tv_nsec = (ts->tv_nsec + 1000000000 * adjust) % 1000000000;
-    }
-}
 
 struct timespec threadpool_get_cumulative_thread_time(threadpool_t* pool) {
     struct timespec sum = { 0, 0 };
@@ -185,12 +175,6 @@ void threadpool_run(threadpool_t *pool, threadpool_task_t* tasks, uint32_t count
         pthread_cond_wait(&pool->notify_master, &pool->master_lock);
     }
     pthread_mutex_unlock(&pool->master_lock);
-}
-
-static unsigned get_seed() {
-    struct timespec time;
-    clock_gettime(CLOCK_REALTIME, &time);
-    return (time.tv_sec ^ time.tv_nsec ^ (getpid() << 16) ^ (uintptr_t) pthread_self());
 }
 
 static void *threadpool_threadproc(void *arg)
