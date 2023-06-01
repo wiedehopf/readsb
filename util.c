@@ -53,9 +53,6 @@
 
 #include "readsb.h"
 
-#include <stdlib.h>
-#include <sys/time.h>
-
 int64_t mstime(void) {
     if (Modes.synthetic_now)
         return Modes.synthetic_now;
@@ -215,7 +212,9 @@ int64_t lapWatch(struct timespec *start_time) {
 unsigned int get_seed() {
     struct timespec time;
     clock_gettime(CLOCK_REALTIME, &time);
-    return (time.tv_sec ^ time.tv_nsec ^ (getpid() << 16) ^ (uintptr_t) pthread_self());
+    unsigned int seed = (uint64_t) time.tv_sec ^ (uint64_t) time.tv_nsec ^ (((uint64_t) getpid()) << 16) ^ (((uint64_t) pthread_self()) << 10);
+    fprintf(stderr, "seed: %u\n", seed);
+    return seed;
 }
 
 // increment target by increment in ms, if result is in the past, set target to now.
