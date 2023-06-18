@@ -213,7 +213,6 @@ unsigned int get_seed() {
     struct timespec time;
     clock_gettime(CLOCK_REALTIME, &time);
     unsigned int seed = (uint64_t) time.tv_sec ^ (uint64_t) time.tv_nsec ^ (((uint64_t) getpid()) << 16) ^ (((uint64_t) pthread_self()) << 10);
-    fprintf(stderr, "seed: %u\n", seed);
     return seed;
 }
 
