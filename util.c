@@ -212,7 +212,7 @@ int64_t lapWatch(struct timespec *start_time) {
 unsigned int get_seed() {
     struct timespec time;
     clock_gettime(CLOCK_REALTIME, &time);
-    unsigned int seed = (uint64_t) time.tv_sec ^ (uint64_t) time.tv_nsec ^ (((uint64_t) getpid()) << 16) ^ (((uint64_t) pthread_self()) << 10);
+    unsigned int seed = (uint64_t) time.tv_sec ^ (uint64_t) time.tv_nsec ^ (((uint64_t) getpid()) << 16) ^ (((uint64_t) (uintptr_t) pthread_self()) << 10);
     return seed;
 }
 
