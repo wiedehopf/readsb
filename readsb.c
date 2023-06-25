@@ -1793,6 +1793,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         Modes.apiThreadCount = atoi(token[1]);
                     }
                 }
+                if (strcasecmp(token[0], "beast_forward_noforward") == 0) {
+                    Modes.beast_forward_noforward = 1;
+                }
+                if (strcasecmp(token[0], "beast_set_noforward_timestamp") == 0) {
+                    Modes.beast_set_noforward_timestamp = 1;
+                }
                 if (strcasecmp(token[0], "accept_synthetic") == 0) {
                     Modes.dump_accept_synthetic_now = 1;
                 }

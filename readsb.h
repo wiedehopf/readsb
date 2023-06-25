@@ -342,6 +342,7 @@ typedef enum {
  */
 #define MAGIC_MLAT_TIMESTAMP 0xFF004D4C4154LL
 #define MAGIC_UAT_TIMESTAMP  0xFF004D4C4155LL
+#define MAGIC_NOFORWARD_TIMESTAMP  0xFF004D4C4160LL
 
 #define MAGIC_ANY_TIMESTAMP  0xFFFFFFFFFFFFULL
 
@@ -679,6 +680,8 @@ struct _Modes
     int8_t netIngest;
     int8_t forward_mlat; // forward beast mlat messages to beast output ports
     int8_t forward_mlat_sbs; // forward mlat messages to sbs output ports
+    int8_t beast_forward_noforward;
+    int8_t beast_set_noforward_timestamp;
     int8_t quiet; // Suppress stdout
     int8_t interactive; // Interactive mode
     int8_t stats_range_histo; // Collect/show a range histogram?

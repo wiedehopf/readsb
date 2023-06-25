@@ -1874,6 +1874,8 @@ void displayModesMessage(struct modesMessage *mm) {
         printf("This is a synthetic MLAT message.\n");
     else if (mm->timestamp == MAGIC_UAT_TIMESTAMP)
         printf("This is a synthetic UAT message.\n");
+    else if (mm->timestamp == MAGIC_NOFORWARD_TIMESTAMP)
+        printf("This is a no_forward message.\n");
     else
         printf("receiverTime: %27.2fus\n", mm->timestamp / 12.0);
 

@@ -4250,6 +4250,11 @@ static void outputMessage(struct modesMessage *mm) {
     if (Modes.filterDF && (mm->sbs_in || !(Modes.filterDFbitset & (1 << mm->msgtype)))) {
         return;
     }
+    int noforward = (mm->timestamp == MAGIC_NOFORWARD_TIMESTAMP) && !Modes.beast_forward_noforward;
+    int64_t orig_ts = mm->timestamp;
+    if (Modes.beast_set_noforward_timestamp) {
+        mm->timestamp = MAGIC_NOFORWARD_TIMESTAMP;
+    }
 
     struct aircraft *ac = mm->aircraft;
 
@@ -4274,13 +4279,13 @@ static void outputMessage(struct modesMessage *mm) {
             }
         }
 
-        if (!is_mlat && (Modes.net_verbatim || mm->correctedbits < 2) && Modes.raw_out.connections) {
+        if (!noforward && !is_mlat && (Modes.net_verbatim || mm->correctedbits < 2) && Modes.raw_out.connections) {
             // Forward 2-bit-corrected messages via raw output only if --net-verbatim is set
             // Don't ever forward mlat messages via raw output.
             modesSendRawOutput(mm);
         }
 
-        if ((!is_mlat || Modes.forward_mlat) && (mm->correctedbits < 2 || Modes.net_verbatim)) {
+        if (!noforward && (!is_mlat || Modes.forward_mlat) && (mm->correctedbits < 2 || Modes.net_verbatim)) {
             // Forward 2-bit-corrected messages via beast output only if --net-verbatim is set
             // Forward mlat messages via beast output only if --forward-mlat is set
             if (Modes.beast_out.connections) {
@@ -4323,6 +4328,8 @@ static void outputMessage(struct modesMessage *mm) {
             }
         }
     }
+
+    mm->timestamp = orig_ts;
 
 }
 
