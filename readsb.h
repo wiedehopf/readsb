@@ -663,6 +663,7 @@ struct _Modes
     int8_t debug_provoke_segfault;
     int8_t debug_position_timing;
     int8_t debug_lastStatus;
+    int8_t debug_gps;
     int8_t incrementId;
     int8_t omitGlobeFiles;
     int8_t enableAcasCsv;

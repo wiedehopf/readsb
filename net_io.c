@@ -450,6 +450,10 @@ static void checkServiceConnected(struct net_connector *con, int64_t now) {
 
     if ((c->sendq && c->sendq_len + 256 < c->sendq_max)
                 && strcmp(con->protocol, "gpsd_in") == 0) {
+        if (Modes.debug_gps) {
+            fprintTime(stderr, now);
+            fprintf(stderr, " gpsdebug: sending \'?WATCH={\"enable\":true,\"json\":true};\\n\'\n");
+        }
         c->sendq_len += snprintf(c->sendq, 256, "?WATCH={\"enable\":true,\"json\":true};\n");
         if (flushClient(c, now) < 0) {
             return;
@@ -2406,6 +2410,12 @@ static int handle_gpsd(struct client *c, char *p, int remote, int64_t now, struc
     MODES_NOTUSED(remote);
     MODES_NOTUSED(now);
     MODES_NOTUSED(mb);
+
+    if (Modes.debug_gps) {
+        fprintTime(stderr, now);
+        fprintf(stderr, " gpsdebug: received from GPSD: \'%s\'\n", p);
+    }
+
     // remove spaces in place
     char *d = p;
     char *s = p;
@@ -2417,13 +2427,19 @@ static int handle_gpsd(struct client *c, char *p, int remote, int64_t now, struc
     } while (*d++);
 
     // filter all messages but TPV type
-    if (!strstr(p, "\"class\":\"TPV\"")) {
+    if (0 && !strstr(p, "\"class\":\"TPV\"")) {
+        if (Modes.debug_gps) {
+            fprintf(stderr, "gpsdebug: class \"TPV\" : ignoring message.\n");
+        }
         return 0;
     }
     // filter all messages which don't have lat / lon
     char *latp = strstr(p, "\"lat\":");
     char *lonp = strstr(p, "\"lon\":");
     if (!latp || !lonp) {
+        if (Modes.debug_gps) {
+            fprintf(stderr, "gpsdebug: lat / lon not present: ignoring message.\n");
+        }
         return 0;
     }
     latp += 6;
@@ -2436,14 +2452,27 @@ static int handle_gpsd(struct client *c, char *p, int remote, int64_t now, struc
     double lat = strtod(latp, NULL);
     double lon = strtod(lonp, NULL);
 
+    if (Modes.debug_gps) {
+        fprintf(stderr, "gpsdebug: parsed lat,lon: %11.6f,%11.6f\n", lat, lon);
+    }
     //fprintf(stderr, "%11.6f %11.6f\n", lat, lon);
 
 
     if (!isfinite(lat) || lat < -89.9 || lat > 89.9 || !isfinite(lon) || lon < -180 || lon > 180) {
+        if (Modes.debug_gps) {
+            fprintf(stderr, "gpsdebug: lat lon implausible, ignoring\n");
+        }
         return 0;
     }
     if (fabs(lat) < 0.1 && fabs(lon) < 0.1) {
+        if (Modes.debug_gps) {
+            fprintf(stderr, "gpsdebug: lat lon implausible, ignoring\n");
+        }
         return 0;
+    }
+
+    if (Modes.debug_gps) {
+        fprintf(stderr, "gpsdebug: Updating position, writing receiver.json\n");
     }
 
     Modes.fUserLat = lat;

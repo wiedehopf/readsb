@@ -1829,6 +1829,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (strcasecmp(token[0], "provokeSegfault") == 0) {
                     Modes.debug_provoke_segfault = 1;
                 }
+                if (strcasecmp(token[0], "debugGPS") == 0) {
+                    Modes.debug_gps = 1;
+                }
             }
             break;
 
