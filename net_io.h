@@ -42,7 +42,8 @@ typedef enum
     READ_MODE_IGNORE,
     READ_MODE_BEAST,
     READ_MODE_BEAST_COMMAND,
-    READ_MODE_ASCII
+    READ_MODE_ASCII,
+    READ_MODE_PLANEFINDER
 } read_mode_t;
 
 typedef struct {
