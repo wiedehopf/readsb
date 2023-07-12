@@ -2757,7 +2757,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now, 
 // 0        <DLE>
 // 1        ID          0x41
 // 2        padding     always 0
-// 3        byte        bitmask, 0 = mode AC, 1 = mode S short, 2 = mode S long, 4 = CRC. 5-7 are undefined
+// 3        byte        the lower 4 bits map to: 0 = mode AC, 1 = mode S short, 2 = mode S long. Bit 4 indicates CRC. 5-7 are undefined. (however, I see that they're being set; checking iwth them....)
 // 4        byte        signal strength
 // 5-8      long        epoch time
 // 9-12     long        nanoseconds
@@ -2793,16 +2793,16 @@ static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, s
     // Padding
     p++;
 
-    // This next field is supposed to be a bitmask, but I've always seen that the bits are mutually exclusive
+    // Packet type
     ch = *p++;
-    if (ch == 0) {
-        return 0;
+    if (ch & 0x10) {
+        // TODO: CRC?
     }
-    if (ch == 0x1) {
+    if ((ch & 0xF) == 0) {
         msgLen = MODEAC_MSG_BYTES;
-    } else if (ch == 0x2) {
+    } else if ((ch & 0xF) == 1) {
         msgLen = MODES_SHORT_MSG_BYTES;
-    } else if (ch == 0x04) {
+    } else if ((ch & 0xF) == 2) {
         msgLen = MODES_LONG_MSG_BYTES;
     } else {
         fprintf(stderr, "Unknown message type: %d\n", ch);
