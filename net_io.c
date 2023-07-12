@@ -2799,6 +2799,9 @@ static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, s
         // TODO: CRC?
     }
     if ((ch & 0xF) == 0) {
+        if (!Modes.mode_ac) {
+            return 0;
+        }
         msgLen = MODEAC_MSG_BYTES;
     } else if ((ch & 0xF) == 1) {
         msgLen = MODES_SHORT_MSG_BYTES;
