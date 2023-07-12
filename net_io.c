@@ -2763,6 +2763,8 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now, 
 // 9-12     long        nanoseconds
 // 13-27    byte        data, mode AC/S
 static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, struct messageBuffer *mb) {
+    MODES_NOTUSED(remote);
+
     int msgLen = 0;
     int j;
     unsigned char ch;
@@ -2814,9 +2816,7 @@ static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, s
 
     ch = *p++; // Signal strength
     mm->signalLevel = ((unsigned char) ch / 255.0);
-    mm->signalLevel = mm->signalLevel * mm->signalLevel;
-
-    mm->remote = remote;
+    mm->signalLevel = mm->signalLevel * mm->signalLevel; // square it to get power
 
     mm->timestamp = 0;
     // Grab the timestamp (big endian format)
