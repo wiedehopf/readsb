@@ -63,6 +63,8 @@
 
 #include "uat2esnt/uat2esnt.h"
 
+#define DLE 0x10
+#define ETX 0x03
 
 // ============================= Networking =============================
 //
@@ -2738,6 +2740,15 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now, 
     netUseMessage(mm);
     return 0;
 }
+
+
+// Planefinder uses bit stuffing, so if we see a DLE byte, we need the next byte
+static inline unsigned char getPfEscapedByte(char **p) {
+    if (**p == DLE) {
+        (*p)++;
+    }
+    return *(*p)++;
+}
 //
 //
 //=========================================================================
@@ -2786,17 +2797,17 @@ static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, s
     p++;
 
     // Packet ID / type
-    ch = *p++; /// Get the message type
+    ch = getPfEscapedByte(&p); /// Get the message type
     if (ch != 0xc1) {
         // MHM fprintf(stderr, "Invalid type received: %d!\n", ch);
         return 0;
     }
 
     // Padding
-    p++;
+    getPfEscapedByte(&p);
 
     // Packet type
-    ch = *p++;
+    ch = getPfEscapedByte(&p);
     if (ch & 0x10) {
         // TODO: CRC?
     }
@@ -2814,20 +2825,21 @@ static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, s
         return 0;
     }
 
-    ch = *p++; // Signal strength
+    // Signal strength
+    ch = getPfEscapedByte(&p);
     mm->signalLevel = ((unsigned char) ch / 255.0);
     mm->signalLevel = mm->signalLevel * mm->signalLevel; // square it to get power
 
     mm->timestamp = 0;
     // Grab the timestamp (big endian format)
     for (j = 0; j < 4; j++) {
-        ch = *p++;
+        ch = getPfEscapedByte(&p);
         mm->timestamp = mm->timestamp << 8 | (ch & 255);
     }
 
     long int nanoseconds = 0;
     for (j = 0; j < 4; j++) {
-        ch = *p++;
+        ch = getPfEscapedByte(&p);
         nanoseconds = nanoseconds << 8 | (ch & 255);
     }
     // TODO: how do we add this? mm->timestamp += nanoseconds / 1000000000.0;
@@ -2835,7 +2847,7 @@ static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, s
     mm->sysTimestamp = now;
 
     for (j = 0; j < msgLen; j++) { // and the data
-        msg[j] = ch = *p++;
+        msg[j] = getPfEscapedByte(&p);
     }
 
     int result = -10;
@@ -3383,8 +3395,6 @@ static int readAscii(struct client *c, int64_t now, struct messageBuffer *mb) {
 // 2 - n    Data        Depends on the packet type
 // n+1      <DLE>       escape
 // n+2      <ETX>       footer
-#define DLE 0x10
-#define ETX 0x03
 static int readPlanefinder(struct client *c, int64_t now, struct messageBuffer *mb) {
     char *p;
     unsigned char pid;
