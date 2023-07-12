@@ -2769,7 +2769,7 @@ static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, s
     struct modesMessage *mm = netGetMM(mb);
     unsigned char *msg = mm->msg;
 
-#if 0
+#if 0 // MHM
     fprintf(stderr, "Parsing (first 12 bytes): ");
     for (char * byte = p; byte<=p+12; byte++) {
         fprintf(stderr, "%02x", (unsigned char)*byte & 0xFF);
@@ -2786,7 +2786,7 @@ static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, s
     // Packet ID / type
     ch = *p++; /// Get the message type
     if (ch != 0xc1) {
-        fprintf(stderr, "Invalid type received: %d!\n", ch);
+        // MHM fprintf(stderr, "Invalid type received: %d!\n", ch);
         return 0;
     }
 
@@ -2833,8 +2833,6 @@ static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, s
     // TODO: how do we add this? mm->timestamp += nanoseconds / 1000000000.0;
     // record reception time as the time we read it.
     mm->sysTimestamp = now;
-
-    // fprintf(stderr, "Msg timestamp is %.6f, system is %.6f\n", (double) mm->timestamp, mm->sysTimestamp / 1000.0);
 
     for (j = 0; j < msgLen; j++) { // and the data
         msg[j] = ch = *p++;
@@ -3393,7 +3391,7 @@ static int readPlanefinder(struct client *c, int64_t now, struct messageBuffer *
 
     char *start;
     char *end;
-    fprintf(stderr, "Entered readPlanefinder\n");
+    // MHM fprintf(stderr, "Entered readPlanefinder\n");
 
     // Scan the entire buffer, see if we can find one or more messages
     while (c->som < c->eod && ((p = memchr(c->som, DLE, c->eod - c->som)) != NULL)) { // The first byte of buffer 'should' be 0x10
@@ -3430,7 +3428,7 @@ static int readPlanefinder(struct client *c, int64_t now, struct messageBuffer *
         }
         // MHM fprintf(stderr, "end is 0x%p\n", end);
         if (end) {
-#if 1
+#if 0 // MHM
             fprintf(stderr, "Message found from 0x%p to 0x%p: ", c->som, end);
             for (char * byte = start; byte<=end; byte++) {
                 fprintf(stderr, "%02x", (unsigned char)*byte & 0xFF);
