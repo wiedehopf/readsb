@@ -2822,12 +2822,12 @@ static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, s
         mm->timestamp = mm->timestamp << 8 | (ch & 255);
     }
 
-    // TODO -- add ns
-    p++;
-    p++;
-    p++;
-    p++;
-
+    long int nanoseconds = 0;
+    for (j = 0; j < 4; j++) {
+        ch = *p++;
+        nanoseconds = nanoseconds << 8 | (ch & 255);
+    }
+    // TODO: how do we add this? mm->timestamp += nanoseconds / 1000000000.0;
     // record reception time as the time we read it.
     mm->sysTimestamp = now;
 
