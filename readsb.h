@@ -741,7 +741,7 @@ struct _Modes
     char *db_file;
     char *net_output_raw_ports; // List of raw output TCP ports
     char *net_input_raw_ports; // List of raw input TCP ports
-    char *net_input_planefinder_ports; // List of raw input TCP ports
+    char *net_input_planefinder_ports; // List of planefinder input TCP ports
     char *net_output_sbs_ports; // List of SBS output TCP ports
     char *net_input_sbs_ports; // List of SBS input TCP ports
     char *net_output_jaero_ports; // jaero SBS output ports

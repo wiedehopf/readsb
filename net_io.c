@@ -2743,7 +2743,7 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now, 
 
 
 // Planefinder uses bit stuffing, so if we see a DLE byte, we need the next byte
-static inline unsigned char getPfEscapedByte(char **p) {
+static inline unsigned char getNextPfUnstuffedByte(char **p) {
     if (**p == DLE) {
         (*p)++;
     }
@@ -2768,7 +2768,7 @@ static inline unsigned char getPfEscapedByte(char **p) {
 // 0        <DLE>
 // 1        ID          0x41
 // 2        padding     always 0
-// 3        byte        the lower 4 bits map to: 0 = mode AC, 1 = mode S short, 2 = mode S long. Bit 4 indicates CRC. 5-7 are undefined. (however, I see that they're being set; checking iwth them....)
+// 3        byte        the lower 4 bits map to: 0 = mode AC, 1 = mode S short, 2 = mode S long. Bit 4 indicates CRC. 5-7 is undefined in the spec I received, although bit 5 is in use (it can be ignored).
 // 4        byte        signal strength
 // 5-8      long        epoch time
 // 9-12     long        nanoseconds
@@ -2782,14 +2782,6 @@ static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, s
     struct modesMessage *mm = netGetMM(mb);
     unsigned char *msg = mm->msg;
 
-#if 0 // MHM
-    fprintf(stderr, "Parsing (first 12 bytes): ");
-    for (char * byte = p; byte<=p+12; byte++) {
-        fprintf(stderr, "%02x", (unsigned char)*byte & 0xFF);
-    }
-    fprintf(stderr, "\n");
-#endif
-
     mm->client = c;
     mm->remote = 1;
 
@@ -2797,17 +2789,17 @@ static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, s
     p++;
 
     // Packet ID / type
-    ch = getPfEscapedByte(&p); /// Get the message type
+    ch = getNextPfUnstuffedByte(&p); /// Get the message type
+    // This shouldn't happen because we check it in the readPlanefinder() function
     if (ch != 0xc1) {
-        // MHM fprintf(stderr, "Invalid type received: %d!\n", ch);
         return 0;
     }
 
     // Padding
-    getPfEscapedByte(&p);
+    getNextPfUnstuffedByte(&p);
 
     // Packet type
-    ch = getPfEscapedByte(&p);
+    ch = getNextPfUnstuffedByte(&p);
     if (ch & 0x10) {
         // TODO: CRC?
     }
@@ -2826,28 +2818,28 @@ static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, s
     }
 
     // Signal strength
-    ch = getPfEscapedByte(&p);
+    ch = getNextPfUnstuffedByte(&p);
     mm->signalLevel = ((unsigned char) ch / 255.0);
     mm->signalLevel = mm->signalLevel * mm->signalLevel; // square it to get power
 
     mm->timestamp = 0;
-    // Grab the timestamp (big endian format)
     for (j = 0; j < 4; j++) {
-        ch = getPfEscapedByte(&p);
+        ch = getNextPfUnstuffedByte(&p);
         mm->timestamp = mm->timestamp << 8 | (ch & 255);
     }
 
+    // TODO -- what do we do with the nanosecond value? mm->timestamp is an integer...
     long int nanoseconds = 0;
     for (j = 0; j < 4; j++) {
-        ch = getPfEscapedByte(&p);
+        ch = getNextPfUnstuffedByte(&p);
         nanoseconds = nanoseconds << 8 | (ch & 255);
     }
-    // TODO: how do we add this? mm->timestamp += nanoseconds / 1000000000.0;
+
     // record reception time as the time we read it.
     mm->sysTimestamp = now;
 
     for (j = 0; j < msgLen; j++) { // and the data
-        msg[j] = getPfEscapedByte(&p);
+        msg[j] = getNextPfUnstuffedByte(&p);
     }
 
     int result = -10;
@@ -3401,62 +3393,55 @@ static int readPlanefinder(struct client *c, int64_t now, struct messageBuffer *
 
     char *start;
     char *end;
-    // MHM fprintf(stderr, "Entered readPlanefinder\n");
 
-    // Scan the entire buffer, see if we can find one or more messages
-    while (c->som < c->eod && ((p = memchr(c->som, DLE, c->eod - c->som)) != NULL)) { // The first byte of buffer 'should' be 0x10
+    // Scan the entire buffer, see if we can find one or more messages.
+    while (c->som < c->eod && ((p = memchr(c->som, DLE, c->eod - c->som)) != NULL)) {
         end = NULL;
-        //MHM fprintf(stderr, "Starting at c->som=0x%p, p=0x%p\n", c->som, p);
 
         // Make sure we didn't jump to a DLE that's in the middle of a message. TBD if we need this
         if (p+1 < c->eod && *(p+1) != DLE && *(p+1) != ETX) {
-            //MHM fprintf(stderr, "Actual start found at 0x%p\n", p);
+            // Good to go!
         } else {
             c->som = p+1;
             continue;
         }
 
-        // Now, check if we have the end of the message
+        // Now, check if we have the end of the message in the buffer
         start = p;
         p++; // Skip start DLE
         p++; // Skip packet ID
-        //MHM fprintf(stderr, "Will check %ld bytes until 0x%p\n", c->eod - p, c->eod);
+
         while (p < c->eod) {
             if (*p  == DLE) {
-                // Potential message end found
+                // Potential message end found; it's either a DLE, ETX sequence or a DLE, DLE (the first is an escape for the second)
                 if (p+1 < c->eod && *(p+1) == ETX) {
+                    // We found an actual end!
                     end = p+1;
-                    // This is the end
                     break;
                 }
             }
             p++;
         }
+
         if (p >= c->eod) {
-            // MHM fprintf(stderr, "No ETX found before we hit the end of the buffer\n");
+            // We reached the end of the buffer and didn't find a message. We'll call this function again when there's more data available
             return 0;
         }
-        // MHM fprintf(stderr, "end is 0x%p\n", end);
-        if (end) {
-#if 0 // MHM
-            fprintf(stderr, "Message found from 0x%p to 0x%p: ", c->som, end);
-            for (char * byte = start; byte<=end; byte++) {
-                fprintf(stderr, "%02x", (unsigned char)*byte & 0xFF);
-            }
-            fprintf(stderr, "\n");
-#endif
-        } else {
-            //MHM fprintf(stderr, "No message found; exiting\n");
-            //MHM fprintf(stderr, "c->som is now 0x%p\n", c->som);
-            break;
+
+#if 0
+        fprintf(stderr, "Message found from 0x%p to 0x%p: ", c->som, end);
+        for (char * byte = start; byte<=end; byte++) {
+            fprintf(stderr, "%02x", (unsigned char)*byte & 0xFF);
         }
+        fprintf(stderr, "\n");
+#endif
 
         // Next time we loop through this, start from the next message
         c->som = end+1;
 
+        // We only process messages with ID 0xc1. Others are valid, but not relevant for us
         pid = *(start+1);
         if (pid != 0xc1) {
-            fprintf(stderr, "Packet with ID != 0xc1 received! (value was 0x%02x)\n", pid);
             continue;
         }
 
