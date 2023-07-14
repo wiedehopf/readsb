@@ -2823,17 +2823,19 @@ static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, s
     mm->signalLevel = mm->signalLevel * mm->signalLevel; // square it to get power
 
     mm->timestamp = 0;
+    long int seconds = 0;
     for (j = 0; j < 4; j++) {
         ch = getNextPfUnstuffedByte(&p);
-        mm->timestamp = mm->timestamp << 8 | (ch & 255);
+        seconds = seconds << 8 | (ch & 255);
     }
 
-    // TODO -- what do we do with the nanosecond value? mm->timestamp is an integer...
     long int nanoseconds = 0;
     for (j = 0; j < 4; j++) {
         ch = getNextPfUnstuffedByte(&p);
         nanoseconds = nanoseconds << 8 | (ch & 255);
     }
+
+    mm->timestamp = seconds * 1000000000 + nanoseconds;
 
     // record reception time as the time we read it.
     mm->sysTimestamp = now;
