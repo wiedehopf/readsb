@@ -2801,7 +2801,7 @@ static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, s
     // Packet type
     ch = getNextPfUnstuffedByte(&p);
     if (ch & 0x10) {
-        // TODO: CRC?
+        // CRC: ignore field
     }
     if ((ch & 0xF) == 0) {
         if (!Modes.mode_ac) {
@@ -2813,7 +2813,9 @@ static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, s
     } else if ((ch & 0xF) == 2) {
         msgLen = MODES_LONG_MSG_BYTES;
     } else {
-        fprintf(stderr, "Unknown message type: %d\n", ch);
+        if (Modes.debug_planefinder) {
+            fprintf(stderr, "Unknown message type: %d\n", ch);
+        }
         return 0;
     }
 
@@ -2867,6 +2869,9 @@ static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, s
     }
     if ((Modes.garbage_ports || Modes.netReceiverId) && receiverCheckBad(mm->receiverId, now)) {
         mm->garbage = 1;
+    }
+    if (Modes.debug_planefinder && (Modes.mode_ac || msgLen != MODEAC_MSG_BYTES)) {
+        displayModesMessage(mm);
     }
 
     netUseMessage(mm);
