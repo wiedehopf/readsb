@@ -2825,19 +2825,22 @@ static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, s
     mm->signalLevel = mm->signalLevel * mm->signalLevel; // square it to get power
 
     mm->timestamp = 0;
-    long int seconds = 0;
+    int64_t seconds = 0;
     for (j = 0; j < 4; j++) {
         ch = getNextPfUnstuffedByte(&p);
         seconds = seconds << 8 | (ch & 255);
     }
 
-    long int nanoseconds = 0;
+    int64_t nanoseconds = 0;
     for (j = 0; j < 4; j++) {
         ch = getNextPfUnstuffedByte(&p);
         nanoseconds = nanoseconds << 8 | (ch & 255);
     }
 
-    mm->timestamp = seconds * 1000000000 + nanoseconds;
+    if (Modes.debug_planefinder) {
+        fprintf(stderr, "sec: %12lld ns: %12lld\n", (long long) seconds, (long long) nanoseconds);
+    }
+    mm->timestamp = seconds * 1000000000LL + nanoseconds;
 
     // record reception time as the time we read it.
     mm->sysTimestamp = now;
