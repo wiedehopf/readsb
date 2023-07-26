@@ -941,7 +941,7 @@ static int load_aircraft(char **p, char *end, int64_t now, threadpool_buffer_t *
         }
 
         int checkNo = 0;
-#define checkSize(size) if (++checkNo && end - *p < (ssize_t) size) { fprintf(stderr, "loadAircraft: checkSize failed for hex %06x checkNo %d\n", a->addr, checkNo); traceCleanupNoUnlink(a); return -1; }
+#define checkSize(size) if (++checkNo && ((end - *p < (ssize_t) size) || size < 0)) { fprintf(stderr, "loadAircraft: checkSize failed for hex %06x checkNo %d size %lld\n", a->addr, checkNo, (long long) size); traceCleanupNoUnlink(a); return -1; }
 
         if (a->trace_chunk_len > 0) {
             a->trace_chunks = cmalloc(a->trace_chunk_len * sizeof(stateChunk));

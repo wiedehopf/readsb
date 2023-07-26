@@ -63,6 +63,8 @@
 
 #include "uat2esnt/uat2esnt.h"
 
+#define DLE 0x10
+#define ETX 0x03
 
 // ============================= Networking =============================
 //
@@ -88,6 +90,7 @@ static int decodeSbsLineJaero(struct client *c, char *line, int remote, int64_t 
     MODES_NOTUSED(remote);
     return decodeSbsLine(c, line, 64 + SOURCE_JAERO, now, mb);
 }
+static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, struct messageBuffer *mb);
 // end read handlers
 
 static void send_heartbeat(struct net_service *service);
@@ -464,6 +467,10 @@ static void checkServiceConnected(struct net_connector *con, int64_t now) {
 
     if ((c->sendq && c->sendq_len + 256 < c->sendq_max)
                 && strcmp(con->protocol, "gpsd_in") == 0) {
+        if (Modes.debug_gps) {
+            fprintTime(stderr, now);
+            fprintf(stderr, " gpsdebug: sending \'?WATCH={\"enable\":true,\"json\":true};\\n\'\n");
+        }
         c->sendq_len += snprintf(c->sendq, 256, "?WATCH={\"enable\":true,\"json\":true};\n");
         if (flushClient(c, now) < 0) {
             return;
@@ -852,6 +859,7 @@ void modesInitNet(void) {
     struct net_service *sbs_in_jaero;
     struct net_service *sbs_in_prio;
     struct net_service *gpsd_in;
+    struct net_service *planefinder_in;
 
     signal(SIGPIPE, SIG_IGN);
 
@@ -984,6 +992,10 @@ void modesInitNet(void) {
         Modes.serial_client = createSocketClient(Modes.beast_in_service, Modes.beast_fd);
     }
 
+    /* Planefinder input via network */
+    planefinder_in = serviceInit(&Modes.services_in, "Planefinder TCP input", NULL, no_heartbeat, no_heartbeat, READ_MODE_PLANEFINDER, NULL, decodePfMessage);
+    serviceListen(planefinder_in, Modes.net_bind_address, Modes.net_input_planefinder_ports, Modes.net_epfd);
+
     Modes.uat_in_service = serviceInit(&Modes.services_in, "UAT TCP input", NULL, no_heartbeat, no_heartbeat, READ_MODE_ASCII, "\n", decodeUatMessage);
     // for testing ... don't care to create an argument to open this port
     // serviceListen(Modes.uat_in_service, Modes.net_bind_address, "1234", Modes.net_epfd);
@@ -1003,6 +1015,8 @@ void modesInitNet(void) {
             con->service = raw_out;
         else if (strcmp(con->protocol, "raw_in") == 0)
             con->service = raw_in;
+        else if (strcmp(con->protocol, "planefinder_in") == 0)
+            con->service = planefinder_in;
         else if (strcmp(con->protocol, "vrs_out") == 0)
             con->service = vrs_out;
         else if (strcmp(con->protocol, "json_out") == 0)
@@ -3515,6 +3529,12 @@ static int handle_gpsd(struct client *c, char *p, int remote, int64_t now, struc
     MODES_NOTUSED(remote);
     MODES_NOTUSED(now);
     MODES_NOTUSED(mb);
+
+    if (Modes.debug_gps) {
+        fprintTime(stderr, now);
+        fprintf(stderr, " gpsdebug: received from GPSD: \'%s\'\n", p);
+    }
+
     // remove spaces in place
     char *d = p;
     char *s = p;
@@ -3526,13 +3546,19 @@ static int handle_gpsd(struct client *c, char *p, int remote, int64_t now, struc
     } while (*d++);
 
     // filter all messages but TPV type
-    if (!strstr(p, "\"class\":\"TPV\"")) {
+    if (0 && !strstr(p, "\"class\":\"TPV\"")) {
+        if (Modes.debug_gps) {
+            fprintf(stderr, "gpsdebug: class \"TPV\" : ignoring message.\n");
+        }
         return 0;
     }
     // filter all messages which don't have lat / lon
     char *latp = strstr(p, "\"lat\":");
     char *lonp = strstr(p, "\"lon\":");
     if (!latp || !lonp) {
+        if (Modes.debug_gps) {
+            fprintf(stderr, "gpsdebug: lat / lon not present: ignoring message.\n");
+        }
         return 0;
     }
     latp += 6;
@@ -3545,14 +3571,27 @@ static int handle_gpsd(struct client *c, char *p, int remote, int64_t now, struc
     double lat = strtod(latp, NULL);
     double lon = strtod(lonp, NULL);
 
+    if (Modes.debug_gps) {
+        fprintf(stderr, "gpsdebug: parsed lat,lon: %11.6f,%11.6f\n", lat, lon);
+    }
     //fprintf(stderr, "%11.6f %11.6f\n", lat, lon);
 
 
     if (!isfinite(lat) || lat < -89.9 || lat > 89.9 || !isfinite(lon) || lon < -180 || lon > 180) {
+        if (Modes.debug_gps) {
+            fprintf(stderr, "gpsdebug: lat lon implausible, ignoring\n");
+        }
         return 0;
     }
     if (fabs(lat) < 0.1 && fabs(lon) < 0.1) {
+        if (Modes.debug_gps) {
+            fprintf(stderr, "gpsdebug: lat lon implausible, ignoring\n");
+        }
         return 0;
+    }
+
+    if (Modes.debug_gps) {
+        fprintf(stderr, "gpsdebug: Updating position, writing receiver.json\n");
     }
 
     Modes.fUserLat = lat;
@@ -3805,6 +3844,146 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now, 
     }
     if ((Modes.garbage_ports || Modes.netReceiverId) && receiverCheckBad(mm->receiverId, now)) {
         mm->garbage = 1;
+    }
+
+    netUseMessage(mm);
+    return 0;
+}
+
+
+// Planefinder uses bit stuffing, so if we see a DLE byte, we need the next byte
+static inline unsigned char getNextPfUnstuffedByte(char **p) {
+    if (**p == DLE) {
+        (*p)++;
+    }
+    return *(*p)++;
+}
+//
+//
+//=========================================================================
+//
+// This function decodes a planefinder binary format message
+//
+// The message is passed to the higher level layers, so it feeds
+// the selected screen output, the network output and so forth.
+//
+// If the message looks invalid it is silently discarded.
+//
+// The function always returns 0 (success) to the caller as there is no
+// case where we want broken messages here to close the client connection.
+//
+// For packet ID 0x41, the format is:
+// Byte     Value       Notes
+// 0        <DLE>
+// 1        ID          0x41
+// 2        padding     always 0
+// 3        byte        the lower 4 bits map to: 0 = mode AC, 1 = mode S short, 2 = mode S long. Bit 4 indicates CRC. 5-7 is undefined in the spec I received, although bit 5 is in use (it can be ignored).
+// 4        byte        signal strength
+// 5-8      long        epoch time
+// 9-12     long        nanoseconds
+// 13-27    byte        data, mode AC/S
+static int decodePfMessage(struct client *c, char *p, int remote, int64_t now, struct messageBuffer *mb) {
+    MODES_NOTUSED(remote);
+
+    int msgLen = 0;
+    int j;
+    unsigned char ch;
+    struct modesMessage *mm = netGetMM(mb);
+    unsigned char *msg = mm->msg;
+
+    mm->client = c;
+    mm->remote = 1;
+
+    // Skip the DLE in the beginning
+    p++;
+
+    // Packet ID / type
+    ch = getNextPfUnstuffedByte(&p); /// Get the message type
+    // This shouldn't happen because we check it in the readPlanefinder() function
+    if (ch != 0xc1) {
+        return 0;
+    }
+
+    // Padding
+    getNextPfUnstuffedByte(&p);
+
+    // Packet type
+    ch = getNextPfUnstuffedByte(&p);
+    if (ch & 0x10) {
+        // CRC: ignore field
+    }
+    if ((ch & 0xF) == 0) {
+        if (!Modes.mode_ac) {
+            return 0;
+        }
+        msgLen = MODEAC_MSG_BYTES;
+    } else if ((ch & 0xF) == 1) {
+        msgLen = MODES_SHORT_MSG_BYTES;
+    } else if ((ch & 0xF) == 2) {
+        msgLen = MODES_LONG_MSG_BYTES;
+    } else {
+        if (Modes.debug_planefinder) {
+            fprintf(stderr, "Unknown message type: %d\n", ch);
+        }
+        return 0;
+    }
+
+    // Signal strength
+    ch = getNextPfUnstuffedByte(&p);
+    mm->signalLevel = ((unsigned char) ch / 255.0);
+    mm->signalLevel = mm->signalLevel * mm->signalLevel; // square it to get power
+
+    mm->timestamp = 0;
+    int64_t seconds = 0;
+    for (j = 0; j < 4; j++) {
+        ch = getNextPfUnstuffedByte(&p);
+        seconds = seconds << 8 | (ch & 255);
+    }
+
+    int64_t nanoseconds = 0;
+    for (j = 0; j < 4; j++) {
+        ch = getNextPfUnstuffedByte(&p);
+        nanoseconds = nanoseconds << 8 | (ch & 255);
+    }
+
+    if (Modes.debug_planefinder) {
+        fprintf(stderr, "sec: %12lld ns: %12lld\n", (long long) seconds, (long long) nanoseconds);
+    }
+    mm->timestamp = seconds * 1000000000LL + nanoseconds;
+
+    // record reception time as the time we read it.
+    mm->sysTimestamp = now;
+
+    for (j = 0; j < msgLen; j++) { // and the data
+        msg[j] = getNextPfUnstuffedByte(&p);
+    }
+
+    int result = -10;
+    if (msgLen == MODEAC_MSG_BYTES) { // ModeA or ModeC
+        Modes.stats_current.remote_received_modeac++;
+        decodeModeAMessage(mm, ((msg[0] << 8) | msg[1]));
+        result = 0;
+    } else {
+        Modes.stats_current.remote_received_modes++;
+        result = decodeModesMessage(mm);
+        if (result < 0) {
+            if (result == -1) {
+                Modes.stats_current.remote_rejected_unknown_icao++;
+            } else {
+                Modes.stats_current.remote_rejected_bad++;
+            }
+        } else {
+            Modes.stats_current.remote_accepted[mm->correctedbits]++;
+        }
+    }
+    if (c->unreasonable_messagerate) {
+        mm->garbage = 1;
+    }
+    if ((Modes.garbage_ports || Modes.netReceiverId) && receiverCheckBad(mm->receiverId, now)) {
+        mm->garbage = 1;
+    }
+    if (Modes.debug_planefinder && (Modes.mode_ac || msgLen != MODEAC_MSG_BYTES)) {
+        displayModesMessage(mm);
     }
 
     netUseMessage(mm);
@@ -4335,6 +4514,82 @@ static int readAsterix(struct client *c, int64_t now, struct messageBuffer *mb) 
     return 0;
 }
 
+// Spec for Planefinder message.
+// All messages begin with a DLE and end with a DLE, ETX. DLE cannot appear in the middle of a message unless it's escaped with another DLE (i.e., bit stuffing)
+// Message format:
+// Byte     Value       Notes
+// 0        <DLE>       header
+// 1        ID          Only packet id 0xc1 is recognized here
+// 2 - n    Data        Depends on the packet type
+// n+1      <DLE>       escape
+// n+2      <ETX>       footer
+static int readPlanefinder(struct client *c, int64_t now, struct messageBuffer *mb) {
+    char *p;
+    unsigned char pid;
+
+    char *start;
+    char *end;
+
+    // Scan the entire buffer, see if we can find one or more messages.
+    while (c->som < c->eod && ((p = memchr(c->som, DLE, c->eod - c->som)) != NULL)) {
+        end = NULL;
+
+        // Make sure we didn't jump to a DLE that's in the middle of a message. TBD if we need this
+        if (p+1 < c->eod && *(p+1) != DLE && *(p+1) != ETX) {
+            // Good to go!
+        } else {
+            c->som = p+1;
+            continue;
+        }
+
+        // Now, check if we have the end of the message in the buffer
+        start = p;
+        p++; // Skip start DLE
+        p++; // Skip packet ID
+
+        while (p < c->eod) {
+            if (*p  == DLE) {
+                // Potential message end found; it's either a DLE, ETX sequence or a DLE, DLE (the first is an escape for the second)
+                if (p+1 < c->eod && *(p+1) == ETX) {
+                    // We found an actual end!
+                    end = p+1;
+                    break;
+                }
+            }
+            p++;
+        }
+
+        if (p >= c->eod) {
+            // We reached the end of the buffer and didn't find a message. We'll call this function again when there's more data available
+            return 0;
+        }
+
+#if 0
+        fprintf(stderr, "Message found from 0x%p to 0x%p: ", c->som, end);
+        for (char * byte = start; byte<=end; byte++) {
+            fprintf(stderr, "%02x", (unsigned char)*byte & 0xFF);
+        }
+        fprintf(stderr, "\n");
+#endif
+
+        // Next time we loop through this, start from the next message
+        c->som = end+1;
+
+        // We only process messages with ID 0xc1. Others are valid, but not relevant for us
+        pid = *(start+1);
+        if (pid != 0xc1) {
+            continue;
+        }
+
+        // Pass message to handler.
+        if (c->service->read_handler(c, start, c->remote, now, mb)) {
+            modesCloseClient(c);
+            return -1;
+        }
+    }
+    return 0;
+}
+
 static int readBeast(struct client *c, int64_t now, struct messageBuffer *mb) {
     // This is the Beast Binary scanning case.
     // If there is a complete message still in the buffer, there must be the separator 'sep'
@@ -4724,9 +4979,14 @@ static int processClient(struct client *c, int64_t now, struct messageBuffer *mb
         }
     } else if (read_mode == READ_MODE_ASTERIX) {
         int res = readAsterix(c, now, mb);
-	if (res != 0) {
-	    return res;
-	}
+        if (res != 0) {
+            return res;
+	    }
+    } else if (read_mode == READ_MODE_PLANEFINDER) {
+        int res = readPlanefinder(c, now, mb);
+        if (res != 0) {
+            return res;
+        }
     }
 
     if (!c->receiverIdLocked && (c->bytesReceived > 512 || now > c->connectedSince + 10000)) {
@@ -5382,6 +5642,11 @@ static void outputMessage(struct modesMessage *mm) {
     if (Modes.filterDF && (mm->sbs_in || !(Modes.filterDFbitset & (1 << mm->msgtype)))) {
         return;
     }
+    int noforward = (mm->timestamp == MAGIC_NOFORWARD_TIMESTAMP) && !Modes.beast_forward_noforward;
+    int64_t orig_ts = mm->timestamp;
+    if (Modes.beast_set_noforward_timestamp) {
+        mm->timestamp = MAGIC_NOFORWARD_TIMESTAMP;
+    }
 
     struct aircraft *ac = mm->aircraft;
 
@@ -5406,13 +5671,13 @@ static void outputMessage(struct modesMessage *mm) {
             }
         }
 
-        if (!is_mlat && (Modes.net_verbatim || mm->correctedbits < 2) && Modes.raw_out.connections) {
+        if (!noforward && !is_mlat && (Modes.net_verbatim || mm->correctedbits < 2) && Modes.raw_out.connections) {
             // Forward 2-bit-corrected messages via raw output only if --net-verbatim is set
             // Don't ever forward mlat messages via raw output.
             modesSendRawOutput(mm);
         }
 
-        if ((!is_mlat || Modes.forward_mlat) && (mm->correctedbits < 2 || Modes.net_verbatim)) {
+        if (!noforward && (!is_mlat || Modes.forward_mlat) && (mm->correctedbits < 2 || Modes.net_verbatim)) {
             // Forward 2-bit-corrected messages via beast output only if --net-verbatim is set
             // Forward mlat messages via beast output only if --forward-mlat is set
             if (Modes.beast_out.connections) {
@@ -5458,6 +5723,8 @@ static void outputMessage(struct modesMessage *mm) {
             }
         }
     }
+
+    mm->timestamp = orig_ts;
 
 }
 

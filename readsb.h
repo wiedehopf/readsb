@@ -343,6 +343,7 @@ typedef enum {
  */
 #define MAGIC_MLAT_TIMESTAMP 0xFF004D4C4154LL
 #define MAGIC_UAT_TIMESTAMP  0xFF004D4C4155LL
+#define MAGIC_NOFORWARD_TIMESTAMP  0xFF004D4C4160LL
 
 #define MAGIC_ANY_TIMESTAMP  0xFFFFFFFFFFFFULL
 
@@ -664,6 +665,8 @@ struct _Modes
     int8_t debug_provoke_segfault;
     int8_t debug_position_timing;
     int8_t debug_lastStatus;
+    int8_t debug_gps;
+    int8_t debug_planefinder;
     int8_t incrementId;
     int8_t omitGlobeFiles;
     int8_t enableAcasCsv;
@@ -681,6 +684,8 @@ struct _Modes
     int8_t netIngest;
     int8_t forward_mlat; // forward beast mlat messages to beast output ports
     int8_t forward_mlat_sbs; // forward mlat messages to sbs output ports
+    int8_t beast_forward_noforward;
+    int8_t beast_set_noforward_timestamp;
     int8_t quiet; // Suppress stdout
     int8_t interactive; // Interactive mode
     int8_t stats_range_histo; // Collect/show a range histogram?
@@ -740,6 +745,7 @@ struct _Modes
     char *db_file;
     char *net_output_raw_ports; // List of raw output TCP ports
     char *net_input_raw_ports; // List of raw input TCP ports
+    char *net_input_planefinder_ports; // List of planefinder input TCP ports
     char *net_output_sbs_ports; // List of SBS output TCP ports
     char *net_input_sbs_ports; // List of SBS input TCP ports
     char *net_output_jaero_ports; // jaero SBS output ports

@@ -126,6 +126,7 @@ static void configSetDefaults(void) {
     Modes.net_output_sbs_ports = strdup("0");
     Modes.net_input_sbs_ports = strdup("0");
     Modes.net_input_beast_ports = strdup("0");
+    Modes.net_input_planefinder_ports = strdup("0");
     Modes.net_output_beast_ports = strdup("0");
     Modes.net_output_beast_reduce_ports = strdup("0");
     Modes.net_output_beast_reduce_interval = 250;
@@ -1347,13 +1348,15 @@ static int make_net_connector(char *arg) {
             && strcmp(con->protocol, "feedmap_out") != 0
             && strcmp(con->protocol, "gpsd_in") != 0
             && strcmp(con->protocol, "uat_in") != 0
+            && strcmp(con->protocol, "planefinder_in") != 0
        ) {
         fprintf(stderr, "--net-connector: Unknown protocol: %s\n", con->protocol);
         fprintf(stderr, "Supported protocols: beast_out, beast_in, beast_reduce_out, beast_reduce_plus_out, raw_out, raw_in, \n"
                 "sbs_out, sbs_out_replay, sbs_out_mlat, sbs_out_jaero, \n"
                 "sbs_in, sbs_in_mlat, sbs_in_jaero, \n"
                 "sbs_out_prio, asterix_out, asterix_in, \n"
-                "vrs_out, json_out, gpsd_in, uat_in\n");
+                "vrs_out, json_out, gpsd_in, uat_in, \n"
+                "planefinder_in\n");
         return 1;
     }
     if (strcmp(con->address, "") == 0 || strcmp(con->address, "") == 0) {
@@ -1807,6 +1810,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                         Modes.apiThreadCount = atoi(token[1]);
                     }
                 }
+                if (strcasecmp(token[0], "beast_forward_noforward") == 0) {
+                    Modes.beast_forward_noforward = 1;
+                }
+                if (strcasecmp(token[0], "beast_set_noforward_timestamp") == 0) {
+                    Modes.beast_set_noforward_timestamp = 1;
+                }
                 if (strcasecmp(token[0], "accept_synthetic") == 0) {
                     Modes.dump_accept_synthetic_now = 1;
                 }
@@ -1825,6 +1834,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (strcasecmp(token[0], "incrementId") == 0) {
                     Modes.incrementId = 1;
                 }
+                if (strcasecmp(token[0], "debugPlanefinder") == 0) {
+                    Modes.debug_planefinder = 1;
+                }
                 if (strcasecmp(token[0], "omitGlobeFiles") == 0) {
                     Modes.omitGlobeFiles = 1;
                 }
@@ -1836,6 +1848,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 }
                 if (strcasecmp(token[0], "provokeSegfault") == 0) {
                     Modes.debug_provoke_segfault = 1;
+                }
+                if (strcasecmp(token[0], "debugGPS") == 0) {
+                    Modes.debug_gps = 1;
                 }
             }
             break;
@@ -2571,7 +2586,7 @@ int main(int argc, char **argv) {
 
     if (Modes.debug_provoke_segfault) {
         msleep(666);
-        fprintf(stderr, "debug=Z -> provoking SEGFAULT now!\n");
+        fprintf(stderr, "devel=provokeSegfault -> provoking SEGFAULT now!\n");
         int *a = NULL;
         *a = 0;
     }
