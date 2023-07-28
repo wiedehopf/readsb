@@ -1,7 +1,7 @@
 The api-port is best used with nginx and a unix socket:
 
 ```
-readsb [...] --api-port unix:/run/readsb/api.sock
+readsb [...] --net-api-port unix:/run/readsb/api.sock
 ```
 
 nginx location:
