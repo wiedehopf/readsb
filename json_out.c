@@ -1022,7 +1022,7 @@ struct char_buffer generateAircraftBin(threadpool_buffer_t *pbuffer) {
 
     struct craftArray *ca = &Modes.aircraftActive;
     ca_lock_read(ca);
-    size_t alloc = 4096 + (ca->len + 2) * sizeof(struct binCraft);
+    size_t alloc = 4096 + (ca->len + 64) * sizeof(struct binCraft);
 
     char *buf = check_grow_threadpool_buffer_t(pbuffer, alloc);
     char *p = buf;
