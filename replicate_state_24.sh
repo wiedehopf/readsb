@@ -6,13 +6,18 @@ set -e
 # this script will transfer the traces for last 24h and current aircraft positions
 # it reads the state from the source and will replace the target state except for aircraft that exist on the target but not on the source
 
+
 # source
-SHOST=localhost
+SHOST=box1
 SDIR=/var/globe_history/internal_state
 
 # target
-THOST=x230
+THOST=box2
 TDIR=/var/globe_history/internal_state
+
+echo "$(date -u --rfc-3339=s) starting transfer from $SHOST to $THOST"
+
+sleep 10
 
 SSHDIR="$HOME/.vee0za6ugohru6Id0ziK3ahv1ietahva"
 rm -rf "$SSHDIR"
@@ -32,8 +37,6 @@ RDIR="$TDIR/replaceState"
 TTDIR="$TDIR/tmp"
 $TCMD "mkdir -p $TTDIR; mkdir -p $RDIR; chmod a+w $RDIR"
 
-
-echo "$(date -u --rfc-3339=s) starting transfer from $SHOST to $THOST"
 
 suffix="zstl"
 
