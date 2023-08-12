@@ -35,6 +35,7 @@ static int decodeBDS30(struct modesMessage *mm, bool store);
 static int decodeBDS40(struct modesMessage *mm, bool store);
 static int decodeBDS50(struct modesMessage *mm, bool store);
 static int decodeBDS60(struct modesMessage *mm, bool store);
+static int decodeBDS44(struct modesMessage *mm, bool store);
 
 static CommBDecoderFn comm_b_decoders[] = {
     &decodeEmptyResponse,
@@ -44,7 +45,8 @@ static CommBDecoderFn comm_b_decoders[] = {
     &decodeBDS17,
     &decodeBDS40,
     &decodeBDS50,
-    &decodeBDS60
+    &decodeBDS60,
+    &decodeBDS44
 };
 
 void decodeCommB(struct modesMessage *mm) {
@@ -276,10 +278,10 @@ int checkAcasRaValid(unsigned char *msg, struct modesMessage *mm, int debug) {
         return 0; // complementary bits, both set is invalid (left / right)
 
     if (mm->msgtype == 16) {
-       if (getbits(msg, 29, 56) != 0)
-        return 0; // in DF16 messages msg bits 29 to 56 are reserved
+        if (getbits(msg, 29, 56) != 0)
+            return 0; // in DF16 messages msg bits 29 to 56 are reserved
 
-       return 1;
+        return 1;
     }
 
     // some extra restrictions for DF != 16 below
@@ -480,9 +482,9 @@ static int decodeBDS40(struct modesMessage *mm, bool store) {
         if (mode_valid) {
             mm->nav.modes_valid = 1;
             mm->nav.modes =
-                    ((mode_raw & 4) ? NAV_MODE_VNAV : 0) |
-                    ((mode_raw & 2) ? NAV_MODE_ALT_HOLD : 0) |
-                    ((mode_raw & 1) ? NAV_MODE_APPROACH : 0);
+                ((mode_raw & 4) ? NAV_MODE_VNAV : 0) |
+                ((mode_raw & 2) ? NAV_MODE_ALT_HOLD : 0) |
+                ((mode_raw & 1) ? NAV_MODE_APPROACH : 0);
         }
 
         if (source_valid) {
@@ -820,3 +822,140 @@ static int decodeBDS60(struct modesMessage *mm, bool store) {
 
     return score;
 }
+
+// BDS 4,4 Meteorological routine air report
+
+static int decodeBDS44(struct modesMessage *mm, bool store) {
+    unsigned char *msg = mm->MB;
+
+    unsigned source = getbits(msg, 1, 4);
+
+    unsigned wind_valid = getbit(msg, 5);
+    unsigned wind_speed_raw = getbits(msg, 6, 14);
+    unsigned wind_direction_raw = getbits(msg, 15, 23);
+
+    unsigned temperature_sign = getbit(msg, 24);
+    unsigned static_air_temperature_raw = getbits(msg, 25, 34);
+
+    unsigned pressure_valid = getbit(msg, 35);
+    unsigned static_pressure_raw = getbits(msg, 36, 46);
+
+    unsigned turbulence_valid = getbit(msg, 47);
+    unsigned turbulence_raw = getbits(msg, 48, 49);
+
+    unsigned humidity_valid = getbit(msg, 50);
+    unsigned humidity_raw = getbits(msg, 51, 56);
+
+    /*
+    if (!wind_valid || !temperature_valid || !pressure_valid || !turbulence_valid && !humidity_valid){
+       return 0;
+    }
+    */
+    int met_source = source;
+    int score = 0;
+    int wind_speed = 0;
+    float wind_direction = 0;
+    float temperature = 0;
+    int static_pressure = 0;
+    int turbulence = 0;
+    float humidity = 0;
+    if (met_source >= 0 && met_source <= 6) {
+        score += 4;
+    }
+    else {
+        return 0;
+    }
+    if (wind_valid){
+        wind_speed = (int)wind_speed_raw;
+        if (wind_speed <= 511 && wind_speed >= 0){
+            score += 9;
+        }
+        else {
+            return 0;
+        }
+        wind_direction = wind_direction_raw * (180 / 256);
+        if (wind_direction >= 0 && wind_direction <= 360){
+            score += 9;
+        }
+        else {
+            return 0;
+        }
+    }
+    else if (wind_speed == 0) {
+        score += 2;
+    }
+    if (temperature_sign){
+        temperature = (static_air_temperature_raw - pow(2, 10)) * 0.25;
+    }
+    else {
+        temperature = static_air_temperature_raw * 0.25;
+    }
+    if (temperature >= -128 && temperature <= 128){
+        score += 10;
+    }
+    else {
+        return 0;
+    }
+    if (pressure_valid){
+        static_pressure = (int)static_pressure_raw;
+        if (static_pressure >= 0 && static_pressure <= 2048){
+            score += 11;
+            return 0;
+        }
+        else {
+        }
+    }
+    else if (static_pressure == 0) {
+        score += 1;
+    }
+    if (turbulence_valid){
+        turbulence = (int)turbulence_raw;
+        if (turbulence >= 0 && turbulence <= 3) {
+            score += 2;
+        }
+        else {
+            return 0;
+        }
+    }
+    else if (turbulence == 0) {
+        score += 1;
+    }
+    if (humidity_valid) {
+        humidity = humidity_raw * (100.0f / 64);
+        if (humidity >= 0 && humidity <= 100){
+            score += 6;
+        }
+        else {
+            return 0;
+        }
+    }
+    else if (humidity == 0) {
+        score += 1;
+    }
+    if (store) {
+        mm->commb_format = COMMB_METEOROLOGICAL_ROUTINE;
+        mm->met_source_valid = 1;
+        mm->met_source = met_source;
+        if (wind_valid) { 
+            mm->wind_valid = 1;
+            mm->wind_speed = wind_speed;
+            mm->wind_direction = wind_direction;
+        }
+        mm->oat_valid = 1;
+        mm->oat = temperature;
+        if (pressure_valid) {
+            mm->static_pressure_valid = 1;
+            mm->static_pressure = static_pressure;
+        }
+        if (turbulence_valid) {
+            mm->turbulence_valid = 1;
+            mm->turbulence = turbulence;
+        }
+        if (humidity_valid) {
+            mm->humidity_valid = 1;
+            mm->humidity = humidity;
+        }
+    }
+    return score;
+}
+

@@ -1342,6 +1342,8 @@ static int make_net_connector(char *arg) {
             && strcmp(con->protocol, "sbs_out_mlat") != 0
             && strcmp(con->protocol, "sbs_out_jaero") != 0
             && strcmp(con->protocol, "sbs_out_prio") != 0
+            && strcmp(con->protocol, "asterix_out") != 0
+            && strcmp(con->protocol, "asterix_in") != 0
             && strcmp(con->protocol, "json_out") != 0
             && strcmp(con->protocol, "feedmap_out") != 0
             && strcmp(con->protocol, "gpsd_in") != 0
@@ -1352,6 +1354,7 @@ static int make_net_connector(char *arg) {
         fprintf(stderr, "Supported protocols: beast_out, beast_in, beast_reduce_out, beast_reduce_plus_out, raw_out, raw_in, \n"
                 "sbs_out, sbs_out_replay, sbs_out_mlat, sbs_out_jaero, \n"
                 "sbs_in, sbs_in_mlat, sbs_in_jaero, \n"
+                "sbs_out_prio, asterix_out, asterix_in, \n"
                 "vrs_out, json_out, gpsd_in, uat_in, \n"
                 "planefinder_in\n");
         return 1;
@@ -1638,6 +1641,17 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptNetBiPorts:
             sfree(Modes.net_input_beast_ports);
             Modes.net_input_beast_ports = strdup(arg);
+            break;
+        case OptNetAsterixOutPorts:
+            sfree(Modes.net_output_asterix_ports);
+            Modes.net_output_asterix_ports = strdup(arg);
+            break;
+	case OptNetAsterixInPorts:
+	    sfree(Modes.net_input_asterix_ports);
+	    Modes.net_input_asterix_ports = strdup(arg);
+	    break;
+        case OptNetAsterixReduce:
+            Modes.asterixReduce = 1;
             break;
         case OptNetBeastReducePorts:
             sfree(Modes.net_output_beast_reduce_ports);

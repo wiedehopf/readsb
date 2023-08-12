@@ -43,6 +43,7 @@ typedef enum
     READ_MODE_BEAST,
     READ_MODE_BEAST_COMMAND,
     READ_MODE_ASCII,
+    READ_MODE_ASTERIX,
     READ_MODE_PLANEFINDER
 } read_mode_t;
 
@@ -226,6 +227,5 @@ typedef union __packed {
 void netUseMessage(struct modesMessage *mm);
 void netDrainMessageBuffers();
 struct modesMessage *netGetMM(struct messageBuffer *buf);
-
 
 #endif

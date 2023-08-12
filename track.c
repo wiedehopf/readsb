@@ -2225,6 +2225,18 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         a->spi = mm->spi;
     }
 
+    if (mm->wind_valid) {
+        a->wind_speed = a->wind_speed;
+        a->wind_direction = a->wind_direction;
+        a->wind_updated = now;
+        a->wind_altitude = a->baro_alt;
+    }
+
+    if (mm->oat_valid) {
+        a->oat = mm->oat;
+        a->oat_updated = now;
+    }
+
     // CPR, even
     if (mm->cpr_valid && !mm->cpr_odd && accept_data(&a->cpr_even_valid, mm->source, mm, a, REDUCE_OFTEN)) {
         a->cpr_even_type = mm->cpr_type;
@@ -3245,8 +3257,10 @@ void to_state_all(struct aircraft *a, struct state_all *new, int64_t now) {
     }
     if (now < a->oat_updated + TRACK_EXPIRE) {
         new->oat = (int) nearbyint(a->oat);
-        new->tat = (int) nearbyint(a->tat);
-        new->temp_valid = 1;
+        if (now < a->tat_updated + TRACK_EXPIRE) {
+            new->temp_valid = 1;
+            new->tat = (int) nearbyint(a->tat);
+        }
     }
 
     if (a->adsb_version < 0)

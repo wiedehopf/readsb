@@ -275,9 +275,9 @@ Don't write recent(1), full(2), either(3) traces
                              Establish connection, can be specified multiple
                              times (e.g. 127.0.0.1,23004,beast_out) Protocols:
                              beast_out, beast_in, raw_out, raw_in, sbs_in,
-                             sbs_in_jaero, sbs_out, sbs_out_jaero, vrs_out,
-                             json_out, gpsd_in (one failover ip/address,port
-                             can be specified:
+                             sbs_in_jaero, sbs_out, sbs_out_jaero, sbs_out_prio 
+                             vrs_out, json_out, asterix_out, asterix_in, 
+                             gpsd_in (one failover ip/address,port can be specified:
                              primary-address,primary-port,protocol,failover-address,failover-port)
       --net-connector-delay=<seconds>
                              Outbound re-connection delay (default: 30)
@@ -318,6 +318,10 @@ TCP json position output: include aircraft without
                              TCP SBS Jaero output listen ports (default: 0)
       --net-sbs-port=<ports> TCP BaseStation output listen ports (default: 0)
       --net-sbs-reduce       Apply beast reduce logic and interval to SBS
+                             outputs
+      --net-ao-port=<ports>  TCP ASTERIX output listen ports (default: 0)
+      --net-ai-port=<ports>  TCP ASTERIX input listen ports (default: 0)
+      --net-asterix-reduce   Apply beast reduce logic and interval to ASTERIX
                              outputs
       --net-verbatim         Forward messages unchanged
       --net-vrs-interval=<seconds>
