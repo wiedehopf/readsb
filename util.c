@@ -267,7 +267,7 @@ void threadCreate(threadT *thread, const pthread_attr_t *attr, void *(*start_rou
 }
 static void threadDestroy(threadT *thread) {
     // if the join didn't work, don't clean up
-    if (!thread->joined) {
+    if (!thread->joined || thread->joinFailed) {
         fprintf(stderr, "<3>FATAL: thread %s could not be joined, calling abort()!\n", thread->name);
         abort();
     }
@@ -295,7 +295,7 @@ void threadTimedWait(threadT *thread, struct timespec *ts, int64_t increment) {
 void threadSignalJoin(threadT *thread) {
     if (thread->joined)
         return;
-    int timeout = Modes.joinTimeout;
+    int64_t timeout = Modes.joinTimeout;
     int err = 0;
     while ((err = pthread_tryjoin_np(thread->pthread, NULL)) && timeout-- > 0) {
         pthread_cond_signal(&thread->cond);
