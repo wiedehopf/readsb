@@ -142,6 +142,7 @@ void apiInit();
 void apiCleanup();
 
 struct char_buffer apiGenerateAircraftJson(threadpool_buffer_t *pbuffer);
+struct char_buffer apiGenerateAircraftGEOJson(threadpool_buffer_t *pbuffer);
 struct char_buffer apiGenerateGlobeJson(int globe_index, threadpool_buffer_t *pbuffer);
 
 #endif
