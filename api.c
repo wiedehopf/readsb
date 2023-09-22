@@ -2025,6 +2025,57 @@ struct char_buffer apiGenerateAircraftJson(threadpool_buffer_t *pbuffer) {
     return cb;
 }
 
+// add code
+
+struct char_buffer apiGenerateAircraftGeoJSON(threadpool_buffer_t *pbuffer) {
+    struct char_buffer cb = { 0 };
+
+    int flip = atomic_load(&Modes.apiFlip[0]);
+
+    struct apiBuffer *buffer = &Modes.apiBuffer[flip];
+
+    ssize_t alloc = buffer->jsonLen + 2048;
+
+    char *buf = check_grow_threadpool_buffer_t(pbuffer, alloc);
+    char *p = buf;
+    char *end = buf + alloc;
+
+    if (!buf) {
+        return cb;
+    }
+
+    p = safe_snprintf(p, end,
+            "{ \"type\": \"FeatureCollection\",\n"
+            "  \"features\": [");
+
+    p = safe_snprintf(p, end,
+            "{ \"type\": \"Feature\",\n"
+            "  \"geometry\": {\n"
+            "    \"type\": \"Point\",\n"
+            "    \"coordinates\": [0, 0]\n"
+            "  },\n"
+            "  \"properties\": {\n"
+            "    \"now\" : %.3f,\n"
+            "    \"messages\" : %u\n"
+            "  }\n"
+            "}", buffer->timestamp / 1000.0, Modes.stats_current.messages_total + Modes.stats_alltime.messages_total);
+
+    if (buffer->jsonLen > 0) {
+        p = safe_snprintf(p, end, ",");
+    }
+
+    // Copy the existing JSON data from the apiBuffer
+    memcpy(p, buffer->json, buffer->jsonLen);
+    p += buffer->jsonLen;
+
+    p = safe_snprintf(p, end, "\n  ]\n}\n");
+
+    cb.len = p - buf;
+    cb.buffer = buf;
+    return cb;
+}
+//
+
 struct char_buffer apiGenerateGlobeJson(int globe_index, threadpool_buffer_t *pbuffer) {
     assert (globe_index <= GLOBE_MAX_INDEX);
 
