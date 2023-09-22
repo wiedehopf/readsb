@@ -1393,6 +1393,82 @@ struct char_buffer generateAircraftJson(int64_t onlyRecent){
     return cb;
 }
 
+// add geojson
+
+struct char_buffer generateAircraftGeoJSON(int64_t onlyRecent) {
+    struct char_buffer cb;
+    int64_t now = mstime();
+    struct aircraft *a;
+
+    struct craftArray *ca = &Modes.aircraftActive;
+
+    ca_lock_read(ca);
+
+    size_t alloc = 4096 + ca->len * 2048; // The initial buffer is resized as needed
+
+    char *buf = cmalloc(alloc);
+    char *p = buf;
+    char *end = buf + alloc;
+
+    p = safe_snprintf(p, end,
+            "{ \"type\": \"FeatureCollection\",\n"
+            "  \"features\": [");
+
+    for (int i = 0; i < ca->len; i++) {
+        a = ca->list[i];
+        if (a == NULL) continue;
+
+        if (!includeAircraftJson(now, a))
+            continue;
+
+        // check if we have enough space
+        if ((p + 2000) >= end) {
+            int used = p - buf;
+            alloc *= 2;
+            buf = (char *) realloc(buf, alloc);
+            p = buf + used;
+            end = buf + alloc;
+        }
+
+        char *beforeSprint = p;
+
+        p = safe_snprintf(p, end, "\n"
+            "{ \"type\": \"Feature\",\n"
+            "  \"geometry\": {\n"
+            "    \"type\": \"Point\",\n"
+            "    \"coordinates\": [%.6f, %.6f]\n"
+            "  },\n"
+            "  \"properties\": {\n"
+            "    \"now\": %.3f,\n"
+            "    \"messages\": %u\n"
+            "  }\n"
+            "}", a->longitude, a->latitude, now / 1000.0, Modes.stats_current.messages_total + Modes.stats_alltime.messages_total);
+
+        if (p - beforeSprint < 5) {
+            p = beforeSprint;
+        } else {
+            p = safe_snprintf(p, end, ",");
+        }
+
+        if (p >= end)
+            fprintf(stderr, "buffer overrun aircraft GeoJSON\n");
+    }
+
+    if (*(p-1) == ',')
+        p--;
+
+    p = safe_snprintf(p, end, "\n  ]\n}\n");
+
+    ca_unlock_read(ca);
+
+    cb.len = p - buf;
+    cb.buffer = buf;
+    return cb;
+}
+
+// end geojson 
+
+
 static char *sprintTracePoint(char *p, char *end, struct state *state, struct state_all *state_all, int64_t referenceTs, int64_t now, struct aircraft *a) {
     int baro_alt = state->baro_alt / _alt_factor;
     int baro_rate = state->baro_rate / _rate_factor;
