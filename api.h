@@ -1,7 +1,7 @@
 #ifndef API_H
 #define API_H
 
-#define API_REQ_PADSTART (256)
+#define API_REQ_PADSTART (2048)
 
 #define API_REQ_LIST_MAX 1024
 
@@ -16,7 +16,8 @@ struct apiCon {
     int open;
     int wakeups;
     int keepalive;
-    int minor_version;
+    int http_minor_version;
+    int include_version;
     struct char_buffer request;
     int64_t lastReset; // milliseconds
     char *content_type;

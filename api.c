@@ -1314,6 +1314,8 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
             } else if (byteMatchStrict(option, "filter_ladd")) {
                 options->filter_dbFlag = 1;
                 options->filter_ladd = 1;
+            } else if (byteMatchStrict(option, "include_version")) {
+                con->include_version = 1;
             } else {
                 return invalid;
             }
@@ -1528,13 +1530,13 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
     memset(req_end, 0, end_pad);
 
     int isGET = byteMatchStart(req_start, "GET");
-    char *minor_version = protocol + litLen("HTTP/1.");
-    if (!byteMatchStart(protocol, "HTTP/1.") || !((*minor_version == '0') || (*minor_version == '1'))) {
+    char *http_minor_version = protocol + litLen("HTTP/1.");
+    if (!byteMatchStart(protocol, "HTTP/1.") || !((*http_minor_version == '0') || (*http_minor_version == '1'))) {
         send505(con->fd, con->keepalive);
         apiResetCon(con, thread);
         return;
     }
-    con->minor_version = (*minor_version == '1') ? 1 : 0;
+    con->http_minor_version = (*http_minor_version == '1') ? 1 : 0;
 
     // parseFetch expects lower cased input
     // lower case entire request
@@ -1546,7 +1548,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
 
     // header parsing
     char *hl = eol;
-    con->keepalive = con->minor_version == 1 ? 1 : 0;
+    con->keepalive = con->http_minor_version == 1 ? 1 : 0;
     while (hl < req_end && (eol = memchr(hl, '\n', req_end - hl))) {
         *eol = '\0';
 
@@ -1607,10 +1609,12 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
     p = safe_snprintf(p, end,
             "HTTP/1.1 200 OK\r\n"
             "server: readsb/3.1442\r\n"
+            "%s"
             "content-type: %s\r\n"
             "connection: %s\r\n"
             "cache-control: no-store\r\n"
             "content-length: %d\r\n\r\n",
+            con->include_version ? "readsb_version: "MODES_READSB_VERSION"\r\n" : "",
             con->content_type,
             con->keepalive ? "keep-alive" : "close",
             content_len);
