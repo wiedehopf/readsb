@@ -162,10 +162,10 @@ static struct argp_option optionsReadsb[] = {
 #ifdef ENABLE_BLADERF
     {0,0,0,0, "BladeRF options:", 4},
     {0,0,0, OPTION_DOC, "use with --device-type bladerf", 4},
-    {"device", OptDevice, "<ident>",  0, "Select device by bladeRF 'device identifier'", 4},
-    {"bladerf-fpga",            1001, "<path>",   0, "Use alternative FPGA bitstream ('' to disable FPGA load)", 4},
-    {"bladerf-decimation",      1002, "<N>",      0, "Assume FPGA decimates by a factor of N", 4},
-    {"bladerf-bandwidth",       1003, "<hz>",     0, "Set LPF bandwidth ('bypass' to bypass the LPF)", 4},
+    {"device", OptDevice, "<ident>", 0, "Select device by bladeRF 'device identifier'", 4},
+    {"bladerf-fpga", OptBladeFpgaDir, "<path>", 0, "Use alternative FPGA bitstream ('' to disable FPGA load)", 4},
+    {"bladerf-decimation", OptBladeDecim, "<N>", 0, "Assume FPGA decimates by a factor of N", 4},
+    {"bladerf-bandwidth", OptBladeBw, "<hz>", 0, "Set LPF bandwidth ('bypass' to bypass the LPF)", 4},
 #endif
     {0,0,0,0, "Modes-S Beast options, use with --device-type modesbeast:", 5},
     {"beast-serial", OptBeastSerial, "<path>", 0, "Path to Beast serial device (default /dev/ttyUSB0)", 5},
