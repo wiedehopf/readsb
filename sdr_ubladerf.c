@@ -221,6 +221,13 @@ bool ubladeRFOpen() {
             goto error;
     }
 
+    // Close and re-open the bladeRF, otherwise we get "An unexpected error occurred" in later calls.
+    bladerf_close(uBladeRF.device);
+    if ((status = bladerf_open(&uBladeRF.device, Modes.dev_name)) < 0) {
+        fprintf(stderr, "Failed to open bladeRF: %s\n", bladerf_strerror(status));
+        goto error;
+    }
+
     if ((status = bladerf_set_sample_rate(uBladeRF.device, BLADERF_MODULE_RX, Modes.sample_rate * uBladeRF.decimation, NULL)) < 0) {
         fprintf(stderr, "bladerf_set_sample_rate failed: %s\n", bladerf_strerror(status));
         goto error;
