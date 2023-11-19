@@ -167,6 +167,13 @@ static struct argp_option optionsReadsb[] = {
     {"bladerf-decimation", OptBladeDecim, "<N>", 0, "Assume FPGA decimates by a factor of N", 4},
     {"bladerf-bandwidth", OptBladeBw, "<hz>", 0, "Set LPF bandwidth ('bypass' to bypass the LPF)", 4},
 #endif
+#ifdef ENABLE_HACKRF
+    {0,0,0,0, "HackRF options:", 3},
+    {0,0,0, OPTION_DOC, "use with --device-type hackrf", 3},
+    {"device", OptDevice, "<ident>", 0, "Select device by serial number", 3},
+    {"hackrf-enable-ampgain", OptHackRfGainEnable, 0, 0, "Enable amp gain (RF stage) (~11 dB) (default: disabled)", 3},
+    {"hackrf-vgagain", OptHackRfVgaGain, "<db>", 0, "Set gain (baseband stage) (default: 48, valid: 0-62, 2 dB steps)", 3},
+#endif
     {0,0,0,0, "Modes-S Beast options, use with --device-type modesbeast:", 5},
     {"beast-serial", OptBeastSerial, "<path>", 0, "Path to Beast serial device (default /dev/ttyUSB0)", 5},
     {"beast-df1117-on", OptBeastDF1117, 0, 0, "Turn ON DF11/17-only filter", 5},

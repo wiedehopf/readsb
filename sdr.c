@@ -32,6 +32,9 @@
 #include "sdr_bladerf.h"
 #include "sdr_ubladerf.h"
 #endif
+#ifdef ENABLE_HACKRF
+#include "sdr_hackrf.h"
+#endif
 #ifdef ENABLE_PLUTOSDR
 #include "sdr_plutosdr.h"
 #endif
@@ -89,6 +92,10 @@ static sdr_handler sdr_handlers[] = {
 #ifdef ENABLE_BLADERF
     { bladeRFInitConfig, bladeRFHandleOption, bladeRFOpen, bladeRFRun, noCancel, bladeRFClose, "bladerf", SDR_BLADERF, 0},
     { ubladeRFInitConfig, ubladeRFHandleOption, ubladeRFOpen, ubladeRFRun, noCancel, ubladeRFClose, "ubladerf", SDR_MICROBLADERF, 0},
+#endif
+
+#ifdef ENABLE_HACKRF
+    { hackRFInitConfig, hackRFHandleOption, hackRFOpen, hackRFRun, noCancel, hackRFClose, "hackrf", SDR_HACKRF, 0},
 #endif
 
 #ifdef ENABLE_PLUTOSDR
