@@ -68,7 +68,7 @@ static struct argp_option optionsReadsb[] = {
     {"filter-DF", OptFilterDF, "<type>", 0, "When displaying decoded ModeS messages on stdout only show this DF type", 1},
     {"aggressive", OptAggressive, 0, OPTION_HIDDEN, "Enable two-bit CRC error correction", 1},
     {"device-type", OptDeviceType, "<type>", 0, "Select SDR type (this needs to be placed on the command line before any SDR type specific options)", 1},
-    {"gain", OptGain, "<db>", 0, "Set gain (default: max gain. Use -10 for auto-gain)", 1},
+    {"gain", OptGain, "<db>", 0, "Set gain (default: max gain, possible values for rtl-sdr devices: 0.0 0.9 1.4 2.7 3.7 7.7 8.7 12.5 14.4 15.7 16.6 19.7 20.7 22.9 25.4 28.0 29.7 32.8 33.8 36.4 37.2 38.6 40.2 42.1 43.4 43.9 44.5 48.0 49.6 58)", 1},
     {"freq", OptFreq, "<hz>", 0, "Set frequency (default: 1090 MHz)", 1},
     {"interactive", OptInteractive, 0, 0, "Interactive mode refreshing data on screen. Implies --throttle", 1},
     {"raw", OptRaw, 0, 0, "Show only messages hex values", 1},
