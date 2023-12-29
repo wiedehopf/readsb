@@ -1946,6 +1946,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptBladeDecim:
         case OptBladeBw:
 #endif
+#ifdef ENABLE_HACKRF
+	case OptHackRfGainEnable:
+        case OptHackRfVgaGain:
+#endif
 #ifdef ENABLE_PLUTOSDR
         case OptPlutoUri:
         case OptPlutoNetwork:

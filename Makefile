@@ -3,6 +3,7 @@ READSB_VERSION := "$(shell echo -n `cat version`; { git show -s --format=format:
 
 RTLSDR ?= no
 BLADERF ?= no
+HACKRF ?= no
 PLUTOSDR ?= no
 AGGRESSIVE ?= no
 HAVE_BIASTEE ?= no
@@ -99,6 +100,12 @@ ifeq ($(BLADERF), yes)
   SDR_OBJ += sdr_bladerf.o sdr_ubladerf.o
   CFLAGS += $(shell pkg-config --cflags libbladeRF) -DENABLE_BLADERF
   LIBS_SDR += $(shell pkg-config --libs libbladeRF)
+endif
+
+ifeq ($(HACKRF), yes)
+  SDR_OBJ += sdr_hackrf.o
+  CFLAGS += $(shell pkg-config --cflags libhackrf) -DENABLE_HACKRF
+  LIBS_SDR += $(shell pkg-config --libs libhackrf)
 endif
 
 ifeq ($(PLUTOSDR), yes)
