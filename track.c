@@ -2020,7 +2020,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             PPforward;
             changeTentative = 1;
         }
-        if (a->squawkTentative == mm->squawk && now - a->squawkTentativeChanged > 750 && accept_data(&a->squawk_valid, mm->source, mm, a, REDUCE_RARE)) {
+        if ((mm->sbs_in || (a->squawkTentative == mm->squawk && now - a->squawkTentativeChanged > 750)) && accept_data(&a->squawk_valid, mm->source, mm, a, REDUCE_RARE)) {
             if (mm->squawk != a->squawk) {
                 a->modeA_hit = 0;
             }
