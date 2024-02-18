@@ -2791,14 +2791,14 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
         if (mm->opstatus.valid){
             if (mm->opstatus.om_acas_ra || mm->opstatus.cc_tc ||
                     mm->opstatus.cc_ts || mm->opstatus.cc_arv || mm->opstatus.cc_cdti
-                    || !(mm->opstatus.cc_acas)){
+                    || (!mm->opstatus.cc_acas)){
                 fspec[5] |= 1 << 7;
                 bytes[p] |= (mm->opstatus.om_acas_ra & 0x1) << 7;
                 bytes[p] |= (mm->opstatus.cc_tc & 0x3) << 5;
                 bytes[p] |= (mm->opstatus.cc_ts & 0x1) << 4;
                 bytes[p] |= (mm->opstatus.cc_arv & 0x1) << 3;
                 bytes[p] |= (mm->opstatus.cc_cdti & 0x1) << 2;
-                bytes[p] |= (!(mm->opstatus.cc_acas) & 0x1) << 1;
+                bytes[p] |= ((!mm->opstatus.cc_acas) & 0x1) << 1;
                 p++;
             }
         }
