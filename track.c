@@ -3512,7 +3512,7 @@ void updateValidities(struct aircraft *a, int64_t now) {
         a->category = 0;
 
     // reset position reliability when no position was received for 60 minutes
-    if (a->pos_reliable_odd != 0 && a->pos_reliable_even != 0 && elapsed_seen_global > POS_RELIABLE_TIMEOUT) {
+    if (a->pos_reliable_odd != 0 && a->pos_reliable_even != 0 && elapsed_seen_global > POS_RELIABLE_TIMEOUT && a->pos_reliable_valid.source == SOURCE_INVALID) {
         a->pos_reliable_odd = 0;
         a->pos_reliable_even = 0;
     }
