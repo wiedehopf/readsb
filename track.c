@@ -2800,6 +2800,8 @@ static void removeStaleRange(void *arg, threadpool_threadbuffers_t * buffer_grou
         nonIcaoPosTimeout = now - 26 * HOURS;
     }
 
+    // aircraft with valid position are never pruned (fix for very long jaero-timeout settings)
+
     // timeout for aircraft without position
     int64_t noposTimeout = now - 5 * MINUTES;
 
@@ -2811,7 +2813,8 @@ static void removeStaleRange(void *arg, threadpool_threadbuffers_t * buffer_grou
                     (!a->seenPosReliable && a->seen < noposTimeout)
                     || (
                         a->seenPosReliable &&
-                        (a->seenPosReliable < posTimeout || ((a->addr & MODES_NON_ICAO_ADDRESS) && a->seenPosReliable < nonIcaoPosTimeout))
+                        (a->seenPosReliable < posTimeout || ((a->addr & MODES_NON_ICAO_ADDRESS) && a->seenPosReliable < nonIcaoPosTimeout)) &&
+                        a->pos_reliable_valid.source == SOURCE_INVALID
                        )
                ) {
                 // Count aircraft where we saw only one message before reaping them.
