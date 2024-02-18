@@ -1569,7 +1569,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
 
         case OptJaeroTimeout:
-            Modes.trackExpireJaero = (uint32_t) (atof(arg) * MINUTES);
+            Modes.trackExpireJaero = (int64_t) (atof(arg) * MINUTES);
             break;
         case OptPositionPersistence:
             Modes.position_persistence = imax(0, atoi(arg));

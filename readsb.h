@@ -709,8 +709,8 @@ struct _Modes
     uint32_t filterDF; // Only show messages with certain DF types
     uint32_t filterDFbitset; // Bitset, Only show messages with these DF types
 
-    uint32_t trackExpireJaero;
-    uint32_t trackExpireMax;
+    int64_t trackExpireJaero;
+    int64_t trackExpireMax;
 
     uint32_t cpr_focus;
     uint32_t trace_focus;
