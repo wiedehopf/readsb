@@ -172,7 +172,7 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now) {
 
     memset(new, 0, sizeof(struct binCraft));
     new->hex = a->addr;
-    new->seen = (now - a->seen) / 100.0;
+    new->seen = (int32_t) nearbyint((now - a->seen) / 100.0);
 
     new->callsign_valid = trackDataValid(&a->callsign_valid);
     for (unsigned i = 0; i < sizeof(new->callsign); i++)
@@ -194,7 +194,7 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now) {
     new->position_valid = trackDataValid(&a->pos_reliable_valid);
 
     if (new->position_valid || now < a->seenPosReliable + 14 * 24 * HOURS) {
-        new->seen_pos = (now - a->seenPosReliable) / 100.0;
+        new->seen_pos = (int32_t) nearbyint((now - a->seenPosReliable) / 100.0);
         new->lat = (int32_t) nearbyint(a->latReliable * 1E6);
         new->lon = (int32_t) nearbyint(a->lonReliable * 1E6);
         new->pos_nic = a->pos_nic_reliable;

@@ -54,8 +54,7 @@ void dbPut(uint32_t addr, dbEntry **index, dbEntry *d);
 
 struct binCraft {
   uint32_t hex;
-  uint16_t seen_pos;
-  uint16_t seen;
+  int32_t seen;
   // 8
   int32_t lon;
   int32_t lat;
@@ -176,9 +175,12 @@ struct binCraft {
   uint8_t reserved;
   // 108
   // javascript sucks, this must be a multiple of 4 bytes for Int32Array to work correctly
+  int32_t seen_pos;
+  // 112
 #if defined(TRACKS_UUID)
   uint32_t receiverId;
 #endif
+  // 116
 } __attribute__ ((__packed__));
 
 void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now);

@@ -223,7 +223,7 @@ static void configSetDefaults(void) {
     Modes.ping_reduce = PING_REDUCE;
     Modes.ping_reject = PING_REJECT;
 
-    Modes.binCraftVersion = 20220916;
+    Modes.binCraftVersion = 20240218;
     Modes.messageRateMult = 1.0f;
 
     Modes.apiShutdownDelay = 0 * SECONDS;
