@@ -297,10 +297,11 @@ static struct client *createSocketClient(struct net_service *service, int fd) {
     c->recent_rtt = -1;
 
     c->remote = 1; // Messages will be marked remote by default
-    if ((c->fd == Modes.beast_fd) && (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS)) {
-        /* Message from a local connected Modes-S beast or GNS5894 are passed off the internet */
-        c->remote = 0;
-    }
+
+    /* Message from a local connected Modes-S beast or GNS5894 were at some point marked as remote=0
+     * setting remote=0 for those would be tedious due to missing info
+     * as remote=0 assumes the demodulation is done by this program
+     */
 
     //fprintf(stderr, "c->receiverId: %016"PRIx64"\n", c->receiverId);
 
