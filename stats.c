@@ -79,7 +79,7 @@ void display_stats(struct stats *st) {
 
     printf("Statistics: %s - %s\n", tb_start, tb_end);
 
-    if (!Modes.net_only) {
+    if (Modes.sdr_type != SDR_NONE) {
         printf("Local receiver:\n");
         printf("  %llu samples processed\n", (unsigned long long) st->samples_processed);
         printf("  %llu samples dropped\n", (unsigned long long) st->samples_dropped);
@@ -505,7 +505,7 @@ static char * appendStatsJson(char *p, char *end, struct stats *st, const char *
             st->start / 1000.0,
             st->end / 1000.0);
 
-    if (!Modes.net_only) {
+    if (Modes.sdr_type != SDR_NONE) {
         p = safe_snprintf(p, end,
                 ",\"local\":{\"samples_processed\":%llu"
                 ",\"samples_dropped\":%llu"
@@ -869,8 +869,10 @@ struct char_buffer generatePromFile(int64_t now) {
                 con->address, con->port, value);
     }
 
-    if (!Modes.net_only) {
-        p = safe_snprintf(p, end, "readsb_sdr_gain %.1f\n", Modes.gain / 10.0);
+    if (Modes.sdr_type != SDR_NONE) {
+        if (!Modes.net_only) {
+            p = safe_snprintf(p, end, "readsb_sdr_gain %.1f\n", Modes.gain / 10.0);
+        }
 
         if (st->signal_power_sum > 0 && st->signal_power_count > 0)
             p = safe_snprintf(p, end, "readsb_signal_avg %.1f\n", 10 * log10(st->signal_power_sum / st->signal_power_count));
@@ -887,12 +889,14 @@ struct char_buffer generatePromFile(int64_t now) {
 
         p = safe_snprintf(p, end, "readsb_signal_strong %d\n", st->strong_signal_count);
 
-        p = safe_snprintf(p, end, "readsb_demod_samples_processed %"PRIu64"\n", st->samples_processed);
-        p = safe_snprintf(p, end, "readsb_demod_samples_dropped %"PRIu64"\n", st->samples_dropped);
-        p = safe_snprintf(p, end, "readsb_demod_samples_lost %"PRIu64"\n", st->samples_lost);
-        p = safe_snprintf(p, end, "readsb_demod_estimated_ppm %.1f\n", Modes.estimated_ppm);
+        if (!Modes.net_only) {
+            p = safe_snprintf(p, end, "readsb_demod_samples_processed %"PRIu64"\n", st->samples_processed);
+            p = safe_snprintf(p, end, "readsb_demod_samples_dropped %"PRIu64"\n", st->samples_dropped);
+            p = safe_snprintf(p, end, "readsb_demod_samples_lost %"PRIu64"\n", st->samples_lost);
+            p = safe_snprintf(p, end, "readsb_demod_estimated_ppm %.1f\n", Modes.estimated_ppm);
 
-        p = safe_snprintf(p, end, "readsb_demod_preambles %"PRIu32"\n", st->demod_preambles);
+            p = safe_snprintf(p, end, "readsb_demod_preambles %"PRIu32"\n", st->demod_preambles);
+        }
     }
     if (Modes.json_globe_index) {
         p = safe_snprintf(p, end, "readsb_trace_current_memory %"PRIu64"\n", Modes.trace_current_size);
