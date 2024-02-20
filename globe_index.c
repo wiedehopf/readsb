@@ -3093,11 +3093,12 @@ static inline void heatmapCheckAlloc(struct heatEntry **buffer, int64_t **slices
         *alloc *= 3;
         *buffer = realloc(*buffer, *alloc * sizeof(struct heatEntry));
         *slices = realloc(*slices, *alloc * sizeof(int64_t));
-        if (!*buffer || !*slices) {
-            fprintf(stderr, "<3> FATAL: handleHeatmap not enough memory, trying to allocate %lld bytes\n",
-                    (long long) (*alloc * sizeof(struct heatEntry)));
-            exit(1);
-        }
+    }
+
+    if (!*buffer || !*slices || *alloc < 0) {
+        fprintf(stderr, "<3> FATAL: handleHeatmap not enough memory, trying to allocate %lld bytes\n",
+                (((long long) * alloc) * sizeof(struct heatEntry)));
+        exit(1);
     }
 }
 
@@ -3143,7 +3144,7 @@ int handleHeatmap(int64_t now) {
     utc.tm_sec = 0;
     int64_t start = 1000 * (int64_t) (timegm(&utc));
     int64_t end = start + 30 * MINUTES;
-    int64_t num_slices = (int)((30 * MINUTES) / Modes.heatmap_interval);
+    int64_t num_slices = (int64_t)((30 * MINUTES) / Modes.heatmap_interval);
 
 
     char pathbuf[PATH_MAX];
