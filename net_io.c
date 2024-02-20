@@ -5314,7 +5314,12 @@ void modesNetPeriodicWork(void) {
     }
 
     if (Modes.serial_client) {
-        modesReadFromClient(Modes.serial_client, mb);
+        if (Modes.serial_client->service) {
+            modesReadFromClient(Modes.serial_client, mb);
+        } else {
+            fprintf(stderr, "Serial client closed unexpectedly, exiting!\n");
+            setExit(2);
+        }
     }
 
     if (Modes.net_event_count == Modes.net_maxEvents) {
