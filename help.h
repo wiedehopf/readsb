@@ -201,6 +201,15 @@ static struct argp_option optionsReadsb[] = {
     {"pluto-uri", OptPlutoUri, "<USB uri>", 0, "Create USB context from this URI.(eg. usb:1.2.5)", 8},
     {"pluto-network", OptPlutoNetwork, "<hostname or IP>", 0, "Hostname or IP to create networks context. (default pluto.local)", 8},
 #endif
+#ifdef ENABLE_SOAPYSDR
+    {0,0,0,0, "SoapySDR options:", 9},
+    {0,0,0, OPTION_DOC, "use with --device-type soapysdr", 9},
+    {"soapy-device", OptDevice, "<ident>", 0, "Select device by SoapySDR key pair (ex. driver=lime)", 9},
+    {"soapy-antenna", OptSoapyAntenna, "<channel>", 0, "Select an antenna", 9},
+    {"soapy-bandwidth", OptSoapyBandwith, "<bandwith>", 0, "Select bandwidth", 9},
+    {"soapy-enable-agc", OptSoapyEnableAgc, 0, 0, "enable AGC", 9},
+    {"soapy-gain-element", OptSoapyGainElement, "<gain>", 0, "set SoapySDR gain element", 9},
+#endif
     {0,0,0,0, "Help options:", 100},
     { 0 }
 };

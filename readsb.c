@@ -1954,6 +1954,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptPlutoUri:
         case OptPlutoNetwork:
 #endif
+#ifdef ENABLE_SOAPYSDR
+        case OptSoapyAntenna:
+        case OptSoapyBandwith:
+        case OptSoapyEnableAgc:
+        case OptSoapyGainElement:
+#endif
             if (Modes.sdr_type == SDR_NONE) {
                 fprintf(stderr, "ERROR: SDR / device type specific options must be specified AFTER the --device-type xyz parameter.\n");
                 return ARGP_ERR_UNKNOWN;
@@ -2017,6 +2023,9 @@ int parseCommandLine(int argc, char **argv) {
 #endif
 #ifdef ENABLE_PLUTOSDR
         "ENABLE_PLUTOSDR "
+#endif
+#ifdef ENABLE_SOAPYSDR
+        "ENABLE_SOAPYSDR "
 #endif
 #ifdef SC16Q11_TABLE_BITS
 #define stringize(x) _stringize(x)
