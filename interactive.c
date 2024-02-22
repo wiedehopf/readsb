@@ -94,8 +94,6 @@ void interactiveInit() {
     clear();
     refresh();
 
-    mvprintw(0, 0, " Hex    Mode  Sqwk  Flight   Alt    Spd  Hdg    Lat      Long   RSSI  Msgs  Ti");
-    mvhline(1, 0, ACS_HLINE, 80);
 }
 
 void interactiveCleanup(void) {
@@ -106,6 +104,7 @@ void interactiveCleanup(void) {
 
 void interactiveShowData(void) {
     static int64_t next_update;
+    static int64_t next_clear;
     int64_t now = mstime();
     char progress;
     char spinner[4] = "|/-\\";
@@ -115,6 +114,16 @@ void interactiveShowData(void) {
         return;
 
     next_update = now + MODES_INTERACTIVE_REFRESH_TIME;
+
+    // clear potential errors every 2 seconds
+    if (now > next_clear) {
+        next_clear = now + 2 * SECONDS;
+        clear();
+        // print header
+        mvprintw(0, 0, " Hex    Mode  Sqwk  Flight   Alt    Spd  Hdg    Lat      Long   RSSI  Msgs  Ti");
+        mvhline(1, 0, ACS_HLINE, 80);
+    }
+
 
     progress = spinner[(now / 1000) % 4];
     mvaddch(0, 79, progress);
