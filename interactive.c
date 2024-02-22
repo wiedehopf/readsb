@@ -102,6 +102,22 @@ void interactiveCleanup(void) {
     }
 }
 
+static int compareAlt(const void *p1, const void *p2) {
+    struct aircraft *a1 = *(struct aircraft**) p1;
+    struct aircraft *a2 = *(struct aircraft**) p2;
+    if (a1 == NULL)
+        return 1;
+    if (a2 == NULL)
+        return -1;
+    int valid1 = trackDataValid(&a1->baro_alt_valid);
+    int valid2 = trackDataValid(&a2->baro_alt_valid);
+    if (valid1 && valid2) {
+        return (a1->baro_alt > a2->baro_alt) - (a1->baro_alt < a2->baro_alt);
+    } else {
+        return -1 * ((valid1 > valid2) - (valid1 < valid2));
+    }
+}
+
 void interactiveShowData(void) {
     static int64_t next_update;
     static int64_t next_clear;
@@ -131,9 +147,20 @@ void interactiveShowData(void) {
     int rows = getmaxy(stdscr);
     int row = 2;
 
-    for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
-        struct aircraft *a = Modes.aircraft[j];
-        while (a && row < rows) {
+    struct craftArray *ca = &Modes.aircraftActive;
+
+    // sort active list by altitude
+    pthread_mutex_lock(&ca->change_mutex);
+    pthread_mutex_lock(&ca->write_mutex);
+    qsort(ca->list, ca->len, sizeof(struct aircraft *), compareAlt);
+    pthread_mutex_unlock(&ca->write_mutex);
+    pthread_mutex_unlock(&ca->change_mutex);
+
+    ca_lock_read(ca);
+    for (int i = 0; i < ca->len; i++) {
+        struct aircraft *a = ca->list[i];
+
+        if (a && row < rows) {
 
             if ((now - a->seen) < Modes.interactive_display_ttl) {
                 int msgs = a->messages;
@@ -198,6 +225,7 @@ void interactiveShowData(void) {
             a = a->next;
         }
     }
+    ca_unlock_read(ca);
 
     if (Modes.mode_ac) {
         for (unsigned i = 1; i < 4096 && row < rows; ++i) {
