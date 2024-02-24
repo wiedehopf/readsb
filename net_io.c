@@ -3664,10 +3664,10 @@ static int handleBeastCommand(struct client *c, char *p, int remote, int64_t now
             case 'S':
                 {
                     static int64_t antiSpam;
-                    // only log this at most every 15 minutes and only if it's already active
+                    // only log this at most every 10 minutes and only if it's already active
                     if (now < Modes.doubleBeastReduceIntervalUntil && now > antiSpam) {
-                        antiSpam = now + 900 * SECONDS;
-                        fprintf(stderr, "%s: High latency, reducing data usage temporarily.\n", c->service->descr);
+                        antiSpam = now + 600 * SECONDS;
+                        fprintf(stderr, "%s: High latency, reducing data usage temporarily. (%s port %s)\n", c->service->descr, c->host, c->port);
                     }
                 }
                 Modes.doubleBeastReduceIntervalUntil = now + PING_REDUCE_DURATION;
