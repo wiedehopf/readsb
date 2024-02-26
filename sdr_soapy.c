@@ -458,7 +458,7 @@ void soapyRun()
 
     uint8_t* buf;
 
-    const int buffer_elements = 131072; // 131072
+    const int buffer_elements = Modes.sdr_buf_samples;
     buf = malloc(buffer_elements * 4);
 
 
@@ -466,7 +466,7 @@ void soapyRun()
         int flags;
         long long timeNs;
 
-        int samples_read = SoapySDRDevice_readStream(SOAPY.dev, SOAPY.stream, (void *) &buf, buffer_elements, &flags, &timeNs, 5000000);
+        int32_t samples_read = SoapySDRDevice_readStream(SOAPY.dev, SOAPY.stream, (void *) &buf, buffer_elements, &flags, &timeNs, 5000000);
 
         // Lock the data buffer variables before accessing them
         lockReader();
@@ -476,14 +476,26 @@ void soapyRun()
         lastbuf = &Modes.mag_buffers[(Modes.first_free_buffer + MODES_MAG_BUFFERS - 1) % MODES_MAG_BUFFERS];
         free_bufs = (Modes.first_filled_buffer - next_free_buffer + MODES_MAG_BUFFERS) % MODES_MAG_BUFFERS;
 
-        unlockReader();        
-        
+        unlockReader();
+
         if (samples_read <= 0) {
             fprintf(stderr, "soapy: readStream failed: %s\n", SoapySDRDevice_lastError());
             break;
         }
 
-        slen = samples_read / 2; // Drops any trailing odd sample, that's OK
+        slen = (uint32_t) samples_read;
+
+        if (slen != Modes.sdr_buf_samples) {
+            fprintf(stderr, "weirdness: soapysdr gave us a block with an unusual size (got %u samples, expected %u samples)\n",
+                    (unsigned) slen, (unsigned) Modes.sdr_buf_samples);
+            if (slen > Modes.sdr_buf_samples) {
+                // wat?! Discard the start.
+                unsigned discard = slen - Modes.sdr_buf_samples;
+                outbuf->dropped += discard;
+                buf += discard * 2;
+                slen -= discard * 2;
+            }
+        }
 
         if (free_bufs == 0 || (dropping && free_bufs < MODES_MAG_BUFFERS / 2)) {
             // FIFO is full. Drop this block.
@@ -502,8 +514,8 @@ void soapyRun()
         }
 
         dropping = false;
-    
-         // Compute the sample timestamp and system timestamp for the start of the block
+
+        // Compute the sample timestamp and system timestamp for the start of the block
         outbuf->sampleTimestamp = sampleCounter * 12e6 / Modes.sample_rate;
         sampleCounter += slen;
 
