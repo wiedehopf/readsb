@@ -118,19 +118,15 @@ bool soapyHandleOption(int argc, char *argv)
             SOAPY.enable_agc = true;
             break;
         case OptSoapyGainElement:
-            printf("GAIN - ToDo!!\n");
             ++SOAPY.num_gain_elements;
             if (! (SOAPY.gain_elements = realloc(SOAPY.gain_elements, SOAPY.num_gain_elements * sizeof(*SOAPY.gain_elements))) ) {
                 perror("realloc");
                 abort();
             }
-            /*  Do we actually need this ?
-            
-            if (! (SOAPY.gain_elements[SOAPY.num_gain_elements-1] = strdup(argv[++j])) ) {
+            if (! (SOAPY.gain_elements[SOAPY.num_gain_elements-1] = strdup(argv)) ) {
                 perror("strdup");
                 abort();
             }
-            */
             break;
         default:
             return false;
