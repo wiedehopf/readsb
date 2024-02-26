@@ -38,6 +38,9 @@
 #ifdef ENABLE_PLUTOSDR
 #include "sdr_plutosdr.h"
 #endif
+#ifdef ENABLE_SOAPYSDR
+#include "sdr_soapy.h"
+#endif
 
 #include "sdr_beast.h"
 
@@ -100,6 +103,10 @@ static sdr_handler sdr_handlers[] = {
 
 #ifdef ENABLE_PLUTOSDR
     { plutosdrInitConfig, plutosdrHandleOption, plutosdrOpen, plutosdrRun, noCancel, plutosdrClose, "plutosdr", SDR_PLUTOSDR, 0},
+#endif
+
+#ifdef ENABLE_SOAPYSDR
+    { soapyInitConfig, soapyHandleOption, soapyOpen, soapyRun, noCancel, soapyClose, "soapysdr", SDR_SOAPYSDR, 0 },
 #endif
 
     { beastInitConfig, beastHandleOption, beastOpen, noRun, noCancel, noClose, "modesbeast", SDR_MODESBEAST, 0},

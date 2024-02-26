@@ -5,6 +5,7 @@ RTLSDR ?= no
 BLADERF ?= no
 HACKRF ?= no
 PLUTOSDR ?= no
+SOAPYSDR ?= no
 AGGRESSIVE ?= no
 HAVE_BIASTEE ?= no
 TRACKS_UUID ?= no
@@ -112,6 +113,12 @@ ifeq ($(PLUTOSDR), yes)
     SDR_OBJ += sdr_plutosdr.o
     CFLAGS += $(shell pkg-config --cflags libiio libad9361) -DENABLE_PLUTOSDR
     LIBS_SDR += $(shell pkg-config --libs libiio libad9361)
+endif
+
+ifeq ($(SOAPYSDR), yes)
+  SDR_OBJ += sdr_soapy.o
+  CFLAGS += $(shell pkg-config --cflags SoapySDR) -DENABLE_SOAPYSDR
+  LIBS_SDR += $(shell pkg-config --libs SoapySDR)
 endif
 
 # add custom overrides if user defines them

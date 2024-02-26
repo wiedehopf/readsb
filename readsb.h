@@ -442,7 +442,7 @@ static inline void *malloc_or_exit(size_t alignment, size_t size, const char *fi
 
 typedef enum
 {
-    SDR_NONE = 0, SDR_IFILE, SDR_RTLSDR, SDR_BLADERF, SDR_MICROBLADERF, SDR_HACKRF, SDR_MODESBEAST, SDR_PLUTOSDR, SDR_GNS
+    SDR_NONE = 0, SDR_IFILE, SDR_RTLSDR, SDR_BLADERF, SDR_MICROBLADERF, SDR_HACKRF, SDR_MODESBEAST, SDR_PLUTOSDR, SDR_SOAPYSDR, SDR_GNS
 } sdr_type_t;
 
 // Structure representing one magnitude buffer
@@ -1240,6 +1240,10 @@ enum {
     OptHackRfVgaGain,
     OptPlutoUri,
     OptPlutoNetwork,
+    OptSoapyAntenna,
+    OptSoapyBandwith,
+    OptSoapyEnableAgc,
+    OptSoapyGainElement,
 };
 
 
