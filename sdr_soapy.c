@@ -105,14 +105,14 @@ void soapyInitConfig()
     printf("\n");
 }*/
 
-bool soapyHandleOption(int argc, char *argv)
+bool soapyHandleOption(int key, char *arg)
 {
-    switch (argc) {
+    switch (key) {
         case OptSoapyAntenna:
-            SOAPY.antenna = strdup(argv);
+            SOAPY.antenna = strdup(arg);
             break;
         case OptSoapyBandwith:
-            SOAPY.bandwidth = atoi(argv);
+            SOAPY.bandwidth = atoi(arg);
             break;
         case OptSoapyEnableAgc:
             SOAPY.enable_agc = true;
@@ -123,7 +123,7 @@ bool soapyHandleOption(int argc, char *argv)
                 perror("realloc");
                 abort();
             }
-            if (! (SOAPY.gain_elements[SOAPY.num_gain_elements-1] = strdup(argv)) ) {
+            if (! (SOAPY.gain_elements[SOAPY.num_gain_elements-1] = strdup(arg)) ) {
                 perror("strdup");
                 abort();
             }

@@ -48,13 +48,13 @@ void hackRFInitConfig() {
     hackRF.vga_gain = 48;
 }
 
-bool hackRFHandleOption(int argc, char *argv) {
-    switch (argc) {
+bool hackRFHandleOption(int key, char *arg) {
+    switch (key) {
 	case OptHackRfGainEnable:
             hackRF.rf_gain = true;
 	    break;
 	case OptHackRfVgaGain:
-	    hackRF.vga_gain = atoi(argv);
+	    hackRF.vga_gain = atoi(arg);
 	    break;
         default:
             return false;

@@ -44,20 +44,20 @@ void ubladeRFInitConfig() {
     uBladeRF.device = NULL;
 }
 
-bool ubladeRFHandleOption(int argc, char *argv) {
-    switch (argc) {
+bool ubladeRFHandleOption(int key, char *arg) {
+    switch (key) {
         case OptBladeFpgaDir:
-            uBladeRF.fpga_path = strdup(argv);
+            uBladeRF.fpga_path = strdup(arg);
             break;
         case OptBladeDecim:
-            uBladeRF.decimation = atoi(argv);
+            uBladeRF.decimation = atoi(arg);
             break;
         case OptBladeBw:
-            if (!strcasecmp(argv, "bypass")) {
+            if (!strcasecmp(arg, "bypass")) {
                 uBladeRF.lpf_mode = BLADERF_LPF_BYPASSED;
             } else {
                 uBladeRF.lpf_mode = BLADERF_LPF_NORMAL;
-                uBladeRF.lpf_bandwidth = atoi(argv);
+                uBladeRF.lpf_bandwidth = atoi(arg);
             }
             break;
         default:

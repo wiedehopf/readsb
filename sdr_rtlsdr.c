@@ -142,13 +142,13 @@ static int find_device_index(char *s) {
     return -1;
 }
 
-bool rtlsdrHandleOption(int argc, char *argv) {
-    switch (argc) {
+bool rtlsdrHandleOption(int key, char *arg) {
+    switch (key) {
         case OptRtlSdrEnableAgc:
             RTLSDR.digital_agc = true;
             break;
         case OptRtlSdrPpm:
-            RTLSDR.ppm_error = atoi(argv);
+            RTLSDR.ppm_error = atoi(arg);
             break;
         default:
             return false;

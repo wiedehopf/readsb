@@ -96,15 +96,15 @@ static speed_t get_baud(int baud)
     }
 }
 
-bool beastHandleOption(int argc, char *argv)
+bool beastHandleOption(int key, char *arg)
 {
-    switch(argc){
+    switch(key){
         case OptBeastSerial:
             free(Modes.beast_serial);
-            Modes.beast_serial = strdup(argv);
+            Modes.beast_serial = strdup(arg);
             break;
         case OptBeastBaudrate:
-            Modes.beast_baudrate = (int) strtoll(argv, NULL, 10);
+            Modes.beast_baudrate = (int) strtoll(arg, NULL, 10);
             break;
         case OptBeastDF1117:
             BeastSettings.filter_df1117 = true;

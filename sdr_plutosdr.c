@@ -48,14 +48,14 @@ void plutosdrInitConfig()
     PLUTOSDR.network = strdup("pluto.local");
 }
 
-bool plutosdrHandleOption(int argc, char *argv)
+bool plutosdrHandleOption(int key, char *arg)
 {
-    switch (argc) {
+    switch (key) {
         case OptPlutoUri:
-            PLUTOSDR.uri = strdup(argv);
+            PLUTOSDR.uri = strdup(arg);
             break;
         case OptPlutoNetwork:
-            PLUTOSDR.network = strdup(argv);
+            PLUTOSDR.network = strdup(arg);
             break;
         default:
             return false;

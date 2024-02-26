@@ -61,9 +61,9 @@ typedef struct {
 static void noInitConfig() {
 }
 
-static bool noHandleOption(int argc, char *argv) {
-    MODES_NOTUSED(argc);
-    MODES_NOTUSED(argv);
+static bool noHandleOption(int key, char *arg) {
+    MODES_NOTUSED(key);
+    MODES_NOTUSED(arg);
 
     return false;
 }
@@ -127,11 +127,11 @@ void sdrInitConfig() {
     }
 }
 
-bool sdrHandleOption(int argc, char *argv) {
-    switch (argc) {
+bool sdrHandleOption(int key, char *arg) {
+    switch (key) {
         case OptDeviceType:
             for (int i = 0; sdr_handlers[i].name; ++i) {
-                if (!strcasecmp(sdr_handlers[i].name, argv)) {
+                if (!strcasecmp(sdr_handlers[i].name, arg)) {
                     Modes.sdr_type = sdr_handlers[i].sdr_type;
                     return true;
                 }
@@ -140,12 +140,12 @@ bool sdrHandleOption(int argc, char *argv) {
         default:
             for (int i = 0; sdr_handlers[i].sdr_type; ++i) {
                 if (Modes.sdr_type == sdr_handlers[i].sdr_type) {
-                    return sdr_handlers[i].handleOption(argc, argv);
+                    return sdr_handlers[i].handleOption(key, arg);
                 }
             }
     }
 
-    fprintf(stderr, "SDR type '%s' not recognized; supported SDR types are:\n", argv);
+    fprintf(stderr, "SDR type '%s' not recognized; supported SDR types are:\n", arg);
     for (int i = 0; sdr_handlers[i].name; ++i) {
         fprintf(stderr, "  %s\n", sdr_handlers[i].name);
     }

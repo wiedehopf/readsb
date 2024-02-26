@@ -48,20 +48,20 @@ void bladeRFInitConfig() {
     BladeRF.device = NULL;
 }
 
-bool bladeRFHandleOption(int argc, char *argv) {
-    switch (argc) {
+bool bladeRFHandleOption(int key, char *arg) {
+    switch (key) {
         case OptBladeFpgaDir:
-            BladeRF.fpga_path = strdup(argv);
+            BladeRF.fpga_path = strdup(arg);
             break;
         case OptBladeDecim:
-            BladeRF.decimation = atoi(argv);
+            BladeRF.decimation = atoi(arg);
             break;
         case OptBladeBw:
-            if (!strcasecmp(argv, "bypass")) {
+            if (!strcasecmp(arg, "bypass")) {
                 BladeRF.lpf_mode = BLADERF_LPF_BYPASSED;
             } else {
                 BladeRF.lpf_mode = BLADERF_LPF_NORMAL;
-                BladeRF.lpf_bandwidth = atoi(argv);
+                BladeRF.lpf_bandwidth = atoi(arg);
             }
             break;
         default:
