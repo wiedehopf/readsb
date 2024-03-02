@@ -994,9 +994,6 @@ int includeAircraftJson(int64_t now, struct aircraft *a) {
         fprintf(stderr, "includeAircraftJson: got NULL pointer\n");
         return 0;
     }
-    if (a->messages < 2) {
-        return 0;
-    }
 
     if (a->nogpsCounter >= NOGPS_SHOW && now - a->seenAdsbReliable < NOGPS_DWELL) {
         return 1;
@@ -2075,9 +2072,6 @@ struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {
 
     for (int j = part_start; j < part_start + part_len; j++) {
         for (a = Modes.aircraft[j]; a; a = a->next) {
-            if (a->messages < 2) { // basic filter for bad decodes
-                continue;
-            }
             if (now > a->seen + 10 * SECONDS) // don't include stale aircraft in the JSON
                 continue;
 

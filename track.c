@@ -1659,7 +1659,7 @@ static int altitude_to_feet(int raw, altitude_unit_t unit) {
 // check if we trust that this message is actually from the aircraft with this address
 // similar reasoning to icaoFilterAdd in mode_s.c
 static int addressReliable(struct modesMessage *mm) {
-    if (mm->msgtype == 17 || mm->msgtype == 18 || (mm->msgtype == 11 && mm->IID == 0) || mm->sbs_in) {
+    if (mm->msgtype == 17 || (mm->msgtype == 18 && mm->crc == 0) || (mm->msgtype == 11 && mm->IID == 0) || mm->sbs_in) {
         return 1;
     }
     return 0;
@@ -1847,12 +1847,12 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         }
     }
 
-    int address_reliable = addressReliable(mm);
+    mm->address_reliable = addressReliable(mm);
 
     // Lookup our aircraft or create a new one
     a = aircraftGet(mm->addr);
     if (!a) { // If it's a currently unknown aircraft....
-        if (address_reliable) {
+        if (mm->address_reliable) {
             a = aircraftCreate(mm->addr); // ., create a new record for it,
         } else {
             //fprintf(stderr, "%06x: !a && !addressReliable(mm)\n", mm->addr);
@@ -1873,7 +1873,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     }
 
     // only count the aircraft as "seen" for reliable messages with CRC
-    if (address_reliable) {
+    if (mm->address_reliable) {
         a->seen = now;
     }
 
@@ -2487,9 +2487,6 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                 incrementReliable(a, mm, now, 2);
 
                 setPosition(a, mm, now);
-
-                if (a->messages < 2)
-                    a->messages = 2;
             }
         }
     }

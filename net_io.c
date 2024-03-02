@@ -5656,7 +5656,7 @@ static void outputMessage(struct modesMessage *mm) {
     struct aircraft *ac = mm->aircraft;
 
     // Suppress the first message when using an SDR
-    if (Modes.net && !mm->sbs_in && (Modes.net_only || Modes.net_verbatim || !ac || ac->messages > 1)) {
+    if (Modes.net && !mm->sbs_in && (Modes.net_only || Modes.net_verbatim || ac || mm->msgtype == DFTYPE_MODEAC)) {
         int is_mlat = (mm->source == SOURCE_MLAT);
 
         if (mm->jsonPositionOutputEmit && Modes.json_out.connections) {
