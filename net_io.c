@@ -5655,8 +5655,9 @@ static void outputMessage(struct modesMessage *mm) {
 
     struct aircraft *ac = mm->aircraft;
 
-    // Suppress the first message when using an SDR if crc is not zero
-    if (Modes.net && !mm->sbs_in && (Modes.net_only || Modes.net_verbatim || mm->crc == 0 || (ac && ac->messages > 1) || mm->msgtype == DFTYPE_MODEAC)) {
+    // Suppress the first message when using an SDR
+    // messages with crc 0 have an explicit checksum and are more reliable, don't suppress them when there was no CRC fix performed
+    if (Modes.net && !mm->sbs_in && (Modes.net_only || Modes.net_verbatim || (mm->crc == 0 && mm->correctedbits == 0) || (ac && ac->messages > 1) || mm->msgtype == DFTYPE_MODEAC)) {
         int is_mlat = (mm->source == SOURCE_MLAT);
 
         if (mm->jsonPositionOutputEmit && Modes.json_out.connections) {
