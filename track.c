@@ -1883,6 +1883,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         goto exit;
     }
 
+    a->last_message_crc_fixed = (mm->correctedbits > 0) ? 1 : 0;
+
 
     a->messageRateAcc[0]++;
     if (now > a->nextMessageRateCalc) {
@@ -1907,7 +1909,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
     // reset to 100000 on overflow ... avoid any low message count checks
     if (a->messages == UINT32_MAX)
-        a->messages = UINT16_MAX + 1;
+        a->messages = UINT16_MAX;
 
     a->messages++;
 
@@ -1929,6 +1931,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
         if (mm->addrtype == ADDR_ADSB_ICAO && a->position_valid.source != SOURCE_ADSB) {
             // don't set to ADS-B without a position
+            if (mm->msgtype == 17) {
+                a->addrtype = ADDR_MODE_S; // set type ModeS for DF17 messages when not knowing position
+                a->addrtype_updated = now;
+            }
         } else {
             a->addrtype = mm->addrtype;
             a->addrtype_updated = now;

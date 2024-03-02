@@ -461,7 +461,8 @@ struct aircraft
   uint32_t surfaceCPR_allow_ac_rel : 1; // allow surface cpr relative to last known aircraft location
   uint32_t localCPR_allow_ac_rel : 1; // allow local cpr relative to last known aircraft location
   // 24 bit
-  uint32_t padding_b : 8;
+  uint32_t last_message_crc_fixed : 1;
+  uint32_t padding_b : 7;
   // 32 bit !!
 
   // ----

@@ -994,6 +994,9 @@ int includeAircraftJson(int64_t now, struct aircraft *a) {
         fprintf(stderr, "includeAircraftJson: got NULL pointer\n");
         return 0;
     }
+    if (a->messages < 2 && a->last_message_crc_fixed) {
+        return 0;
+    }
 
     if (a->nogpsCounter >= NOGPS_SHOW && now - a->seenAdsbReliable < NOGPS_DWELL) {
         return 1;
