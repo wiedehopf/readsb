@@ -2813,7 +2813,7 @@ static void removeStaleRange(void *arg, threadpool_threadbuffers_t * buffer_grou
                     || (
                         a->seenPosReliable &&
                         (a->seenPosReliable < posTimeout || ((a->addr & MODES_NON_ICAO_ADDRESS) && a->seenPosReliable < nonIcaoPosTimeout)) &&
-                        a->pos_reliable_valid.source == SOURCE_INVALID
+                        a->addrtype != ADDR_JAERO
                        )
                ) {
                 // Count aircraft where we saw only one message before reaping them.
