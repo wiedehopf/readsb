@@ -2808,13 +2808,13 @@ static void removeStaleRange(void *arg, threadpool_threadbuffers_t * buffer_grou
         while (*nextPointer) {
             struct aircraft *a = *nextPointer;
             if (
-                    (a->seen < jaeroTimeout && a->addrtype == ADDR_JAERO)
-                    || (!a->seenPosReliable && a->seen < noposTimeout && a->addrtype != ADDR_JAERO)
-                    || (
-                        a->seenPosReliable &&
-                        (a->seenPosReliable < posTimeout || ((a->addr & MODES_NON_ICAO_ADDRESS) && a->seenPosReliable < nonIcaoPosTimeout)) &&
-                        a->addrtype != ADDR_JAERO
-                       )
+                    ((!a->seenPosReliable && a->seen < noposTimeout)
+                     || (
+                         a->seenPosReliable &&
+                         (a->seenPosReliable < posTimeout || ((a->addr & MODES_NON_ICAO_ADDRESS) && a->seenPosReliable < nonIcaoPosTimeout))
+                        )
+                    )
+                    && (a->addrtype != ADDR_JAERO || a->seen < jaeroTimeout)
                ) {
                 // Count aircraft where we saw only one message before reaping them.
                 // These are likely to be due to messages with bad addresses.
