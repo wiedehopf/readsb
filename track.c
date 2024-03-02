@@ -2801,13 +2801,15 @@ static void removeStaleRange(void *arg, threadpool_threadbuffers_t * buffer_grou
 
     // timeout for aircraft without position
     int64_t noposTimeout = now - 5 * MINUTES;
+    int64_t jaeroTimeout = now - Modes.trackExpireJaero;
 
     for (int j = info->from; j < info->to; j++) {
         struct aircraft **nextPointer = &(Modes.aircraft[j]);
         while (*nextPointer) {
             struct aircraft *a = *nextPointer;
             if (
-                    (!a->seenPosReliable && a->seen < noposTimeout)
+                    (a->seen < jaeroTimeout && a->addrtype == ADDR_JAERO)
+                    || (!a->seenPosReliable && a->seen < noposTimeout && a->addrtype != ADDR_JAERO)
                     || (
                         a->seenPosReliable &&
                         (a->seenPosReliable < posTimeout || ((a->addr & MODES_NON_ICAO_ADDRESS) && a->seenPosReliable < nonIcaoPosTimeout)) &&
@@ -3512,7 +3514,7 @@ void updateValidities(struct aircraft *a, int64_t now) {
         a->category = 0;
 
     // reset position reliability when no position was received for 60 minutes
-    if (a->pos_reliable_odd != 0 && a->pos_reliable_even != 0 && elapsed_seen_global > POS_RELIABLE_TIMEOUT && a->pos_reliable_valid.source == SOURCE_INVALID) {
+    if (a->pos_reliable_odd != 0 && a->pos_reliable_even != 0 && elapsed_seen_global > POS_RELIABLE_TIMEOUT) {
         a->pos_reliable_odd = 0;
         a->pos_reliable_even = 0;
     }

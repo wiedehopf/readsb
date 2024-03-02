@@ -1008,6 +1008,9 @@ int includeAircraftJson(int64_t now, struct aircraft *a) {
     if (now < a->seen + TRACK_EXPIRE) {
         return 1;
     }
+    if (a->addrtype == ADDR_JAERO && now < a->seen + Modes.trackExpireJaero) {
+        return 1;
+    }
 
     return 0;
 }
