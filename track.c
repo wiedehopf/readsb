@@ -1659,7 +1659,7 @@ static int altitude_to_feet(int raw, altitude_unit_t unit) {
 // check if we trust that this message is actually from the aircraft with this address
 // similar reasoning to icaoFilterAdd in mode_s.c
 static int addressReliable(struct modesMessage *mm) {
-    if (mm->msgtype == 17 || (mm->msgtype == 18 && mm->crc == 0) || (mm->msgtype == 11 && mm->IID == 0) || mm->sbs_in) {
+    if (mm->msgtype == 17 || mm->msgtype == 18 || (mm->msgtype == 11 && mm->IID == 0) || mm->sbs_in) {
         return 1;
     }
     return 0;
