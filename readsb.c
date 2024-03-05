@@ -2299,12 +2299,13 @@ static void miscStuff(int64_t now) {
             nextOutlineWrite = now + 15 * SECONDS;
         }
 
-        if (!Modes.state_only_on_exit) {
-            static int64_t nextRangeDirsWrite;
-            if (now > nextRangeDirsWrite) {
-                nextRangeDirsWrite = now + 5 * MINUTES;
-                writeRangeDirs();
+        static int64_t nextRangeDirsWrite;
+        if (now > nextRangeDirsWrite) {
+            nextRangeDirsWrite = now + 5 * MINUTES;
+            if (Modes.state_only_on_exit) {
+                nextRangeDirsWrite = now + 6 * HOURS;
             }
+            writeRangeDirs();
         }
     }
 
