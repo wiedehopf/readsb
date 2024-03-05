@@ -782,6 +782,7 @@ struct _Modes
     int8_t dump_reduce; // only dump beast that would be sent out according to reduce_interval
     int8_t state_only_on_exit;
     int8_t free_aircraft;
+    int64_t state_write_interval;
     char *prom_file;
     int64_t heatmap_current_interval;
     int64_t heatmap_interval; // don't change data type
@@ -1168,6 +1169,7 @@ enum {
     OptPromFile,
     OptGlobeHistoryDir,
     OptStateDir,
+    OptStateInterval,
     OptStateOnlyOnExit,
     OptHeatmap,
     OptHeatmapDir,

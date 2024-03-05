@@ -96,6 +96,7 @@ static struct argp_option optionsReadsb[] = {
     {"write-prom", OptPromFile, "<filepath>", 0, "Periodically write prometheus output to <filepath>", 1},
     {"write-globe-history", OptGlobeHistoryDir, "<dir>", 0, "Extended Globe History", 1},
     {"write-state", OptStateDir, "<dir>", 0, "Write state to disk to have traces after a restart", 1},
+    {"write-state-every", OptStateInterval, "<seconds>", 0, "Continuously write state to disk every X seconds (default: 3600)", 1},
     {"write-state-only-on-exit", OptStateOnlyOnExit, 0, 0, "Don't continously update state.", 1},
     {"heatmap-dir", OptHeatmapDir, "<dir>", 0, "Change the directory where heatmaps are saved (default is in globe history dir)", 1},
     {"heatmap", OptHeatmap, "<interval in seconds>", 0, "Make Heatmap, each aircraft at most every interval seconds (creates historydir/heatmap.bin and exit after that)", 1},

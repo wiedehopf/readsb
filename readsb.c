@@ -153,6 +153,7 @@ static void configSetDefaults(void) {
     Modes.netIngest = 0;
     Modes.uuidFile = strdup("/usr/local/share/adsbexchange/adsbx-uuid");
     Modes.json_trace_interval = 20 * 1000;
+    Modes.state_write_interval = 1 * HOURS;
     Modes.heatmap_current_interval = -15;
     Modes.heatmap_interval = 60 * SECONDS;
     Modes.json_reliable = -13;
@@ -1555,6 +1556,14 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptStateOnlyOnExit:
             Modes.state_only_on_exit = 1;
             break;
+        case OptStateInterval:
+            Modes.state_write_interval = (int64_t) (atof(arg) * 1.0 * SECONDS);
+            if (Modes.state_write_interval < 59 * SECONDS) {
+                fprintf(stderr, "ERROR: --write-state-every less than 60 seconds (specified: %s)\n", arg);
+                exit(1);
+                Modes.state_write_interval = 1 * HOURS;
+            }
+            break;
         case OptStateDir:
             sfree(Modes.state_parent_dir);
             Modes.state_parent_dir = strdup(arg);
@@ -2337,8 +2346,7 @@ static void miscStuff(int64_t now) {
             //fprintf(stderr, "save_blob: %02x\n", blob);
             notask_save_blob(blob);
             blob = (blob + 1) % STATE_BLOBS;
-            next_blob = now + 60 * MINUTES / STATE_BLOBS;
-
+            next_blob = now + Modes.state_write_interval / STATE_BLOBS;
             return;
         }
     }
