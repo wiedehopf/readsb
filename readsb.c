@@ -2345,9 +2345,20 @@ static void miscStuff(int64_t now) {
         // only continuously write state if we keep permanent trace
         if (!Modes.state_only_on_exit && now > next_blob) {
             //fprintf(stderr, "save_blob: %02x\n", blob);
+            int64_t blob_interval = Modes.state_write_interval / STATE_BLOBS;
+            next_blob = now + blob_interval;
+
+            struct timespec watch;
+            startWatch(&watch);
+
             notask_save_blob(blob);
+
+            int64_t elapsed = stopWatch(&watch);
+            if (elapsed > 0.5 * SECONDS || elapsed > blob_interval / 3) {
+                fprintf(stderr, "WARNING: save_blob %02x took %"PRIu64" ms!\n", blob, elapsed);
+            }
+
             blob = (blob + 1) % STATE_BLOBS;
-            next_blob = now + Modes.state_write_interval / STATE_BLOBS;
             return;
         }
     }
