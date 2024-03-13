@@ -834,7 +834,7 @@ void modesInitNet(void) {
         exit(1);
     }
 
-    Modes.net_connector_delay_min = imax(50, Modes.net_connector_delay / 64);
+    Modes.net_connector_delay_min = imax(100, Modes.net_connector_delay / 64);
     Modes.last_connector_fail = Modes.next_reconnect_callback = mstime();
 
     if (!Modes.net)
@@ -1175,7 +1175,8 @@ static void modesCloseClient(struct client *c) {
         // if we were connected for some time, an immediate reconnect is expected
         con->next_reconnect = con->lastConnect + con->backoff;
 
-        Modes.last_connector_fail = Modes.next_reconnect_callback = now;
+        Modes.next_reconnect_callback = now;
+        Modes.last_connector_fail = now;
     }
 
     // mark it as inactive and ready to be freed
@@ -5245,6 +5246,7 @@ static void decodeTask(void *arg, threadpool_threadbuffers_t *buffer_group) {
 // Perform periodic network work
 //
 void modesNetPeriodicWork(void) {
+    static int flushed_net;
     static int64_t next_tcp_json;
     static struct timespec watch;
 
@@ -5261,7 +5263,7 @@ void modesNetPeriodicWork(void) {
         wait_ms = 20;
     } else if (Modes.net_only) {
         // wait in net-only mode (unless we get network packets, that wakes the wait immediately)
-        wait_ms = imax(200, Modes.net_output_flush_interval);
+        wait_ms = imax(flushed_net ? 200 : 0, Modes.net_output_next_flush - now); // modify wait for next flush timer
         wait_ms = imin(wait_ms, Modes.next_reconnect_callback - now); // modify wait for reconnect callback timer
         wait_ms = imax(wait_ms, 0); // don't allow negative values
     } else {
@@ -5275,9 +5277,15 @@ void modesNetPeriodicWork(void) {
     if (priorityTasksPending()) {
         sched_yield();
     }
-    Modes.net_event_count = epoll_wait(Modes.net_epfd, Modes.net_events, Modes.net_maxEvents, wait_ms);
+    Modes.net_event_count = epoll_wait(Modes.net_epfd, Modes.net_events, Modes.net_maxEvents, (int) wait_ms);
     Modes.services_in.event_progress = 0;
     Modes.services_out.event_progress = 0;
+
+    //fprintTimePrecise(stderr, now); fprintf(stderr, " event count %d wait_ms %d\n", Modes.net_event_count, (int) wait_ms);
+
+    if (Modes.net_event_count > 0) {
+        flushed_net = 0;
+    }
 
     pthread_mutex_lock(&Threads.decode.mutex);
 
@@ -5334,7 +5342,8 @@ void modesNetPeriodicWork(void) {
 
     int64_t elapsed2 = lapWatch(&watch);
 
-    if (now > Modes.net_output_next_flush) {
+    if (now >= Modes.net_output_next_flush) {
+        //fprintTimePrecise(stderr, now); fprintf(stderr, " flush\n");
         // If we have data that has been waiting to be written for a while, write it now.
         for (struct net_service *service = Modes.services_out.services; service->descr; service++) {
             flushService(service, now);
@@ -5344,14 +5353,15 @@ void modesNetPeriodicWork(void) {
         }
 
         Modes.net_output_next_flush = now + Modes.net_output_flush_interval;
+        flushed_net = 1;
     }
 
-    if (now > Modes.next_reconnect_callback) {
-        //fprintTimePrecise(stderr, now); fprintf(stderr, "\n");
+    if (now >= Modes.next_reconnect_callback) {
+        //fprintTimePrecise(stderr, now); fprintf(stderr, " reconnectCallback\n");
 
         int64_t since_fail = now - Modes.last_connector_fail;
-        if (since_fail < 10 * SECONDS) {
-            Modes.next_reconnect_callback = now + 5 + since_fail * Modes.net_connector_delay_min / ( 10 * SECONDS );
+        if (since_fail < 2 * SECONDS) {
+            Modes.next_reconnect_callback = now + 20 + since_fail * Modes.net_connector_delay_min / ( 3 * SECONDS );
         } else {
             Modes.next_reconnect_callback = now + Modes.net_connector_delay_min;
         }

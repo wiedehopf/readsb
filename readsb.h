@@ -726,8 +726,8 @@ struct _Modes
     int64_t doubleBeastReduceIntervalUntil;
     float beast_reduce_filter_distance;
     float beast_reduce_filter_altitude;
-    int32_t net_connector_delay;
-    int32_t net_connector_delay_min;
+    int64_t net_connector_delay;
+    int64_t net_connector_delay_min;
     int64_t next_reconnect_callback;
     int64_t last_connector_fail;
     int32_t net_heartbeat_interval; // TCP heartbeat interval (milliseconds)
@@ -1209,7 +1209,6 @@ enum {
     OptApiShutdownDelay,
     OptTar1090UseApi,
     OptNetRoSize,
-    OptNetRoRate,
     OptNetRoIntervall,
     OptNetConnector,
     OptNetConnectorDelay,
