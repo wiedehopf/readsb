@@ -191,6 +191,12 @@ static struct net_service *serviceInit(struct net_service_group *group, const ch
         service->writer->lastWrite = mstime();
         service->writer->lastReceiverId = 0;
         service->writer->connections = 0;
+
+        if (service->writer == &Modes.beast_reduce_out) {
+            service->writer->flushInterval = Modes.net_output_flush_interval;
+        } else {
+            service->writer->flushInterval = Modes.net_output_flush_interval;
+        }
     }
 
     return service;
@@ -1469,6 +1475,7 @@ static inline int flushClient(struct client *c, int64_t now) {
 //
 static void flushWrites(struct net_writer *writer) {
     int64_t now = mstime();
+    //fprintTimePrecise(stderr, now); fprintf(stderr, "flushing %s %5d bytes\n", writer->service->descr, writer->dataUsed);
     for (struct client *c = writer->service->clients; c; c = c->next) {
         if (!c->service)
             continue;
@@ -1533,6 +1540,12 @@ static void *prepareWrite(struct net_writer *writer, int len) {
 // endptr should point one byte past the last byte written
 // to the buffer returned from prepareWrite.
 static void completeWrite(struct net_writer *writer, void *endptr) {
+    if (writer->dataUsed == 0 && endptr - writer->data > 0) {
+        int64_t now = mstime();
+        //fprintTimePrecise(stderr, now); fprintf(stderr, "completeWrite starting packet for %s\n", writer->service->descr);
+        writer->nextFlush = now + writer->flushInterval;
+    }
+
     writer->dataUsed = endptr - writer->data;
 
     if (writer->dataUsed >= Modes.net_output_flush_size) {
@@ -5024,7 +5037,7 @@ static void modesReadFromClient(struct client *c, struct messageBuffer *mb) {
         if (!c->bufferToProcess) {
             // get more buffer to process
             int read = readClient(c, now);
-            //fprintf(stderr, "readClient returned: %d\n", read);
+            //fprintTimePrecise(stderr, now); fprintf(stderr, "readClient returned: %d\n", read);
             if (!read) {
                 return;
             }
@@ -5195,21 +5208,27 @@ static void handleEpoll(struct net_service_group *group, struct messageBuffer *m
     }
 }
 
-static void flushService(struct net_service *service, int64_t now) {
+static int64_t checkFlushService(struct net_service *service, int64_t now) {
+    int64_t default_wait = 1000;
     if (!service->writer) {
-        return;
+        return now + default_wait;
     }
     struct net_writer *writer = service->writer;
     if (!writer->connections) {
-        return;
+        return now + default_wait;
     }
     if (Modes.net_heartbeat_interval && service->heartbeat_out.msg
             && now - writer->lastWrite >= Modes.net_heartbeat_interval) {
         // If we have generated no messages for a while, send a heartbeat
         send_heartbeat(service);
     }
-    if (writer->dataUsed) {
+    if (writer->dataUsed && now >= writer->nextFlush) {
         flushWrites(writer);
+    }
+    if (writer->dataUsed) {
+        return writer->nextFlush;
+    } else {
+        return now + default_wait;
     }
 }
 
@@ -5246,7 +5265,7 @@ static void decodeTask(void *arg, threadpool_threadbuffers_t *buffer_group) {
 // Perform periodic network work
 //
 void modesNetPeriodicWork(void) {
-    static int flushed_net;
+    static int64_t check_flush;
     static int64_t next_tcp_json;
     static struct timespec watch;
 
@@ -5261,13 +5280,15 @@ void modesNetPeriodicWork(void) {
     int64_t wait_ms;
     if (Modes.serial_client) {
         wait_ms = 20;
+    } else if (Modes.sdr_type != SDR_NONE) {
+        // NO WAIT WHEN USING AN SDR !! IMPORTANT !!
+        wait_ms = 0;
     } else if (Modes.net_only) {
         // wait in net-only mode (unless we get network packets, that wakes the wait immediately)
-        wait_ms = imax(flushed_net ? 200 : 0, Modes.net_output_next_flush - now); // modify wait for next flush timer
+        wait_ms = imax(0, check_flush - now); // modify wait for next flush timer
         wait_ms = imin(wait_ms, Modes.next_reconnect_callback - now); // modify wait for reconnect callback timer
         wait_ms = imax(wait_ms, 0); // don't allow negative values
     } else {
-        // NO WAIT WHEN USING AN SDR !! IMPORTANT !!
         wait_ms = 0;
     }
 
@@ -5283,8 +5304,8 @@ void modesNetPeriodicWork(void) {
 
     //fprintTimePrecise(stderr, now); fprintf(stderr, " event count %d wait_ms %d\n", Modes.net_event_count, (int) wait_ms);
 
-    if (Modes.net_event_count > 0) {
-        flushed_net = 0;
+    if (0 && Modes.net_event_count > 0) {
+        fprintTimePrecise(stderr, now); fprintf(stderr, " event count %d wait_ms %d\n", Modes.net_event_count, (int) wait_ms);
     }
 
     pthread_mutex_lock(&Threads.decode.mutex);
@@ -5342,18 +5363,20 @@ void modesNetPeriodicWork(void) {
 
     int64_t elapsed2 = lapWatch(&watch);
 
-    if (now >= Modes.net_output_next_flush) {
-        //fprintTimePrecise(stderr, now); fprintf(stderr, " flush\n");
-        // If we have data that has been waiting to be written for a while, write it now.
+    // If we have data that has been waiting to be written for a while, write it now.
+    if (Modes.sdr_type != SDR_NONE || now >= check_flush || Modes.net_event_count > 0) {
+        //fprintTimePrecise(stderr, now); fprintf(stderr, " checkFlush\n");
+
+        check_flush = now + 200;
+
         for (struct net_service *service = Modes.services_out.services; service->descr; service++) {
-            flushService(service, now);
+            int64_t nextFlush = checkFlushService(service, now);
+            check_flush = imin(check_flush, nextFlush);
         }
         for (struct net_service *service = Modes.services_in.services; service->descr; service++) {
-            flushService(service, now);
+            int64_t nextFlush = checkFlushService(service, now);
+            check_flush = imin(check_flush, nextFlush);
         }
-
-        Modes.net_output_next_flush = now + Modes.net_output_flush_interval;
-        flushed_net = 1;
     }
 
     if (now >= Modes.next_reconnect_callback) {

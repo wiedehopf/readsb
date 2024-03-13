@@ -2184,6 +2184,8 @@ static void configAfterParse() {
                 Modes.position_persistence);
     }
 
+    Modes.net_output_flush_size -= 8; // allow for sending 8 byte timestamp in some cases, unfortunate hack
+
     if (Modes.net_output_flush_size > (MODES_OUT_BUF_SIZE)) {
         Modes.net_output_flush_size = MODES_OUT_BUF_SIZE;
     }
@@ -2195,6 +2197,14 @@ static void configAfterParse() {
     }
     if (Modes.net_output_flush_interval < 0)
         Modes.net_output_flush_interval = 0;
+
+    if (Modes.net_output_flush_interval < 51 && Modes.sdr_type != SDR_NONE && !(Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS)) {
+        // the SDR code runs the network tasks about every 50ms
+        // avoid delay by just flushing every call of the network tasks
+        // somewhat hacky, anyone reading this code surprised at this point?
+        Modes.net_output_flush_interval = 0;
+    }
+
 
     if (Modes.net_sndbuf_size > (MODES_NET_SNDBUF_MAX)) {
         Modes.net_sndbuf_size = MODES_NET_SNDBUF_MAX;

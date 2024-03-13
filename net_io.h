@@ -188,6 +188,8 @@ struct net_writer
     int connections; // number of active clients
     struct net_service *service; // owning service
     int64_t lastWrite; // time of last write to clients
+    int64_t nextFlush;
+    int64_t flushInterval;
     uint64_t lastReceiverId;
     int noTimestamps;
 };
