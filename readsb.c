@@ -1629,7 +1629,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptNetRoSize:
             Modes.net_output_flush_size = atoi(arg);
             break;
-        case OptNetRoIntervall:
+        case OptNetRoInterval:
             Modes.net_output_flush_interval = (int64_t) (1000 * atof(arg));
             break;
         case OptNetRoPorts:

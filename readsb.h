@@ -1208,7 +1208,7 @@ enum {
     OptApiShutdownDelay,
     OptTar1090UseApi,
     OptNetRoSize,
-    OptNetRoIntervall,
+    OptNetRoInterval,
     OptNetConnector,
     OptNetConnectorDelay,
     OptNetHeartbeat,
