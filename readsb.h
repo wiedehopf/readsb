@@ -732,6 +732,7 @@ struct _Modes
     int64_t last_connector_fail;
     int32_t net_heartbeat_interval; // TCP heartbeat interval (milliseconds)
     int32_t net_output_flush_interval; // Maximum interval (in milliseconds) between outputwrites
+    int32_t net_output_flush_interval_beast_reduce; // Maximum interval (in milliseconds) between outputwrites
     double fUserLat; // Users receiver/antenna lat/lon needed for initial surface location
     double fUserLon; // Users receiver/antenna lat/lon needed for initial surface location
     double maxRange; // Absolute maximum decoding range, in *metres*
@@ -1209,6 +1210,7 @@ enum {
     OptTar1090UseApi,
     OptNetRoSize,
     OptNetRoInterval,
+    OptNetRoIntervalBeastReduce,
     OptNetConnector,
     OptNetConnectorDelay,
     OptNetHeartbeat,

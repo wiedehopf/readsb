@@ -151,6 +151,7 @@ static struct argp_option optionsReadsb[] = {
     {"uuid-file", OptUuidFile, "<path>", 0, "path to UUID file", 2},
     {"net-ro-size", OptNetRoSize, "<size>", 0, "TCP output flush size (maximum amount of internally buffered data before writing to network) (default: 1200)", 2},
     {"net-ro-interval", OptNetRoInterval, "<seconds>", 0, "TCP output flush interval in seconds (maximum delay between placing data in the output buffer and sending)(default: 0.05, valid values 0.0 - 1.0)", 2},
+    {"net-ro-interval-beast-reduce", OptNetRoIntervalBeastReduce, "<seconds>", 0, "TCP output flush interval in seconds for beast-reduce outputs (default: value from --net-ro-interval, valid values 0.0 - 1.0)", 2},
     {"net-connector-delay", OptNetConnectorDelay, "<seconds>", 0, "Outbound re-connection delay (default: 30)", 2},
     {"net-heartbeat", OptNetHeartbeat, "<rate>", 0, "TCP heartbeat rate in seconds (default: 60 sec; 0 to disable)", 2},
     {"net-buffer", OptNetBuffer, "<n>", 0, "TCP buffer size 64Kb * (2^n) (default: n=2, 256Kb)", 2},

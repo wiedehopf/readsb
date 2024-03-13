@@ -193,7 +193,7 @@ static struct net_service *serviceInit(struct net_service_group *group, const ch
         service->writer->connections = 0;
 
         if (service->writer == &Modes.beast_reduce_out) {
-            service->writer->flushInterval = Modes.net_output_flush_interval;
+            service->writer->flushInterval = Modes.net_output_flush_interval_beast_reduce;
         } else {
             service->writer->flushInterval = Modes.net_output_flush_interval;
         }
