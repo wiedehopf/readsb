@@ -468,6 +468,15 @@ void soapyRun()
 
         int32_t samples_read = SoapySDRDevice_readStream(SOAPY.dev, SOAPY.stream, (void *) &buf, buffer_elements, &flags, &timeNs, 5000000);
 
+        if (samples_read == 0) {
+            usleep(500);
+            continue;
+        }
+        if (samples_read < 0) {
+            fprintf(stderr, "soapy: readStream failed: %s\n", SoapySDRDevice_lastError());
+            break;
+        }
+
         // Lock the data buffer variables before accessing them
         lockReader();
 
@@ -477,11 +486,6 @@ void soapyRun()
         free_bufs = (Modes.first_filled_buffer - next_free_buffer + MODES_MAG_BUFFERS) % MODES_MAG_BUFFERS;
 
         unlockReader();
-
-        if (samples_read <= 0) {
-            fprintf(stderr, "soapy: readStream failed: %s\n", SoapySDRDevice_lastError());
-            break;
-        }
 
         slen = (uint32_t) samples_read;
 
