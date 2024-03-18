@@ -800,7 +800,7 @@ static void save_blobs(void *arg, threadpool_threadbuffers_t *threadbuffers) {
     for (int j = info->from; j < info->to; j++) {
         //fprintf(stderr, "save_blob(%d)\n", j);
 
-        save_blob(j, &threadbuffers->buffers[0], &threadbuffers->buffers[1]);
+        save_blob(j, &threadbuffers->buffers[0], &threadbuffers->buffers[1], Modes.state_dir);
 
         if (Modes.free_aircraft) {
             int stride = AIRCRAFT_BUCKETS / STATE_BLOBS;
@@ -2651,8 +2651,8 @@ no_save_state:
     return posUsed || bufferedPosUsed;
 }
 
-void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbuffer2) {
-    if (!Modes.state_dir)
+void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbuffer2, char *stateDir) {
+    if (!stateDir)
         return;
     //static int count;
     //fprintf(stderr, "Save blob: %02x, count: %d\n", blob, ++count);
@@ -2668,13 +2668,13 @@ void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbu
     char filename[PATH_MAX];
     char tmppath[PATH_MAX];
     if (zst) {
-        snprintf(filename, 1024, "%s/blob_%02x.zstl", Modes.state_dir, blob);
+        snprintf(filename, 1024, "%s/blob_%02x.zstl", stateDir, blob);
     } else if (lzo) {
-        snprintf(filename, 1024, "%s/blob_%02x.lzol", Modes.state_dir, blob);
+        snprintf(filename, 1024, "%s/blob_%02x.lzol", stateDir, blob);
     } else if (gzip) {
-        snprintf(filename, 1024, "%s/blob_%02x.gz", Modes.state_dir, blob);
+        snprintf(filename, 1024, "%s/blob_%02x.gz", stateDir, blob);
     } else {
-        snprintf(filename, 1024, "%s/blob_%02x", Modes.state_dir, blob);
+        snprintf(filename, 1024, "%s/blob_%02x", stateDir, blob);
     }
     snprintf(tmppath, PATH_MAX, "%s.readsb_tmp", filename);
 

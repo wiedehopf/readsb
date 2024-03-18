@@ -43,7 +43,7 @@ int globe_index(double lat_in, double lon_in);
 int globe_index_index(int index);
 void init_globe_index();
 void cleanup_globe_index();
-void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbuffer2);
+void save_blob(int blob, threadpool_buffer_t *pbuffer1, threadpool_buffer_t *pbuffer2, char *stateDir);
 void load_blob(char *blob, threadpool_threadbuffers_t * buffer_group);
 void writeRangeDirs();
 void writeInternalState();

@@ -2248,10 +2248,10 @@ static void configAfterParse() {
     }
 }
 
-static void notask_save_blob(uint32_t blob) {
+static void notask_save_blob(uint32_t blob, char *stateDir) {
     threadpool_buffer_t pbuffer1 = { 0 };
     threadpool_buffer_t pbuffer2 = { 0 };
-    save_blob(blob, &pbuffer1, &pbuffer2);
+    save_blob(blob, &pbuffer1, &pbuffer2, stateDir);
     free_threadpool_buffer(&pbuffer1);
     free_threadpool_buffer(&pbuffer2);
 }
@@ -2351,7 +2351,7 @@ static void miscStuff(int64_t now) {
                 writeInternalState();
             } else if (len == 2) {
                 uint32_t suffix = strtol(tmp, NULL, 16);
-                notask_save_blob(suffix);
+                notask_save_blob(suffix, Modes.state_dir);
                 fprintf(stderr, "save_blob: %02x\n", suffix);
             }
 
@@ -2371,7 +2371,7 @@ static void miscStuff(int64_t now) {
             struct timespec watch;
             startWatch(&watch);
 
-            notask_save_blob(blob);
+            notask_save_blob(blob, Modes.state_dir);
 
             int64_t elapsed = stopWatch(&watch);
             if (elapsed > 0.5 * SECONDS || elapsed > blob_interval / 3) {
