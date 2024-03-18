@@ -3267,7 +3267,9 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, stru
     }
 
     // Field 18 is  the Squawk (if we have it)
-    if (mm->squawk_valid) {
+    if (Modes.sbsOverrideSquawk != -1) {
+        p += sprintf(p, ",%04d", Modes.sbsOverrideSquawk);
+    } else if (mm->squawk_valid) {
         p += sprintf(p, ",%04x", mm->squawk);
     } else {
         p += sprintf(p, ",");

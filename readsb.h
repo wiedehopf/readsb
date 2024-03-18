@@ -814,6 +814,7 @@ struct _Modes
     int json_aircraft_history_next;
     int json_aircraft_history_full;
     int trace_hist_only;
+    int sbsOverrideSquawk;
     float messageRateMult;
     uint32_t binCraftVersion; // never change the type for this variable
     int8_t userLocationValid;

@@ -160,6 +160,7 @@ static void configSetDefaults(void) {
     Modes.json_reliable = -13;
     Modes.acasFD1 = -1; // set to -1 so it's clear we don't have that fd
     Modes.acasFD2 = -1; // set to -1 so it's clear we don't have that fd
+    Modes.sbsOverrideSquawk = -1;
 
     Modes.currentTask = "unset";
     Modes.joinTimeout = 30 * SECONDS;
@@ -1838,6 +1839,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                     Modes.ping_reduce = Modes.ping_reject / 2;
                 }
 
+                if (strcasecmp(token[0], "sbs_override_squawk") == 0 && token[1]) {
+                    Modes.sbsOverrideSquawk = atoi(token[1]);
+                }
                 if (strcasecmp(token[0], "messageRateMult") == 0 && token[1]) {
                     Modes.messageRateMult = atof(token[1]);
                 }
