@@ -2277,6 +2277,50 @@ static void loadReplaceState() {
     free(Modes.replace_state_blob);
     Modes.replace_state_blob = NULL;
 }
+static int checkWriteStateDir(char *baseDir) {
+    if (!baseDir) {
+        return 0;
+    }
+    char filename[PATH_MAX];
+    snprintf(filename, PATH_MAX, "%s/writeState", baseDir);
+    int fd = open(filename, O_RDONLY);
+    if (fd <= 0) {
+        return 0;
+    }
+
+    char tmp[3];
+    int len = read(fd, tmp, 2);
+    close(fd);
+
+    tmp[2] = '\0';
+
+    if (len == 0) {
+        // this ignores baseDir and always writes it to state_dir / disk
+        writeInternalState();
+    } else if (len == 2) {
+        uint32_t suffix = strtol(tmp, NULL, 16);
+        notask_save_blob(suffix, baseDir);
+        fprintf(stderr, "save_blob: %02x\n", suffix);
+    }
+
+    unlink(filename);
+    // unlink only after writing state, if the file doesn't exist that's fine as well
+    // this is a hack to detect from a shell script when the task is done
+
+    return 1;
+}
+
+static int checkWriteState() {
+    if (Modes.json_dir) {
+        char getStateDir[PATH_MAX];
+        snprintf(getStateDir, PATH_MAX, "%s/getState", Modes.json_dir);
+        if (checkWriteStateDir(getStateDir)) {
+            return 1;
+        }
+    }
+    return checkWriteStateDir(Modes.state_dir);
+}
+
 
 static void checkReplaceStateDir(char *baseDir) {
     if (!baseDir) {
@@ -2331,36 +2375,13 @@ static void miscStuff(int64_t now) {
 
     // don't do everything at once ... this stuff isn't that time critical it'll get its turn
 
+    if (checkWriteState()) {
+        return;
+    }
+
     if (Modes.state_dir) {
         static uint32_t blob; // current blob
         static int64_t next_blob;
-
-        char filename[PATH_MAX];
-        snprintf(filename, PATH_MAX, "%s/writeState", Modes.state_dir);
-        int fd = open(filename, O_RDONLY);
-        if (fd > -1) {
-            next_blob = now + 45 * SECONDS;
-
-            char tmp[3];
-            int len = read(fd, tmp, 2);
-            close(fd);
-
-            tmp[2] = '\0';
-
-            if (len == 0) {
-                writeInternalState();
-            } else if (len == 2) {
-                uint32_t suffix = strtol(tmp, NULL, 16);
-                notask_save_blob(suffix, Modes.state_dir);
-                fprintf(stderr, "save_blob: %02x\n", suffix);
-            }
-
-            unlink(filename);
-            // unlink only after writing state, if the file doesn't exist that's fine as well
-            // this is a hack to detect from a shell script when the task is done
-
-            return;
-        }
 
         // only continuously write state if we keep permanent trace
         if (!Modes.state_only_on_exit && now > next_blob) {
@@ -2559,6 +2580,12 @@ int main(int argc, char **argv) {
 
     for (int j = 0; j < STAT_BUCKETS; ++j)
         Modes.stats_10[j].start = Modes.stats_10[j].end = Modes.stats_current.start;
+
+    if (Modes.json_dir) {
+        char pathbuf[PATH_MAX];
+        snprintf(pathbuf, PATH_MAX, "%s/getState", Modes.json_dir);
+        mkdir_error(pathbuf, 0755, stderr);
+    }
 
     if (Modes.json_dir && Modes.json_globe_index) {
         char pathbuf[PATH_MAX];
