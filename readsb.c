@@ -2278,8 +2278,8 @@ static void loadReplaceState() {
     Modes.replace_state_blob = NULL;
 }
 
-static void checkReplaceState() {
-    if (!Modes.state_dir) {
+static void checkReplaceStateDir(char *baseDir) {
+    if (!baseDir) {
         return;
     }
     if (Modes.replace_state_blob) {
@@ -2287,8 +2287,8 @@ static void checkReplaceState() {
     }
     char filename[PATH_MAX];
 
-    snprintf(filename, PATH_MAX, "%s/replaceState", Modes.state_dir);
-    if (!Modes.replace_state_blob && access(filename, R_OK) == 0) {
+    snprintf(filename, PATH_MAX, "%s/replaceState", baseDir);
+    if (access(filename, R_OK) == 0) {
         for (int j = 0; j < STATE_BLOBS; j++) {
             char blob[1024];
             snprintf(blob, 1024, "%s/blob_%02x.zstl", filename, j);
@@ -2301,6 +2301,11 @@ static void checkReplaceState() {
             }
         }
     }
+}
+
+static void checkReplaceState() {
+    checkReplaceStateDir(Modes.state_dir);
+    checkReplaceStateDir(Modes.json_dir);
 }
 
 static void miscStuff(int64_t now) {
