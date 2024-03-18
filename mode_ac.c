@@ -176,7 +176,8 @@ void decodeModeAMessage(struct modesMessage *mm, int ModeA) {
     mm->addr = (ModeA & 0x0000FF7F) | MODES_NON_ICAO_ADDRESS;
 
     // Set the Identity field to ModeA
-    mm->squawk = ModeA & 0x7777;
+    mm->squawkHex = ModeA & 0x7777;
+    mm->squawkDec = squawkHex2Dec(mm->squawkHex);
     mm->squawk_valid = 1;
 
     // Flag ident in flight status

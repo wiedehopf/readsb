@@ -300,6 +300,12 @@ static inline __attribute__((always_inline)) unsigned char fixDF17msgtype(unsign
     }
 }
 
+static void setSquawkFromID13(struct modesMessage *mm, int ID13Field) {
+    mm->squawkHex = decodeID13Field(ID13Field);
+    mm->squawkDec = squawkHex2Dec(mm->squawkHex);
+    mm->squawk_valid = 1;
+}
+
 int scoreModesMessage(unsigned char *msg, int validbits) {
     int msgtype, msgbits, crc, iid;
     uint32_t addr;
@@ -694,8 +700,7 @@ int decodeModesMessage(struct modesMessage *mm) {
         // Gillham encoded Squawk
         mm->ID = getbits(msg, 20, 32);
         if (mm->ID) {
-            mm->squawk = decodeID13Field(mm->ID);
-            mm->squawk_valid = 1;
+            setSquawkFromID13(mm, mm->ID);
         }
     }
 
@@ -1103,8 +1108,7 @@ static void decodeESTestMessage(struct modesMessage *mm) {
     if (mm->mesub == 7) { // (see 1090-WP-15-20)
         int ID13Field = getbits(me, 9, 21);
         if (ID13Field) {
-            mm->squawk_valid = 1;
-            mm->squawk = decodeID13Field(ID13Field);
+            setSquawkFromID13(mm, ID13Field);
         }
     }
 }
@@ -1121,8 +1125,7 @@ static void decodeESAircraftStatus(struct modesMessage *mm, int check_imf) {
 
         unsigned ID13Field = getbits(me, 12, 24);
         if (ID13Field) {
-            mm->squawk_valid = 1;
-            mm->squawk = decodeID13Field(ID13Field);
+            setSquawkFromID13(mm, ID13Field);
         }
 
         if (check_imf && getbit(me, 56))
@@ -2069,8 +2072,8 @@ void displayModesMessage(struct modesMessage *mm) {
     }
 
     if (mm->squawk_valid) {
-        printf("  Squawk:        %04x\n",
-                mm->squawk);
+        printf("  Squawk:        %04d\n",
+                mm->squawkDec);
     }
 
     if (mm->callsign_valid) {

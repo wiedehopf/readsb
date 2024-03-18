@@ -998,7 +998,8 @@ struct modesMessage
     int baro_rate; // Rate of change of barometric altitude, feet/minute
     int geom_rate; // Rate of change of geometric (GNSS / INS) altitude, feet/minute
     char callsign[16]; // 8 chars flight number, NUL-terminated
-    unsigned squawk; // 13 bits identity (Squawk), encoded as 4 hex digits
+    uint32_t squawkHex; // 13 bits identity (Squawk), encoded as 4 hex digits
+    uint32_t squawkDec; // Squawk as a decimal number
     unsigned category; // A0 - D7 encoded as a single hex byte
     emergency_t emergency; // emergency/priority status
 

@@ -1816,7 +1816,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
     if (mm->msgtype == DFTYPE_MODEAC) {
         // Mode A/C, just count it (we ignore SPI)
-        modeAC_count[modeAToIndex(mm->squawk)]++;
+        modeAC_count[modeAToIndex(mm->squawkHex)]++;
         res = NULL;
         goto exit;
     }
@@ -2020,22 +2020,22 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         uint32_t oldsquawk = a->squawk;
 
         int changeTentative = 0;
-        if (a->squawkTentative != mm->squawk && now - a->seen < 15 * SECONDS && will_accept_data(&a->squawk_valid, mm->source, mm, a)) {
+        if (a->squawkTentative != mm->squawkHex && now - a->seen < 15 * SECONDS && will_accept_data(&a->squawk_valid, mm->source, mm, a)) {
             a->squawk_valid.next_reduce_forward = now + currentReduceInterval(now);
             mm->reduce_forward = 1;
             PPforward;
             changeTentative = 1;
         }
         if (
-                (mm->source == SOURCE_JAERO || (a->squawkTentative == mm->squawk && now - a->squawkTentativeChanged > 750))
+                (mm->source == SOURCE_JAERO || (a->squawkTentative == mm->squawkHex && now - a->squawkTentativeChanged > 750))
                 && accept_data(&a->squawk_valid, mm->source, mm, a, REDUCE_RARE)) {
-            if (mm->squawk != a->squawk) {
+            if (mm->squawkHex != a->squawk) {
                 a->modeA_hit = 0;
             }
-            a->squawk = mm->squawk;
+            a->squawk = mm->squawkHex;
         }
         if (changeTentative) {
-            a->squawkTentative = mm->squawk;
+            a->squawkTentative = mm->squawkHex;
             a->squawkTentativeChanged = now;
         }
 
@@ -2052,7 +2052,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                             a->addr,
                             mm->msgtype,
                             a->squawk,
-                            mm->squawk,
+                            mm->squawkHex,
                             uuid);
                 }
             } else {

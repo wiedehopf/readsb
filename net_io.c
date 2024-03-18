@@ -2126,7 +2126,8 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 }
             }
             if (fspec[2] & 0x8){ // I021/070 Mode 3/A Code
-                mm->squawk += (((*p & 0xe) << 11) + ((*p & 0x1) << 10) + ((*(p + 1) & 0xC0) << 2) + ((*(p + 1) & 0x38) << 1) + ((*(p + 1) & 0x7))) ;
+                mm->squawkHex = (((*p & 0xe) << 11) + ((*p & 0x1) << 10) + ((*(p + 1) & 0xC0) << 2) + ((*(p + 1) & 0x38) << 1) + ((*(p + 1) & 0x7))) ;
+                mm->squawkDec = squawkHex2Dec(mm->squawkHex);
                 mm->squawk_valid = true;
                 p += 2;
             }
@@ -2573,7 +2574,7 @@ static void modesSendAsterixOutput(struct modesMessage *mm, struct net_writer *w
         // I021/070 Mode 3/A Code
         if(mm->squawk_valid){
             fspec[2] |= 1 << 3;
-            uint16_t squawk = mm->squawk;
+            uint16_t squawk = mm->squawkHex;
             bytes[p]   |= ((squawk & 0x7000)) >> 11;
             bytes[p++] |= ((squawk & 0x0400)) >> 10;
             bytes[p]   |= ((squawk & 0x0300)) >> 2;
@@ -3025,9 +3026,10 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now, 
     if (t[18] && strlen(t[18]) > 0) {
         long int tmp = strtol(t[18], NULL, 10);
         if (tmp > 0) {
-            mm->squawk = (tmp / 1000) * 16*16*16 + (tmp / 100 % 10) * 16*16 + (tmp / 10 % 10) * 16 + (tmp % 10);
+            mm->squawkDec = tmp;
+            mm->squawkHex = squawkDec2Hex(mm->squawkDec);
             mm->squawk_valid = 1;
-            //fprintf(stderr, "squawk: %04x %s, ", mm->squawk, t[18]);
+            //fprintf(stderr, "squawk: %04x %s, ", mm->squawkHex, t[18]);
         }
     }
     // field 19 (originally squawk change) used to indicate by some versions of mlat-server the number of receivers which contributed to the postiions
@@ -3270,7 +3272,7 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, stru
     if (Modes.sbsOverrideSquawk != -1) {
         p += sprintf(p, ",%04d", Modes.sbsOverrideSquawk);
     } else if (mm->squawk_valid) {
-        p += sprintf(p, ",%04x", mm->squawk);
+        p += sprintf(p, ",%04d", mm->squawkDec);
     } else {
         p += sprintf(p, ",");
     }
@@ -3299,7 +3301,7 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, stru
         }
     } else if (mm->squawk_valid) {
         // Field 20 is the Squawk Emergency flag (if we have it)
-        if ((mm->squawk == 0x7500) || (mm->squawk == 0x7600) || (mm->squawk == 0x7700)) {
+        if ((mm->squawkHex == 0x7500) || (mm->squawkHex == 0x7600) || (mm->squawkHex == 0x7700)) {
             p += sprintf(p, ",-1");
         } else {
             p += sprintf(p, ",0");
