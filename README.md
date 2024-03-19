@@ -243,7 +243,8 @@ Don't write recent(1), full(2), either(3) traces
       --write-prom=<filepath>   Periodically write prometheus output to
                              <filepath>
       --write-receiver-id-json   Write receivers.json
-      --write-state=<dir>    Write state to disk to have traces after a restart
+      --write-state=<dir>    Write state to disk to have traces and outline
+                             after a restart
                             
       --write-state-only-on-exit   Don't continously update state.
 
