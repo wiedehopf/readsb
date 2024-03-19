@@ -93,7 +93,7 @@ If required, edit `/etc/default/readsb` to set the service options, device type,
 
 ## rtl-sdr bias tee
 
-Use this utility independen of readsb:
+Use this utility independent of readsb:
 https://github.com/wiedehopf/adsb-wiki/wiki/RTL-Bias-Tee
 
 ## Global map of aircraft
@@ -115,10 +115,10 @@ ok means speed check passed (displayed only with cpr-focus)
 
 A means airborne and S means surface.
 
-reliable is my reliable counter
-every good position increases each aircrafts position reliability
-if it gets to zero, speed check is no longer applied and it's allowed to "JUMP"
-"JUMP" is also allowed if we haven't had a position for 2 minutes
+reliable is my reliability counter
+every good position increases each aircrafts position reliability,
+if it gets to zero, speed check is no longer applied and it's allowed to "JUMP",
+"JUMP" is also allowed if we haven't had a position for 2 minutes.
 
 tD is the trackDifference
 170 or 180 means the new position goes in the opposite direction of the ground track broadcast by the aircraft.
