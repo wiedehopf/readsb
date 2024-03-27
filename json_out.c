@@ -994,16 +994,17 @@ int includeAircraftJson(int64_t now, struct aircraft *a) {
         fprintf(stderr, "includeAircraftJson: got NULL pointer\n");
         return 0;
     }
+
+    // include all aircraft with valid position
+    if (a->pos_reliable_valid.source != SOURCE_INVALID) {
+        return 1;
+    }
+
     if (a->messages < 2 && a->addrtype != ADDR_JAERO && a->addrtype != ADDR_OTHER) {
         return 0;
     }
 
     if (a->nogpsCounter >= NOGPS_SHOW && now - a->seenAdsbReliable < NOGPS_DWELL) {
-        return 1;
-    }
-
-    // include all aircraft with valid position
-    if (a->pos_reliable_valid.source != SOURCE_INVALID) {
         return 1;
     }
 
