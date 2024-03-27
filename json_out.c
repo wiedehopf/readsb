@@ -994,7 +994,7 @@ int includeAircraftJson(int64_t now, struct aircraft *a) {
         fprintf(stderr, "includeAircraftJson: got NULL pointer\n");
         return 0;
     }
-    if (a->messages < 2 && a->last_message_crc_fixed) {
+    if (a->messages < 2 && a->addrtype != ADDR_JAERO && a->addrtype != ADDR_OTHER) {
         return 0;
     }
 
