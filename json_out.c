@@ -2085,6 +2085,11 @@ struct char_buffer generateVRS(int part, int n_parts, int reduced_data) {
             if (a->addr & MODES_NON_ICAO_ADDRESS)
                 continue;
 
+            // also enforce same criteria as for aircraft.json
+            if (!includeAircraftJson(now, a)) {
+                continue;
+            }
+
 
             if ((p + 2048) >= end) {
                 int used = p - buf;
