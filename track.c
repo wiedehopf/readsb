@@ -3661,9 +3661,6 @@ static void incrementReliable(struct aircraft *a, struct modesMessage *mm, int64
     if (mm->pos_receiver_range_exceeded) {
         increment = 0.25f;
     }
-    if (mm->source == SOURCE_SBS) {
-        increment = 0.5f;
-    }
 
     if (odd)
         a->pos_reliable_odd = fminf(a->pos_reliable_odd + increment, Modes.position_persistence);
