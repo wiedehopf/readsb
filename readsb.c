@@ -2480,11 +2480,11 @@ static void *miscEntryPoint(void *arg) {
 static void _sigaction_range(struct sigaction *sa, int first, int last) {
     int sig;
     for (sig = first; sig <= last; ++sig) {
+        if (sig == SIGKILL || sig == SIGSTOP) {
+            continue;
+        }
         if (sigaction(sig, sa, NULL)) {
-            /* SIGKILL/SIGSTOP trigger EINVAL.  Ignore by default. */
-            if (errno != EINVAL) {
-                fprintf(stderr, "sigaction(%s[%i]) failed: %s\n", strsignal(sig), sig, strerror(errno));
-            }
+            fprintf(stderr, "sigaction(%s[%i]) failed: %s\n", strsignal(sig), sig, strerror(errno));
         }
     }
 }
