@@ -1232,6 +1232,7 @@ static void cleanup_and_exit(int code) {
     sfree(Modes.net_bind_address);
     sfree(Modes.db_file);
     sfree(Modes.net_input_beast_ports);
+    sfree(Modes.net_input_planefinder_ports);
     sfree(Modes.net_output_beast_ports);
     sfree(Modes.net_output_beast_reduce_ports);
     sfree(Modes.net_output_vrs_ports);
