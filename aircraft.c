@@ -788,20 +788,8 @@ void updateTypeReg(struct aircraft *a) {
             //738a00-738aff = israel mil(iz)
             || (i >= 0x738a00 && i <= 0x738aff)
 
-            //7c822e-7c84ff = australia mil_1(av)
-            || (i >= 0x7c822e && i <= 0x7c84ff)
-            //7c8800-7c8fff = australia mil_7(av)
-            || (i >= 0x7c8800 && i <= 0x7c88ff)
             //7cf800-7cfaff australia mil
             || (i >= 0x7cf800 && i <= 0x7cfaff)
-            //7c9000-7c9fff = australia mil_8(av)
-            //7ca000-7cbfff = australia mil_9(av)
-            || (i >= 0x7c9000 && i <= 0x7cafff)
-            //7d0000-7dffff = australia mil_11(av)
-            //7e0000-7fffff = australia mil_12(av)
-            // disable these for the time being
-            //|| (i >= 0x7d0000 && i <= 0x7fffff)
-            //|| (i >= 0x7e0000 && i <= 0x7fffff)
 
             //800200-8002ff = india mil(im)
             || (i >= 0x800200 && i <= 0x8002ff)
