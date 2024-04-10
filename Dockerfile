@@ -7,7 +7,7 @@ RUN JEMALLOC_BDIR=$(mktemp -d) && \
     git clone --depth 1 https://github.com/jemalloc/jemalloc $JEMALLOC_BDIR && \
     cd $JEMALLOC_BDIR && \
     ./autogen.sh && \
-    ./configure && \
+    ./configure --with-lg-page=14 && \
     make -j$(nproc) && \
     make install && \
     rm -rf $JEMALLOC_BDIR
