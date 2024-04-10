@@ -109,7 +109,7 @@ static void drainMessageBuffer(struct messageBuffer *buf);
 static const char beast_heartbeat_msg[] = {0x1a, '1', 0, 0, 0, 0, 0, 0, 0, 0, 0};
 static const char raw_heartbeat_msg[] = "*0000;\n";
 static const char sbs_heartbeat_msg[] = "\r\n"; // is there a better one?
-static const char newline_heartbeat_msg[] = "\n";
+//static const char newline_heartbeat_msg[] = "\n";
 // CAUTION: sizeof includes the trailing \0 byte
 
 static const heartbeat_t beast_heartbeat = {
@@ -128,10 +128,12 @@ static const heartbeat_t no_heartbeat = {
     .msg = NULL,
     .len = 0
 };
+/*
 static const heartbeat_t newline_heartbeat = {
     .msg = newline_heartbeat_msg,
     .len = sizeof(newline_heartbeat_msg) - 1
 };
+*/
 
 //
 //=========================================================================
@@ -222,6 +224,11 @@ static uint8_t char_to_ais(int ch)
 }
 
 static int sendFiveHeartbeats(struct client *c, int64_t now) {
+    // only send 5 heartbeats for beast type output
+    if (c->service->heartbeat_out.msg != beast_heartbeat.msg) {
+        return 0;
+    }
+    //fprintf(stderr, "sending 5 hbs\n");
     // send 5 heartbeats to signal that we are a client that can accomodate feedback .... some counterparts crash if they get stuff they don't understand
     // this is really a crutch, but there is no other good way to signal this without causing issues
     int repeats = 5;
@@ -881,7 +888,7 @@ void modesInitNet(void) {
     raw_out = serviceInit(&Modes.services_out, "Raw TCP output", &Modes.raw_out, raw_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(raw_out, Modes.net_bind_address, Modes.net_output_raw_ports, Modes.net_epfd);
 
-    uat_replay_service = serviceInit(&Modes.services_out, "UAT TCP replay output", &Modes.uat_replay_out, newline_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    uat_replay_service = serviceInit(&Modes.services_out, "UAT TCP replay output", &Modes.uat_replay_out, no_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(uat_replay_service, Modes.net_bind_address, Modes.net_output_uat_replay_ports, Modes.net_epfd);
 
     beast_out = serviceInit(&Modes.services_out, "Beast TCP output", &Modes.beast_out, beast_heartbeat, no_heartbeat, READ_MODE_BEAST_COMMAND, NULL, handleBeastCommand);
