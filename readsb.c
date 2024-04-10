@@ -123,6 +123,8 @@ static void configSetDefaults(void) {
     Modes.db_file = NULL;
     Modes.net_input_raw_ports = strdup("0");
     Modes.net_output_raw_ports = strdup("0");
+    Modes.net_output_uat_replay_ports = strdup("0");
+    Modes.net_input_uat_ports = strdup("0");
     Modes.net_output_sbs_ports = strdup("0");
     Modes.net_input_sbs_ports = strdup("0");
     Modes.net_input_beast_ports = strdup("0");
@@ -1238,6 +1240,8 @@ static void cleanup_and_exit(int code) {
     sfree(Modes.net_output_vrs_ports);
     sfree(Modes.net_input_raw_ports);
     sfree(Modes.net_output_raw_ports);
+    sfree(Modes.net_output_uat_replay_ports);
+    sfree(Modes.net_input_uat_ports);
     sfree(Modes.net_output_sbs_ports);
     sfree(Modes.net_input_sbs_ports);
     sfree(Modes.net_input_jaero_ports);
@@ -1637,6 +1641,14 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptNetRoIntervalBeastReduce:
             Modes.net_output_flush_interval_beast_reduce = (int64_t) (1000 * atof(arg));
+            break;
+        case OptNetUatReplayPorts:
+            sfree(Modes.net_output_uat_replay_ports);
+            Modes.net_output_uat_replay_ports = strdup(arg);
+            break;
+        case OptNetUatInPorts:
+            sfree(Modes.net_input_uat_ports);
+            Modes.net_input_uat_ports = strdup(arg);
             break;
         case OptNetRoPorts:
             sfree(Modes.net_output_raw_ports);

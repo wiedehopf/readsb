@@ -594,6 +594,7 @@ struct _Modes
     struct net_writer vrs_out; // SBS-format output
     struct net_writer fatsv_out; // FATSV-format output
     struct net_writer gpsd_in; // for sending 1 line to gpsd
+    struct net_writer uat_replay_out; // UAT replay output
     struct net_service *beast_in_service;
     struct net_service *uat_in_service;
 
@@ -745,6 +746,8 @@ struct _Modes
     char *db_file;
     char *net_output_raw_ports; // List of raw output TCP ports
     char *net_input_raw_ports; // List of raw input TCP ports
+    char *net_output_uat_replay_ports; // List of UAT replay output TCP ports
+    char *net_input_uat_ports; // List of UAT input TCP ports
     char *net_input_planefinder_ports; // List of planefinder input TCP ports
     char *net_output_sbs_ports; // List of SBS output TCP ports
     char *net_input_sbs_ports; // List of SBS input TCP ports
@@ -1188,6 +1191,8 @@ enum {
     OptNetBindAddr,
     OptNetRiPorts,
     OptNetRoPorts,
+    OptNetUatReplayPorts,
+    OptNetUatInPorts,
     OptNetSbsPorts,
     OptNetSbsInPorts,
     OptNetJaeroPorts,

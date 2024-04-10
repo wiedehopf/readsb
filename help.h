@@ -46,7 +46,7 @@ static struct argp_option optionsViewadsb[] = {
     {"quiet", OptQuiet, 0, 0, "Disable output (default)", 1},
     {"debug", OptDebug, "<flags>", 0, "Debug mode (verbose), n: network, P: CPR, S: speed check", 1},
     {0,0,0,0, "Network options:", 2},
-    {"net-connector", OptNetConnector, "<ip,port,protocol>", 0, "Establish connection, can be specified multiple times. (viewadsb default: --net-connector 127.0.0.1,30005,beast_in viewadsb first usage overrides default, second usage adds another input/output) \nProtocols: beast_out, beast_in, raw_out, raw_in, sbs_out, vrs_out, json_out, gpsd_in, uat_in, planefinder_in, asterix_in, asterix_out", 2},
+    {"net-connector", OptNetConnector, "<ip,port,protocol>", 0, "Establish connection, can be specified multiple times (e.g. 127.0.0.1,23004,beast_out) Protocols: beast_out, beast_in, raw_out, raw_in, sbs_in, sbs_in_jaero, sbs_out, sbs_out_jaero, vrs_out, json_out, gpsd_in, uat_in, uat_replay_out, planefinder_in, asterix_in, asterix_out (one failover ip/address,port can be specified: primary-address,primary-port,protocol,failover-address,failover-port) (any position in the comma separated list can also be either silent_fail or uuid=<uuid>)", 2},
     {0,0,0,0, "Help options:", 100},
     { 0 }
 };
@@ -116,7 +116,7 @@ static struct argp_option optionsReadsb[] = {
     {"db-file", OptDbFile, "<file.csv.gz>", 0, "Default: \"none\" (as of writing a compatible file is available here: https://github.com/wiedehopf/tar1090-db/tree/csv)", 1},
     {"db-file-lt", OptDbFileLongtype, 0, 0, "aircraft.json: add long type as field desc, add field ownOp for the owner, add field year", 1},
     {0,0,0,0, "Network options:", 2},
-    {"net-connector", OptNetConnector, "<ip,port,protocol>", 0, "Establish connection, can be specified multiple times (e.g. 127.0.0.1,23004,beast_out) Protocols: beast_out, beast_in, raw_out, raw_in, sbs_in, sbs_in_jaero, sbs_out, sbs_out_jaero, vrs_out, json_out, gpsd_in, uat_in, planefinder_in, asterix_in, asterix_out (one failover ip/address,port can be specified: primary-address,primary-port,protocol,failover-address,failover-port) (any position in the comma separated list can also be either silent_fail or uuid=<uuid>)", 2},
+    {"net-connector", OptNetConnector, "<ip,port,protocol>", 0, "Establish connection, can be specified multiple times (e.g. 127.0.0.1,23004,beast_out) Protocols: beast_out, beast_in, raw_out, raw_in, sbs_in, sbs_in_jaero, sbs_out, sbs_out_jaero, vrs_out, json_out, gpsd_in, uat_in, uat_replay_out, planefinder_in, asterix_in, asterix_out (one failover ip/address,port can be specified: primary-address,primary-port,protocol,failover-address,failover-port) (any position in the comma separated list can also be either silent_fail or uuid=<uuid>)", 2},
     {"net", OptNet, 0, 0, "Enable networking", 2},
     {"net-only", OptNetOnly, 0, 0, "Enable just networking, no RTL device or file used", 2},
     {"net-bind-address", OptNetBindAddr, "<ip>", 0, "IP address to bind to (default: Any; Use 127.0.0.1 for private)", 2},
@@ -124,6 +124,8 @@ static struct argp_option optionsReadsb[] = {
     {"net-bi-port", OptNetBiPorts, "<ports>", 0, "TCP Beast input listen ports  (default: 0)", 2},
     {"net-ro-port", OptNetRoPorts, "<ports>", 0, "TCP raw output listen ports (default: 0)", 2},
     {"net-ri-port", OptNetRiPorts, "<ports>", 0, "TCP raw input listen ports  (default: 0)", 2},
+    {"net-uat-replay-port", OptNetUatReplayPorts, "<ports>", 0, "UAT replay output listen ports (default: 0)", 2},
+    {"net-uat-in-port", OptNetUatInPorts, "<ports>", 0, "UAT input listen ports (default: 0)", 2},
     {"net-sbs-port", OptNetSbsPorts, "<ports>", 0, "TCP BaseStation output listen ports (default: 0)", 2},
     {"net-sbs-in-port", OptNetSbsInPorts, "<ports>", 0, "TCP BaseStation input listen ports (default: 0)", 2},
     {"net-sbs-jaero-port", OptNetJaeroPorts, "<ports>", 0, "TCP SBS Jaero output listen ports (default: 0)", 2},

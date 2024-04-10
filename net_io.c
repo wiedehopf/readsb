@@ -109,6 +109,7 @@ static void drainMessageBuffer(struct messageBuffer *buf);
 static const char beast_heartbeat_msg[] = {0x1a, '1', 0, 0, 0, 0, 0, 0, 0, 0, 0};
 static const char raw_heartbeat_msg[] = "*0000;\n";
 static const char sbs_heartbeat_msg[] = "\r\n"; // is there a better one?
+static const char newline_heartbeat_msg[] = "\n";
 // CAUTION: sizeof includes the trailing \0 byte
 
 static const heartbeat_t beast_heartbeat = {
@@ -126,6 +127,10 @@ static const heartbeat_t sbs_heartbeat = {
 static const heartbeat_t no_heartbeat = {
     .msg = NULL,
     .len = 0
+};
+static const heartbeat_t newline_heartbeat = {
+    .msg = newline_heartbeat_msg,
+    .len = sizeof(newline_heartbeat_msg) - 1
 };
 
 //
@@ -848,6 +853,7 @@ void modesInitNet(void) {
     struct net_service *beast_out;
     struct net_service *beast_reduce_out;
     struct net_service *garbage_out;
+    struct net_service *uat_replay_service;
     struct net_service *raw_out;
     struct net_service *raw_in;
     struct net_service *vrs_out;
@@ -874,6 +880,9 @@ void modesInitNet(void) {
     // set up listeners
     raw_out = serviceInit(&Modes.services_out, "Raw TCP output", &Modes.raw_out, raw_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
     serviceListen(raw_out, Modes.net_bind_address, Modes.net_output_raw_ports, Modes.net_epfd);
+
+    uat_replay_service = serviceInit(&Modes.services_out, "UAT TCP replay output", &Modes.uat_replay_out, newline_heartbeat, no_heartbeat, READ_MODE_IGNORE, NULL, NULL);
+    serviceListen(uat_replay_service, Modes.net_bind_address, Modes.net_output_uat_replay_ports, Modes.net_epfd);
 
     beast_out = serviceInit(&Modes.services_out, "Beast TCP output", &Modes.beast_out, beast_heartbeat, no_heartbeat, READ_MODE_BEAST_COMMAND, NULL, handleBeastCommand);
     serviceListen(beast_out, Modes.net_bind_address, Modes.net_output_beast_ports, Modes.net_epfd);
@@ -1003,8 +1012,7 @@ void modesInitNet(void) {
     serviceListen(planefinder_in, Modes.net_bind_address, Modes.net_input_planefinder_ports, Modes.net_epfd);
 
     Modes.uat_in_service = serviceInit(&Modes.services_in, "UAT TCP input", NULL, no_heartbeat, no_heartbeat, READ_MODE_ASCII, "\n", decodeUatMessage);
-    // for testing ... don't care to create an argument to open this port
-    // serviceListen(Modes.uat_in_service, Modes.net_bind_address, "1234", Modes.net_epfd);
+    serviceListen(Modes.uat_in_service, Modes.net_bind_address, Modes.net_input_uat_ports, Modes.net_epfd);
 
     for (int i = 0; i < Modes.net_connectors_count; i++) {
         struct net_connector *con = &Modes.net_connectors[i];
@@ -1055,6 +1063,8 @@ void modesInitNet(void) {
             con->service = gpsd_in;
         else if (strcmp(con->protocol, "uat_in") == 0)
             con->service = Modes.uat_in_service;
+        else if (strcmp(con->protocol, "uat_replay_out") == 0)
+            con->service = uat_replay_service;
 
     }
 
@@ -4224,11 +4234,29 @@ static int processHexMessage(struct client *c, char *hex, int remote, int64_t no
     return (0);
 }
 
+static void replayUatMsg(char *msg, int msgLen) {
+    char *p = prepareWrite(&Modes.uat_replay_out, msgLen + 1);
+    if (!p) {
+        return;
+    }
+
+    memcpy(p, msg, msgLen);
+    p += msgLen;
+    *p++ = '\n';
+    completeWrite(&Modes.uat_replay_out, p);
+
+    return;
+}
+
+
 static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now, struct messageBuffer *mb) {
     MODES_NOTUSED(remote);
 
-    char *end = msg + strlen(msg);
+    int msgLen = strlen(msg);
+    char *end = msg + msgLen;
     char output[512];
+
+    replayUatMsg(msg, msgLen);
 
     uat2esnt_convert_message(msg, end, output, output + sizeof(output));
 
