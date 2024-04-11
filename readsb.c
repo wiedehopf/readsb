@@ -121,6 +121,8 @@ static void configSetDefaults(void) {
     Modes.net_heartbeat_interval = MODES_NET_HEARTBEAT_INTERVAL;
     //Modes.db_file = strdup("/usr/local/share/tar1090/git-db/aircraft.csv.gz");
     Modes.db_file = NULL;
+    Modes.latString = strdup("");
+    Modes.lonString = strdup("");
     Modes.net_input_raw_ports = strdup("0");
     Modes.net_output_raw_ports = strdup("0");
     Modes.net_output_uat_replay_ports = strdup("0");
@@ -1252,6 +1254,8 @@ static void cleanup_and_exit(int code) {
     sfree(Modes.uuidFile);
     sfree(Modes.dbIndex);
     sfree(Modes.db);
+    sfree(Modes.latString);
+    sfree(Modes.lonString);
 
     int i;
     for (i = 0; i < MODES_MAG_BUFFERS; ++i) {
@@ -1499,9 +1503,13 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.interactive_display_ttl = (int64_t) (1000 * atof(arg));
             break;
         case OptLat:
+            sfree(Modes.latString);
+            Modes.latString = strdup(arg);
             Modes.fUserLat = atof(arg);
             break;
         case OptLon:
+            sfree(Modes.lonString);
+            Modes.lonString = strdup(arg);
             Modes.fUserLon = atof(arg);
             break;
         case OptMaxRange:
@@ -2177,6 +2185,7 @@ static void configAfterParse() {
             || (Modes.fUserLat < -90.0) // and
             || (Modes.fUserLon > 360.0) // Longitude must be -180 to +360
             || (Modes.fUserLon < -180.0)) {
+        fprintf(stderr, "INVALID lat: %s, lon: %s\n", Modes.latString, Modes.lonString);
         Modes.fUserLat = Modes.fUserLon = 0.0;
     } else if (Modes.fUserLon > 180.0) { // If Longitude is +180 to +360, make it -180 to 0
         Modes.fUserLon -= 360.0;
@@ -2186,7 +2195,7 @@ static void configAfterParse() {
     // Set the user LatLon valid flag only if either Lat or Lon are non zero. Note the Greenwich meridian
     if ((Modes.fUserLat != 0.0) || (Modes.fUserLon != 0.0)) {
         Modes.userLocationValid = 1;
-        fprintf(stderr, "Using lat: %9.4f, lon: %9.4f\n", Modes.fUserLat, Modes.fUserLon);
+        fprintf(stderr, "Using lat: %s, lon: %s\n", Modes.latString, Modes.lonString);
     }
     if (!Modes.userLocationValid || !Modes.json_dir) {
         Modes.outline_json = 0; // disable outline_json

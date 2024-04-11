@@ -737,6 +737,8 @@ struct _Modes
     double fUserLat; // Users receiver/antenna lat/lon needed for initial surface location
     double fUserLon; // Users receiver/antenna lat/lon needed for initial surface location
     double maxRange; // Absolute maximum decoding range, in *metres*
+    char *latString;
+    char *lonString;
     double sample_rate; // actual sample rate in use (in hz)
     int64_t interactive_display_ttl; // Interactive mode: TTL display
     int64_t json_interval; // Interval between rewriting the json aircraft file, in milliseconds; also the advertised map refresh interval
