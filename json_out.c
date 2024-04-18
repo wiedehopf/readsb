@@ -1637,7 +1637,6 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
 
     cache->firstRecentCache = firstRecentCache;
 
-    int sprintCount = 0;
     if (0 && a->addr == TRACE_FOCUS) {
         fprintf(stderr, "%06x sprintCache: %d points firstRecent starting %d (firstRecentCache starting %d, max %d)\n", a->addr, tb.len - firstRecent, firstRecent, firstRecentCache, Modes.traceCachePoints);
     }
@@ -1701,7 +1700,6 @@ static void checkTraceCache(struct aircraft *a, traceBuffer tb, int64_t now) {
             break;
         }
 
-        sprintCount++;
 
         entry->ts = state->timestamp;
         entry->offset = stringStart - cache->json;

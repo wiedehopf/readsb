@@ -39,15 +39,15 @@ typedef enum { CS_INVALID=0, CS_CALLSIGN, CS_SQUAWK } callsign_type_t;
 
 struct uat_adsb_mdb {
     // presence bits
-    int has_sv : 1;
-    int has_ms : 1;
-    int has_auxsv : 1;
+    uint32_t has_sv : 1;
+    uint32_t has_ms : 1;
+    uint32_t has_auxsv : 1;
 
-    int position_valid : 1;
-    int ns_vel_valid : 1;
-    int ew_vel_valid : 1;
-    int speed_valid : 1;
-    int dimensions_valid : 1;
+    uint32_t position_valid : 1;
+    uint32_t ns_vel_valid : 1;
+    uint32_t ew_vel_valid : 1;
+    uint32_t speed_valid : 1;
+    uint32_t dimensions_valid : 1;
 
     //
     // HDR
@@ -88,9 +88,9 @@ struct uat_adsb_mdb {
     // if lengthwidth_valid:
     double length; // in meters (just to be different)
     double width;  // in meters (just to be different)
-    int position_offset : 1;  // true if Position Offset Applied
+    uint32_t position_offset : 1;  // true if Position Offset Applied
 
-    int utc_coupled : 1;      // true if UTC Coupled flag is set (ADS-B)
+    uint32_t utc_coupled : 1;      // true if UTC Coupled flag is set (ADS-B)
     uint8_t tisb_site_id;     // TIS-B site ID, or zero in ADS-B messages
     
     //
@@ -109,12 +109,12 @@ struct uat_adsb_mdb {
     uint8_t nic_baro;
   
     // capabilities:
-    int has_cdti : 1;
-    int has_acas : 1;    
+    uint32_t has_cdti : 1;
+    uint32_t has_acas : 1;
     // operational modes:
-    int acas_ra_active : 1;
-    int ident_active : 1;
-    int atc_services : 1;
+    uint32_t acas_ra_active : 1;
+    uint32_t ident_active : 1;
+    uint32_t atc_services : 1;
 
     heading_type_t heading_type;
 
@@ -152,12 +152,12 @@ void uat_display_adsb_mdb(const struct uat_adsb_mdb *mdb, FILE *to);
 #define UPLINK_MAX_INFO_FRAMES (424/6)
 
 struct fisb_apdu {
-    int a_flag : 1;
-    int g_flag : 1;
-    int p_flag : 1;
-    int s_flag : 1;
-    int monthday_valid : 1;
-    int seconds_valid : 1;
+    uint32_t a_flag : 1;
+    uint32_t g_flag : 1;
+    uint32_t p_flag : 1;
+    uint32_t s_flag : 1;
+    uint32_t monthday_valid : 1;
+    uint32_t seconds_valid : 1;
 
     uint16_t product_id;
     uint8_t month;   // if monthday_valid
@@ -171,7 +171,7 @@ struct fisb_apdu {
 };
 
 struct uat_uplink_info_frame {
-    int is_fisb : 1;
+    uint32_t is_fisb : 1;
 
     uint16_t length;
     uint8_t type;
@@ -182,9 +182,9 @@ struct uat_uplink_info_frame {
 };
 
 struct uat_uplink_mdb {
-    int position_valid : 1;
-    int utc_coupled : 1;
-    int app_data_valid : 1;
+    uint32_t position_valid : 1;
+    uint32_t utc_coupled : 1;
+    uint32_t app_data_valid : 1;
 
     // if position_valid:
     double lat;
