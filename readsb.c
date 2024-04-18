@@ -1524,6 +1524,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptStatsRange:
             Modes.stats_range_histo = 1;
             break;
+        case OptAutoExit:
+            Modes.auto_exit = atof(arg) * SECONDS;
+            break;
         case OptStatsEvery:
             Modes.stats_display_interval = ((int64_t) nearbyint(atof(arg) / 10.0)) * 10 * SECONDS;
             if (Modes.stats_display_interval == 0) {
@@ -2717,7 +2720,18 @@ int main(int argc, char **argv) {
     struct timespec mainloopTimer;
     startWatch(&mainloopTimer);
     while (!Modes.exit) {
-        if (epoll_wait(mainEpfd, events, maxEvents, 5 * SECONDS) > 0) {
+        int64_t wait_time = 5 * SECONDS;
+        if (Modes.auto_exit) {
+            int64_t now = mstime();
+            int64_t uptime = now - Modes.startup_time;
+            if (uptime + wait_time >= Modes.auto_exit) {
+                wait_time = imax(1, Modes.auto_exit - uptime);
+            }
+            if (uptime >= Modes.auto_exit) {
+                setExit(1);
+            }
+        }
+        if (epoll_wait(mainEpfd, events, maxEvents, wait_time) > 0) {
             if (Modes.exitSoon) {
                 if (Modes.apiShutdownDelay) {
                     // delay for graceful api shutdown
