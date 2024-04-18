@@ -716,18 +716,20 @@ static void *globeBinEntryPoint(void *arg) {
 }
 
 static void timingStatistics(struct mag_buf *buf) {
-    if (0) {
+    if (Modes.log_usb_jitter) {
         static int64_t last;
 
-        double elapsed = buf->sysMicroseconds - last;
-        last = buf->sysMicroseconds;
+        int64_t elapsed = buf->sysMicroseconds - last;
 
-        static double last_elapsed;
-        // diff more than 2 ms:
-        if (fabs(elapsed - last_elapsed) > 200) {
-            fprintf(stderr, "time between USB transfers: %.0f us\n", elapsed);
-            last_elapsed = elapsed;
+        // nominal time in us between two SDR callbacks
+        int64_t nominal = Modes.sdr_buf_samples * 1000LL * 1000LL / Modes.sample_rate;
+
+        double jitter = fabs((double) elapsed - (double) nominal);
+        if (jitter > Modes.log_usb_jitter && last) {
+            fprintf(stderr, "libusb callback jitter: %6.0f us\n", jitter);
         }
+
+        last = buf->sysMicroseconds;
     }
 
     {
@@ -1858,6 +1860,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (strcasecmp(token[0], "ping_reject") == 0 && token[1]) {
                     Modes.ping_reject = atoi(token[1]);
                     Modes.ping_reduce = Modes.ping_reject / 2;
+                }
+
+                if (strcasecmp(token[0], "log_usb_jitter") == 0 && token[1]) {
+                    Modes.log_usb_jitter = atoll(token[1]);
                 }
 
                 if (strcasecmp(token[0], "sbs_override_squawk") == 0 && token[1]) {
