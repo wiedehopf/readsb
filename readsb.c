@@ -1561,13 +1561,19 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.heatmap_dir = strdup(arg);
             break;
         case OptDumpBeastDir:
-            tokenize(&arg, ",", token, maxTokens); if (!token[0]) { break; }
+            {
+                char *argdup = strdup(arg);
+                tokenize(&argdup, ",", token, maxTokens);
+                if (!token[0]) { sfree(argdup); break; }
 
-            sfree(Modes.dump_beast_dir);
-            Modes.dump_beast_dir = strdup(token[0]);
-            if (token[1]) { Modes.dump_interval = atoi(token[1]); }
-            // enable networking as this is required
-            Modes.net = 1;
+                sfree(Modes.dump_beast_dir);
+                Modes.dump_beast_dir = strdup(token[0]);
+                if (token[1]) { Modes.dump_interval = atoi(token[1]); }
+                // enable networking as this is required
+                Modes.net = 1;
+
+                sfree(argdup);
+            }
             break;
         case OptGlobeHistoryDir:
             sfree(Modes.globe_history_dir);
@@ -1830,8 +1836,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 
         case OptDevel:
             {
-                tokenize(&arg, ",", token, maxTokens);
+                char *argdup = strdup(arg);
+                tokenize(&argdup, ",", token, maxTokens);
                 if (!token[0]) {
+                    sfree(argdup);
                     break;
                 }
                 if (strcasecmp(token[0], "lastStatus") == 0) {
@@ -1896,6 +1904,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (strcasecmp(token[0], "debugGPS") == 0) {
                     Modes.debug_gps = 1;
                 }
+
+                sfree(argdup);
             }
             break;
 
