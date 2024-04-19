@@ -728,8 +728,8 @@ static void timingStatistics(struct mag_buf *buf) {
         fprintf(stderr, "libusb callback jitter: %6.0f us\n", (double) jitter);
     }
 
-    {
-        static int64_t last_sys;
+    static int64_t last_sys;
+    if (last_sys || buf->sampleTimestamp * (1 / 12e6) > 10) {
         static int64_t last_sample;
         static int64_t interval;
         int64_t nominal_interval = 30 * SECONDS * 1000;
