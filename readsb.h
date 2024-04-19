@@ -724,7 +724,8 @@ struct _Modes
     int32_t net_output_beast_reduce_interval; // Position update interval for data reduction
     int32_t ping_reduce;
     int32_t ping_reject;
-    int64_t log_usb_jitter;
+    int32_t log_usb_jitter;
+    int32_t devel_log_ppm;
     int64_t doubleBeastReduceIntervalUntil;
     float beast_reduce_filter_distance;
     float beast_reduce_filter_altitude;

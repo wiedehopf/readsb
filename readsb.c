@@ -716,53 +716,57 @@ static void *globeBinEntryPoint(void *arg) {
 }
 
 static void timingStatistics(struct mag_buf *buf) {
-    if (Modes.log_usb_jitter) {
-        static int64_t last;
+    static int64_t last_ts;
 
-        int64_t elapsed = buf->sysMicroseconds - last;
+    int64_t elapsed_ts = buf->sysMicroseconds - last_ts;
 
-        // nominal time in us between two SDR callbacks
-        int64_t nominal = Modes.sdr_buf_samples * 1000LL * 1000LL / Modes.sample_rate;
+    // nominal time in us between two SDR callbacks
+    int64_t nominal = Modes.sdr_buf_samples * 1000LL * 1000LL / Modes.sample_rate;
 
-        double jitter = fabs((double) elapsed - (double) nominal);
-        if (jitter > Modes.log_usb_jitter && last) {
-            fprintf(stderr, "libusb callback jitter: %6.0f us\n", jitter);
-        }
-
-        last = buf->sysMicroseconds;
+    int64_t jitter = elapsed_ts - nominal;
+    if (last_ts && Modes.log_usb_jitter && fabs((double)jitter) > Modes.log_usb_jitter) {
+        fprintf(stderr, "libusb callback jitter: %6.0f us\n", (double) jitter);
     }
 
     {
         static int64_t last_sys;
         static int64_t last_sample;
+        static int64_t interval;
+        int64_t nominal_interval = 30 * SECONDS * 1000;
         if (!last_sys) {
             last_sys = buf->sysMicroseconds;
             last_sample = buf->sampleTimestamp;
+            interval = nominal_interval;
         }
         double elapsed_sys = buf->sysMicroseconds - last_sys;
-        if (elapsed_sys > 30 * SECONDS * 1000) {
+        // every 30 seconds
+        if ((elapsed_sys > interval && fabs((double) jitter) < 100) || elapsed_sys > interval * 3 / 2) {
+            // adjust interval heuristically
+            interval += (nominal_interval - elapsed_sys) / 4;
             double elapsed_sample = buf->sampleTimestamp - last_sample;
             double freq_ratio = elapsed_sample / (elapsed_sys * 12.0);
-            double diff_us = elapsed_sys - elapsed_sample / 12.0;
+            double diff_us = elapsed_sample / 12.0 - elapsed_sys;
             double ppm = (freq_ratio - 1) * 1e6;
-            // ignore the first 30 seconds for alerting purposes
-            if (last_sample != 0) {
-                Modes.estimated_ppm = ppm;
-                if (fabs(ppm) > 600) {
-                    if (ppm < -1000) {
-                        int packets_lost = (int) nearbyint(ppm / -1820);
-                        Modes.stats_current.samples_lost += packets_lost * Modes.sdr_buf_samples;
-                        fprintf(stderr, "Lost %d packets (%.1f us) on USB, MLAT could be UNSTABLE, check sync! (ppm: %.0f)"
-                                "(or the system clock jumped for some reason)\n", packets_lost, diff_us, ppm);
-                    } else {
-                        fprintf(stderr, "SDR ppm out of specification (could cause MLAT issues) or local clock jumped / not syncing with ntp or chrony! ppm: %.0f\n", ppm);
-                    }
+            Modes.estimated_ppm = ppm;
+            if (Modes.devel_log_ppm && fabs(ppm) > Modes.devel_log_ppm) {
+                fprintf(stderr, "SDR ppm: %8.1f elapsed: %6.0f ms diff: %6.0f us last jitter: %6.0f\n", ppm, elapsed_sys / 1000.0, diff_us, (double) jitter);
+            }
+            if (fabs(ppm) > 600) {
+                if (ppm < -1000) {
+                    int packets_lost = (int) nearbyint(ppm / -1820);
+                    Modes.stats_current.samples_lost += packets_lost * Modes.sdr_buf_samples;
+                    fprintf(stderr, "Lost %d packets (%.1f us) on USB, MLAT could be UNSTABLE, check sync! (ppm: %.0f)"
+                            "(or the system clock jumped for some reason)\n", packets_lost, diff_us, ppm);
+                } else {
+                    fprintf(stderr, "SDR ppm out of specification (could cause MLAT issues) or local clock jumped / not syncing with ntp or chrony! ppm: %.0f\n", ppm);
                 }
             }
             last_sys = buf->sysMicroseconds;
             last_sample = buf->sampleTimestamp;
         }
     }
+
+    last_ts = buf->sysMicroseconds;
 }
 
 static void *decodeEntryPoint(void *arg) {
@@ -1874,7 +1878,15 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 }
 
                 if (strcasecmp(token[0], "log_usb_jitter") == 0 && token[1]) {
-                    Modes.log_usb_jitter = atoll(token[1]);
+                    Modes.log_usb_jitter = atoi(token[1]);
+                }
+
+                if (strcasecmp(token[0], "log_ppm") == 0) {
+                    if (token[1]) {
+                        Modes.devel_log_ppm = atoi(token[1]);
+                    } else {
+                        Modes.devel_log_ppm = -1;
+                    }
                 }
 
                 if (strcasecmp(token[0], "sbs_override_squawk") == 0 && token[1]) {
