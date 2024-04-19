@@ -882,12 +882,15 @@ static void *decodeEntryPoint(void *arg) {
                 threadTimedWait(&Threads.decode, &ts, 80);
             }
             mono = mono_milli_seconds();
-            // if removeStale is late by REMOVE_STALE_INTERVAL, force it to run
             if (mono > Modes.next_remove_stale + REMOVE_STALE_INTERVAL) {
                 //fprintf(stderr, "%.3f >? %3.f\n", mono / 1000.0, (Modes.next_remove_stale + REMOVE_STALE_INTERVAL)/ 1000.0);
-                pthread_mutex_unlock(&Threads.decode.mutex);
-                priorityTasksRun();
-                pthread_mutex_lock(&Threads.decode.mutex);
+                // don't force as this can cause issues (code left in for possible re-enabling if absolutely necessary)
+                // if memory serves right the main point of this was for SDR_IFILE / faster than real time
+                if (Modes.synthetic_now) {
+                    pthread_mutex_unlock(&Threads.decode.mutex);
+                    priorityTasksRun();
+                    pthread_mutex_lock(&Threads.decode.mutex);
+                }
             }
         }
         sdrCancel();
