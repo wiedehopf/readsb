@@ -179,6 +179,9 @@ static void plutosdrCallback(int16_t *buf, uint32_t len) {
     static int dropping = 0;
     static uint64_t sampleCounter = 0;
 
+    int64_t sysMicroseconds = mono_micro_seconds();
+    int64_t sysTimestamp = mstime();
+
     lockReader();
 
     next_free_buffer = (Modes.first_free_buffer + 1) % MODES_MAG_BUFFERS;
@@ -222,8 +225,8 @@ static void plutosdrCallback(int16_t *buf, uint32_t len) {
     sampleCounter += slen;
     block_duration = 1e3 * slen / Modes.sample_rate;
 
-    outbuf->sysTimestamp = mstime();
-    outbuf->sysMicroseconds = mono_micro_seconds();
+    outbuf->sysTimestamp = sysTimestamp;
+    outbuf->sysMicroseconds = sysMicroseconds;
 
     outbuf->sysTimestamp -= block_duration;
     outbuf->sysMicroseconds -= block_duration * 1000;

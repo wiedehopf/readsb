@@ -291,6 +291,9 @@ static void *handle_bladerf_samples(struct bladerf *dev,
     static uint64_t nextTimestamp = 0;
     static bool dropping = false;
 
+    int64_t sysMicroseconds = mono_micro_seconds();
+    int64_t sysTimestamp = mstime();
+
     MODES_NOTUSED(dev);
     MODES_NOTUSED(stream);
     MODES_NOTUSED(meta);
@@ -330,8 +333,8 @@ static void *handle_bladerf_samples(struct bladerf *dev,
     outbuf->length = 0;
     outbuf->mean_level = outbuf->mean_power = 0;
 
-    outbuf->sysTimestamp = mstime();
-    outbuf->sysMicroseconds = mono_micro_seconds();
+    outbuf->sysTimestamp = sysTimestamp;
+    outbuf->sysMicroseconds = sysMicroseconds;
 
     unsigned blocks_processed = 0;
     unsigned samples_per_block = (BladeRF.block_size - 16) / 4;

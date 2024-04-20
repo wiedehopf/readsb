@@ -477,6 +477,9 @@ void soapyRun()
             break;
         }
 
+        int64_t sysMicroseconds = mono_micro_seconds();
+        int64_t sysTimestamp = mstime();
+
         // Lock the data buffer variables before accessing them
         lockReader();
 
@@ -531,8 +534,8 @@ void soapyRun()
         // Get the approx system time for the start of this block
         block_duration = 1e3 * slen / Modes.sample_rate;
 
-        outbuf->sysTimestamp = mstime();
-        outbuf->sysMicroseconds = mono_micro_seconds();
+        outbuf->sysTimestamp = sysTimestamp;
+        outbuf->sysMicroseconds = sysMicroseconds;
 
         outbuf->sysTimestamp -= block_duration;
         outbuf->sysMicroseconds -= block_duration * 1000;

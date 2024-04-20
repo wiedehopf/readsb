@@ -339,6 +339,9 @@ static void *handle_bladerf_samples(struct bladerf *dev,
     static uint64_t nextTimestamp = 0;
     static bool dropping = false;
 
+    int64_t sysMicroseconds = mono_micro_seconds();
+    int64_t sysTimestamp = mstime();
+
     MODES_NOTUSED(dev);
     MODES_NOTUSED(stream);
     MODES_NOTUSED(meta);
@@ -366,8 +369,8 @@ static void *handle_bladerf_samples(struct bladerf *dev,
     dropping = false;
     unlockReader();
 
-    outbuf->sysTimestamp = mstime();
-    outbuf->sysMicroseconds = mono_micro_seconds();
+    outbuf->sysTimestamp = sysTimestamp;
+    outbuf->sysMicroseconds = sysMicroseconds;
 
     // Copy trailing data from last block (or reset if not valid)
     if (outbuf->dropped == 0) {
