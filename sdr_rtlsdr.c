@@ -158,14 +158,14 @@ bool rtlsdrHandleOption(int key, char *arg) {
 
 bool rtlsdrOpen(void) {
     if (!rtlsdr_get_device_count()) {
-        fprintf(stderr, "rtlsdr: no supported devices found.\n");
+        fprintf(stderr, "FATAL: rtlsdr: no supported devices found.\n");
         return false;
     }
 
     int dev_index = 0;
     if (Modes.dev_name) {
         if ((dev_index = find_device_index(Modes.dev_name)) < 0) {
-            fprintf(stderr, "rtlsdr: no device matching '%s' found.\n", Modes.dev_name);
+            fprintf(stderr, "FATAL: rtlsdr: no device matching '%s' found.\n", Modes.dev_name);
             show_rtlsdr_devices();
             return false;
         }
@@ -175,7 +175,7 @@ bool rtlsdrOpen(void) {
     char product[256];
     char serial[256];
     if (rtlsdr_get_device_usb_strings(dev_index, manufacturer, product, serial) < 0) {
-        fprintf(stderr, "rtlsdr: error querying device #%d: %s\n", dev_index, strerror(errno));
+        fprintf(stderr, "FATAL: rtlsdr: error querying device #%d: %s\n", dev_index, strerror(errno));
         return false;
     }
 
@@ -184,7 +184,7 @@ bool rtlsdrOpen(void) {
             manufacturer, product, serial);
 
     if (rtlsdr_open(&RTLSDR.dev, dev_index) < 0) {
-        fprintf(stderr, "rtlsdr: error opening the RTLSDR device: %s\n",
+        fprintf(stderr, "FATAL: rtlsdr: error opening the RTLSDR device: %s\n",
                 strerror(errno));
         return false;
     }
@@ -200,13 +200,13 @@ bool rtlsdrOpen(void) {
 
         numgains = rtlsdr_get_tuner_gains(RTLSDR.dev, NULL);
         if (numgains <= 0) {
-            fprintf(stderr, "rtlsdr: error getting tuner gains\n");
+            fprintf(stderr, "FATAL: rtlsdr: error getting tuner gains\n");
             return false;
         }
 
         gains = cmalloc(numgains * sizeof (int));
         if (rtlsdr_get_tuner_gains(RTLSDR.dev, gains) != numgains) {
-            fprintf(stderr, "rtlsdr: error getting tuner gains\n");
+            fprintf(stderr, "FATAL: rtlsdr: error getting tuner gains\n");
             free(gains);
             return false;
         }
@@ -246,14 +246,14 @@ bool rtlsdrOpen(void) {
             Modes.dc_filter,
             &RTLSDR.converter_state);
     if (!RTLSDR.converter) {
-        fprintf(stderr, "rtlsdr: can't initialize sample converter\n");
+        fprintf(stderr, "FATAL: rtlsdr: can't initialize sample converter\n");
         rtlsdrClose();
         return false;
     }
 
 #ifdef USE_BOUNCE_BUFFER
     if (!(RTLSDR.bounce_buffer = cmalloc(Modes.sdr_buf_size))) {
-        fprintf(stderr, "rtlsdr: can't allocate bounce buffer\n");
+        fprintf(stderr, "FATAL: rtlsdr: can't allocate bounce buffer\n");
         rtlsdrClose();
         return false;
     }
@@ -391,7 +391,7 @@ void rtlsdrRun() {
 
     rtlsdr_read_async(RTLSDR.dev, rtlsdrCallback, NULL, MODES_RTL_BUFFERS, Modes.sdr_buf_size);
     if (!Modes.exit) {
-        fprintf(stderr,"rtlsdr_read_async returned unexpectedly, probably lost the USB device, bailing out\n");
+        fprintf(stderr,"FATAL: rtlsdr_read_async returned unexpectedly, probably lost the USB device, bailing out\n");
     }
 }
 
