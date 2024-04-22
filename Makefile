@@ -74,6 +74,10 @@ ifeq ($(PRINT_UUIDS), yes)
   CFLAGS += -DPRINT_UUIDS
 endif
 
+ifneq ($(RECENT_RECEIVER_IDS),)
+  CFLAGS += -DRECENT_RECEIVER_IDS=$(RECENT_RECEIVER_IDS)
+endif
+
 ifeq ($(RTLSDR), yes)
   SDR_OBJ += sdr_rtlsdr.o
   CFLAGS += -DENABLE_RTLSDR

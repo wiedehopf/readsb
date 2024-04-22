@@ -83,7 +83,9 @@ int nogps(int64_t now, struct aircraft *a);
 
 #define RECEIVERIDBUFFER (12)
 
+#ifndef RECENT_RECEIVER_IDS
 #define RECENT_RECEIVER_IDS (32)
+#endif
 
 typedef struct
 {
