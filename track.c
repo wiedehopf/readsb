@@ -1006,6 +1006,26 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
         mm->client->positionCounter++;
     }
 
+#if defined(PRINT_UUIDS)
+    {
+        int done = 0;
+        for (int i = 0; i < RECENT_RECEIVER_IDS; i++) {
+            idTime *entry = &a->recentReceiverIds[i];
+            if (entry->id == mm->receiverId) {
+                entry->time = now;
+                done = 1;
+                break;
+            }
+        }
+        if (!done) {
+            a->recentReceiverIdsNext = (a->recentReceiverIdsNext + 1) % RECENT_RECEIVER_IDS;
+            idTime *entry = &a->recentReceiverIds[a->recentReceiverIdsNext];
+            entry->id = mm->receiverId;
+            entry->time = now;
+        }
+    }
+#endif
+
     if (mm->duplicate) {
         Modes.stats_current.pos_duplicate++;
         return;
@@ -1077,25 +1097,6 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
             a->receiverCount = div;
         }
     }
-#if defined(PRINT_UUIDS)
-    {
-        int done = 0;
-        for (int i = 0; i < RECENT_RECEIVER_IDS; i++) {
-            idTime *entry = &a->recentReceiverIds[i];
-            if (entry->id == mm->receiverId) {
-                entry->time = now;
-                done = 1;
-                break;
-            }
-        }
-        if (!done) {
-            a->recentReceiverIdsNext = (a->recentReceiverIdsNext + 1) % RECENT_RECEIVER_IDS;
-            idTime *entry = &a->recentReceiverIds[a->recentReceiverIdsNext];
-            entry->id = mm->receiverId;
-            entry->time = now;
-        }
-    }
-#endif
 
     if (Modes.netReceiverId && posReliable(a)) {
 
