@@ -57,7 +57,7 @@
 
 #include <rtl-sdr.h>
 
-#if defined(__arm__) || defined(__aarch64__)
+#if (defined(__arm__) || defined(__aarch64__)) && !defined(DISABLE_RTLSDR_ZEROCOPY_WORKAROUND)
 // Assume we need to use a bounce buffer to avoid performance problems on Pis running kernel 5.x and using zerocopy
 #  define USE_BOUNCE_BUFFER
 #endif

@@ -38,6 +38,11 @@ else
   LIBS += -lncurses
 endif
 
+# only disable workaround if zerocopy is disabled in librtlsdr, otherwise expect significantly increased CPU use
+ifeq ($(DISABLE_RTLSDR_ZEROCOPY_WORKAROUND), yes)
+  CFLAGS += -DDISABLE_RTLSDR_ZEROCOPY_WORKAROUND
+endif
+
 ifeq ($(HISTORY), yes)
   CFLAGS += -DALL_JSON=1
 endif
