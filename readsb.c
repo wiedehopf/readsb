@@ -499,6 +499,8 @@ static void *readerEntryPoint(void *arg) {
         return NULL;
     }
 
+    setPriorityPthread();
+
     if (sdrHasRun()) {
         sdrRun();
         // Wake the main thread (if it's still waiting)
@@ -524,6 +526,9 @@ static void *readerEntryPoint(void *arg) {
 static void *jsonEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
     srandom(get_seed());
+
+    // set this thread low priority
+    setLowestPriorityPthread();
 
     int64_t next_history = mstime();
 
@@ -614,6 +619,9 @@ static void *globeJsonEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
     srandom(get_seed());
 
+    // set this thread low priority
+    setLowestPriorityPthread();
+
     if (Modes.onlyBin > 0)
         return NULL;
 
@@ -651,6 +659,9 @@ static void *globeJsonEntryPoint(void *arg) {
 static void *globeBinEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
     srandom(get_seed());
+
+    // set this thread low priority
+    setLowestPriorityPthread();
 
     int part = 0;
     int n_parts = 8; // power of 2
@@ -770,11 +781,6 @@ static void timingStatistics(struct mag_buf *buf) {
 }
 
 static void *decodeEntryPoint(void *arg) {
-    // only go higher priority if we have multiple processors
-    if (Modes.num_procs > 1 && Modes.num_procs > Modes.decodeThreads) {
-        setPriorityPthread();
-    }
-
     MODES_NOTUSED(arg);
     srandom(get_seed());
 
@@ -963,7 +969,7 @@ static void writeTraces(int64_t mono) {
 
 
         // set low priority for this trace pool
-        if (0) {
+        if (1) {
             int taskCount = Modes.tracePoolSize;
             threadpool_task_t *tasks = Modes.traceTasks->tasks;
             for (int i = 0; i < taskCount; i++) {
@@ -2488,10 +2494,8 @@ static void miscStuff(int64_t now) {
 static void *miscEntryPoint(void *arg) {
     MODES_NOTUSED(arg);
 
-    if (0) {
-        // this is a low priority thread
-        setLowestPriorityPthread();
-    }
+    // set this thread low priority
+    setLowestPriorityPthread();
 
     pthread_mutex_lock(&Threads.misc.mutex);
 

@@ -52,6 +52,8 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "readsb.h"
+#include <sys/resource.h>
+
 
 int64_t mstime(void) {
     if (Modes.synthetic_now)
@@ -894,12 +896,14 @@ struct char_buffer ident(struct char_buffer target) {
 }
 
 void setLowestPriorityPthread() {
-    int policy;
-    struct sched_param param = { 0 };
-
-    pthread_setschedparam(pthread_self(), SCHED_IDLE, &param);
+    //fprintf(stderr, "priority before: %d\n", (int) getpriority(PRIO_PROCESS, 0));
+    setpriority(PRIO_PROCESS, 0, 10 + getpriority(PRIO_PROCESS, 0));
+    //fprintf(stderr, "priority after: %d\n", (int) getpriority(PRIO_PROCESS, 0));
 
     return;
+
+    int policy;
+    struct sched_param param = { 0 };
 
     pthread_getschedparam(pthread_self(), &policy, &param);
     fprintf(stderr, "priority before: %d\n", (int) param.sched_priority);
@@ -918,6 +922,8 @@ void setLowestPriorityPthread() {
 }
 
 void setPriorityPthread() {
+    setpriority(PRIO_PROCESS, 0, -5 + getpriority(PRIO_PROCESS, 0));
+
     int policy = SCHED_FIFO;
     struct sched_param param = { 0 };
 
