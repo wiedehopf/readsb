@@ -896,6 +896,10 @@ struct char_buffer ident(struct char_buffer target) {
 }
 
 void setLowestPriorityPthread() {
+#ifndef __linux__
+    return;
+#endif
+
     //fprintf(stderr, "priority before: %d\n", (int) getpriority(PRIO_PROCESS, 0));
     setpriority(PRIO_PROCESS, 0, 10 + getpriority(PRIO_PROCESS, 0));
     //fprintf(stderr, "priority after: %d\n", (int) getpriority(PRIO_PROCESS, 0));
@@ -922,6 +926,10 @@ void setLowestPriorityPthread() {
 }
 
 void setPriorityPthread() {
+#ifndef __linux__
+    return;
+#endif
+
     setpriority(PRIO_PROCESS, 0, -5 + getpriority(PRIO_PROCESS, 0));
 
     int policy = SCHED_FIFO;
