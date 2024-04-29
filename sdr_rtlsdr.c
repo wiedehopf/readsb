@@ -69,6 +69,9 @@ static struct {
     uint8_t *bounce_buffer;
     int ppm_error;
     bool digital_agc;
+    int numgains;
+    int *gains;
+    int curGain;
 } RTLSDR;
 
 //
@@ -82,6 +85,32 @@ void rtlsdrInitConfig() {
     RTLSDR.converter = NULL;
     RTLSDR.converter_state = NULL;
     RTLSDR.bounce_buffer = NULL;
+    RTLSDR.numgains = 0;
+    RTLSDR.gains = NULL;
+}
+
+void rtlsdrSetGain() {
+    if (Modes.gain == MODES_AUTO_GAIN || Modes.gain >= 520) {
+        Modes.gain = 590;
+
+        fprintf(stderr, "rtlsdr: enabling tuner AGC\n");
+        rtlsdr_set_tuner_gain_mode(RTLSDR.dev, 0);
+    } else {
+
+        int target = (Modes.gain == MODES_MAX_GAIN ? 9999 : Modes.gain);
+        int closest = -1;
+
+        for (int i = 0; i < RTLSDR.numgains; ++i) {
+            if (closest == -1 || abs(RTLSDR.gains[i] - target) < abs(RTLSDR.gains[closest] - target))
+                closest = i;
+        }
+
+        Modes.gain = RTLSDR.gains[closest];
+        rtlsdr_set_tuner_gain_mode(RTLSDR.dev, 1); // disable autogain
+        rtlsdr_set_tuner_gain(RTLSDR.dev, RTLSDR.gains[closest]);
+        fprintf(stderr, "rtlsdr: tuner gain set to %.1f dB\n",
+                rtlsdr_get_tuner_gain(RTLSDR.dev) / 10.0);
+    }
 }
 
 static void show_rtlsdr_devices() {
@@ -189,47 +218,27 @@ bool rtlsdrOpen(void) {
         return false;
     }
 
-    // Set gain, frequency, sample rate, and reset the device
-    if (Modes.gain == MODES_AUTO_GAIN || Modes.gain >= 520) {
-        Modes.gain = 590;
-        fprintf(stderr, "rtlsdr: enabling tuner AGC\n");
-        rtlsdr_set_tuner_gain_mode(RTLSDR.dev, 0);
-    } else {
-        int *gains;
-        int numgains;
-
-        numgains = rtlsdr_get_tuner_gains(RTLSDR.dev, NULL);
-        if (numgains <= 0) {
-            fprintf(stderr, "FATAL: rtlsdr: error getting tuner gains\n");
-            return false;
-        }
-
-        gains = cmalloc(numgains * sizeof (int));
-        if (rtlsdr_get_tuner_gains(RTLSDR.dev, gains) != numgains) {
-            fprintf(stderr, "FATAL: rtlsdr: error getting tuner gains\n");
-            free(gains);
-            return false;
-        }
-
-        int target = (Modes.gain == MODES_MAX_GAIN ? 9999 : Modes.gain);
-        int closest = -1;
-
-        for (int i = 0; i < numgains; ++i) {
-            if (closest == -1 || abs(gains[i] - target) < abs(gains[closest] - target))
-                closest = i;
-        }
-
-        Modes.gain = gains[closest];
-        rtlsdr_set_tuner_gain(RTLSDR.dev, gains[closest]);
-        free(gains);
-        fprintf(stderr, "rtlsdr: tuner gain set to %.1f dB\n",
-                rtlsdr_get_tuner_gain(RTLSDR.dev) / 10.0);
+    RTLSDR.numgains = rtlsdr_get_tuner_gains(RTLSDR.dev, NULL);
+    if (RTLSDR.numgains <= 0) {
+        fprintf(stderr, "FATAL: rtlsdr: error getting tuner gains\n");
+        return false;
     }
+
+    RTLSDR.gains = cmalloc(RTLSDR.numgains * sizeof (int));
+    if (rtlsdr_get_tuner_gains(RTLSDR.dev, RTLSDR.gains) != RTLSDR.numgains) {
+        fprintf(stderr, "FATAL: rtlsdr: error getting tuner gains\n");
+        free(RTLSDR.gains);
+        return false;
+    }
+
+    rtlsdrSetGain();
 
     if (RTLSDR.digital_agc) {
         fprintf(stderr, "rtlsdr: enabling digital AGC\n");
         rtlsdr_set_agc_mode(RTLSDR.dev, 1);
     }
+
+    // Set frequency, sample rate, and reset the device
 
     rtlsdr_set_freq_correction(RTLSDR.dev, RTLSDR.ppm_error);
     rtlsdr_set_center_freq(RTLSDR.dev, Modes.freq);
@@ -410,6 +419,7 @@ void rtlsdrClose() {
         RTLSDR.converter = NULL;
     }
 
+    free(RTLSDR.gains);
     free(RTLSDR.bounce_buffer);
     RTLSDR.bounce_buffer = NULL;
 }

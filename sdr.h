@@ -34,6 +34,7 @@ void sdrRun ();
 bool sdrHasRun();
 void sdrCancel ();
 void sdrClose ();
+void sdrSetGain ();
 
 void lockReader();
 void unlockReader();

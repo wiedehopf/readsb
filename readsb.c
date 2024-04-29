@@ -2418,6 +2418,35 @@ static void checkReplaceState() {
     checkReplaceStateDir(Modes.json_dir);
 }
 
+static void checkSetGain() {
+    if (!Modes.json_dir) {
+        return;
+    }
+
+    char filename[PATH_MAX];
+    snprintf(filename, PATH_MAX, "%s/setGain", Modes.json_dir);
+    int fd = open(filename, O_RDONLY);
+    if (fd <= 0) {
+        return;
+    }
+
+    char tmp[128];
+    int len = read(fd, tmp, 127);
+    close(fd);
+    unlink(filename);
+
+    if (len <= 0) { return; }
+
+    tmp[len] = '\0';
+
+    double newGain = atof(tmp);
+    Modes.gain = (int) (newGain * 10); // Gain is in tens of DBs
+
+    sdrSetGain();
+
+    //fprintf(stderr, "Modes.gain (tens of dB): %d\n", Modes.gain);
+}
+
 static void miscStuff(int64_t now) {
 
     checkNewDay(now);
@@ -2438,6 +2467,8 @@ static void miscStuff(int64_t now) {
             writeRangeDirs();
         }
     }
+
+    checkSetGain();
 
     // don't do everything at once ... this stuff isn't that time critical it'll get its turn
 
