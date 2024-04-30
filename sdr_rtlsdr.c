@@ -72,6 +72,7 @@ static struct {
     int numgains;
     int *gains;
     int curGain;
+    int tunerAgcEnabled;
 } RTLSDR;
 
 //
@@ -87,14 +88,20 @@ void rtlsdrInitConfig() {
     RTLSDR.bounce_buffer = NULL;
     RTLSDR.numgains = 0;
     RTLSDR.gains = NULL;
+    RTLSDR.tunerAgcEnabled = 0;
 }
 
 void rtlsdrSetGain() {
     if (Modes.gain == MODES_AUTO_GAIN || Modes.gain >= 520) {
         Modes.gain = 590;
 
+        RTLSDR.tunerAgcEnabled = 1;
+
         fprintf(stderr, "rtlsdr: enabling tuner AGC\n");
-        rtlsdr_set_tuner_gain_mode(RTLSDR.dev, 0);
+        if (rtlsdr_set_tuner_gain_mode(RTLSDR.dev, 0)) {
+            fprintf(stderr, "rtlsdr: enabling tuner AGC failed\n");
+            return;
+        }
     } else {
 
         int target = (Modes.gain == MODES_MAX_GAIN ? 9999 : Modes.gain);
@@ -104,12 +111,23 @@ void rtlsdrSetGain() {
             if (closest == -1 || abs(RTLSDR.gains[i] - target) < abs(RTLSDR.gains[closest] - target))
                 closest = i;
         }
+        int newGain = RTLSDR.gains[closest];
 
-        Modes.gain = RTLSDR.gains[closest];
-        rtlsdr_set_tuner_gain_mode(RTLSDR.dev, 1); // disable autogain
-        rtlsdr_set_tuner_gain(RTLSDR.dev, RTLSDR.gains[closest]);
-        fprintf(stderr, "rtlsdr: tuner gain set to %.1f dB\n",
-                rtlsdr_get_tuner_gain(RTLSDR.dev) / 10.0);
+        if (RTLSDR.tunerAgcEnabled) {
+            if (rtlsdr_set_tuner_gain_mode(RTLSDR.dev, 1)) {
+                fprintf(stderr, "rtlsdr: disabling tuner AGC failed\n");
+                return;
+            }
+            RTLSDR.tunerAgcEnabled = 0;
+            usleep(1000);
+        }
+        if (rtlsdr_set_tuner_gain(RTLSDR.dev, newGain)) {
+            fprintf(stderr, "rtlsdr: setting tuner gain failed\n");
+            return;
+        } else {
+            fprintf(stderr, "rtlsdr: tuner gain set to %.1f dB\n", newGain / 10.0);
+            Modes.gain = newGain;
+        }
     }
 }
 

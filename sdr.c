@@ -175,7 +175,13 @@ static sdr_handler *current_handler() {
 //
 
 bool sdrOpen() {
-    return current_handler()->open();
+    pthread_mutex_lock(&Modes.sdrControlMutex);
+    bool success = current_handler()->open();
+    pthread_mutex_unlock(&Modes.sdrControlMutex);
+    if (success) {
+        Modes.sdrInitialized = 1;
+    }
+    return success;
 }
 
 bool sdrHasRun() {
@@ -188,15 +194,31 @@ void sdrRun() {
 }
 
 void sdrCancel() {
+    pthread_mutex_lock(&Modes.sdrControlMutex);
+    Modes.sdrInitialized = 0;
+
     current_handler()->cancel();
+
+    pthread_mutex_unlock(&Modes.sdrControlMutex);
 }
 
 void sdrClose() {
+    pthread_mutex_lock(&Modes.sdrControlMutex);
+
+    Modes.sdrInitialized = 0;
     current_handler()->close();
+
+    pthread_mutex_unlock(&Modes.sdrControlMutex);
 }
 
 void sdrSetGain(){
-    current_handler()->setGain();
+    pthread_mutex_lock(&Modes.sdrControlMutex);
+
+    if (Modes.sdrInitialized) {
+        current_handler()->setGain();
+    }
+
+    pthread_mutex_unlock(&Modes.sdrControlMutex);
 }
 
 void lockReader() {

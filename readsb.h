@@ -527,6 +527,8 @@ struct _Modes
     iq_convert_fn converter_function;
     char * dev_name;
     int gain;
+    int sdrInitialized;
+    pthread_mutex_t sdrControlMutex;
     int dc_filter; // should we apply a DC filter?
     int enable_agc;
     sdr_type_t sdr_type; // where are we getting data from?

@@ -250,6 +250,7 @@ static void modesInit(void) {
 
     pthread_mutex_init(&Modes.traceDebugMutex, NULL);
     pthread_mutex_init(&Modes.hungTimerMutex, NULL);
+    pthread_mutex_init(&Modes.sdrControlMutex, NULL);
 
     threadInit(&Threads.reader, "reader");
     threadInit(&Threads.upkeep, "upkeep");
@@ -2887,6 +2888,7 @@ int main(int argc, char **argv) {
 
     pthread_mutex_destroy(&Modes.traceDebugMutex);
     pthread_mutex_destroy(&Modes.hungTimerMutex);
+    pthread_mutex_destroy(&Modes.sdrControlMutex);
 
     if (Modes.debug_bogus) {
         display_total_short_range_stats();
