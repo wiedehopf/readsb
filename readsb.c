@@ -541,7 +541,11 @@ static void *jsonEntryPoint(void *arg) {
     threadpool_buffer_t pass_buffer = { 0 };
     threadpool_buffer_t zstd_buffer = { 0 };
 
+    if (Modes.debug_zstd) { fprintf(stderr, "calling ZSTD_createCCtx()\n"); }
+
     ZSTD_CCtx* cctx = ZSTD_createCCtx();
+
+    if (Modes.debug_zstd) { fprintf(stderr, "ZSTD_createCCtx() returned %p\n", cctx); }
 
     while (!Modes.exit) {
 
@@ -1925,6 +1929,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 }
                 if (strcasecmp(token[0], "debugGPS") == 0) {
                     Modes.debug_gps = 1;
+                }
+                if (strcasecmp(token[0], "debugZstd") == 0) {
+                    Modes.debug_zstd = 1;
                 }
 
                 sfree(argdup);

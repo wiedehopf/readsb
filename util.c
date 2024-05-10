@@ -864,7 +864,13 @@ struct char_buffer generateZstd(ZSTD_CCtx* cctx, threadpool_buffer_t *pbuffer, s
 
     check_grow_threadpool_buffer_t(pbuffer, ZSTD_compressBound(src.len));
 
-    //fprintf(stderr, "pbuffer->size: %ld src.len %ld\n", (long) pbuffer->size, (long) src.len);
+    if (Modes.debug_zstd) {
+        fprintf(stderr, "calling ZSTD_compressCCtx() with cctx %p pbuffer->size %6ld"
+                " src.buffer %p src.len %6ld level %d src.buffer[0] 0x%02x cctx_first_byte 0x%02x\n"
+                , cctx, (long) pbuffer->size,
+                src.buffer, (long) src.len, level, (uint8_t) src.buffer[0], (uint8_t) ((uint8_t *) cctx)[0]
+               );
+    }
 
     /*
      * size_t ZSTD_compressCCtx(ZSTD_CCtx* cctx,
@@ -877,6 +883,10 @@ struct char_buffer generateZstd(ZSTD_CCtx* cctx, threadpool_buffer_t *pbuffer, s
             pbuffer->buf, pbuffer->size,
             src.buffer, src.len,
             level);
+
+    if (Modes.debug_zstd) {
+        fprintf(stderr, "calling ZSTD_isError() with compressedSize: %zd\n", compressedSize);
+    }
 
     if (ZSTD_isError(compressedSize)) {
         fprintf(stderr, "generateZstd() zstd error: %s\n", ZSTD_getErrorName(compressedSize));
