@@ -166,6 +166,8 @@ static void configSetDefaults(void) {
     Modes.acasFD2 = -1; // set to -1 so it's clear we don't have that fd
     Modes.sbsOverrideSquawk = -1;
 
+    Modes.enable_zstd = 1;
+
     Modes.currentTask = "unset";
     Modes.joinTimeout = 30 * SECONDS;
 
@@ -541,11 +543,12 @@ static void *jsonEntryPoint(void *arg) {
     threadpool_buffer_t pass_buffer = { 0 };
     threadpool_buffer_t zstd_buffer = { 0 };
 
-    if (Modes.debug_zstd) { fprintf(stderr, "calling ZSTD_createCCtx()\n"); }
-
-    ZSTD_CCtx* cctx = ZSTD_createCCtx();
-
-    if (Modes.debug_zstd) { fprintf(stderr, "ZSTD_createCCtx() returned %p\n", cctx); }
+    ZSTD_CCtx* cctx = NULL;
+    if (Modes.enable_zstd) {
+        //if (Modes.debug_zstd) { fprintf(stderr, "calling ZSTD_createCCtx()\n"); }
+        cctx = ZSTD_createCCtx();
+        //if (Modes.debug_zstd) { fprintf(stderr, "ZSTD_createCCtx() returned %p\n", cctx); }
+    }
 
     while (!Modes.exit) {
 
@@ -595,14 +598,18 @@ static void *jsonEntryPoint(void *arg) {
         }
 
         //fprintf(stderr, "uncompressed size %ld\n", (long) cb3.len);
-        writeJsonToFile(Modes.json_dir, "aircraft.binCraft.zst", generateZstd(cctx, &zstd_buffer, cb3, 1));
+        if (Modes.enable_zstd) {
+            writeJsonToFile(Modes.json_dir, "aircraft.binCraft.zst", generateZstd(cctx, &zstd_buffer, cb3, 1));
+        }
 
         if (Modes.json_globe_index) {
             struct char_buffer cb2 = generateGlobeBin(-1, 1, &pass_buffer);
             if (Modes.enableBinGz) {
                 writeJsonToGzip(Modes.json_dir, "globeMil_42777.binCraft", cb2, 1);
             }
-            writeJsonToFile(Modes.json_dir, "globeMil_42777.binCraft.zst", ident(generateZstd(cctx, &zstd_buffer, cb2, 1)));
+            if (Modes.enable_zstd) {
+                writeJsonToFile(Modes.json_dir, "globeMil_42777.binCraft.zst", ident(generateZstd(cctx, &zstd_buffer, cb2, 1)));
+            }
         }
 
         end_cpu_timing(&start_time, &Modes.stats_current.aircraft_json_cpu);
@@ -678,7 +685,10 @@ static void *globeBinEntryPoint(void *arg) {
     threadpool_buffer_t pass_buffer = { 0 };
     threadpool_buffer_t zstd_buffer = { 0 };
 
-    ZSTD_CCtx* cctx = ZSTD_createCCtx();
+    ZSTD_CCtx* cctx = NULL;
+    if (Modes.enable_zstd) {
+        cctx = ZSTD_createCCtx();
+    }
 
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
@@ -701,8 +711,10 @@ static void *globeBinEntryPoint(void *arg) {
                 writeJsonToGzip(Modes.json_dir, filename, cb2, 1);
             }
 
-            snprintf(filename, 31, "globe_%04d.binCraft.zst", index);
-            writeJsonToFile(Modes.json_dir, filename, ident(generateZstd(cctx, &zstd_buffer, cb2, 1)));
+            if (Modes.enable_zstd) {
+                snprintf(filename, 31, "globe_%04d.binCraft.zst", index);
+                writeJsonToFile(Modes.json_dir, filename, ident(generateZstd(cctx, &zstd_buffer, cb2, 1)));
+            }
 
             struct char_buffer cb3 = generateGlobeBin(index, 1, &pass_buffer);
 
@@ -711,8 +723,10 @@ static void *globeBinEntryPoint(void *arg) {
                 writeJsonToGzip(Modes.json_dir, filename, cb3, 1);
             }
 
-            snprintf(filename, 31, "globeMil_%04d.binCraft.zst", index);
-            writeJsonToFile(Modes.json_dir, filename, ident(generateZstd(cctx, &zstd_buffer, cb3, 1)));
+            if (Modes.enable_zstd) {
+                snprintf(filename, 31, "globeMil_%04d.binCraft.zst", index);
+                writeJsonToFile(Modes.json_dir, filename, ident(generateZstd(cctx, &zstd_buffer, cb3, 1)));
+            }
         }
 
         part++;
@@ -1932,6 +1946,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 }
                 if (strcasecmp(token[0], "debugZstd") == 0) {
                     Modes.debug_zstd = 1;
+                }
+                if (strcasecmp(token[0], "disableZstd") == 0) {
+                    Modes.enable_zstd = 0;
+                    Modes.enableBinGz = 1;
                 }
 
                 sfree(argdup);

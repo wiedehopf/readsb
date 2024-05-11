@@ -671,6 +671,7 @@ struct _Modes
     int8_t debug_gps;
     int8_t debug_planefinder;
     int8_t debug_zstd;
+    int8_t enable_zstd;
     int8_t incrementId;
     int8_t omitGlobeFiles;
     int8_t enableAcasCsv;
