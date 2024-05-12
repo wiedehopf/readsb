@@ -117,6 +117,10 @@ int64_t mono_milli_seconds() {
     return milli;
 }
 
+int64_t getUptime() {
+    return mono_milli_seconds() - Modes.startup_time;
+}
+
 int snprintHMS(char *buf, size_t bufsize, int64_t now) {
     time_t nowTime = nearbyint(now / 1000.0);
     struct tm local;

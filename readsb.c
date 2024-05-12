@@ -454,8 +454,8 @@ void priorityTasksRun() {
         antiSpam = mono;
     }
 
-    //fprintf(stderr, "running for %ld ms\n", mstime() - Modes.startup_time);
-    //fprintf(stderr, "removeStale took %"PRIu64" ms, running for %ld ms\n", elapsed, now - Modes.startup_time);
+    //fprintf(stderr, "running for %ld ms\n", getUptime());
+    //fprintf(stderr, "removeStale took %"PRIu64" ms, running for %ld ms\n", elapsed, getUptime());
 
     if (Modes.updateStats) {
         Modes.currentTask = "statsReset";
@@ -497,6 +497,7 @@ static void *readerEntryPoint(void *arg) {
     srandom(get_seed());
 
     if (!sdrOpen()) {
+        Modes.sdrOpenFailed = 1;
         setExit(2); // unexpected exit
         log_with_timestamp("sdrOpen() failed, exiting!");
         return NULL;
@@ -812,7 +813,7 @@ static void *decodeEntryPoint(void *arg) {
      * This rules also in case a local Mode-S Beast is connected via USB.
      */
 
-    //fprintf(stderr, "startup complete after %.3f seconds.\n", (mstime() - Modes.startup_time) / 1000.0);
+    //fprintf(stderr, "startup complete after %.3f seconds.\n", getUptime() / 1000.0);
 
     interactiveInit();
 
@@ -1045,7 +1046,7 @@ static void writeTraces(int64_t mono) {
                     Modes.triggerPastDayTraceWrite = 1; // activated for one sweep
                 }
 
-                if (elapsed > 30 * SECONDS && mstime() - Modes.startup_time > 10 * MINUTES) {
+                if (elapsed > 30 * SECONDS && getUptime() > 10 * MINUTES) {
                     fprintf(stderr, "trace writing iteration took %.1f seconds (roughly %.0f minutes), live traces will lag behind (historic traces are fine), "
                             "consider alloting more CPU cores or increasing json-trace-interval!\n",
                             elapsed / 1000.0, elapsed / (double) MINUTES);
@@ -2647,7 +2648,7 @@ int main(int argc, char **argv) {
     // Set sane defaults
     configSetDefaults();
 
-    Modes.startup_time = mstime();
+    Modes.startup_time = mono_milli_seconds();
 
     if (lzo_init() != LZO_E_OK)
     {
@@ -2808,8 +2809,7 @@ int main(int argc, char **argv) {
     while (!Modes.exit) {
         int64_t wait_time = 5 * SECONDS;
         if (Modes.auto_exit) {
-            int64_t now = mstime();
-            int64_t uptime = now - Modes.startup_time;
+            int64_t uptime = getUptime();
             if (uptime + wait_time >= Modes.auto_exit) {
                 wait_time = imax(1, Modes.auto_exit - uptime);
             }
@@ -2933,16 +2933,22 @@ int main(int argc, char **argv) {
         destroy_task_group(Modes.traceTasks);
     }
 
+    if (Modes.state_dir && Modes.sdrOpenFailed) {
+        fprintf(stderr, "not saving state: SDR failed\n");
+        sfree(Modes.state_dir);
+        Modes.state_dir = NULL;
+    }
+
+    Modes.free_aircraft = 1;
     // frees aircraft when Modes.free_aircraft is set
     // writes state if Modes.state_dir is set
-    Modes.free_aircraft = 1;
     writeInternalState();
 
     if (Modes.exit != 1) {
-        log_with_timestamp("Abnormal exit.");
+        log_with_timestamp("Abnormal exit. (runtime: %.3f s", getUptime() / (double) SECONDS);
         cleanup_and_exit(1);
     }
 
-    log_with_timestamp("Normal exit.");
+    log_with_timestamp("Normal exit. (runtime: %.3f s", getUptime() / (double) SECONDS);
     cleanup_and_exit(0);
 }
