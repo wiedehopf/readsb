@@ -2139,7 +2139,10 @@ int parseCommandLine(int argc, char **argv) {
 #undef verstring
 
     if (Modes.viewadsb) {
-        doc = "vieadsb Mode-S/ADSB/TIS commandline viewer   ";
+        doc = "vieadsb Mode-S/ADSB/TIS commandline viewer "
+            "\n\nBy default, viewadsb will TCP connect to 127.0.0.1:30005 as a data source."
+            "\nTypical readsb / dump1090 installs will provide beast data on port 30005."
+            ;
     }
 
     struct argp_option *options = Modes.viewadsb ? optionsViewadsb : optionsReadsb;
@@ -2165,7 +2168,11 @@ int parseCommandLine(int argc, char **argv) {
 
     print_commandline(argc, argv);
 
-    log_with_timestamp("readsb starting up.");
+    if (Modes.viewadsb) {
+        log_with_timestamp("viewadsb starting up.");
+    } else {
+        log_with_timestamp("readsb starting up.");
+    }
     fprintf(stderr, VERSION_STRING"\n");
 
     return 0;
