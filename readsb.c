@@ -2944,11 +2944,27 @@ int main(int argc, char **argv) {
     // writes state if Modes.state_dir is set
     writeInternalState();
 
-    if (Modes.exit != 1) {
-        log_with_timestamp("Abnormal exit. (runtime: %.3f s", getUptime() / (double) SECONDS);
-        cleanup_and_exit(1);
+    {
+        char *exitString = "Normal exit.";
+        if (Modes.exit != 1) {
+            exitString = "Abnormal exit.";
+        }
+        int64_t uptime = getUptime();
+
+        int days = uptime / (24 * HOURS);
+        uptime -= days * (24 * HOURS);
+        int hours = uptime / HOURS;
+        uptime -= hours * HOURS;
+        int minutes = uptime / MINUTES;
+        uptime -= minutes * MINUTES;
+        double seconds = uptime / (double) SECONDS;
+
+        log_with_timestamp("%s uptime: %2dd %2dh %2dm %.3fs",
+                exitString, days, hours, minutes, seconds);
     }
 
-    log_with_timestamp("Normal exit. (runtime: %.3f s", getUptime() / (double) SECONDS);
+    if (Modes.exit != 1) {
+        cleanup_and_exit(1);
+    }
     cleanup_and_exit(0);
 }
