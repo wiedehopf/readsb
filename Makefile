@@ -35,7 +35,7 @@ endif
 ifeq ($(DISABLE_INTERACTIVE), yes)
   CFLAGS += -DDISABLE_INTERACTIVE
 else
-  LIBS += -lncurses
+  LIBS += -lncurses -ltinfo
 endif
 
 # only disable workaround if zerocopy is disabled in librtlsdr, otherwise expect significantly increased CPU use
