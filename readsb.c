@@ -166,6 +166,8 @@ static void configSetDefaults(void) {
     Modes.acasFD2 = -1; // set to -1 so it's clear we don't have that fd
     Modes.sbsOverrideSquawk = -1;
 
+    Modes.fUserAlt = -2e6;
+
     Modes.enable_zstd = 1;
 
     Modes.currentTask = "unset";

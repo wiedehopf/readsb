@@ -1877,6 +1877,11 @@ struct char_buffer generateReceiverJson() {
                     "\"lon\": %.6f",
                     Modes.fUserLat, Modes.fUserLon); // exact location
         }
+        if (Modes.fUserAlt > -1e6) {
+            p = safe_snprintf(p, end,
+                    ", \"alt_m_amsl\": %.0f",
+                    Modes.fUserAlt);
+        }
     }
 
     p = safe_snprintf(p, end, ", \"jaeroTimeout\": %.1f", ((double) Modes.trackExpireJaero) / (60 * SECONDS));

@@ -3589,6 +3589,7 @@ static int handle_gpsd(struct client *c, char *p, int remote, int64_t now, struc
     // filter all messages which don't have lat / lon
     char *latp = strstr(p, "\"lat\":");
     char *lonp = strstr(p, "\"lon\":");
+    char *altp = strstr(p, "\"alt\":");
     if (!latp || !lonp) {
         if (Modes.debug_gps) {
             fprintf(stderr, "gpsdebug: lat / lon not present: ignoring message.\n");
@@ -3600,13 +3601,26 @@ static int handle_gpsd(struct client *c, char *p, int remote, int64_t now, struc
 
     char *saveptr = NULL;
     strtok_r(latp, ",", &saveptr);
+    saveptr = NULL;
     strtok_r(lonp, ",", &saveptr);
 
     double lat = strtod(latp, NULL);
     double lon = strtod(lonp, NULL);
 
+    double alt_m = -2e6;
+    if (altp) {
+        altp += 6;
+        saveptr = NULL;
+        strtok_r(altp, ",", &saveptr);
+        alt_m = strtod(altp, NULL);
+    }
+
     if (Modes.debug_gps) {
-        fprintf(stderr, "gpsdebug: parsed lat,lon: %11.6f,%11.6f\n", lat, lon);
+        if (alt_m > -1e6) {
+            fprintf(stderr, "gpsdebug: parsed lat,lon: %11.6f,%11.6f (alt: %.0f m)\n", lat, lon, alt_m);
+        } else {
+            fprintf(stderr, "gpsdebug: parsed lat,lon: %11.6f,%11.6f (no alt)\n", lat, lon);
+        }
     }
     //fprintf(stderr, "%11.6f %11.6f\n", lat, lon);
 
@@ -3630,6 +3644,9 @@ static int handle_gpsd(struct client *c, char *p, int remote, int64_t now, struc
 
     Modes.fUserLat = lat;
     Modes.fUserLon = lon;
+    if (alt_m > -1e6) {
+        Modes.fUserAlt = alt_m;
+    }
     Modes.userLocationValid = 1;
 
     if (Modes.json_dir) {
