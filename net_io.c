@@ -576,10 +576,18 @@ static void serviceConnect(struct net_connector *con, int64_t now) {
         con->try_addr = con->addr_info;
     }
 
+    struct timespec watch;
+    startWatch(&watch);
+
     getnameinfo(con->try_addr->ai_addr, con->try_addr->ai_addrlen,
             con->resolved_addr, sizeof(con->resolved_addr) - 3,
             NULL, 0,
             NI_NUMERICHOST | NI_NUMERICSERV);
+
+    int64_t getnameinfoElapsed = lapWatch(&watch);
+    if (getnameinfoElapsed > 1) {
+        fprintf(stderr, "WARNING: getnameinfo() took %"PRId64" ms\n", getnameinfoElapsed);
+    }
 
     if (strcmp(con->resolved_addr, con->address) == 0) {
         con->resolved_addr[0] = '\0';
