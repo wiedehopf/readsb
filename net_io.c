@@ -1432,7 +1432,7 @@ static int pongReceived(struct client *c, int64_t now) {
 }
 
 
-static inline int flushClient(struct client *c, int64_t now) {
+static int flushClient(struct client *c, int64_t now) {
     if (!c->service) { fprintf(stderr, "report error: Ahlu8pie\n"); return -1; }
     int toWrite = c->sendq_len;
     char *psendq = c->sendq;
@@ -1458,13 +1458,12 @@ static inline int flushClient(struct client *c, int64_t now) {
         // Advance buffer
         psendq += bytesWritten;
         toWrite -= bytesWritten;
+        c->sendq_len -= bytesWritten;
 
         c->last_send = now;	// If we wrote anything, update this.
-        if (bytesWritten == c->sendq_len) {
-            c->sendq_len = 0;
+        if (toWrite == 0) {
             c->last_flush = now;
         } else {
-            c->sendq_len -= bytesWritten;
             memmove((void*)c->sendq, c->sendq + bytesWritten, toWrite);
         }
     }
