@@ -3577,6 +3577,12 @@ static int handle_gpsd(struct client *c, char *p, int remote, int64_t now, struc
         fprintf(stderr, " gpsdebug: received from GPSD: \'%s\'\n", p);
     }
 
+    struct char_buffer msg;
+    msg.alloc = strlen(p) + 128;
+    msg.buffer = cmalloc(msg.alloc);
+    sprintf(msg.buffer, "%s\n", p);
+    msg.len = strlen(msg.buffer);
+
     // remove spaces in place
     char *d = p;
     char *s = p;
@@ -3592,7 +3598,7 @@ static int handle_gpsd(struct client *c, char *p, int remote, int64_t now, struc
         if (Modes.debug_gps) {
             fprintf(stderr, "gpsdebug: class \"TPV\" : ignoring message.\n");
         }
-        return 0;
+        goto exit;
     }
     // filter all messages which don't have lat / lon
     char *latp = strstr(p, "\"lat\":");
@@ -3602,7 +3608,7 @@ static int handle_gpsd(struct client *c, char *p, int remote, int64_t now, struc
         if (Modes.debug_gps) {
             fprintf(stderr, "gpsdebug: lat / lon not present: ignoring message.\n");
         }
-        return 0;
+        goto exit;
     }
     latp += 6;
     lonp += 6;
@@ -3637,13 +3643,13 @@ static int handle_gpsd(struct client *c, char *p, int remote, int64_t now, struc
         if (Modes.debug_gps) {
             fprintf(stderr, "gpsdebug: lat lon implausible, ignoring\n");
         }
-        return 0;
+        goto exit;
     }
     if (fabs(lat) < 0.1 && fabs(lon) < 0.1) {
         if (Modes.debug_gps) {
             fprintf(stderr, "gpsdebug: lat lon implausible, ignoring\n");
         }
-        return 0;
+        goto exit;
     }
 
     if (Modes.debug_gps) {
@@ -3659,8 +3665,13 @@ static int handle_gpsd(struct client *c, char *p, int remote, int64_t now, struc
 
     if (Modes.json_dir) {
         free(writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson()).buffer); // location changed
+        if (msg.len) {
+            writeJsonToFile(Modes.json_dir, "gpsd.json", msg);
+        }
     }
 
+exit:
+    free(msg.buffer);
     return 0;
 }
 
