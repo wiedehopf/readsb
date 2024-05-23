@@ -617,6 +617,9 @@ static void *jsonEntryPoint(void *arg) {
 
         end_cpu_timing(&start_time, &Modes.stats_current.aircraft_json_cpu);
 
+        //fprintTimePrecise(stderr, mstime());
+        //fprintf(stderr, " wrote --write-json-every stuff to --write-json \n");
+
         // we should exit this wait early due to a cond_signal from api.c
         threadTimedWait(&Threads.json, &ts, Modes.json_interval * 3);
     }
