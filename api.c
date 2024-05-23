@@ -1866,6 +1866,9 @@ static void *apiUpdateEntryPoint(void *arg) {
 
         int debug = 0;
         if (debug) {
+            fprintTimePrecise(stderr, mstime());
+            fprintf(stderr, " apiUpdate\n");
+
             startWatch(&watch);
         }
 
@@ -1875,22 +1878,29 @@ static void *apiUpdateEntryPoint(void *arg) {
 
         end_cpu_timing(&cpu_timer, &Modes.stats_current.api_update_cpu);
 
+
+        if (0 && debug) {
+            int64_t elapsed = stopWatch(&watch);
+            fprintTimePrecise(stderr, mstime());
+            fprintf(stderr, " apiUpdate took: %.3f s for %d aircraft!\n", elapsed / 1000.0, ac_count);
+        }
+
         int64_t now = mstime();
 
-        int ival = Modes.json_interval;
+        int64_t ival = Modes.json_interval;
+        int64_t remaining = ival - (now % ival);
 
-        int remaining = ival - (now % ival);
-        if (remaining < ival / 8) {
+        if (remaining < 5) {
             remaining += ival;
         }
 
-        if (debug) {
-            int64_t elapsed = stopWatch(&watch);
-            fprintTimePrecise(stderr, now);
-            fprintf(stderr, " remaining: %d apiUpdate took: %.3f s for %d aircraft!\n", remaining, elapsed / 1000.0, ac_count);
-        }
-
-        threadTimedWait(&Threads.apiUpdate, &ts, remaining);
+        int64_t waitStarted = now;
+        int64_t elapsed = 0;
+        do {
+            threadTimedWait(&Threads.apiUpdate, &ts, remaining - elapsed);
+            //fprintf(stderr, ".");
+            elapsed = mstime() - waitStarted;
+        } while (!Modes.exit && elapsed < remaining);
     }
     pthread_mutex_unlock(&Threads.apiUpdate.mutex);
     return NULL;
