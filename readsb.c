@@ -1932,6 +1932,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (strcasecmp(token[0], "debugPlanefinder") == 0) {
                     Modes.debug_planefinder = 1;
                 }
+                if (strcasecmp(token[0], "debugFlush") == 0) {
+                    Modes.debug_flush = 1;
+                }
                 if (strcasecmp(token[0], "omitGlobeFiles") == 0) {
                     Modes.omitGlobeFiles = 1;
                 }

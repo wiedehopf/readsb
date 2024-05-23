@@ -1453,6 +1453,18 @@ static int flushClient(struct client *c, int64_t now) {
         modesCloseClient(c);
         return -1;
     }
+    if (bytesWritten > toWrite) {
+        fprintf(stderr, "%s: send() weirdness: bytesWritten > toWrite: %s: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
+                c->service->descr, strerror(err), c->host, c->port,
+                c->fd, c->sendq_len, c->buflen);
+        modesCloseClient(c);
+        return -1;
+    }
+    if (bytesWritten < toWrite && Modes.debug_flush) {
+
+        fprintTimePrecise(stderr, now);
+        fprintf(stderr, " %s: send wrote: %d/%d bytes (%s port %s fd %d, SendQ %d)\n", c->service->descr, bytesWritten, toWrite, c->host, c->port, c->fd, c->sendq_len);
+    }
     if (bytesWritten > 0) {
         Modes.stats_current.network_bytes_out += bytesWritten;
         // Advance buffer
