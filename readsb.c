@@ -1746,6 +1746,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             if (atof(arg) > 0)
                 Modes.beast_reduce_filter_distance = (float) atof(arg) * 1852.0f; // convert to meters
             break;
+        case OptNetBeastReduceOptimizeMlat:
+            Modes.beast_reduce_optimize_mlat = 1;
+            break;
         case OptNetBeastReduceInterval:
             if (atof(arg) >= 0)
                 Modes.net_output_beast_reduce_interval = (int64_t) (1000 * atof(arg));

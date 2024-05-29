@@ -2302,6 +2302,11 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     }
 
 
+    if (Modes.beast_reduce_optimize_mlat) {
+        if (mm->cpr_valid || a->position_valid.source < SOURCE_ADSR) {
+            mm->reduce_forward = 1;
+        }
+    }
 
     if (mm->acas_ra_valid) {
 

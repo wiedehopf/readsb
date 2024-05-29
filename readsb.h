@@ -709,6 +709,7 @@ struct _Modes
     int8_t viewadsb;
     int8_t sbsReduce; // apply beast reduce logic to SBS messages
     int8_t asterixReduce; // apply beast reduce logic to SBS messages
+    int8_t beast_reduce_optimize_mlat; // keep all messages relevant to mlat-client (best-effort)
 
     int position_persistence; // Maximum number of consecutive implausible positions from global CPR to invalidate a known position
     int json_reliable;
@@ -1217,6 +1218,7 @@ enum {
     OptNetAsterixReduce,
     OptNetBeastReducePorts,
     OptNetBeastReduceInterval,
+    OptNetBeastReduceOptimizeMlat,
     OptNetBeastReduceFilterAlt,
     OptNetBeastReduceFilterDist,
     OptNetSbsReduce,
