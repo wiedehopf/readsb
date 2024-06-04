@@ -24,7 +24,7 @@ RUN cd /app/git && \
     mv viewadsb /usr/local/bin && \
     chmod +x /usr/local/bin/viewadsb /usr/local/bin/readsb && \
     make clean && \
-    make -j$(nproc) PRINT_UUIDS=yes OPTIMIZE="-O2" && \
+    make -j$(nproc) PRINT_UUIDS=yes TRACKS_UUID=yes OPTIMIZE="-O2" && \
     mv readsb /usr/local/bin/readsb-uuid && \
     mv viewadsb /usr/local/bin/viewadsb-uuid && \
     chmod +x /usr/local/bin/viewadsb-uuid && \
