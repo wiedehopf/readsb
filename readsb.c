@@ -1950,6 +1950,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (strcasecmp(token[0], "disableAcasJson") == 0) {
                     Modes.enableAcasJson = 0;
                 }
+                if (strcasecmp(token[0], "enableConnsJson") == 0) {
+                    Modes.enableConnsJson = 1;
+                }
                 if (strcasecmp(token[0], "provokeSegfault") == 0) {
                     Modes.debug_provoke_segfault = 1;
                 }
@@ -2554,6 +2557,8 @@ static void miscStuff(int64_t now) {
     static int64_t next_clients_json;
     if (Modes.json_dir && now > next_clients_json) {
         next_clients_json = now + 10 * SECONDS;
+        if (Modes.enableConnsJson) {
+        }
         if (Modes.netIngest)
             free(writeJsonToFile(Modes.json_dir, "clients.json", generateClientsJson()).buffer);
         if (Modes.netReceiverIdJson)
