@@ -5486,7 +5486,7 @@ void modesNetPeriodicWork(void) {
 
         if (Modes.receiverTable) {
             static uint32_t upcount;
-            int nParts = 5 * MINUTES / free_client_interval;
+            int nParts = RECEIVER_MAINTENANCE_INTERVAL / free_client_interval;
             receiverTimeout((upcount % nParts), nParts, now);
             upcount++;
         }

@@ -7,6 +7,8 @@
 #define RECEIVER_RANGE_BAD (-7)
 #define RECEIVER_RANGE_UNCLEAR (-1)
 
+#define RECEIVER_MAINTENANCE_INTERVAL (5 * MINUTES)
+
 struct bad_ac {
   uint32_t addr;
   int64_t ts;

@@ -47,8 +47,35 @@ struct receiver *receiverCreate(uint64_t id) {
         fprintf(stderr, "receiverCount: %"PRIu64"\n", Modes.receiverCount);
     return r;
 }
-//static void receiverMaintenance(struct receiver *re) {
-//}
+static void receiverDebugPrint(struct receiver *r, char *message) {
+    if (1) {
+        return;
+    }
+    fprintf(stderr, "%016"PRIx64" %9lld %6.1f %6.1f %6.1f %6.1f %s\n",
+            r->id, (long long) r->positionCounter,
+            r->latMin, r->latMax, r->lonMin, r->lonMax,
+            message);
+}
+static void receiverMaintenance(struct receiver *r) {
+    double decay = 0.005 * RECEIVER_MAINTENANCE_INTERVAL / SECONDS;
+
+    receiverDebugPrint(r, "beforeDecay");
+
+    // only decay if extent is pretty large
+
+    if (r->latMax - r->latMin > 10) {
+        r->latMax -= decay;
+        r->latMin += decay;
+    }
+
+    if (r->lonMax - r->lonMin > 10) {
+        r->lonMax -= decay;
+        r->lonMin += decay;
+    }
+
+    receiverDebugPrint(r, "afterDecay");
+
+}
 void receiverTimeout(int part, int nParts, int64_t now) {
     if (!Modes.receiverTable) {
         return;
@@ -78,7 +105,7 @@ void receiverTimeout(int part, int nParts, int64_t now) {
                 Modes.receiverCount--;
                 free(del);
             } else {
-                //receiverMaintenance(*r);
+                receiverMaintenance(*r);
                 r = &(*r)->next;
             }
         }
@@ -158,6 +185,14 @@ int receiverPositionReceived(struct aircraft *a, struct modesMessage *mm, double
 
             r->lonMax = fmax(r->lonMax, lon);
             r->latMax = fmax(r->latMax, lat);
+            if (
+                    before.latMin != r->latMin
+                    || before.latMax != r->latMax
+                    || before.lonMin != r->lonMin
+                    || before.lonMax != r->lonMax
+               ) {
+                //receiverDebugPrint(r, "growingExtent");
+            }
             r->goodCounter++;
             r->badCounter = fmax(0, r->badCounter - 0.5);
         }
