@@ -1206,7 +1206,14 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
             a->receiver_distance = mm->receiver_distance;
             a->receiver_direction = bearing(Modes.fUserLat, Modes.fUserLon, a->lat, a->lon);
 
-            if (mm->source == SOURCE_ADSB || mm->source == SOURCE_ADSR) {
+            // nac_p >= 2 accuracy better than 4 nmi
+            // decoded_rc less than 5 * nmi
+            if (mm->source == SOURCE_ADSB
+                    && trackDataValid(&a->nac_p_valid) && a->nac_p >= 2
+                    && mm->decoded_rc != 0 && mm->decoded_rc < 5 * 1852
+               ) {
+                update_range_histogram(a, now);
+            } else if (mm->source == SOURCE_ADSR) {
                 update_range_histogram(a, now);
             }
 
