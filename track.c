@@ -1222,6 +1222,20 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
     }
 }
 
+static int64_t cpr_global_airborne_max_elapsed(int64_t now, struct aircraft *a) {
+    if (trackDataAge(now, &a->gs_valid) > 20 * SECONDS) {
+        return 10 * SECONDS;
+    }
+    int speed = imax((int64_t) a->gs, 1);
+    // max time for 500 knots gs
+    int64_t ref = 19 * SECONDS; // empirically tested
+    int64_t ival = (ref * 500) / speed;
+    // never return more than 30 seconds
+    ival = imin(30 * SECONDS, ival);
+    //fprintf(stderr, "%lld\n", (long long) ival);
+    return ival;
+}
+
 static void updatePosition(struct aircraft *a, struct modesMessage *mm, int64_t now) {
     int location_result = -1;
     int globalCPR = 0;
@@ -1247,8 +1261,8 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, int64_t 
         if (mm->source != SOURCE_MLAT)
             Modes.stats_current.cpr_airborne++;
 
-        // Airborne: 10 seconds
-        max_elapsed = 10000;
+        // Airborne: determine depending on speed, fallback 10 seconds
+        max_elapsed = cpr_global_airborne_max_elapsed(now, a);
     }
 
     // If we have enough recent data, try global CPR
