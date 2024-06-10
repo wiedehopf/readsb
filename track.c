@@ -542,7 +542,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         }
     }
 
-    if (track_diff > 70.0f) {
+    if (track_diff > 70.0f && speed > 10) {
         mm->trackUnreliable = +1;
     } else if (track_diff > -1) {
         mm->trackUnreliable = -1;
@@ -557,7 +557,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         speed = surface ? 120 : 900; // guess
     }
 
-    if (speed > 1 && track_diff > -1 && a->trackUnreliable < 8) {
+    if (speed > 10 && track_diff > -1 && a->trackUnreliable < 8) {
         track_bonus = speed * (90.0f - track_diff) / 90.0f;
         track_bonus *= (surface ? 0.9f : 1.0f) * (1.0f - track_age / track_max_age);
         if (a->gs < 10) {
