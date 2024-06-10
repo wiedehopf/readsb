@@ -803,7 +803,7 @@ static inline void apiGenerateJson(struct apiBuffer *buffer, int64_t now) {
     char *end = buffer->json + alloc;
 
     for (int i = 0; i < buffer->len; i++) {
-        if ((p + 2000) >= end) {
+        if ((p + 16 * 1024) >= end) {
             int used = p - buffer->json;
             alloc *= 2;
             buffer->json = (char *) realloc(buffer->json, alloc);
@@ -2022,7 +2022,7 @@ struct char_buffer apiGenerateAircraftJson(threadpool_buffer_t *pbuffer) {
 
     struct apiBuffer *buffer = &Modes.apiBuffer[flip];
 
-    ssize_t alloc = buffer->jsonLen + 2048;
+    ssize_t alloc = buffer->jsonLen + 8 * 1024;
 
     char *buf = check_grow_threadpool_buffer_t(pbuffer, alloc);
     char *p = buf;
