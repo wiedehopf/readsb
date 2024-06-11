@@ -1822,6 +1822,31 @@ discard_alt:
     return;
 }
 
+static int accept_cpr(struct aircraft *a, struct modesMessage *mm) {
+    // CPR, even
+    if (mm->cpr_valid && !mm->cpr_odd && accept_data(&a->cpr_even_valid, mm->source, mm, a, REDUCE_OFTEN)) {
+        a->cpr_even_type = mm->cpr_type;
+        a->cpr_even_lat = mm->cpr_lat;
+        a->cpr_even_lon = mm->cpr_lon;
+        compute_nic_rc_from_message(mm, a, &a->cpr_even_nic, &a->cpr_even_rc);
+        if (0 && a->addr == Modes.cpr_focus)
+            fprintf(stderr, "E \n");
+        return 1;
+    }
+
+    // CPR, odd
+    if (mm->cpr_valid && mm->cpr_odd && accept_data(&a->cpr_odd_valid, mm->source, mm, a, REDUCE_OFTEN)) {
+        a->cpr_odd_type = mm->cpr_type;
+        a->cpr_odd_lat = mm->cpr_lat;
+        a->cpr_odd_lon = mm->cpr_lon;
+        compute_nic_rc_from_message(mm, a, &a->cpr_odd_nic, &a->cpr_odd_rc);
+        if (0 && a->addr == Modes.cpr_focus)
+            fprintf(stderr, "O \n");
+        return 1;
+    }
+    return 0;
+}
+
 //
 //=========================================================================
 //
@@ -2270,26 +2295,8 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         a->oat_updated = now;
     }
 
-    // CPR, even
-    if (mm->cpr_valid && !mm->cpr_odd && accept_data(&a->cpr_even_valid, mm->source, mm, a, REDUCE_OFTEN)) {
-        a->cpr_even_type = mm->cpr_type;
-        a->cpr_even_lat = mm->cpr_lat;
-        a->cpr_even_lon = mm->cpr_lon;
-        compute_nic_rc_from_message(mm, a, &a->cpr_even_nic, &a->cpr_even_rc);
+    if (mm->cpr_valid && accept_cpr(a, mm)) {
         cpr_new = 1;
-        if (0 && a->addr == Modes.cpr_focus)
-            fprintf(stderr, "E \n");
-    }
-
-    // CPR, odd
-    if (mm->cpr_valid && mm->cpr_odd && accept_data(&a->cpr_odd_valid, mm->source, mm, a, REDUCE_OFTEN)) {
-        a->cpr_odd_type = mm->cpr_type;
-        a->cpr_odd_lat = mm->cpr_lat;
-        a->cpr_odd_lon = mm->cpr_lon;
-        compute_nic_rc_from_message(mm, a, &a->cpr_odd_nic, &a->cpr_odd_rc);
-        cpr_new = 1;
-        if (0 && a->addr == Modes.cpr_focus)
-            fprintf(stderr, "O \n");
     }
 
     if (mm->cpr_valid) {
@@ -3737,6 +3744,11 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
         // invalidate CPRs to start fresh
         a->cpr_even_valid.source = SOURCE_INVALID;
         a->cpr_odd_valid.source = SOURCE_INVALID;
+
+        // accept the CPR we just got to get going again a bit quicker
+        if (mm->cpr_valid) {
+            accept_cpr(a, mm);
+        }
     }
 
 
