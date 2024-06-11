@@ -483,7 +483,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
                )
             ) {
         mm->pos_ignore = 1; // don't decrement pos_reliable
-    } else if (a->pos_reliable_odd < 0.2 || a->pos_reliable_even < 0.2) {
+    } else if (a->pos_reliable_odd < 0.01f || a->pos_reliable_even < 0.01f) {
         override = 1;
     } else if (now - a->position_valid.updated > POS_RELIABLE_TIMEOUT) {
         override = 1; // no reference or older than 60 minutes, assume OK
@@ -1230,7 +1230,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
 }
 
 static int64_t cpr_global_airborne_max_elapsed(int64_t now, struct aircraft *a) {
-    if (trackDataAge(now, &a->gs_valid) > 20 * SECONDS) {
+    if (!trackDataValid(&a->gs_valid) || trackDataAge(now, &a->gs_valid) > 20 * SECONDS) {
         return 10 * SECONDS;
     }
     int speed = imax((int64_t) a->gs, 1);
@@ -3726,9 +3726,18 @@ static void position_bad(struct modesMessage *mm, struct aircraft *a) {
     }
 
     a->pos_reliable_odd -= 0.26f;
-    a->pos_reliable_odd = fmax(0, a->pos_reliable_odd);
     a->pos_reliable_even -= 0.26f;
-    a->pos_reliable_even = fmax(0, a->pos_reliable_even);
+
+    if (a->pos_reliable_odd < 0.1f || a->pos_reliable_even < 0.1f) {
+
+        // when we reach zero, reset reliable state
+        a->pos_reliable_odd = 0;
+        a->pos_reliable_even = 0;
+
+        // invalidate CPRs to start fresh
+        a->cpr_even_valid.source = SOURCE_INVALID;
+        a->cpr_odd_valid.source = SOURCE_INVALID;
+    }
 
 
     if (0 && a->addr == Modes.cpr_focus)
