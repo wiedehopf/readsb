@@ -77,7 +77,6 @@ void ifileInitConfig(void) {
     ifile.readbuf = NULL;
     ifile.converter = NULL;
     ifile.converter_state = NULL;
-    Modes.synthetic_now = Modes.startup_time;
 }
 
 bool ifileHandleOption(int key, char *arg) {
@@ -121,13 +120,18 @@ bool ifileOpen(void) {
         return false;
     }
 
-    if (!strcmp(ifile.filename, "-")) {
+    if (strcmp(ifile.filename, "-") == 0) {
         ifile.fd = STDIN_FILENO;
     } else if ((ifile.fd = open(ifile.filename, O_RDONLY)) < 0) {
         fprintf(stderr, "ifile: could not open %s: %s\n",
                 ifile.filename, strerror(errno));
         return false;
     }
+
+    if (strcmp(ifile.filename, "-") != 0) {
+        Modes.synthetic_now = mstime();
+    }
+
 
     switch (ifile.input_format) {
         case INPUT_UC8:
