@@ -678,10 +678,11 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
             char uuid[32]; // needs 18 chars and null byte
             sprint_uuid1(mm->receiverId, uuid);
             fprintTime(stderr, now);
-            fprintf(stderr, " %06x R%3.1f|%3.1f %s %s %s %s %4.0f%%%2ds%2dt %3.0f/%3.0f td %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f biT %4.1f s %s rId %s\n",
+            fprintf(stderr, " %06x R%3.1f|%3.1f %s %2.0f %s %s %s %4.0f%%%2ds%2dt %3.0f/%3.0f td %3.0f %8.3fkm in%4.1fs, %4.0fkt %11.6f,%11.6f->%11.6f,%11.6f biT %4.1f s %s rId %s\n",
                     a->addr,
                     a->pos_reliable_odd, a->pos_reliable_even,
                     mm->cpr_odd ? "O" : "E",
+                    mm->cpr_odd ? fmin(99, (now - a->cpr_even_valid.updated) / 1000.0) : fmin(99, (now - a->cpr_odd_valid.updated) / 1000.0),
                     cpr_local == CPR_LOCAL ? "L" : (cpr_local == CPR_GLOBAL ? "G" : "S"),
                     (surface ? "S" : "A"),
                     failMessage,
@@ -1370,9 +1371,8 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, int64_t 
 
         setPosition(a, mm, now);
     } else if (location_result == -1 && a->addr == Modes.cpr_focus && !mm->duplicate) {
-        fprintf(stderr, "%5.1fs %d: mm->cpr: (%d) (%d) %s %s, %s age: %0.1f sources o: %s %s e: %s %s lpos src: %s \n",
-                (now % (600 * SECONDS)) / 1000.0,
-                location_result,
+        fprintTime(stderr, now);
+        fprintf(stderr, " mm->cpr: (%d) (%d) %s %s, %s age: %0.1f sources o: %s %s e: %s %s lpos src: %s \n",
                 mm->cpr_lat, mm->cpr_lon,
                 mm->cpr_odd ? " odd" : "even", cpr_type_string(mm->cpr_type), mm->cpr_odd ? "even" : " odd",
                 mm->cpr_odd ? fmin(999, ((double) now - a->cpr_even_valid.updated) / 1000.0) : fmin(999, ((double) now - a->cpr_odd_valid.updated) / 1000.0),
