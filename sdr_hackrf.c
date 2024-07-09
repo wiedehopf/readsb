@@ -50,12 +50,12 @@ void hackRFInitConfig() {
 
 bool hackRFHandleOption(int key, char *arg) {
     switch (key) {
-	case OptHackRfGainEnable:
+        case OptHackRfGainEnable:
             hackRF.rf_gain = true;
-	    break;
-	case OptHackRfVgaGain:
-	    hackRF.vga_gain = atoi(arg);
-	    break;
+            break;
+        case OptHackRfVgaGain:
+            hackRF.vga_gain = atoi(arg);
+            break;
         default:
             return false;
     }
@@ -108,8 +108,8 @@ bool hackRFOpen() {
     if (hackRF.rf_gain) {
         if ((status = hackrf_set_amp_enable(hackRF.device, 1)) != HACKRF_SUCCESS) {
             fprintf(stderr, "hackrf_set_amp_enable failed: %s\n", hackrf_error_name(status));
-	    goto error;
-	}
+            goto error;
+        }
     }
 
     if ((status = hackrf_set_lna_gain(hackRF.device, Modes.gain / 10)) != HACKRF_SUCCESS) {
@@ -131,7 +131,7 @@ bool hackRFOpen() {
 
     fprintf (stderr, "HackRF successfully initialized "
                      "(AMP Enable: %i, LNA Gain: %i, VGA Gain: %i).\n",
-                     Modes.biastee, Modes.gain / 10, hackRF.vga_gain);
+                     hackRF.rf_gain, Modes.gain / 10, hackRF.vga_gain);
 
     hackRF.converter = init_converter(INPUT_UC8,
             Modes.sample_rate,
