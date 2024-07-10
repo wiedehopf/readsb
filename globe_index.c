@@ -2314,10 +2314,13 @@ int traceAdd(struct aircraft *a, struct modesMessage *mm, int64_t now, int stale
         max_speed_diff *= 2;
     }
 
-    if (Modes.json_trace_interval > 5 * SECONDS) {
+    if (max_elapsed > 5 * SECONDS) {
         if (a->pos_reliable_valid.source == SOURCE_MLAT) {
             min_elapsed = 1500;
-            max_elapsed /= 2;
+            max_elapsed = imax(max_elapsed / 2, 5 * SECONDS);
+        }
+        if (a->pos_reliable_valid.source != SOURCE_MLAT && !trackVState(now, &a->track_valid, &a->pos_reliable_valid)) {
+            max_elapsed = imax(max_elapsed / 4, 5 * SECONDS);
         }
     }
     // some towers on MLAT .... create unnecessary data
