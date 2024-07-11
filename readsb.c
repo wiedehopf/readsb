@@ -2875,12 +2875,12 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "<3>FATAL: priorityTasksRun() interval %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed1 / SECONDS);
                 fprintf(stderr, "<3>lockThreads() probably hung on %s\n", Modes.currentTask);
                 setExit(2);
-                break;
+                // don't break here, otherwise exitNowEventfd isn't signaled and we don't have a proper exit
+                // setExit signals exitSoonEventfd, the main loop will then signal exitNowEventfd
             }
             if (elapsed2 > 60 * SECONDS && !Modes.synthetic_now) {
                 fprintf(stderr, "<3>FATAL: removeStale() interval %.1f seconds! Trying for an orderly shutdown as well as possible!\n", (double) elapsed2 / SECONDS);
                 setExit(2);
-                break;
             }
         }
     }
