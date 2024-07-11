@@ -1932,6 +1932,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (strcasecmp(token[0], "messageRateMult") == 0 && token[1]) {
                     Modes.messageRateMult = atof(token[1]);
                 }
+                if (strcasecmp(token[0], "forwardMinMessages") == 0 && token[1]) {
+                    Modes.net_forward_min_messages = atoi(token[1]);
+                    fprintf(stderr, "forwardMinMessages: %u\n", Modes.net_forward_min_messages);
+                }
                 if (strcasecmp(token[0], "incrementId") == 0) {
                     Modes.incrementId = 1;
                 }

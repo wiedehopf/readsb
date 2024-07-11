@@ -728,6 +728,7 @@ struct _Modes
     uint64_t receiver_focus;
 
     uint32_t preambleThreshold;
+    uint32_t net_forward_min_messages;
     int net_output_flush_size; // Minimum Size of output data
     int32_t net_output_beast_reduce_interval; // Position update interval for data reduction
     int32_t ping_reduce;

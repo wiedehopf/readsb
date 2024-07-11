@@ -5765,17 +5765,24 @@ static void outputMessage(struct modesMessage *mm) {
     if (Modes.filterDF && (mm->sbs_in || !(Modes.filterDFbitset & (1 << mm->msgtype)))) {
         return;
     }
+
+    struct aircraft *ac = mm->aircraft;
+
+    if (ac && ac->messages < Modes.net_forward_min_messages) {
+        return;
+    }
+
     int noforward = (mm->timestamp == MAGIC_NOFORWARD_TIMESTAMP) && !Modes.beast_forward_noforward;
     int64_t orig_ts = mm->timestamp;
     if (Modes.beast_set_noforward_timestamp) {
         mm->timestamp = MAGIC_NOFORWARD_TIMESTAMP;
     }
 
-    struct aircraft *ac = mm->aircraft;
-
     // Suppress the first message when using an SDR
     // messages with crc 0 have an explicit checksum and are more reliable, don't suppress them when there was no CRC fix performed
-    if (Modes.net && !mm->sbs_in && (Modes.net_only || Modes.net_verbatim || (mm->crc == 0 && mm->correctedbits == 0) || (ac && ac->messages > 1) || mm->msgtype == DFTYPE_MODEAC)) {
+    if (Modes.net && !mm->sbs_in
+            && (Modes.net_only || Modes.net_verbatim || (mm->crc == 0 && mm->correctedbits == 0) || (ac && ac->messages > 1) || mm->msgtype == DFTYPE_MODEAC)
+       ) {
         int is_mlat = (mm->source == SOURCE_MLAT);
 
         if (mm->jsonPositionOutputEmit && Modes.json_out.connections) {
