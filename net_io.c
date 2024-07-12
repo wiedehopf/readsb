@@ -3605,9 +3605,9 @@ static int handle_gpsd(struct client *c, char *p, int remote, int64_t now, struc
     } while (*d++);
 
     // filter all messages but TPV type
-    if (0 && !strstr(p, "\"class\":\"TPV\"")) {
+    if (!strstr(p, "\"class\":\"TPV\"")) {
         if (Modes.debug_gps) {
-            fprintf(stderr, "gpsdebug: class \"TPV\" : ignoring message.\n");
+            fprintf(stderr, "gpsdebug: class is not \"TPV\" : ignoring message.\n");
         }
         goto exit;
     }
