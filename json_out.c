@@ -1892,7 +1892,7 @@ struct char_buffer generateReceiverJson() {
         p = safe_snprintf(p, end, ", \"dbServer\": true");
     }
 
-    if (Modes.json_globe_index) {
+    if (Modes.json_globe_index && !Modes.tar1090_no_globe) {
 
         p = safe_snprintf(p, end, ", \"json_trace_interval\": %.1f", ((double) Modes.json_trace_interval) / (1 * SECONDS));
 

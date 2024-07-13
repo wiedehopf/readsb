@@ -676,6 +676,7 @@ struct _Modes
     int8_t enable_zstd;
     int8_t incrementId;
     int8_t omitGlobeFiles;
+    int8_t tar1090_no_globe;
     int8_t enableAcasCsv;
     int8_t enableAcasJson;
     int8_t dump_accept_synthetic_now;

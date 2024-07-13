@@ -1957,6 +1957,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (strcasecmp(token[0], "enableConnsJson") == 0) {
                     Modes.enableConnsJson = 1;
                 }
+                if (strcasecmp(token[0], "tar1090NoGlobe") == 0) {
+                    Modes.tar1090_no_globe = 1;
+                }
                 if (strcasecmp(token[0], "provokeSegfault") == 0) {
                     Modes.debug_provoke_segfault = 1;
                 }
@@ -2799,7 +2802,7 @@ int main(int argc, char **argv) {
     if (Modes.json_dir) {
         threadCreate(&Threads.json, NULL, jsonEntryPoint, NULL);
 
-        if (Modes.json_globe_index && !Modes.omitGlobeFiles) {
+        if (Modes.json_globe_index && !Modes.omitGlobeFiles && !Modes.tar1090_no_globe) {
             // globe_xxxx.json
             threadCreate(&Threads.globeJson, NULL, globeJsonEntryPoint, NULL);
         }
