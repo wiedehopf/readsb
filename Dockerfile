@@ -13,17 +13,19 @@ RUN JEMALLOC_BDIR=$(mktemp -d) && \
     rm -rf $JEMALLOC_BDIR
 
 # install readsb
+SHELL ["/bin/bash", "-x", "-o", "pipefail", "-c"]
 RUN --mount=type=bind,source=.,target=/app/git \
     cd /app/git && \
     READSB_BUILD_DIR=$(mktemp -d) && \
     cp -r /app/git/* $READSB_BUILD_DIR && \
     cd $READSB_BUILD_DIR && \
-    make -j$(nproc) RTLSDR=yes OPTIMIZE="-O2" && \
+    [[ $(uname -m) == x86_64 ]] && MARCH=" -march=nehalem" || MARCH="" && \
+    make -j$(nproc) RTLSDR=yes OPTIMIZE="-O2 $MARCH" && \
     mv readsb /usr/local/bin && \
     mv viewadsb /usr/local/bin && \
     chmod +x /usr/local/bin/viewadsb /usr/local/bin/readsb && \
     make clean && \
-    make -j$(nproc) PRINT_UUIDS=yes TRACKS_UUID=yes OPTIMIZE="-O2" && \
+    make -j$(nproc) PRINT_UUIDS=yes TRACKS_UUID=yes OPTIMIZE="-O2 $MARCH" && \
     mv readsb /usr/local/bin/readsb-uuid && \
     mv viewadsb /usr/local/bin/viewadsb-uuid && \
     chmod +x /usr/local/bin/viewadsb-uuid && \
