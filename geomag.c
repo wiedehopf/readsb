@@ -42,6 +42,17 @@
 
 */
 
+// Copyright Notice
+//
+// As required by 17 U.S.C. 403, third parties producing copyrighted works
+// consisting predominantly of the material produced by U.S. government agencies
+// must provide notice with such work(s) identifying the U.S. Government material
+// incorporated and stating that such material is not subject to copyright
+// protection within the United States. The information on government web pages
+// is in the public domain and not subject to copyright protection within the
+// United States unless specifically annotated otherwise (copyright may be held
+// elsewhere). Foreign copyrights may apply.
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
