@@ -2245,11 +2245,13 @@ static void configAfterParse() {
     cpu_set_t mask;
     if (sched_getaffinity(getpid(), sizeof(mask), &mask) == 0) {
         Modes.num_procs = CPU_COUNT(&mask);
+#if (defined(__arm__))
         if (Modes.num_procs < 2 && !Modes.preambleThreshold && Modes.sdr_type != SDR_NONE) {
             fprintf(stderr, "WARNING: Reducing preamble threshold / decoding performance as this system has only 1 core (explicitely set --preamble-threshold to disable this behaviour)!\n");
             Modes.preambleThreshold = PREAMBLE_THRESHOLD_PIZERO;
             Modes.fixDF = 0;
         }
+#endif
     }
     if (Modes.num_procs < 1) {
         Modes.num_procs = 1; // sanity check
