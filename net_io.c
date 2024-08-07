@@ -447,9 +447,17 @@ static void checkServiceConnected(struct net_connector *con, int64_t now) {
 
     if (optval != 0) {
         // only 0 means "connection ok"
+        con->fail_counter += 1; // increment fail counter
+
         if (!con->silent_fail) {
-            fprintf(stderr, "%s: Connection to %s%s port %s failed: %d (%s)\n",
-                    con->service->descr, con->address, con->resolved_addr, con->port, optval, strerror(optval));
+            if (con->fail_counter < 10 || Modes.debug_net) {
+                fprintf(stderr, "%s: Connection to %s%s port %s failed (%u): %d (%s)\n",
+                        con->service->descr, con->address, con->resolved_addr, con->port, con->fail_counter, optval, strerror(optval));
+            }
+            if ((con->fail_counter == 10 || con->fail_counter % 200 == 0) && !Modes.debug_net) {
+                fprintf(stderr, "%s: Connection to %s port %s failed %u times, suppressing most error messages until connection succeeds\n",
+                        con->service->descr, con->address, con->port, con->fail_counter);
+            }
         }
         con->connecting = 0;
         anetCloseSocket(con->fd);
@@ -504,6 +512,7 @@ static void checkServiceConnected(struct net_connector *con, int64_t now) {
         }
     }
 
+    con->fail_counter = 0; // reset fail counter on successful connection
 }
 
 // Initiate an outgoing connection.
@@ -681,7 +690,9 @@ static void serviceReconnectCallback(int64_t now) {
                 epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, con->fd, &con->dummyClient.epollEvent);
                 anetCloseSocket(con->fd);
             }
-            if (!con->connecting && (con->next_reconnect <= now || Modes.synthetic_now)) {
+
+            //fprintf(stderr, "next_reconnect in: %lld\n", (long long) (con->next_reconnect - now));
+            if (!con->connecting && (now >= con->next_reconnect || Modes.synthetic_now)) {
                 serviceConnect(con, now);
             }
         } else {
@@ -859,7 +870,7 @@ void modesInitNet(void) {
         exit(1);
     }
 
-    Modes.net_connector_delay_min = imax(100, Modes.net_connector_delay / 64);
+    Modes.net_connector_delay_min = imax(50, Modes.net_connector_delay / 64);
     Modes.last_connector_fail = Modes.next_reconnect_callback = mstime();
 
     if (!Modes.net)
@@ -1205,7 +1216,7 @@ static void modesCloseClient(struct client *c) {
         // if we were connected for some time, an immediate reconnect is expected
         con->next_reconnect = con->lastConnect + con->backoff;
 
-        Modes.next_reconnect_callback = now;
+        Modes.next_reconnect_callback = imin(Modes.next_reconnect_callback, con->next_reconnect + 1);
         Modes.last_connector_fail = now;
     }
 

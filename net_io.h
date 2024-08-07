@@ -160,6 +160,7 @@ struct net_connector
     int use_addr;
     int connected;
     int connecting;
+    uint32_t fail_counter;
     int silent_fail;
     int fd;
     int64_t next_reconnect;
