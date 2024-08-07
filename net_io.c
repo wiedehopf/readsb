@@ -422,6 +422,20 @@ static int sendUUID(struct client *c, int64_t now) {
     return -1;
 }
 
+static int suppressConnectError(struct net_connector *con) {
+    con->fail_counter += 1; // increment fail counter
+    if (con->silent_fail) {
+        return 1;
+    }
+    if (con->fail_counter < 9 || Modes.debug_net) {
+        return 0;
+    }
+    if (con->fail_counter == 10 || con->fail_counter % 200 == 0) {
+        fprintf(stderr, "%s: Connection to %s port %s failed %u times, suppressing most error messages until connection succeeds\n",
+                con->service->descr, con->address, con->port, con->fail_counter);
+    }
+    return 1;
+}
 
 static void checkServiceConnected(struct net_connector *con, int64_t now) {
 
@@ -447,17 +461,10 @@ static void checkServiceConnected(struct net_connector *con, int64_t now) {
 
     if (optval != 0) {
         // only 0 means "connection ok"
-        con->fail_counter += 1; // increment fail counter
 
-        if (!con->silent_fail) {
-            if (con->fail_counter < 10 || Modes.debug_net) {
-                fprintf(stderr, "%s: Connection to %s%s port %s failed (%u): %d (%s)\n",
-                        con->service->descr, con->address, con->resolved_addr, con->port, con->fail_counter, optval, strerror(optval));
-            }
-            if ((con->fail_counter == 10 || con->fail_counter % 200 == 0) && !Modes.debug_net) {
-                fprintf(stderr, "%s: Connection to %s port %s failed %u times, suppressing most error messages until connection succeeds\n",
-                        con->service->descr, con->address, con->port, con->fail_counter);
-            }
+        if (!suppressConnectError(con)) {
+            fprintf(stderr, "%s: Connection to %s%s port %s failed (%u): %d (%s)\n",
+                    con->service->descr, con->address, con->resolved_addr, con->port, con->fail_counter, optval, strerror(optval));
         }
         con->connecting = 0;
         anetCloseSocket(con->fd);
@@ -626,8 +633,10 @@ static void serviceConnect(struct net_connector *con, int64_t now) {
     fd = anetCreateSocket(Modes.aneterr, ai->ai_family, SOCK_NONBLOCK);
 
     if (fd == ANET_ERR) {
-        fprintf(stderr, "%s: Connection to %s%s port %s failed: %s\n",
-                con->service->descr, con->address, con->resolved_addr, con->port, Modes.aneterr);
+        if (!suppressConnectError(con)) {
+            fprintf(stderr, "%s: Connection to %s%s port %s failed: %s\n",
+                    con->service->descr, con->address, con->resolved_addr, con->port, Modes.aneterr);
+        }
         return;
     }
 
@@ -663,8 +672,10 @@ static void serviceConnect(struct net_connector *con, int64_t now) {
         epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, con->fd, &con->dummyClient.epollEvent);
         con->connecting = 0;
         anetCloseSocket(con->fd);
-        fprintf(stderr, "%s: Connection to %s%s port %s failed: %s\n",
-                con->service->descr, con->address, con->resolved_addr, con->port, strerror(errno));
+        if (!suppressConnectError(con)) {
+            fprintf(stderr, "%s: Connection to %s%s port %s failed: %s\n",
+                    con->service->descr, con->address, con->resolved_addr, con->port, strerror(errno));
+        }
     }
 }
 
@@ -681,7 +692,7 @@ static void serviceReconnectCallback(int64_t now) {
         if (!con->connected) {
             // If we've exceeded our connect timeout, close connection.
             if (con->connecting && now >= con->connect_timeout) {
-                if (!con->silent_fail) {
+                if (!suppressConnectError(con)) {
                     fprintf(stderr, "%s: Connection to %s%s port %s timed out.\n",
                             con->service->descr, con->address, con->resolved_addr, con->port);
                 }
