@@ -608,7 +608,7 @@ static void serviceConnect(struct net_connector *con, int64_t now) {
 
     if (Modes.debug_net) {
         //fprintf(stderr, "%s: Attempting connection to %s port %s ... (gonna set SNDBUF %d RCVBUF %d)\n", con->service->descr, con->address, con->port, getSNDBUF(con->service), getRCVBUF(con->service));
-        fprintf(stderr, "%s: Attempting connection to %s port %s ...\n", con->service->descr, con->address, con->port);
+        fprintf(stderr, "%s: Attempting connection to %s%s port %s ...\n", con->service->descr, con->address, con->resolved_addr, con->port);
     }
 
     if (!con->try_addr->ai_next) {
