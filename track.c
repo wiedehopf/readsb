@@ -60,6 +60,7 @@ uint32_t modeAC_age[4096];
 
 #define PPforward if (0) {fprintf(stderr, "%s %d\n", __FILE__, __LINE__);}
 
+static int64_t cpr_global_airborne_max_elapsed(int64_t now, struct aircraft *a);
 static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, int64_t now, double bad_lat, double bad_lon);
 static void position_bad(struct modesMessage *mm, struct aircraft *a);
 static void calc_wind(struct aircraft *a, int64_t now);
@@ -1231,15 +1232,25 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
 }
 
 static int64_t cpr_global_airborne_max_elapsed(int64_t now, struct aircraft *a) {
-    if (!trackDataValid(&a->gs_valid) || trackDataAge(now, &a->gs_valid) > 20 * SECONDS) {
+    if (!trackDataValid(&a->gs_valid) || trackDataAge(now, &a->gs_valid) > 30 * SECONDS) {
         return 10 * SECONDS;
     }
-    int speed = imax((int64_t) a->gs, 1);
+    int64_t speed = a->gs;
+    // empirically capped speed reduction for aircraft not travelling directly north south
+    if (trackDataValid(&a->track_valid) && trackDataAge(now, &a->track_valid) < 30 * SECONDS) {
+        float factor = fmax(0.9, fabs(cosf(a->track *  (float) (M_PI / 180.0))));
+        speed = (int64_t) ((float) speed * factor);
+        //fprintf(stderr, "%4.2f %4.0f %4d\n", factor, a->track, speed);
+    }
+    if (speed < 1) {
+        // make sure we don't get a div by zero
+        speed = 1;
+    }
     // max time for 500 knots gs
     int64_t ref = 19 * SECONDS; // empirically tested
     int64_t ival = (ref * 500) / speed;
-    // never return more than 30 seconds
-    ival = imin(30 * SECONDS, ival);
+    // never return more than 45 seconds
+    ival = imin(45 * SECONDS, ival);
     //fprintf(stderr, "%lld\n", (long long) ival);
     return ival;
 }
@@ -1273,11 +1284,14 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, int64_t 
         max_elapsed = cpr_global_airborne_max_elapsed(now, a);
     }
 
+    int64_t cpr_elapsed = time_between(a->cpr_odd_valid.updated, a->cpr_even_valid.updated);
+
     // If we have enough recent data, try global CPR
     if (trackDataValid(&a->cpr_odd_valid) && trackDataValid(&a->cpr_even_valid) &&
             a->cpr_odd_valid.source == a->cpr_even_valid.source &&
             a->cpr_odd_type == a->cpr_even_type &&
-            time_between(a->cpr_odd_valid.updated, a->cpr_even_valid.updated) <= max_elapsed) {
+            cpr_elapsed > max_elapsed - 1 * SECONDS &&
+            cpr_elapsed <= max_elapsed) {
 
         location_result = doGlobalCPR(a, mm, &new_lat, &new_lon, &new_nic, &new_rc);
 
@@ -1320,7 +1334,7 @@ static void updatePosition(struct aircraft *a, struct modesMessage *mm, int64_t 
     }
 
     // Otherwise try relative CPR.
-    if (location_result == -1) {
+    if (0 && location_result == -1) {
         location_result = doLocalCPR(a, mm, &new_lat, &new_lon, &new_nic, &new_rc);
         //if (a->addr == Modes.cpr_focus)
         //    fprintf(stderr, "%06x: localCPR: %d\n", a->addr, location_result);
@@ -1684,7 +1698,7 @@ static int altitude_to_feet(int raw, altitude_unit_t unit) {
 // check if we trust that this message is actually from the aircraft with this address
 // similar reasoning to icaoFilterAdd in mode_s.c
 static int addressReliable(struct modesMessage *mm) {
-    if (mm->msgtype == 17 || mm->msgtype == 18 || (mm->msgtype == 11 && mm->IID == 0) || mm->sbs_in) {
+    if (mm->msgtype == 17 || mm->msgtype == 18 || (mm->msgtype == 11 && mm->IID == 0 && mm->correctedbits == 0) || mm->sbs_in) {
         return 1;
     }
     return 0;
@@ -1823,8 +1837,11 @@ discard_alt:
 }
 
 static int accept_cpr(struct aircraft *a, struct modesMessage *mm) {
+    int64_t max_elapsed = cpr_global_airborne_max_elapsed(mm->sysTimestamp, a);
     // CPR, even
-    if (mm->cpr_valid && !mm->cpr_odd && accept_data(&a->cpr_even_valid, mm->source, mm, a, REDUCE_OFTEN)) {
+    if (mm->cpr_valid && !mm->cpr_odd
+            && trackDataAge(mm->sysTimestamp, &a->cpr_even_valid) > max_elapsed - 1 * SECONDS
+            && accept_data(&a->cpr_even_valid, mm->source, mm, a, REDUCE_OFTEN)) {
         a->cpr_even_type = mm->cpr_type;
         a->cpr_even_lat = mm->cpr_lat;
         a->cpr_even_lon = mm->cpr_lon;
