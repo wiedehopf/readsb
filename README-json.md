@@ -24,7 +24,6 @@ The keys are:
 
  * version: the version of readsb in use
  * refresh: how often aircraft.json is updated (for the file version), in milliseconds. the webmap uses this to control its refresh interval.
- * history: the current number of valid history files (see below)
  * lat: the latitude of the receiver in decimal degrees. Optional, may not be present.
  * lon: the longitude of the receiver in decimal degrees. Optional, may not be present.
 
@@ -201,18 +200,6 @@ The keys are:
   ?status
   ```
   * Status code 200 during normal operation
-
-## history_0.json, history_1.json, ..., history_119.json
-
-These files are historical copies of aircraft.json at (by default) 30 second intervals. They follow exactly the
-same format as aircraft.json. To know how many are valid, see receiver.json ("history" value). They are written in
-a cycle, with history_0 being overwritten after history_119 is generated, so history_0.json is not necessarily the
-oldest history entry. To load history, you should:
-
- * read "history" from receiver.json.
- * load that many history_N.json files
- * sort the resulting files by their "now" values
- * process the files in order
 
 ## trace jsons
 
