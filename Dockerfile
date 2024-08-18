@@ -1,6 +1,18 @@
-FROM debian:bookworm-20240311 AS builder
+FROM debian:bookworm-slim AS builder
 RUN apt-get update && \
-    apt-get install -y git wget pkg-config autoconf gcc make libusb-1.0-0-dev librtlsdr-dev librtlsdr0 libncurses-dev zlib1g-dev zlib1g libzstd-dev libzstd1
+    apt-get install --no-install-recommends -y \
+    git \
+    wget \
+    pkg-config \
+    autoconf \
+    gcc \
+    make \
+    libusb-1.0-0-dev \
+    librtlsdr-dev \
+    libncurses-dev \
+    zlib1g-dev \
+    libzstd-dev \
+    ca-certificates
 
 # install jemalloc
 RUN JEMALLOC_BDIR=$(mktemp -d) && \
