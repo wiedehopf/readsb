@@ -2,12 +2,10 @@ name: docker build
 
 on:
   schedule:
-  - cron: "0 10 * * *"
+  - cron: "0 5 * * 1"
   push:
     branches:
-    - "**"
-    tags:
-    - "v*.*.*"
+    - "dev"
   pull_request:
     branches:
     - "dev"
@@ -21,8 +19,8 @@ jobs:
     - name: Set variables useful for later
       id: useful_vars
       run: |-
-        echo "::set-output name=timestamp::$(date +%s)"
-        echo "::set-output name=short_sha::${GITHUB_SHA::8}"
+        echo "name=timestamp::$(date +%s)" >> $GITHUB_OUTPUT
+        echo "name=short_sha::${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
     - name: Checkout
       uses: actions/checkout@v3
     - name: Docker meta

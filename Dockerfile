@@ -1,30 +1,5 @@
-FROM debian:bookworm-slim AS builder
-RUN apt-get update && \
-    apt-get install --no-install-recommends -y \
-    git \
-    wget \
-    pkg-config \
-    autoconf \
-    gcc \
-    make \
-    libusb-1.0-0-dev \
-    librtlsdr-dev \
-    libncurses-dev \
-    zlib1g-dev \
-    libzstd-dev \
-    ca-certificates
+FROM ghcr.io/wiedehopf/readsb-builder:latest AS builder
 
-# install jemalloc
-RUN JEMALLOC_BDIR=$(mktemp -d) && \
-    git clone --depth 1 https://github.com/jemalloc/jemalloc $JEMALLOC_BDIR && \
-    cd $JEMALLOC_BDIR && \
-    ./autogen.sh && \
-    ./configure --with-lg-page=14 && \
-    make -j$(nproc) && \
-    make install && \
-    rm -rf $JEMALLOC_BDIR
-
-# install readsb
 SHELL ["/bin/bash", "-x", "-o", "pipefail", "-c"]
 RUN --mount=type=bind,source=.,target=/app/git \
     cd /app/git && \
@@ -48,18 +23,21 @@ RUN --mount=type=bind,source=.,target=/app/git \
     true
 
 FROM debian:bookworm-slim
-RUN apt-get update && \
+RUN \
+    --mount=type=bind,from=builder,source=/,target=/builder/ \
+    apt-get update && \
     apt-get -y install --no-install-recommends \
-    wget \
     librtlsdr0 libncurses6 zlib1g libzstd1 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
-    mkdir -p /run/readsb
+    mkdir -p /run/readsb && \
+    cp /builder/usr/local/bin/readsb* /usr/local/bin/ && \
+    cp /builder/usr/local/bin/viewadsb* /usr/local/bin/ && \
+    mkdir -p  /usr/local/share/tar1090 && \
+    cp /builder/usr/local/share/tar1090/aircraft.csv.gz /usr/local/share/tar1090/aircraft.csv.gz && \
+    cp /builder/usr/local/lib/libjemalloc.so.2 /usr/local/lib/libjemalloc.so.2 && \
+    true
 
 ENV LD_PRELOAD=/usr/local/lib/libjemalloc.so.2
-COPY --from=builder /usr/local/bin/readsb* /usr/local/bin/
-COPY --from=builder /usr/local/bin/viewadsb* /usr/local/bin/
-COPY --from=builder /usr/local/share/tar1090/aircraft.csv.gz /usr/local/share/tar1090/aircraft.csv.gz
-COPY --from=builder /usr/local/lib/libjemalloc.so.2 /usr/local/lib/libjemalloc.so.2
 
 ENTRYPOINT ["/usr/local/bin/readsb"]
