@@ -1022,10 +1022,10 @@ static void sendStatus(int fd, int keepalive, const char *http_status) {
 
     p = safe_snprintf(p, end,
     "HTTP/1.1 %s\r\n"
-    "server: readsb/3.1442\r\n"
-    "connection: %s\r\n"
-    "cache-control: no-store\r\n"
-    "content-length: 0\r\n\r\n",
+    "Server: readsb/wiedehopf\r\n"
+    "Connection: %s\r\n"
+    "Cache-control: no-store\r\n"
+    "Content-length: 0\r\n\r\n",
     http_status,
     keepalive ? "keep-alive" : "close");
 
@@ -1345,11 +1345,11 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
     if (options->zstd) {
         // don't double zstd compress
         options->zstd_encode = 0;
-         con->content_type = "application/zstd";
+        con->content_type = "application/zstd";
     } else if (options->binCraft) {
-         con->content_type = "application/octet-stream";
+        con->content_type = "application/octet-stream";
     } else {
-         con->content_type = "application/json";
+        con->content_type = "application/json";
     }
 
     return apiReq(thread, options);
@@ -1615,17 +1615,17 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
 
     p = safe_snprintf(p, end,
             "HTTP/1.1 200 OK\r\n"
-            "server: readsb/3.1442\r\n"
+            "Server: readsb/wiedehopf\r\n"
             "%s"
-            "content-type: %s\r\n"
-            "connection: %s\r\n"
-            "cache-control: no-store\r\n"
+            "Content-Type: %s\r\n"
+            "Connection: %s\r\n"
+            "Cache-Control: no-store\r\n"
             "%s"
-            "content-length: %d\r\n\r\n",
+            "Content-Length: %d\r\n\r\n",
             con->include_version ? "readsb_version: "MODES_READSB_VERSION"\r\n" : "",
             con->content_type,
             con->keepalive ? "keep-alive" : "close",
-            options->zstd_encode ? "content-encoding: zstd\r\n" : "",
+            options->zstd_encode ? "Content-Encoding: zstd\r\n" : "",
             content_len);
 
     int hlen = p - header;
