@@ -50,6 +50,7 @@ struct apiOptions {
     int filter_squawk;
     int binCraft;
     int zstd;
+    int zstd_encode;
     unsigned squawk;
     int filter_dbFlag;
     int filter_mil;

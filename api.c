@@ -727,7 +727,7 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *op
         sfree(matches);
     }
 
-    if (options->zstd) {
+    if (options->zstd || options->zstd_encode) {
         struct char_buffer new = { 0 };
         size_t new_alloc = API_REQ_PADSTART + ZSTD_compressBound(alloc);
         new.buffer = cmalloc(new_alloc);
@@ -1078,7 +1078,7 @@ static int parseDoubles(char *start, char *end, double *results, int max) {
 }
 
 // expects lower cased input
-static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *request, struct apiThread *thread) {
+static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *request, struct apiOptions *options, struct apiThread *thread) {
     struct char_buffer invalid = { 0 };
 
     char *req = request->buffer;
@@ -1099,9 +1099,6 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
 
     // we only want the URL
     *eoq = '\0';
-
-    struct apiOptions optionsBack = { 0 };
-    struct apiOptions *options = &optionsBack;
 
     // set some option defaults:
     options->above_alt_baro = INT32_MIN;
@@ -1346,6 +1343,8 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
 
 
     if (options->zstd) {
+        // don't double zstd compress
+        options->zstd_encode = 0;
          con->content_type = "application/zstd";
     } else if (options->binCraft) {
          con->content_type = "application/octet-stream";
@@ -1526,6 +1525,9 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
         return;
     }
 
+    struct apiOptions optionsBack = { 0 };
+    struct apiOptions *options = &optionsBack;
+
     // set end padding to zeros for byteMatchStart and byteMatch (memcmp) use without regrets
     memset(req_end, 0, end_pad);
 
@@ -1552,6 +1554,11 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
     while (hl < req_end && (eol = memchr(hl, '\n', req_end - hl))) {
         *eol = '\0';
 
+        if (byteMatchStart(hl, "accept-encoding")) {
+            if (strstr(hl, "zstd")) {
+                options->zstd_encode = 1;
+            }
+        }
         if (byteMatchStart(hl, "connection")) {
             if (strstr(hl, "close")) {
                 con->keepalive = 0;
@@ -1589,7 +1596,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
     }
 
     con->content_type = "multipart/mixed";
-    struct char_buffer reply = parseFetch(con, request, thread);
+    struct char_buffer reply = parseFetch(con, request, options, thread);
     if (reply.len == 0) {
         //fprintf(stderr, "parseFetch returned invalid\n");
         send400(con->fd, con->keepalive);
@@ -1613,10 +1620,12 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
             "content-type: %s\r\n"
             "connection: %s\r\n"
             "cache-control: no-store\r\n"
+            "%s"
             "content-length: %d\r\n\r\n",
             con->include_version ? "readsb_version: "MODES_READSB_VERSION"\r\n" : "",
             con->content_type,
             con->keepalive ? "keep-alive" : "close",
+            options->zstd_encode ? "content-encoding: zstd\r\n" : "",
             content_len);
 
     int hlen = p - header;
