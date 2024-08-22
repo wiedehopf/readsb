@@ -2490,8 +2490,13 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                     old_jaero = 1;
             }
         }
+        if (Modes.maxRange > 0 && Modes.userLocationValid) {
+            mm->receiver_distance = greatcircle(Modes.fUserLat, Modes.fUserLon, mm->decoded_lat, mm->decoded_lon, 0);
+        }
         if (old_jaero) {
             // avoid using already received positions for JAERO input
+        } else if (mm->receiver_distance > Modes.maxRange) {
+            // ignore positions out of receiver range
         } else if (mm->source == SOURCE_MLAT && mm->mlatEPU > 2 * a->mlatEPU
                 && imin((int)(3000.0f * logf((float)mm->mlatEPU / (float)a->mlatEPU)), TRACE_STALE * 3 / 4) > (int64_t) trackDataAge(mm->sysTimestamp, &a->pos_reliable_valid)
                 ) {
