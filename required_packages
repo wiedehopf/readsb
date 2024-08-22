@@ -1,1 +1,1 @@
-gcc make libc6-dev libusb-1.0-0-dev librtlsdr-dev libncurses-dev zlib1g-dev libzstd-dev pkg-config
+gcc make libc6-dev libusb-1.0-0-dev librtlsdr-dev librtlsdr0 libncurses-dev zlib1g zlib1g-dev libzstd1 libzstd-dev pkg-config
