@@ -530,22 +530,27 @@ static void serviceConnect(struct net_connector *con, int64_t now) {
     // make sure backoff is never too small
     con->backoff = imax(Modes.net_connector_delay_min, con->backoff);
 
-    if (con->try_addr && con->try_addr->ai_next) {
-        // we have another address to try,
-        // iterate the address info linked list
+    if (con->try_addr) {
+        // iterate the address info linked list if we have one
         con->try_addr = con->try_addr->ai_next;
-    } else {
-        // get the address info
-        if (!con->gai_request_in_progress)  {
+    }
+
+    if (!con->try_addr)  {
+        // don't resolve too often
+        if ((!con->addr_info || now - con->lastResolve > 2 * Modes.net_connector_delay) && !con->gai_request_in_progress)  {
             // launch a pthread for async getaddrinfo
-            con->try_addr = NULL;
             if (con->addr_info) {
                 freeaddrinfo(con->addr_info);
                 con->addr_info = NULL;
             }
 
-            con->gai_request_in_progress = 1;
+            pthread_mutex_lock(&con->mutex);
             con->gai_request_done = 0;
+            pthread_mutex_unlock(&con->mutex);
+
+            if (0 && Modes.debug_net) {
+                fprintf(stderr, "%s: calling getaddrinfo for %s port %s\n", con->service->descr, con->address, con->port);
+            }
 
             if (pthread_create(&con->thread, NULL, pthreadGetaddrinfo, con)) {
                 con->next_reconnect = now + Modes.net_connector_delay;
@@ -558,36 +563,38 @@ static void serviceConnect(struct net_connector *con, int64_t now) {
             return;
         }
 
-        // gai request is in progress, let's check if it's done
+        if (con->gai_request_in_progress) {
+            // gai request is in progress, let's check if it's done
 
-        pthread_mutex_lock(&con->mutex);
-        if (!con->gai_request_done) {
-            con->next_reconnect = now + 20;
-            pthread_mutex_unlock(&con->mutex);
-            return;
-        }
-        pthread_mutex_unlock(&con->mutex);
-
-        // gai request is done, join the thread that performed it
-        con->gai_request_in_progress = 0;
-
-        if (pthread_join(con->thread, NULL)) {
-            fprintf(stderr, "%s: pthread_join ERROR for %s port %s: %s\n", con->service->descr, con->address, con->port, strerror(errno));
-            con->next_reconnect = now + Modes.net_connector_delay;
-            return;
-        }
-
-        if (con->gai_error) {
-            if (!con->silent_fail) {
-                fprintf(stderr, "%s: Name resolution for %s failed: %s\n", con->service->descr, con->address, gai_strerror(con->gai_error));
+            pthread_mutex_lock(&con->mutex);
+            if (!con->gai_request_done) {
+                con->next_reconnect = now + 20;
+                pthread_mutex_unlock(&con->mutex);
+                return;
             }
-            // limit name resolution attempts via backoff
-            con->next_reconnect = now + con->backoff;
-            con->backoff = imin(Modes.net_connector_delay, 2 * con->backoff);
-            return;
+            pthread_mutex_unlock(&con->mutex);
+
+            con->gai_request_in_progress = 0;
+            // gai request is done, join the thread that performed it
+            if (pthread_join(con->thread, NULL)) {
+                fprintf(stderr, "%s: pthread_join ERROR for %s port %s: %s\n", con->service->descr, con->address, con->port, strerror(errno));
+                con->next_reconnect = now + Modes.net_connector_delay;
+                return;
+            }
+
+            if (con->gai_error) {
+                if (!con->silent_fail) {
+                    fprintf(stderr, "%s: Name resolution for %s failed: %s\n", con->service->descr, con->address, gai_strerror(con->gai_error));
+                }
+                // limit name resolution attempts via backoff
+                con->next_reconnect = now + con->backoff;
+                con->backoff = imin(Modes.net_connector_delay, 2 * con->backoff);
+                return;
+            }
+            con->lastResolve = now;
+            // SUCCESS, we got the address info
         }
 
-        // SUCCESS, we got the address info
         // start with the first element of the linked list
         con->try_addr = con->addr_info;
     }

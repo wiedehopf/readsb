@@ -167,6 +167,7 @@ struct net_connector
     int64_t connect_timeout;
     int64_t lastConnect; // timestamp for last connection establish
     int64_t backoff;
+    int64_t lastResolve;
     char resolved_addr[NI_MAXHOST+3];
     struct addrinfo *addr_info;
     struct addrinfo *try_addr; // pointer walking addr_info list
