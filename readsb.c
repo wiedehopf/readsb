@@ -1924,9 +1924,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (strcasecmp(token[0], "log_ppm") == 0) {
                     if (token[1]) {
                         Modes.devel_log_ppm = atoi(token[1]);
-                    } else {
+                    }
+                    if (Modes.devel_log_ppm == 0) {
                         Modes.devel_log_ppm = -1;
                     }
+                    // setting to -1 to enable due to the following check
+                    // if (Modes.devel_log_ppm && fabs(ppm) > Modes.devel_log_ppm) {
                 }
 
                 if (strcasecmp(token[0], "sbs_override_squawk") == 0 && token[1]) {
