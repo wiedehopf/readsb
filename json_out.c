@@ -658,15 +658,12 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
             }
 
             if (Modes.jsonLongtype) {
-                dbEntry *e = dbGet(a->addr, Modes.dbIndex);
-                if (e) {
-                    if (e->typeLong[0])
-                        p = safe_snprintf(p, end, ",\"desc\":\"%.*s\"", (int) sizeof(e->typeLong), e->typeLong);
-                    if (e->ownOp[0])
-                        p = safe_snprintf(p, end, ",\n\"ownOp\":\"%.*s\"", (int) sizeof(e->ownOp), e->ownOp);
-                    if (e->year[0])
-                        p = safe_snprintf(p, end, ",\n\"year\":\"%.*s\"", (int) sizeof(e->year), e->year);
-                }
+                if (a->typeLong[0])
+                    p = safe_snprintf(p, end, ",\"desc\":\"%.*s\"", (int) sizeof(a->typeLong), a->typeLong);
+                if (a->ownOp[0])
+                    p = safe_snprintf(p, end, ",\n\"ownOp\":\"%.*s\"", (int) sizeof(a->ownOp), a->ownOp);
+                if (a->year[0])
+                    p = safe_snprintf(p, end, ",\n\"year\":\"%.*s\"", (int) sizeof(a->year), a->year);
             }
         }
 
@@ -1770,15 +1767,13 @@ struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int sta
             dbFlags &= ~(1 << 7);
             p = safe_snprintf(p, end, ",\n\"dbFlags\":%u", dbFlags);
         }
-        dbEntry *e = dbGet(a->addr, Modes.dbIndex);
-        if (e) {
-            if (e->typeLong[0])
-                p = safe_snprintf(p, end, ",\n\"desc\":\"%.*s\"", (int) sizeof(e->typeLong), e->typeLong);
-            if (e->ownOp[0])
-                p = safe_snprintf(p, end, ",\n\"ownOp\":\"%.*s\"", (int) sizeof(e->ownOp), e->ownOp);
-            if (e->year[0])
-                p = safe_snprintf(p, end, ",\n\"year\":\"%.*s\"", (int) sizeof(e->year), e->year);
-        }
+
+        if (a->typeLong[0])
+            p = safe_snprintf(p, end, ",\"desc\":\"%.*s\"", (int) sizeof(a->typeLong), a->typeLong);
+        if (a->ownOp[0])
+            p = safe_snprintf(p, end, ",\n\"ownOp\":\"%.*s\"", (int) sizeof(a->ownOp), a->ownOp);
+        if (a->year[0])
+            p = safe_snprintf(p, end, ",\n\"year\":\"%.*s\"", (int) sizeof(a->year), a->year);
         if (p == regInfo)
             p = safe_snprintf(p, end, ",\n\"noRegData\":true");
     }

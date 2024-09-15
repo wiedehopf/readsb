@@ -692,11 +692,15 @@ void updateTypeReg(struct aircraft *a) {
         memcpy(a->registration, d->registration, sizeof(a->registration));
         memcpy(a->typeCode, d->typeCode, sizeof(a->typeCode));
         memcpy(a->typeLong, d->typeLong, sizeof(a->typeLong));
+        memcpy(a->ownOp, d->ownOp, sizeof(a->ownOp));
+        memcpy(a->year, d->year, sizeof(a->year));
         a->dbFlags = d->dbFlags;
     } else {
         memset(a->registration, 0, sizeof(a->registration));
         memset(a->typeCode, 0, sizeof(a->typeCode));
         memset(a->typeLong, 0, sizeof(a->typeLong));
+        memset(a->ownOp, 0, sizeof(a->ownOp));
+        memset(a->year, 0, sizeof(a->year));
         a->dbFlags = 0;
     }
     uint32_t i = a->addr;

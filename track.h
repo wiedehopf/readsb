@@ -567,6 +567,9 @@ struct aircraft
 
   char zeroStart;
 
+  char ownOp[64];
+  char year[4];
+
   float messageRate;
   uint16_t messageRateAcc[MESSAGE_RATE_CALC_POINTS];
   int64_t nextMessageRateCalc;
