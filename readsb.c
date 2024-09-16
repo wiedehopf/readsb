@@ -1972,6 +1972,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (strcasecmp(token[0], "debugGPS") == 0) {
                     Modes.debug_gps = 1;
                 }
+                if (strcasecmp(token[0], "debugSerial") == 0) {
+                    Modes.debug_serial = 1;
+                }
                 if (strcasecmp(token[0], "debugZstd") == 0) {
                     Modes.debug_zstd = 1;
                 }

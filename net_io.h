@@ -100,6 +100,7 @@ struct client
     int fd; // File descriptor
     int8_t bufferToProcess;
     int8_t remote;
+    int8_t serial;
     int8_t bContinue;
     int8_t discard;
     int8_t processing;

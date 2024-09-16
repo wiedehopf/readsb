@@ -136,7 +136,9 @@ bool beastOpen(void) {
     struct termios tios;
     speed_t baud = B3000000;
 
-    Modes.beast_fd = open(Modes.beast_serial, O_RDWR | O_NOCTTY);
+    int flags = O_RDWR | O_NOCTTY;
+    //flags |= O_NONBLOCK;
+    Modes.beast_fd = open(Modes.beast_serial, flags);
     if (Modes.beast_fd < 0) {
         fprintf(stderr, "Failed to open serial device %s: %s\n",
                 Modes.beast_serial, strerror(errno));
@@ -153,7 +155,8 @@ bool beastOpen(void) {
     tios.c_oflag = 0;
     tios.c_lflag = 0;
     tios.c_cflag = CS8 | CRTSCTS;
-    tios.c_cc[VMIN] = 11;
+    //tios.c_cc[VMIN] = 11; // read returns when a minimum of 11 characters are available
+    tios.c_cc[VMIN] = 0; // polling read with vtime 0
     tios.c_cc[VTIME] = 0;
 
     if (Modes.sdr_type == SDR_GNS) {
@@ -190,6 +193,7 @@ bool beastOpen(void) {
 
     if (Modes.sdr_type == SDR_MODESBEAST) {
         /* set options */
+        beastSetOption('B'); /* set classic beast mode */
         beastSetOption('C'); /* use binary format */
         beastSetOption('H'); /* RTS enabled */
 

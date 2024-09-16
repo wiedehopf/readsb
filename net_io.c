@@ -318,6 +318,7 @@ static struct client *createSocketClient(struct net_service *service, int fd) {
     if ((c->fd == Modes.beast_fd) && (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS)) {
         /* Message from a local connected Modes-S beast or GNS5894 are passed off the internet */
         c->remote = 0;
+        c->serial = 1;
     }
 
     //fprintf(stderr, "c->receiverId: %016"PRIx64"\n", c->receiverId);
@@ -1045,11 +1046,6 @@ void modesInitNet(void) {
     }
     serviceListen(Modes.beast_in_service, Modes.net_bind_address, Modes.net_input_beast_ports, Modes.net_epfd);
 
-    /* Beast input from local Modes-S Beast via USB */
-    if (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS) {
-        Modes.serial_client = createSocketClient(Modes.beast_in_service, Modes.beast_fd);
-    }
-
     /* Planefinder input via network */
     planefinder_in = serviceInit(&Modes.services_in, "Planefinder TCP input", NULL, no_heartbeat, no_heartbeat, READ_MODE_PLANEFINDER, NULL, decodePfMessage);
     serviceListen(planefinder_in, Modes.net_bind_address, Modes.net_input_planefinder_ports, Modes.net_epfd);
@@ -1207,7 +1203,13 @@ static void modesCloseClient(struct client *c) {
     }
 
     epoll_ctl(Modes.net_epfd, EPOLL_CTL_DEL, c->fd, &c->epollEvent);
-    anetCloseSocket(c->fd);
+    if (c->serial) {
+        if (close(c->fd) < 0) {
+            fprintf(stderr, "Serial client close error: %s\n", strerror(errno));
+        }
+    } else {
+        anetCloseSocket(c->fd);
+    }
     c->service->connections--;
     Modes.modesClientCount--;
     if (c->service->writer) {
@@ -4438,7 +4440,15 @@ static int readClient(struct client *c, int64_t now) {
         nread = recv(c->fd, c->buf + c->buflen, left, 0);
     } else {
         // read instead of recv for modesbeast / gns-hulc ....
+        if (0 && Modes.debug_serial) {
+            fprintTimePrecise(stderr, mstime());
+            fprintf(stderr, " serial read ... fd: %d maxbytes: %d\n", c->fd, left);
+        }
         nread = read(c->fd, c->buf + c->buflen, left);
+        if (nread > 0 && Modes.debug_serial) {
+            fprintTimePrecise(stderr, mstime());
+            fprintf(stderr, " serial read return value: %d\n", nread);
+        }
     }
     int err = errno;
 
@@ -4456,6 +4466,9 @@ static int readClient(struct client *c, int64_t now) {
             return 0;
         }
         // Other errors
+        if (c->serial) {
+            fprintf(stderr, "Serial client read error: %s\n", strerror(err));
+        }
         if (Modes.debug_net) {
             fprintf(stderr, "%s: Socket Error: %s: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
                     c->service->descr, strerror(err), c->host, c->port,
@@ -4467,6 +4480,11 @@ static int readClient(struct client *c, int64_t now) {
 
     // End of file
     if (nread == 0) {
+        if (c->serial) {
+            // for serial this just means we're doing non-blocking reads and there are no bytes available
+            return 0;
+        }
+
         if (c->con) {
             if (Modes.synthetic_now) {
                 Modes.synthetic_now = 0;
@@ -5392,18 +5410,17 @@ void modesNetPeriodicWork(void) {
     dump_beast_check(now);
 
     int64_t wait_ms;
-    if (Modes.serial_client) {
-        wait_ms = 20;
-    } else if (Modes.sdr_type != SDR_NONE) {
+    if (Modes.sdr_type != SDR_NONE && Modes.sdr_type != SDR_MODESBEAST && Modes.sdr_type != SDR_GNS) {
         // NO WAIT WHEN USING AN SDR !! IMPORTANT !!
         wait_ms = 0;
-    } else if (Modes.net_only) {
+    } else {
         // wait in net-only mode (unless we get network packets, that wakes the wait immediately)
         wait_ms = imax(0, check_flush - now); // modify wait for next flush timer
         wait_ms = imin(wait_ms, Modes.next_reconnect_callback - now); // modify wait for reconnect callback timer
         wait_ms = imax(wait_ms, 0); // don't allow negative values
-    } else {
-        wait_ms = 0;
+        if (Modes.debug_serial) {
+            wait_ms = 1000;
+        }
     }
 
     // unlock decode mutex for waiting in handleEpoll
@@ -5416,7 +5433,9 @@ void modesNetPeriodicWork(void) {
     Modes.services_in.event_progress = 0;
     Modes.services_out.event_progress = 0;
 
-    //fprintTimePrecise(stderr, now); fprintf(stderr, " event count %d wait_ms %d\n", Modes.net_event_count, (int) wait_ms);
+    if (Modes.debug_serial && Modes.net_event_count > 0) {
+        fprintTimePrecise(stderr, mstime()); fprintf(stderr, " event count %d wait_ms %d\n", Modes.net_event_count, (int) wait_ms);
+    }
 
     if (0 && Modes.net_event_count > 0) {
         fprintTimePrecise(stderr, now); fprintf(stderr, " event count %d wait_ms %d\n", Modes.net_event_count, (int) wait_ms);
@@ -5456,10 +5475,23 @@ void modesNetPeriodicWork(void) {
         timespec_add_elapsed(&before, &after, &Modes.stats_current.background_cpu);
     }
 
-    if (Modes.serial_client) {
+    /* Beast input from local Modes-S Beast via USB */
+    if (Modes.sdrInitialized && (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS)) {
+        if (!Modes.serial_client) {
+            if (Modes.debug_serial) {
+                fprintTimePrecise(stderr, mstime());
+                fprintf(stderr, " serial: creating socket client ... \n");
+            }
+            Modes.serial_client = createSocketClient(Modes.beast_in_service, Modes.beast_fd);
+            if (Modes.debug_serial) {
+                fprintTimePrecise(stderr, mstime());
+                fprintf(stderr, " serial: creating socket client ... done\n");
+            }
+        }
         if (Modes.serial_client->service) {
             modesReadFromClient(Modes.serial_client, mb);
-        } else {
+        }
+        if (!Modes.serial_client->service) {
             fprintf(stderr, "Serial client closed unexpectedly, exiting!\n");
             setExit(2);
         }
