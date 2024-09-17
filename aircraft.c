@@ -490,7 +490,7 @@ int dbUpdate(int64_t now) {
 
     cb = readWholeGz(gzfp, filename);
     if (!cb.buffer) {
-        fprintf(stderr, "readWholeGz failed.\n");
+        fprintf(stderr, "database read failed due to readWholeGz.\n");
         goto DBU0;
     }
     if (cb.len < 1000) {
@@ -498,23 +498,23 @@ int dbUpdate(int64_t now) {
         goto DBU0;
     }
 
+    // reallocate so we don't waste memory
+    char *oldBuffer = cb.buffer;
+    cb.len++; // for adding zero termination
+    cb.buffer = realloc(cb.buffer, cb.len);
+    if (!cb.buffer) {
+        fprintf(stderr, "database read failed due to realloc\n");
+        sfree(oldBuffer);
+        goto DBU0;
+    }
+    cb.buffer[cb.len - 1] = '\0'; // zero terminate for good measure
+
     int alloc = 0;
 
-    if (1) {
-        for (uint32_t i = 0; i < cb.len; i++) {
-            if (cb.buffer[i] == '\n')
-                alloc++;
-        }
-    } else {
-        // long live SSE and stuff, memchr reigns supreme
-        unsigned char *p = (unsigned char *) cb.buffer;
-        unsigned char *end = (unsigned char *) cb.buffer + cb.len;
-        size_t remaining = cb.len;
-        while ((p = memchr(p, '\n', remaining))) {
+    // memchr is not faster, seems the compiler is smart enough to optimize a simple loop that counts the newlines
+    for (uint32_t i = 0; i < cb.len; i++) {
+        if (cb.buffer[i] == '\n')
             alloc++;
-            p++;
-            remaining = end - p;
-        }
     }
 
     Modes.db2 = cmalloc(alloc * sizeof(dbEntry));
