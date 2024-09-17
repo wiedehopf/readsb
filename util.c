@@ -395,7 +395,6 @@ struct char_buffer readWholeGz(gzFile gzfp, char *errorContext) {
         cb.len += res;
         toRead -= res;
         if (toRead == 0) {
-            toRead = alloc;
             alloc *= 2;
             char *oldBuffer = cb.buffer;
             cb.buffer = realloc(cb.buffer, alloc);
@@ -404,6 +403,7 @@ struct char_buffer readWholeGz(gzFile gzfp, char *errorContext) {
                 fprintf(stderr, "reading %s: readWholeGz alloc fail!\n", errorContext);
                 return (struct char_buffer) {0};
             }
+            toRead = alloc - cb.len;
         }
     }
     if (res < 0) {
