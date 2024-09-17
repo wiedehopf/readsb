@@ -1,6 +1,7 @@
 #include "readsb.h"
 
 static int isMilRange(uint32_t i);
+static void updateDetails(struct aircraft *curr, struct char_buffer cb, uint32_t offset);
 
 static inline uint32_t dbHash(uint32_t addr) {
     return addrHash(addr, DB_HASH_BITS);
@@ -321,51 +322,68 @@ void toBinCraft(struct aircraft *a, struct binCraft *new, int64_t now) {
 #undef F
 }
 
+
 // rudimentary sanitization so the json output hopefully won't be invalid
-static inline void sanitize(char *str, unsigned len) {
+static inline void sanitize(char *str, int len) {
     unsigned char b2 = (1<<7) + (1<<6); // 2 byte code or more
     unsigned char b3 = (1<<7) + (1<<6) + (1<<5); // 3 byte code or more
     unsigned char b4 = (1<<7) + (1<<6) + (1<<5) + (1<<4); // 4 byte code
 
+    int debug = 0;
+
+    // UTF that goes beyond our string is cut off by terminating the string
+
     if (len >= 3 && (str[len - 3] & b4) == b4) {
-        //fprintf(stderr, "%c\n", str[len - 3]);
+        if (debug) { fprintf(stderr, "b4%d\n", str[len - 3]); }
         str[len - 3] = '\0';
     }
     if (len >= 2 && (str[len - 2] & b3) == b3) {
-        //fprintf(stderr, "%c\n", str[len - 2]);
+        if (debug) { fprintf(stderr, "b3%d\n", str[len - 2]); }
         str[len - 2] = '\0';
     }
     if (len >= 1 && (str[len - 1] & b2) == b2) {
-        //fprintf(stderr, "%c\n", str[len - 1]);
+        if (debug) { fprintf(stderr, "b2%d\n", str[len - 1]); }
         str[len - 1] = '\0';
     }
     char *p = str;
-    while(p < str + len && *p) {
-        if (*p == '"')
+    // careful str might be unterminated, use len
+    while(p - str < len) {
+        if (*p == '"') {
+            //if (debug) { fprintf(stderr, "quotation marks: %s\n", str); }
+            // replace with single quote
             *p = '\'';
-        if (*p > 0 && *p < 0x1f)
+        }
+        if (*p > 0 && *p < 0x1f) {
+            if (debug) { fprintf(stderr, "non-printable: %s\n", str); }
+            // replace with space
             *p = ' ';
+        }
         p++;
     }
     if (p - 1 >= str && *(p - 1) == '\\') {
         *(p - 1) = '\0';
     }
 }
-static char *sprintDB(char *p, char *end, dbEntry *d) {
-    p = safe_snprintf(p, end, "\n\"%s%06x\":{", (d->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", d->addr & 0xFFFFFF);
+static char *sprintDB2(char *p, char *end, dbEntry *d) {
+    struct aircraft aBack;
+    struct aircraft *a = &aBack;
+
+    updateDetails(a, Modes.db2Raw, d->rawOffset);
+    a->addr = d->addr;
+    p = safe_snprintf(p, end, "\n\"%s%06x\":{", (a->addr & MODES_NON_ICAO_ADDRESS) ? "~" : "", a->addr & 0xFFFFFF);
     char *regInfo = p;
-    if (d->registration[0])
-        p = safe_snprintf(p, end, "\"r\":\"%.*s\",", (int) sizeof(d->registration), d->registration);
-    if (d->typeCode[0])
-        p = safe_snprintf(p, end, "\"t\":\"%.*s\",", (int) sizeof(d->typeCode), d->typeCode);
-    if (d->typeLong[0])
-        p = safe_snprintf(p, end, "\"desc\":\"%.*s\",", (int) sizeof(d->typeLong), d->typeLong);
-    if (d->dbFlags)
-        p = safe_snprintf(p, end, "\"dbFlags\":%u,", d->dbFlags);
-    if (d->ownOp[0])
-        p = safe_snprintf(p, end, "\"ownOp\":\"%.*s\",", (int) sizeof(d->ownOp), d->ownOp);
-    if (d->year[0])
-        p = safe_snprintf(p, end, "\"year\":\"%.*s\",", (int) sizeof(d->year), d->year);
+    if (a->registration[0])
+        p = safe_snprintf(p, end, "\"r\":\"%.*s\",", (int) sizeof(a->registration), a->registration);
+    if (a->typeCode[0])
+        p = safe_snprintf(p, end, "\"t\":\"%.*s\",", (int) sizeof(a->typeCode), a->typeCode);
+    if (a->typeLong[0])
+        p = safe_snprintf(p, end, "\"desc\":\"%.*s\",", (int) sizeof(a->typeLong), a->typeLong);
+    if (a->dbFlags)
+        p = safe_snprintf(p, end, "\"dbFlags\":%u,", a->dbFlags);
+    if (a->ownOp[0])
+        p = safe_snprintf(p, end, "\"ownOp\":\"%.*s\",", (int) sizeof(a->ownOp), a->ownOp);
+    if (a->year[0])
+        p = safe_snprintf(p, end, "\"year\":\"%.*s\",", (int) sizeof(a->year), a->year);
     if (p == regInfo)
         p = safe_snprintf(p, end, "\"noRegData\":true,");
     if (*(p-1) == ',')
@@ -373,14 +391,17 @@ static char *sprintDB(char *p, char *end, dbEntry *d) {
     p = safe_snprintf(p, end, "},");
     return p;
 }
-static void dbToJson() {
+static void db2ToJson() {
     size_t buflen = 32 * 1024 * 1024;
     char *buf = (char *) cmalloc(buflen), *p = buf, *end = buf + buflen;
     p = safe_snprintf(p, end, "{");
 
     for (int j = 0; j < DB_BUCKETS; j++) {
+        if (0 && j % 1000 == 0) {
+            fprintf(stderr, "db print %d\n", j);
+        }
         for (dbEntry *d = Modes.db2Index[j]; d; d = d->next) {
-            p = sprintDB(p, end, d);
+            p = sprintDB2(p, end, d);
             if ((p + 1000) >= end) {
                 int used = p - buf;
                 buflen *= 2;
@@ -411,7 +432,6 @@ static inline int nextToken(char delim, char **sot, char **eot, char **eol) {
     if (!*eot)
         return 0;
 
-    **eot = '\0';
     return 1;
 }
 
@@ -498,16 +518,18 @@ int dbUpdate(int64_t now) {
         goto DBU0;
     }
 
-    // reallocate so we don't waste memory
-    char *oldBuffer = cb.buffer;
-    cb.len++; // for adding zero termination
-    cb.buffer = realloc(cb.buffer, cb.len);
-    if (!cb.buffer) {
-        fprintf(stderr, "database read failed due to realloc\n");
-        sfree(oldBuffer);
-        goto DBU0;
+    if (1) {
+        // reallocate so we don't waste memory
+        char *oldBuffer = cb.buffer;
+        cb.len++; // for adding zero termination
+        cb.buffer = realloc(cb.buffer, cb.len);
+        if (!cb.buffer) {
+            fprintf(stderr, "database read failed due to realloc\n");
+            sfree(oldBuffer);
+            goto DBU0;
+        }
+        cb.buffer[cb.len - 1] = '\0'; // zero terminate for good measure
     }
-    cb.buffer[cb.len - 1] = '\0'; // zero terminate for good measure
 
     int alloc = 0;
 
@@ -517,9 +539,19 @@ int dbUpdate(int64_t now) {
             alloc++;
     }
 
-    Modes.db2 = cmalloc(alloc * sizeof(dbEntry));
-    Modes.db2Index = cmalloc(DB_BUCKETS * sizeof(void*));
-    memset(Modes.db2Index, 0, DB_BUCKETS * sizeof(void*));
+    int indexSize = DB_BUCKETS * sizeof(void*);
+    int entriesSize = alloc * sizeof(dbEntry);
+
+    Modes.db2 = cmalloc(entriesSize);
+    Modes.db2Raw = cb;
+    Modes.db2Index = cmalloc(indexSize);
+    memset(Modes.db2Index, 0, indexSize);
+
+    if (0) {
+        fprintf(stderr, "db mem usage: total %d index %d entries %d text %d kB\n",
+                indexSize / 1024 +  entriesSize / 1024 +  (int) (cb.len / 1024),
+                indexSize / 1024, entriesSize / 1024, (int) (cb.len / 1024));
+    }
 
     if (!Modes.db2 || !Modes.db2Index) {
         fprintf(stderr, "db update error: malloc failure!\n");
@@ -545,39 +577,8 @@ int dbUpdate(int64_t now) {
         if (curr->addr == 0)
             continue;
 
-
-#define copyDetail(d) do { memcpy(curr->d , sot, imin(sizeof(curr->d ), eot - sot)); sanitize(curr->d , sizeof(curr->d )); } while (0)
-
         if (!nextToken(';', &sot, &eot, &eol)) continue;
-        copyDetail(registration);
-
-        if (!nextToken(';', &sot, &eot, &eol)) continue;
-        copyDetail(typeCode);
-
-        if (!nextToken(';', &sot, &eot, &eol)) continue;
-        for (int j = 0; j < 8 * (int) sizeof(curr->dbFlags) && sot < eot; j++, sot++)
-            curr->dbFlags |= ((*sot == '1') << j);
-
-
-        if (!nextToken(';', &sot, &eot, &eol)) continue;
-        copyDetail(typeLong);
-
-        if (!nextToken(';', &sot, &eot, &eol)) continue;
-        copyDetail(year);
-
-        if (!nextToken(';', &sot, &eot, &eol)) continue;
-        copyDetail(ownOp);
-
-#undef copyDetail
-
-        if (false) // debugging output
-            fprintf(stdout, "%06X;%.12s;%.4s;%c%c;%.54s\n",
-                    curr->addr,
-                    curr->registration,
-                    curr->typeCode,
-                    curr->dbFlags & 1 ? '1' : '0',
-                    curr->dbFlags & 2 ? '1' : '0',
-                    curr->typeLong);
+        curr->rawOffset = sot - cb.buffer;
 
         i++; // increment db array index
         // add to hashtable
@@ -593,7 +594,6 @@ int dbUpdate(int64_t now) {
     //fprintf(stderr, "dbUpdate() done\n");
 
     gzclose(gzfp);
-    free(cb.buffer);
     Modes.dbModificationTime = modTime;
     if (Modes.json_dir) {
         free(writeJsonToFile(Modes.json_dir, "receiver.json", generateReceiverJson()).buffer);
@@ -606,7 +606,7 @@ int dbUpdate(int64_t now) {
 
     // write database to json dir for testing
     if (Modes.json_dir && Modes.debug_dbJson) {
-        dbToJson();
+        db2ToJson();
     }
 
     return 1;
@@ -618,6 +618,8 @@ DBU0:
     free(Modes.db2Index);
     Modes.db2 = NULL;
     Modes.db2Index = NULL;
+    Modes.db2Raw.buffer = NULL;
+    Modes.db2Raw.len = 0;
     close(fd);
     return 1;
 }
@@ -634,7 +636,7 @@ static void updateTypeRegRange(void *arg, threadpool_threadbuffers_t *threadbuff
 }
 
 int dbFinishUpdate() {
-    if (!(Modes.db2 && Modes.db2Index)) {
+    if (!Modes.db2) {
         return 0;
     }
     // finish db update
@@ -644,12 +646,16 @@ int dbFinishUpdate() {
 
 
     free(Modes.dbIndex);
+    free(Modes.dbRaw.buffer);
     free(Modes.db);
 
     Modes.dbIndex = Modes.db2Index;
+    Modes.dbRaw = Modes.db2Raw;
     Modes.db = Modes.db2;
     Modes.db2Index = NULL;
     Modes.db2 = NULL;
+    Modes.db2Raw.buffer = NULL;
+    Modes.db2Raw.len = 0;
 
     /*
     for (int j = 0; j < AIRCRAFT_BUCKETS; j++) {
@@ -689,21 +695,84 @@ void dbPut(uint32_t addr, dbEntry **index, dbEntry *d) {
     index[hash] = d;
 }
 
+static void copyDetailFunc(char *sot, char *eot, char *target, int alloc) {
+    int len = imin(alloc, eot - sot);
+    memcpy(target, sot, len);
+    // terminate if string doesn't fill up alloc
+    // this mildly insane program can hopefully handle unterminated database strings
+    if (len < alloc) {
+        target[len] = '\0';
+    }
+    sanitize(target, len);
+}
+
+static void updateDetails(struct aircraft *curr, struct char_buffer cb, uint32_t offset) {
+    //fprintf(stdout, "%u %u\n", offset, (uint32_t) cb.len);
+    char *eob = cb.buffer + cb.len;
+    char *sol = cb.buffer + offset;
+    char *eol = memchr(sol, '\n', eob - sol);
+    char *sot;
+    char *eot = sol - 1; // this pointer must not be dereferenced, nextToken will increment it.
+
+    if (!eol) goto BAD_ENTRY;
+
+#define copyDetail(d) do { copyDetailFunc(sot, eot, curr->d, sizeof(curr->d)); } while (0)
+
+    if (!nextToken(';', &sot, &eot, &eol)) goto BAD_ENTRY;
+    copyDetail(registration);
+
+    if (!nextToken(';', &sot, &eot, &eol)) goto BAD_ENTRY;
+    copyDetail(typeCode);
+
+    if (!nextToken(';', &sot, &eot, &eol)) goto BAD_ENTRY;
+    curr->dbFlags = 0;
+    for (int j = 0; j < 8 * (int) sizeof(curr->dbFlags) && sot < eot; j++, sot++)
+        curr->dbFlags |= ((*sot == '1') << j);
+
+
+    if (!nextToken(';', &sot, &eot, &eol)) goto BAD_ENTRY;
+    copyDetail(typeLong);
+
+    if (!nextToken(';', &sot, &eot, &eol)) goto BAD_ENTRY;
+    copyDetail(year);
+
+    if (!nextToken(';', &sot, &eot, &eol)) goto BAD_ENTRY;
+    copyDetail(ownOp);
+
+#undef copyDetail
+
+    if (false) {
+        // debugging output
+        fprintf(stdout, "%06X;%.12s;%.4s;%c%c;%.54s\n",
+                curr->addr,
+                curr->registration,
+                curr->typeCode,
+                curr->dbFlags & 1 ? '1' : '0',
+                curr->dbFlags & 2 ? '1' : '0',
+                curr->typeLong);
+    }
+
+    return;
+
+BAD_ENTRY:
+    curr->registration[0] = '\0';
+    curr->typeCode[0] = '\0';
+    curr->typeLong[0] = '\0';
+    curr->ownOp[0] = '\0';
+    curr->year[0] = '\0';
+    curr->dbFlags = 0;
+}
+
 void updateTypeReg(struct aircraft *a) {
     dbEntry *d = dbGet(a->addr, Modes.dbIndex);
     if (d) {
-        memcpy(a->registration, d->registration, sizeof(a->registration));
-        memcpy(a->typeCode, d->typeCode, sizeof(a->typeCode));
-        memcpy(a->typeLong, d->typeLong, sizeof(a->typeLong));
-        memcpy(a->ownOp, d->ownOp, sizeof(a->ownOp));
-        memcpy(a->year, d->year, sizeof(a->year));
-        a->dbFlags = d->dbFlags;
+        updateDetails(a, Modes.dbRaw, d->rawOffset);
     } else {
-        memset(a->registration, 0, sizeof(a->registration));
-        memset(a->typeCode, 0, sizeof(a->typeCode));
-        memset(a->typeLong, 0, sizeof(a->typeLong));
-        memset(a->ownOp, 0, sizeof(a->ownOp));
-        memset(a->year, 0, sizeof(a->year));
+        a->registration[0] = '\0';
+        a->typeCode[0] = '\0';
+        a->typeLong[0] = '\0';
+        a->ownOp[0] = '\0';
+        a->year[0] = '\0';
         a->dbFlags = 0;
     }
     if (is_df18_exception(a->addr)) {

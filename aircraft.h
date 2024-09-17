@@ -39,12 +39,7 @@ void freeAircraft(struct aircraft *a);
 typedef struct dbEntry {
     struct dbEntry *next;
     uint32_t addr;
-    uint16_t dbFlags;
-    char typeCode[4];
-    char registration[12];
-    char typeLong[64];
-    char ownOp[64];
-    char year[4];
+    uint32_t rawOffset;
 } dbEntry;
 
 dbEntry *dbGet(uint32_t addr, dbEntry **index);

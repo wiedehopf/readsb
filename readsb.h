@@ -577,8 +577,10 @@ struct _Modes
     struct craftArray aircraftActive;
     dbEntry *db;
     dbEntry **dbIndex;
+    struct char_buffer dbRaw;
     dbEntry *db2;
     dbEntry **db2Index;
+    struct char_buffer db2Raw;
     int64_t dbModificationTime;
     int64_t receiverCount;
     struct net_writer raw_out; // Raw output
