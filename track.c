@@ -1111,7 +1111,7 @@ static void setPosition(struct aircraft *a, struct modesMessage *mm, int64_t now
         if (
                 (valid_elapsed > 10 * MINUTES || override_elapsed < 10 * MINUTES)
                 && (mm->msgtype == 17 || (mm->addrtype == ADDR_ADSB_ICAO_NT && mm->cpr_type != CPR_SURFACE
-                        && !(a->dbFlags & (1 << 7)) && ((a->addr >= 0xa00000 && a->addr <= 0xafffff) || (a->dbFlags & (1 << 0))) ))
+                        && !a->is_df18_exception && ((a->addr >= 0xa00000 && a->addr <= 0xafffff) || (a->dbFlags & (1 << 0))) ))
                 && mm->cpr_valid
                 && status_elapsed > 5 * MINUTES
            ) {

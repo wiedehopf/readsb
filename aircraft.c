@@ -1,5 +1,7 @@
 #include "readsb.h"
 
+static int isMilRange(uint32_t i);
+
 static inline uint32_t dbHash(uint32_t addr) {
     return addrHash(addr, DB_HASH_BITS);
 }
@@ -413,6 +415,32 @@ static inline int nextToken(char delim, char **sot, char **eot, char **eol) {
     return 1;
 }
 
+static int is_df18_exception(uint32_t addr) {
+    switch (addr) {
+        case 0xa08508:
+        case 0xab33a0:
+        case 0xa7d24c:
+        case 0xa6e2cd:
+        case 0xaa8fca:
+        case 0xac808b:
+        case 0x48f6f7:
+        case 0x7cbc3d:
+        case 0x7c453a:
+        case 0x401cf9:
+        case 0x40206a:
+        case 0xa3227d:
+        case 0x478676:
+        case 0x40389d:
+        case 0x405acf:
+        case 0xc82452:
+        case 0x40334a:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+
 // meant to be used with this DB: https://raw.githubusercontent.com/wiedehopf/tar1090-db/csv/aircraft.csv.gz
 int dbUpdate(int64_t now) {
     static int64_t next_db_check;
@@ -470,11 +498,7 @@ int dbUpdate(int64_t now) {
         goto DBU0;
     }
 
-    static const uint32_t df18_exceptions[] = { 0xa08508, 0xab33a0, 0xa7d24c, 0xa6e2cd, 0xaa8fca, 0xac808b, 0x48f6f7, 0x7cbc3d, 0x7c453a, 0x401cf9, 0x40206a, 0xa3227d, 0x478676, 0x40389d, 0x405acf, 0xc82452, 0x40334a };
-    int num_df18_exceptions = sizeof(df18_exceptions) / sizeof(uint32_t);
-
     int alloc = 0;
-    alloc += num_df18_exceptions;
 
     if (1) {
         for (uint32_t i = 0; i < cb.len; i++) {
@@ -558,27 +582,6 @@ int dbUpdate(int64_t now) {
         i++; // increment db array index
         // add to hashtable
         dbPut(curr->addr, Modes.db2Index, curr);
-    }
-
-    for (int k = 0; k < num_df18_exceptions; k++) {
-        uint32_t addr = df18_exceptions[k];
-        //fprintf(stderr, "df18_exceptions: %06x\n", addr);
-        dbEntry *curr = dbGet(addr, Modes.db2Index);
-        if (!curr) {
-            curr = &Modes.db2[i];
-            memset(curr, 0, sizeof(dbEntry));
-            curr->addr = addr;
-
-            i++; // increment db array index
-                 // add to hashtable
-            dbPut(curr->addr, Modes.db2Index, curr);
-        }
-        curr->dbFlags |= (1 << 7);
-
-        dbEntry *d = dbGet(addr, Modes.db2Index);
-        if (!d) {
-            fprintf(stderr, "<3>df18_exceptions %06x no db entry\n", addr);
-        }
     }
 
     if (i < 1) {
@@ -703,111 +706,116 @@ void updateTypeReg(struct aircraft *a) {
         memset(a->year, 0, sizeof(a->year));
         a->dbFlags = 0;
     }
-    uint32_t i = a->addr;
-    if (
-            false
-            // us military
-            //adf7c8-adf7cf = united states mil_5(uf)
-            //adf7d0-adf7df = united states mil_4(uf)
-            //adf7e0-adf7ff = united states mil_3(uf)
-            //adf800-adffff = united states mil_2(uf)
-            //ae0000-afffff = united states mil_1(uf)
-            || (i >= 0xadf7c8 && i <= 0xafffff)
-
-            //010070-01008f = egypt_mil
-            || (i >= 0x010070 && i <= 0x01008f)
-
-            //0a4000-0a4fff = algeria mil(ap)
-            || (i >= 0x0a4000 && i <= 0x0a4fff)
-
-            //33ff00-33ffff = italy mil(iy)
-            || (i >= 0x33ff00 && i <= 0x33ffff)
-
-            //350000-37ffff = spain mil(sp)
-            || (i >= 0x350000 && i <= 0x37ffff)
-
-            //3aa000-3affff = france mil_1(fs)
-            || (i >= 0x3aa000 && i <= 0x3affff)
-            //3b7000-3bffff = france mil_2(fs)
-            || (i >= 0x3b7000 && i <= 0x3bffff)
-
-            //3ea000-3ebfff = germany mil_1(df)
-            || (i >= 0x3ea000 && i <= 0x3ebfff)
-            //3f4000-3f7fff = germany mil_2(df)
-            //3f8000-3fbfff = germany mil_3(df)
-            || (i >= 0x3f4000 && i <= 0x3fbfff)
-
-            //400000-40003f = united kingdom mil_1(ra)
-            || (i >= 0x400000 && i <= 0x40003f)
-            //43c000-43cfff = united kingdom mil(ra)
-            || (i >= 0x43c000 && i <= 0x43cfff)
-
-            //444000-446fff = austria mil(aq)
-            || (i >= 0x444000 && i <= 0x446fff)
-
-            //44f000-44ffff = belgium mil(bc)
-            || (i >= 0x44f000 && i <= 0x44ffff)
-
-            //457000-457fff = bulgaria mil(bu)
-            || (i >= 0x457000 && i <= 0x457fff)
-
-            //45f400-45f4ff = denmark mil(dg)
-            || (i >= 0x45f400 && i <= 0x45f4ff)
-
-            //468000-4683ff = greece mil(gc)
-            || (i >= 0x468000 && i <= 0x4683ff)
-
-            //473c00-473c0f = hungary mil(hm)
-            || (i >= 0x473c00 && i <= 0x473c0f)
-
-            //478100-4781ff = norway mil(nn)
-            || (i >= 0x478100 && i <= 0x4781ff)
-            //480000-480fff = netherlands mil(nm)
-            || (i >= 0x480000 && i <= 0x480fff)
-            //48d800-48d87f = poland mil(po)
-            || (i >= 0x48d800 && i <= 0x48d87f)
-            //497c00-497cff = portugal mil(pu)
-            || (i >= 0x497c00 && i <= 0x497cff)
-            //498420-49842f = czech republic mil(ct)
-            || (i >= 0x498420 && i <= 0x49842f)
-
-            //4b7000-4b7fff = switzerland mil(su)
-            || (i >= 0x4b7000 && i <= 0x4b7fff)
-            //4b8200-4b82ff = turkey mil(tq)
-            || (i >= 0x4b8200 && i <= 0x4b82ff)
-
-            //506f32-506fff = slovenia mil(sj)
-            //|| (i >= 0x506f32 && i <= 0x506fff)
-
-            //70c070-70c07f = oman mil(on)
-            || (i >= 0x70c070 && i <= 0x70c07f)
-
-            //710258-71025f = saudi arabia mil_1(sx)
-            //710260-71027f = saudi arabia mil_2(sx)
-            //710280-71028f = saudi arabia mil_3(sx)
-            || (i >= 0x710258 && i <= 0x71028f)
-            //710380-71039f = saudi arabia mil_4(sx)
-            || (i >= 0x710380 && i <= 0x71039f)
-
-            //738a00-738aff = israel mil(iz)
-            || (i >= 0x738a00 && i <= 0x738aff)
-
-            //7cf800-7cfaff australia mil
-            || (i >= 0x7cf800 && i <= 0x7cfaff)
-
-            //800200-8002ff = india mil(im)
-            || (i >= 0x800200 && i <= 0x8002ff)
-
-            //c20000-c3ffff = canada mil(cb)
-            || (i >= 0xc20000 && i <= 0xc3ffff)
-
-            //e40000-e41fff = brazil mil(bq)
-            || (i >= 0xe40000 && i <= 0xe41fff)
-
-            //e80600-e806ff = chile mil(cq)
-            //|| (i >= 0xe80600 && i <= 0xe806ff)
-            // disabled due to civilian aircraft in hex range
-    ) {
+    if (is_df18_exception(a->addr)) {
+        a->is_df18_exception = 1;
+    }
+    if (isMilRange(a->addr)) {
         a->dbFlags |= 1;
     }
+}
+static int isMilRange(uint32_t i) {
+    return
+        false
+        // us military
+        //adf7c8-adf7cf = united states mil_5(uf)
+        //adf7d0-adf7df = united states mil_4(uf)
+        //adf7e0-adf7ff = united states mil_3(uf)
+        //adf800-adffff = united states mil_2(uf)
+        //ae0000-afffff = united states mil_1(uf)
+        || (i >= 0xadf7c8 && i <= 0xafffff)
+
+        //010070-01008f = egypt_mil
+        || (i >= 0x010070 && i <= 0x01008f)
+
+        //0a4000-0a4fff = algeria mil(ap)
+        || (i >= 0x0a4000 && i <= 0x0a4fff)
+
+        //33ff00-33ffff = italy mil(iy)
+        || (i >= 0x33ff00 && i <= 0x33ffff)
+
+        //350000-37ffff = spain mil(sp)
+        || (i >= 0x350000 && i <= 0x37ffff)
+
+        //3aa000-3affff = france mil_1(fs)
+        || (i >= 0x3aa000 && i <= 0x3affff)
+        //3b7000-3bffff = france mil_2(fs)
+        || (i >= 0x3b7000 && i <= 0x3bffff)
+
+        //3ea000-3ebfff = germany mil_1(df)
+        || (i >= 0x3ea000 && i <= 0x3ebfff)
+        //3f4000-3f7fff = germany mil_2(df)
+        //3f8000-3fbfff = germany mil_3(df)
+        || (i >= 0x3f4000 && i <= 0x3fbfff)
+
+        //400000-40003f = united kingdom mil_1(ra)
+        || (i >= 0x400000 && i <= 0x40003f)
+        //43c000-43cfff = united kingdom mil(ra)
+        || (i >= 0x43c000 && i <= 0x43cfff)
+
+        //444000-446fff = austria mil(aq)
+        || (i >= 0x444000 && i <= 0x446fff)
+
+        //44f000-44ffff = belgium mil(bc)
+        || (i >= 0x44f000 && i <= 0x44ffff)
+
+        //457000-457fff = bulgaria mil(bu)
+        || (i >= 0x457000 && i <= 0x457fff)
+
+        //45f400-45f4ff = denmark mil(dg)
+        || (i >= 0x45f400 && i <= 0x45f4ff)
+
+        //468000-4683ff = greece mil(gc)
+        || (i >= 0x468000 && i <= 0x4683ff)
+
+        //473c00-473c0f = hungary mil(hm)
+        || (i >= 0x473c00 && i <= 0x473c0f)
+
+        //478100-4781ff = norway mil(nn)
+        || (i >= 0x478100 && i <= 0x4781ff)
+        //480000-480fff = netherlands mil(nm)
+        || (i >= 0x480000 && i <= 0x480fff)
+        //48d800-48d87f = poland mil(po)
+        || (i >= 0x48d800 && i <= 0x48d87f)
+        //497c00-497cff = portugal mil(pu)
+        || (i >= 0x497c00 && i <= 0x497cff)
+        //498420-49842f = czech republic mil(ct)
+        || (i >= 0x498420 && i <= 0x49842f)
+
+        //4b7000-4b7fff = switzerland mil(su)
+        || (i >= 0x4b7000 && i <= 0x4b7fff)
+        //4b8200-4b82ff = turkey mil(tq)
+        || (i >= 0x4b8200 && i <= 0x4b82ff)
+
+        //506f32-506fff = slovenia mil(sj)
+        //|| (i >= 0x506f32 && i <= 0x506fff)
+
+        //70c070-70c07f = oman mil(on)
+        || (i >= 0x70c070 && i <= 0x70c07f)
+
+        //710258-71025f = saudi arabia mil_1(sx)
+        //710260-71027f = saudi arabia mil_2(sx)
+        //710280-71028f = saudi arabia mil_3(sx)
+        || (i >= 0x710258 && i <= 0x71028f)
+        //710380-71039f = saudi arabia mil_4(sx)
+        || (i >= 0x710380 && i <= 0x71039f)
+
+        //738a00-738aff = israel mil(iz)
+        || (i >= 0x738a00 && i <= 0x738aff)
+
+        //7cf800-7cfaff australia mil
+        || (i >= 0x7cf800 && i <= 0x7cfaff)
+
+        //800200-8002ff = india mil(im)
+        || (i >= 0x800200 && i <= 0x8002ff)
+
+        //c20000-c3ffff = canada mil(cb)
+        || (i >= 0xc20000 && i <= 0xc3ffff)
+
+        //e40000-e41fff = brazil mil(bq)
+        || (i >= 0xe40000 && i <= 0xe41fff)
+
+        //e80600-e806ff = chile mil(cq)
+        //|| (i >= 0xe80600 && i <= 0xe806ff)
+        // disabled due to civilian aircraft in hex range
+        ;
 }

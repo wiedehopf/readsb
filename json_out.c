@@ -652,9 +652,7 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
             if (a->typeCode[0])
                 p = safe_snprintf(p, end, ",\"t\":\"%.*s\"", (int) sizeof(a->typeCode), a->typeCode);
             if (a->dbFlags) {
-                uint32_t dbFlags = a->dbFlags;
-                dbFlags &= ~(1 << 7);
-                p = safe_snprintf(p, end, ",\"dbFlags\":%u", dbFlags);
+                p = safe_snprintf(p, end, ",\"dbFlags\":%u", a->dbFlags);
             }
 
             if (Modes.jsonLongtype) {
@@ -1763,9 +1761,7 @@ struct char_buffer generateTraceJson(struct aircraft *a, traceBuffer tb, int sta
             p = safe_snprintf(p, end, ",\n\"t\":\"%.*s\"", (int) sizeof(a->typeCode), a->typeCode);
         }
         if (a->typeCode[0] || a->registration[0] || a->dbFlags) {
-            uint32_t dbFlags = a->dbFlags;
-            dbFlags &= ~(1 << 7);
-            p = safe_snprintf(p, end, ",\n\"dbFlags\":%u", dbFlags);
+            p = safe_snprintf(p, end, ",\n\"dbFlags\":%u", a->dbFlags);
         }
 
         if (a->typeLong[0])

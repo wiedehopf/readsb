@@ -464,7 +464,8 @@ struct aircraft
   uint32_t localCPR_allow_ac_rel : 1; // allow local cpr relative to last known aircraft location
   // 24 bit
   uint32_t last_message_crc_fixed : 1;
-  uint32_t padding_b : 7;
+  uint32_t is_df18_exception : 1;
+  uint32_t padding_b : 6;
   // 32 bit !!
 
   // ----
@@ -516,8 +517,7 @@ struct aircraft
   double lonReliable; // last reliable position based on json_reliable threshold
   char typeCode[4];
   char registration[12];
-  char typeLong[63];
-  uint8_t dbFlags;
+  char typeLong[64];
   uint16_t receiverIds[RECEIVERIDBUFFER]; // RECEIVERIDBUFFER = 12
 
   int64_t next_reduce_forward_status;
@@ -569,6 +569,7 @@ struct aircraft
 
   char ownOp[64];
   char year[4];
+  uint16_t dbFlags;
 
   float messageRate;
   uint16_t messageRateAcc[MESSAGE_RATE_CALC_POINTS];
