@@ -2003,11 +2003,7 @@ open:
             goto error_1;
         }
 
-        int gBufSize = 128 * 1024;
-        if (len < 16 * 1024) {
-            gBufSize = 16 * 1024;
-        }
-        gzbuffer(gzfp, gBufSize);
+        gzbuffer(gzfp, GZBUFFER_BIG);
 
         int name_len = strlen(file);
         if (name_len > 8 && strcmp("binCraft", file + (name_len - 8)) == 0) {

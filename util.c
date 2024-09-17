@@ -379,9 +379,8 @@ struct char_buffer readWholeGz(gzFile gzfp, char *errorContext) {
     struct char_buffer cb = {0};
     if (gzbuffer(gzfp, GZBUFFER_BIG) < 0) {
         fprintf(stderr, "reading %s: gzbuffer fail!\n", errorContext);
-        return cb;
     }
-    int alloc = 8 * 1024 * 1024;
+    int alloc = 1 * 1024 * 1024;
     cb.buffer = cmalloc(alloc);
     if (!cb.buffer) {
         fprintf(stderr, "reading %s: readWholeGz alloc fail!\n", errorContext);
@@ -397,7 +396,7 @@ struct char_buffer readWholeGz(gzFile gzfp, char *errorContext) {
         toRead -= res;
         if (toRead == 0) {
             toRead = alloc;
-            alloc += toRead;
+            alloc *= 2;
             char *oldBuffer = cb.buffer;
             cb.buffer = realloc(cb.buffer, alloc);
             if (!cb.buffer) {
@@ -821,6 +820,9 @@ void gzipFile(char *filename) {
         perror(fileGz);
         return;
     }
+
+    gzbuffer(gzfp, GZBUFFER_BIG);
+
     int res = gzsetparams(gzfp, 9, Z_DEFAULT_STRATEGY);
     if (res < 0) {
         fprintf(stderr, "gzsetparams fail: %d", res);

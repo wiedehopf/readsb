@@ -26,7 +26,7 @@
 
 #define CHECK_APPROXIMATIONS (0)
 
-#define GZBUFFER_BIG (1 * 1024 * 1024)
+#define GZBUFFER_BIG (512 * 1024)
 
 #include <stdint.h>
 

@@ -3465,6 +3465,8 @@ void writeRangeDirs() {
     char pathbuf[PATH_MAX];
     snprintf(pathbuf, PATH_MAX, "%s/rangeDirs.gz", Modes.state_dir);
     gzFile gzfp = gzopen(pathbuf, "wb");
+    if (gzbuffer(gzfp, GZBUFFER_BIG) < 0)
+        fprintf(stderr, "gzbuffer fail");
     if (gzfp) {
         writeGz(gzfp, &Modes.lastRangeDirHour, sizeof(Modes.lastRangeDirHour), pathbuf);
         writeGz(gzfp, Modes.rangeDirs, sizeof(Modes.rangeDirs), pathbuf);
