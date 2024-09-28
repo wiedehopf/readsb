@@ -855,6 +855,7 @@ struct _Modes
     ALIGNED struct mag_buf mag_buffers[MODES_MAG_BUFFERS]; // Converted magnitude buffers from RTL or file input
 
     int64_t startup_time;
+    int64_t startup_time_mono;
     int64_t next_stats_update;
     int64_t next_stats_display;
     int64_t next_api_update;

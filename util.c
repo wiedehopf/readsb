@@ -118,7 +118,7 @@ int64_t mono_milli_seconds() {
 }
 
 int64_t getUptime() {
-    return mono_milli_seconds() - Modes.startup_time;
+    return mono_milli_seconds() - Modes.startup_time_mono;
 }
 
 int snprintHMS(char *buf, size_t bufsize, int64_t now) {

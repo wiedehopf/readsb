@@ -2689,7 +2689,8 @@ int main(int argc, char **argv) {
     // Set sane defaults
     configSetDefaults();
 
-    Modes.startup_time = mono_milli_seconds();
+    Modes.startup_time_mono = mono_milli_seconds();
+    Modes.startup_time = mstime();
 
     if (lzo_init() != LZO_E_OK)
     {
