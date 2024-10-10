@@ -1916,7 +1916,7 @@ static void *apiUpdateEntryPoint(void *arg) {
 }
 
 void apiBufferInit() {
-    // 1 api thread per 2 cores as we assume nginx running on the same box, better chances not swamping the CPU under high API load scenarios
+    // if --devel=apiThreads,<n> isn't given, use nproc - 1 api threads (nproc - 2 for nproc > 6)
     if (Modes.apiThreadCount <= 0) {
         Modes.apiThreadCount = imax(1, Modes.num_procs - (Modes.num_procs > 6 ? 2 : 1));
     }
