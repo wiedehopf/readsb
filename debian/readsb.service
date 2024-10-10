@@ -9,6 +9,7 @@ After=network.target
 [Service]
 EnvironmentFile=/etc/default/readsb
 User=readsb
+AmbientCapabilities=CAP_SYS_NICE
 RuntimeDirectory=readsb
 RuntimeDirectoryMode=0755
 ExecStart=/usr/bin/readsb \
