@@ -1466,14 +1466,13 @@ static int pongReceived(struct client *c, int64_t now) {
 static int flushClient(struct client *c, int64_t now) {
     if (!c->service) { fprintf(stderr, "report error: Ahlu8pie\n"); return -1; }
     int toWrite = c->sendq_len;
-    char *psendq = c->sendq;
 
     if (toWrite == 0) {
         c->last_flush = now;
         return 0;
     }
 
-    int bytesWritten = send(c->fd, psendq, toWrite, 0);
+    int bytesWritten = send(c->fd, c->sendq, toWrite, 0);
     int err = errno;
 
     // If we get -1, it's only fatal if it's not EAGAIN/EWOULDBLOCK
@@ -1499,7 +1498,6 @@ static int flushClient(struct client *c, int64_t now) {
     if (bytesWritten > 0) {
         Modes.stats_current.network_bytes_out += bytesWritten;
         // Advance buffer
-        psendq += bytesWritten;
         toWrite -= bytesWritten;
         c->sendq_len -= bytesWritten;
 
@@ -1510,13 +1508,13 @@ static int flushClient(struct client *c, int64_t now) {
             memmove((void*)c->sendq, c->sendq + bytesWritten, toWrite);
         }
     }
-    if (c->last_flush != now && !(c->epollEvent.events & EPOLLOUT)) {
+    if (toWrite > 0 && !(c->epollEvent.events & EPOLLOUT)) {
         // if we couldn't flush our buffer, make epoll tell us when we can write again
         c->epollEvent.events |= EPOLLOUT;
         if (epoll_ctl(Modes.net_epfd, EPOLL_CTL_MOD, c->fd, &c->epollEvent))
             perror("epoll_ctl fail:");
     }
-    if ((c->epollEvent.events & EPOLLOUT) && c->last_flush == now) {
+    if (toWrite == 0 && (c->epollEvent.events & EPOLLOUT)) {
         // if set, remove EPOLLOUT from epoll if flush was successful
         c->epollEvent.events ^= EPOLLOUT;
         if (epoll_ctl(Modes.net_epfd, EPOLL_CTL_MOD, c->fd, &c->epollEvent))
