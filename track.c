@@ -598,7 +598,9 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
         range += 250;
     }
 
-    if (distance > 2.5f && (track_diff < 70 || track_diff == -1)) {
+    if (transmitted_speed < 0) {
+            mm->speedUnreliable = -1;
+    } else if (distance > 2.5f && (track_diff < 70 || track_diff == -1)) {
         if (distance <= range + (((float) elapsed + 50.0f) * (1.0f / 1000.0f)) * (transmitted_speed * knots_to_meterpersecond)) {
             mm->speedUnreliable = -1;
         } else if (distance > range + (((float) elapsed + 400.0f) * (1.0f / 1000.0f)) * (transmitted_speed * knots_to_meterpersecond)) {
