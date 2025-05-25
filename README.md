@@ -15,6 +15,9 @@ see the LICENSE file for details
 I'd recommend this script to automatically install it:
 - https://github.com/wiedehopf/adsb-scripts/wiki/Automatic-installation-for-readsb
 
+The package is also [available on Homebrew](https://formulae.brew.sh/formula/readsb) for MacOS and Linux.
+Run `brew install readsb` to get started.
+
 Or build the package yourself:
 ```
 sudo apt update
@@ -33,7 +36,7 @@ Or check here for more build instructions and other useful stuff:
 - https://github.com/wiedehopf/adsb-wiki/wiki/Building-readsb-from-source
 - https://github.com/wiedehopf/adsb-wiki/wiki/Raspbian-Lite:-ADS-B-receiver
 
-For macOS / OS X check build and general info, check further down
+For macOS / OS X build and general info, check further down.
 
 ### aircraft.json format:
 
