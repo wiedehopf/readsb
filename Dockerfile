@@ -42,3 +42,4 @@ ENV LD_PRELOAD=/usr/local/lib/libjemalloc.so.2
 ENV MALLOC_CONF=narenas:1,tcache:false
 
 ENTRYPOINT ["/usr/local/bin/readsb"]
+CMD ["--quiet"]
