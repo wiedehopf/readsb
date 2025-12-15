@@ -1700,33 +1700,28 @@ static void completeWrite(struct net_writer *writer, void *endptr) {
     }
 }
 
-static char *netTimestamp(char *p, int64_t timestamp) {
+static char *netTimestamp(char *p, int64_t timestamp_ns)
+{
     unsigned char ch;
-    /* timestamp, big-endian */
-    *p++ = (ch = (timestamp >> 40));
-    if (0x1A == ch) {
+
+    // ns → ticks (12 MHz)
+    int64_t ticks = (timestamp_ns * 12 + 500) / 1000;
+
+    // Monotonicity for MLAT
+    static int64_t last_ticks = 0;
+    if (ticks <= last_ticks)
+        ticks = last_ticks + 1;
+    last_ticks = ticks;
+
+    // Beast big-endian 6 bytes escape 0x1A
+    for (int shift = 40; shift >= 0; shift -= 8) {
+        ch = (ticks >> shift) & 0xFF;
         *p++ = ch;
+        if (ch == 0x1A) {
+            *p++ = ch;
+        }
     }
-    *p++ = (ch = (timestamp >> 32));
-    if (0x1A == ch) {
-        *p++ = ch;
-    }
-    *p++ = (ch = (timestamp >> 24));
-    if (0x1A == ch) {
-        *p++ = ch;
-    }
-    *p++ = (ch = (timestamp >> 16));
-    if (0x1A == ch) {
-        *p++ = ch;
-    }
-    *p++ = (ch = (timestamp >> 8));
-    if (0x1A == ch) {
-        *p++ = ch;
-    }
-    *p++ = (ch = (timestamp));
-    if (0x1A == ch) {
-        *p++ = ch;
-    }
+
     return p;
 }
 
