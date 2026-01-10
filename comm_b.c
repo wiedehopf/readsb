@@ -900,9 +900,9 @@ static int decodeBDS44(struct modesMessage *mm, bool store) {
         static_pressure = (int)static_pressure_raw;
         if (static_pressure >= 0 && static_pressure <= 2048){
             score += 11;
-            return 0;
         }
         else {
+            return 0;
         }
     }
     else if (static_pressure == 0) {
