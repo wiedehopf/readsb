@@ -198,7 +198,7 @@ typedef enum
 
     ADDR_MODE_A = 12, /* Mode A */
 
-    ADDR_UNKNOWN = 15/* unknown address format */
+    ADDR_UNKNOWN = 13 /* unknown address format */
 } addrtype_t;
 
 // number of types as defined above
