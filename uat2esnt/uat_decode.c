@@ -85,8 +85,8 @@ static void uat_decode_sv(uint8_t *frame, struct uat_adsb_mdb *mdb)
     mdb->airground_state = (frame[12] >> 6) & 0x03;
 
     switch (mdb->airground_state) {
-    case AG_SUBSONIC:
-    case AG_SUPERSONIC:
+    case UAT_AG_SUBSONIC:
+    case UAT_AG_SUPERSONIC:
         {
             int raw_ns, raw_ew, raw_vvel;
             
@@ -96,7 +96,7 @@ static void uat_decode_sv(uint8_t *frame, struct uat_adsb_mdb *mdb)
                 mdb->ns_vel = ((raw_ns & 0x3ff) - 1);
                 if (raw_ns & 0x400)
                     mdb->ns_vel = 0 - mdb->ns_vel;
-                if (mdb->airground_state == AG_SUPERSONIC)
+                if (mdb->airground_state == UAT_AG_SUPERSONIC)
                     mdb->ns_vel *= 4;
             }
             
@@ -106,7 +106,7 @@ static void uat_decode_sv(uint8_t *frame, struct uat_adsb_mdb *mdb)
                 mdb->ew_vel = ((raw_ew & 0x3ff) - 1);
                 if (raw_ew & 0x400)
                     mdb->ew_vel = 0 - mdb->ew_vel;
-                if (mdb->airground_state == AG_SUPERSONIC)
+                if (mdb->airground_state == UAT_AG_SUPERSONIC)
                     mdb->ew_vel *= 4;
             }
             
@@ -130,7 +130,7 @@ static void uat_decode_sv(uint8_t *frame, struct uat_adsb_mdb *mdb)
         }
         break;
 
-    case AG_GROUND:
+    case UAT_AG_GROUND:
         {
             int raw_gs, raw_track;
 
@@ -157,7 +157,7 @@ static void uat_decode_sv(uint8_t *frame, struct uat_adsb_mdb *mdb)
         }
         break;
 
-    case AG_RESERVED:
+    case UAT_AG_RESERVED:
         // nothing
         break;
     }

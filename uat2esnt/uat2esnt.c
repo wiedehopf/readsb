@@ -307,7 +307,7 @@ static char* maybe_send_surface_position(struct uat_adsb_mdb *mdb, char *p, char
 {
     uint8_t esnt_frame[14] = { 0 };
 
-    if (mdb->airground_state != AG_GROUND)
+    if (mdb->airground_state != UAT_AG_GROUND)
         return p; // nope!
 
     setbits(esnt_frame, 1, 5, 18);                 // DF=18, ES/NT
@@ -352,7 +352,7 @@ static char* maybe_send_air_position(struct uat_adsb_mdb *mdb, char *p, char *en
     uint8_t esnt_frame[14] = { 0 };
     int raw_alt;
 
-    if (mdb->airground_state != AG_SUPERSONIC && mdb->airground_state != AG_SUBSONIC)
+    if (mdb->airground_state != UAT_AG_SUPERSONIC && mdb->airground_state != UAT_AG_SUBSONIC)
         return p; // nope!
 
     if (!mdb->position_valid) {
@@ -407,7 +407,7 @@ static char* maybe_send_air_velocity(struct uat_adsb_mdb *mdb, char *p, char *en
     uint8_t esnt_frame[14] = { 0 };
     int supersonic;
 
-    if (mdb->airground_state != AG_SUPERSONIC && mdb->airground_state != AG_SUBSONIC)
+    if (mdb->airground_state != UAT_AG_SUPERSONIC && mdb->airground_state != UAT_AG_SUBSONIC)
         return p; // nope!
 
     if (!mdb->ew_vel_valid && !mdb->ns_vel_valid && mdb->vert_rate_source == ALT_INVALID) {
@@ -419,7 +419,7 @@ static char* maybe_send_air_velocity(struct uat_adsb_mdb *mdb, char *p, char *en
     setbits(esnt_frame, 6, 8, encode_cf(mdb));// CF
     setbits(esnt_frame, 9, 32, mdb->address); // AA
 
-    supersonic = (mdb->airground_state == AG_SUPERSONIC);
+    supersonic = (mdb->airground_state == UAT_AG_SUPERSONIC);
     setbits(esnt_frame+4, 1, 5, 19);               // FORMAT TYPE CODE = 19, airborne velocity
     if (supersonic)
         setbits(esnt_frame+4, 6, 8, 2);            // SUBTYPE = 2, supersonic, speed over ground

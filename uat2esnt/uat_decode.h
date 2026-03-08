@@ -32,9 +32,9 @@
 typedef enum { AQ_ADSB_ICAO=0, AQ_NATIONAL=1, AQ_TISB_ICAO=2, AQ_TISB_OTHER=3, AQ_VEHICLE=4,
                AQ_FIXED_BEACON=5, AQ_RESERVED_6=6, AQ_RESERVED_7=7 } address_qualifier_t;
 typedef enum { ALT_INVALID=0, ALT_BARO, ALT_GEO } altitude_type_t;
-typedef enum { AG_SUBSONIC=0, AG_SUPERSONIC=1, AG_GROUND=2, AG_RESERVED=3 } airground_state_t;
+typedef enum { UAT_AG_SUBSONIC=0, UAT_AG_SUPERSONIC=1, UAT_AG_GROUND=2, UAT_AG_RESERVED=3 } airground_state_t;
 typedef enum { TT_INVALID=0, TT_TRACK, TT_MAG_HEADING, TT_TRUE_HEADING } track_type_t;
-typedef enum { HT_INVALID=0, HT_MAGNETIC, HT_TRUE } heading_type_t;
+typedef enum { HT_INVALID=0, HT_MAGNETIC, HT_TRUE } uat_heading_type_t;
 typedef enum { CS_INVALID=0, CS_CALLSIGN, CS_SQUAWK } callsign_type_t;
 
 struct uat_adsb_mdb {
@@ -116,7 +116,7 @@ struct uat_adsb_mdb {
     uint32_t ident_active : 1;
     uint32_t atc_services : 1;
 
-    heading_type_t heading_type;
+    uat_heading_type_t heading_type;
 
     //
     // AUXSV
@@ -124,17 +124,6 @@ struct uat_adsb_mdb {
     altitude_type_t sec_altitude_type;
     int32_t sec_altitude; // in feet
 };
-
-
-static inline int64_t mstime(void) {
-    struct timeval tv;
-    int64_t mst;
-
-    gettimeofday(&tv, NULL);
-    mst = ((int64_t) tv.tv_sec)*1000;
-    mst += tv.tv_usec / 1000;
-    return mst;
-}
 
 //
 // Decode/display prototypes
