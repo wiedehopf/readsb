@@ -650,7 +650,8 @@ static inline int posReliable(struct aircraft *a) {
     }
     if (a->position_valid.source == SOURCE_JAERO
             || a->position_valid.source == SOURCE_MLAT
-            || a->position_valid.source == SOURCE_INDIRECT) {
+            || a->position_valid.source == SOURCE_INDIRECT
+            || a->position_valid.source == SOURCE_UAT) {
         return 1;
     }
     int reliable = Modes.json_reliable;
