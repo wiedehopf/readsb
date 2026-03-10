@@ -62,6 +62,7 @@
 #include <poll.h>
 
 #include "uat2esnt/uat2esnt.h"
+#include "uat2esnt/uat2mm.h"
 
 #define DLE 0x10
 #define ETX 0x03
@@ -4482,6 +4483,7 @@ static int processHexMessage(struct client *c, char *hex, int remote, int64_t no
     return (0);
 }
 
+/*
 static void replayUatMsg(char *msg, int msgLen) {
     char *p = prepareWrite(&Modes.uat_replay_out, msgLen + 1);
     if (!p) {
@@ -4495,6 +4497,7 @@ static void replayUatMsg(char *msg, int msgLen) {
 
     return;
 }
+*/
 
 static int decodeEncapsulatedUAT(struct client *c, char *msg, int remote, int64_t now, struct messageBuffer *mb) {
     MODES_NOTUSED(remote);
@@ -4502,25 +4505,24 @@ static int decodeEncapsulatedUAT(struct client *c, char *msg, int remote, int64_
 
     int debugIncomplete = 0;
 
-    char buf[2048];
-    char *out = buf;
-    char *end = buf + sizeof(buf);
+    unsigned char frame[2048];
+    frame_type_t frametype;
     char *p = msg;
 
     int bytes = 0;
     if (*p == 'u') {
         bytes = 552;
-        out = safe_snprintf(out, end, "+");
+        frametype = UAT_UPLINK;
         if (debugIncomplete) {
             fprintTimePrecise(stderr, mstime());
             fprintf(stderr, "uat uplink bytes in buffer: %d\n", (int) (c->eod - p));
         }
     } else if (*p == 's') {
         bytes = 30;
-        out = safe_snprintf(out, end, "-");
+        frametype = UAT_DOWNLINK;
     } else if (*p == 'l') {
         bytes = 48;
-        out = safe_snprintf(out, end, "-");
+        frametype = UAT_DOWNLINK;
     } else {
         return 2;
     }
@@ -4547,7 +4549,6 @@ static int decodeEncapsulatedUAT(struct client *c, char *msg, int remote, int64_
         timestamp = timestamp << 8 | (((unsigned char) *p) & 255);
         p++;
     }
-
 
     double signalLevel = ((unsigned char) *p / 255.0);
     //fprintf(stderr, "level: %d %f\n", (unsigned char) *p, signalLevel);
@@ -4578,20 +4579,30 @@ static int decodeEncapsulatedUAT(struct client *c, char *msg, int remote, int64_
                 return -1;
             }
         }
-        printHexDigit(out, *p);
-        out += 2;
+        frame[processedBytes] = *p;
+
         p++;
         processedBytes++;
     }
 
-    out = safe_snprintf(out, end, ";");
+    struct modesMessage *mm = netGetMM(mb);
 
-    if (signalLevel > 1.125e-5) {
-        out = safe_snprintf(out, end, "rssi=%.1f;", 10.0f * log10f(signalLevel));
+    int success = uat2mm(frametype, frame, signalLevel, now, mm);
+
+    if (success) {
+        struct aircraft *a = aircraftGet(mm->addr);
+        if (!a) { // If it's a currently unknown aircraft....
+            a = aircraftCreate(mm->addr); // ., create a new record for it,
+        }
+        //ignore the first UAT message
+        if (now > a->seen + 300 * SECONDS) {
+            //fprintf(stderr, "IGNORING first UAT message from: %06x\n", a->addr);
+            a->seen = now;
+            return 0;
+        }
+        netUseMessage(mm);
+        //displayModesMessage(mm);
     }
-
-    //fprintf(stderr, "passing to decodeUatMessage: %s\n", buf);
-    decodeUatMessage(c, buf, 1, now, mb);
 
     if (p - msg == 0 && debugIncomplete) {
         fprintf(stderr, "uat_incomplete %d\n", __LINE__);
@@ -4601,44 +4612,33 @@ static int decodeEncapsulatedUAT(struct client *c, char *msg, int remote, int64_
 
 static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now, struct messageBuffer *mb) {
     MODES_NOTUSED(remote);
+    MODES_NOTUSED(c);
 
+    unsigned char frame[2048];
+    frame_type_t frametype;
+    float signal_strength;
     int msgLen = strlen(msg);
     char *end = msg + msgLen;
-    char output[8192];
 
-    replayUatMsg(msg, msgLen);
+    process_dump978(msg, end, &frametype, frame, &signal_strength);
+    double ss_W = pow(10.0, signal_strength / 10.0);
+    struct modesMessage *mm = netGetMM(mb);
 
-    uat2esnt_convert_message(msg, end, output, output + sizeof(output));
+    int success = uat2mm(frametype, frame, ss_W, now, mm);
 
-    char *som = output;
-    char *eod = som + strlen(som);
-    char *p;
-
-    //fprintf(stderr, "START:\n%sEND\n", som);
-
-    while (((p = memchr(som, '\n', eod - som)) != NULL)) {
-        *p = '\0';
-
-        struct modesMessage *mm = netGetMM(mb);
-
-        //fprintf(stderr, "AVR:%s\n", som);
-        int success = decodeHexMessage(c, som, now, mm);
-
-        if (success) {
-            struct aircraft *a = aircraftGet(mm->addr);
-            if (!a) { // If it's a currently unknown aircraft....
-                a = aircraftCreate(mm->addr); // ., create a new record for it,
-            }
-            // ignore the first UAT message
-            if (now > a->seen + 300 * SECONDS) {
-                //fprintf(stderr, "IGNORING first UAT message from: %06x\n", a->addr);
-                a->seen = now;
-                return 0;
-            }
-            netUseMessage(mm);
-            //displayModesMessage(mm);
+    if (success) {
+        struct aircraft *a = aircraftGet(mm->addr);
+        if (!a) { // If it's a currently unknown aircraft....
+            a = aircraftCreate(mm->addr); // ., create a new record for it,
         }
-        som = p + 1;
+        //ignore the first UAT message
+        if (now > a->seen + 300 * SECONDS) {
+            //fprintf(stderr, "IGNORING first UAT message from: %06x\n", a->addr);
+            a->seen = now;
+            return 0;
+        }
+        netUseMessage(mm);
+        //displayModesMessage(mm);
     }
     return 0;
 }

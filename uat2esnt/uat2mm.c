@@ -36,12 +36,12 @@ static int hexbyte(char *buf) {
         return -1;
 }
 
-void uat2mm(frame_type_t type, uint8_t *frame, float ss, struct modesMessage *mm) {
-
+int uat2mm(frame_type_t type, uint8_t *frame, float ss, int64_t now, struct modesMessage *mm) {
     if (type == UAT_DOWNLINK) {
         struct uat_adsb_mdb mdb;
         uat_decode_adsb_mdb(frame, &mdb);
 
+        mm->sysTimestamp = now;
         mm->signalLevel = ss;
         mm->msgtype = 33;
 
@@ -74,6 +74,7 @@ void uat2mm(frame_type_t type, uint8_t *frame, float ss, struct modesMessage *mm
         }
 
         if (mdb.has_sv) {
+            mm->msgtype = 34; // has position
             if (mdb.position_valid) {
                 mm->decoded_lat = mdb.lat;
                 mm->decoded_lon = mdb.lon;
@@ -90,10 +91,7 @@ void uat2mm(frame_type_t type, uint8_t *frame, float ss, struct modesMessage *mm
                 mm->geom_alt_unit = UNIT_FEET;
                 mm->geom_alt = mdb.altitude;
                 break;
-            default:
-                mm->baro_alt_valid = 1;
-                mm->baro_alt_unit = UNIT_FEET;
-                mm->baro_alt = mdb.altitude;
+            case ALT_INVALID:
                 break;
             };
 
@@ -232,6 +230,7 @@ void uat2mm(frame_type_t type, uint8_t *frame, float ss, struct modesMessage *mm
             mm->accuracy.sil_type = SIL_UNKNOWN;
             mm->accuracy.sil = mdb.sil;
 
+            mm->opstatus.valid = 1;
             mm->opstatus.version = mdb.uat_version;
             mm->opstatus.cc_cdti = mdb.has_cdti;
             mm->opstatus.cc_acas = mdb.has_acas;
@@ -252,14 +251,13 @@ void uat2mm(frame_type_t type, uint8_t *frame, float ss, struct modesMessage *mm
                 mm->geom_alt_unit = UNIT_FEET;
                 mm->geom_alt = mdb.sec_altitude;
                 break;
-            default:
-                mm->baro_alt_valid = 1;
-                mm->baro_alt_unit = UNIT_FEET;
-                mm->baro_alt = mdb.sec_altitude;
+            case ALT_INVALID:
                 break;
             };
         }
+        return 1;
     }
+    return 0;
 }
 
 int process_dump978(char *p, char *end, frame_type_t *frametype, uint8_t *frame, float *signal_strength) {
