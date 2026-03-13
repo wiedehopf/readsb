@@ -227,16 +227,18 @@ int uat2mm(frame_type_t type, uint8_t *frame, float ss, int64_t now, struct mode
             mm->accuracy.nac_v = mdb.nac_v;
             mm->accuracy.nic_baro_valid = 1;
             mm->accuracy.nic_baro = mdb.nic_baro;
-            mm->accuracy.sil_type = SIL_UNKNOWN;
+            mm->accuracy.sil_type = (mdb.silsupp ? SIL_PER_HOUR : SIL_PER_SAMPLE);
             mm->accuracy.sil = mdb.sil;
 
             mm->opstatus.valid = 1;
             mm->opstatus.version = mdb.uat_version;
-            mm->opstatus.cc_cdti = mdb.has_cdti;
+            mm->opstatus.cc_1090_in = mdb.es_in;
+            mm->opstatus.cc_uat_in = mdb.uat_in;
             mm->opstatus.cc_acas = mdb.has_acas;
             mm->opstatus.om_acas_ra = mdb.acas_ra_active;
             mm->opstatus.om_ident = mdb.ident_active;
             mm->opstatus.om_atc = mdb.atc_services;
+            mm->opstatus.om_saf = mdb.single_antenna;
         }
 
         if (mdb.has_auxsv) {

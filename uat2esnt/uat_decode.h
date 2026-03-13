@@ -104,17 +104,24 @@ struct uat_adsb_mdb {
     uint8_t uat_version;
     uint8_t sil;
     uint8_t transmit_mso;
+    uint8_t sda;
     uint8_t nac_p;
     uint8_t nac_v;
     uint8_t nic_baro;
   
     // capabilities:
-    uint32_t has_cdti : 1;
+    uint32_t uat_in : 1;
+    uint32_t es_in : 1;
     uint32_t has_acas : 1;
     // operational modes:
     uint32_t acas_ra_active : 1;
     uint32_t ident_active : 1;
     uint32_t atc_services : 1;
+
+    uint32_t silsupp: 1;
+    uint8_t gva;
+    uint32_t single_antenna: 1;
+    uint32_t nicsupp: 1;
 
     uat_heading_type_t heading_type;
 

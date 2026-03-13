@@ -301,17 +301,23 @@ static void uat_decode_ms(uint8_t *frame, struct uat_adsb_mdb *mdb)
     mdb->uat_version = (frame[23] >> 2) & 7;
     mdb->sil = (frame[23] & 3);
     mdb->transmit_mso = (frame[24] >> 2) & 0x3f;
+    mdb->sda = (frame[24] & 0x03);
     mdb->nac_p = (frame[25] >> 4) & 15;
     mdb->nac_v = (frame[25] >> 1) & 7;
     mdb->nic_baro = (frame[25] & 1);
-    mdb->has_cdti = (frame[26] & 0x80 ? 1 : 0);
-    mdb->has_acas = (frame[26] & 0x40 ? 1 : 0);
-    mdb->acas_ra_active = (frame[26] & 0x20 ? 1 : 0);
-    mdb->ident_active = (frame[26] & 0x10 ? 1 : 0);
-    mdb->atc_services = (frame[26] & 0x08 ? 1 : 0);
-    mdb->heading_type = (frame[26] & 0x04 ? HT_MAGNETIC : HT_TRUE);
+    mdb->uat_in = (frame[26] & 0x80 ? 1 : 0);
+    mdb->es_in = (frame[26] & 0x40 ? 1 : 0);
+    mdb->has_acas = (frame[26] & 0x20 ? 1 : 0);
+    mdb->acas_ra_active = (frame[26] & 0x10 ? 1 : 0);
+    mdb->ident_active = (frame[26] & 0x08 ? 1 : 0);
+    mdb->atc_services = (frame[26] & 0x04 ? 1 : 0);
     if (mdb->callsign[0])
         mdb->callsign_type = (frame[26] & 0x02 ? CS_CALLSIGN : CS_SQUAWK);
+    mdb->silsupp = (frame[26] & 0x01 ? 1 : 0);
+    mdb->gva = (frame[27] >> 6) & 0x03;
+    mdb->single_antenna = (frame[27] & 0x20 ? 1 : 0);
+    mdb->nicsupp = (frame[27] & 0x10 ? 1 : 0);
+
 }
 
 static const char *emitter_category_names[40] = {
@@ -384,7 +390,7 @@ static void uat_display_ms(const struct uat_adsb_mdb *mdb, FILE *to)
             " NACp:              %u\n"
             " NACv:              %u\n"
             " NICbaro:           %u\n"
-            " Capabilities:      %s%s\n"
+            " Capabilities:      %s%s%s\n"
             " Active modes:      %s%s%s\n"
             " Target track type: %s\n",
             emitter_category_names[mdb->emitter_category],
@@ -397,7 +403,7 @@ static void uat_display_ms(const struct uat_adsb_mdb *mdb, FILE *to)
             mdb->nac_p,
             mdb->nac_v,
             mdb->nic_baro,
-            mdb->has_cdti ? "CDTI " : "", mdb->has_acas ? "ACAS " : "",
+            mdb->uat_in ? "UAT IN " : "", mdb->es_in ? "ES IN " : "", mdb->has_acas ? "ACAS " : "",
             mdb->acas_ra_active ? "ACASRA " : "", mdb->ident_active ? "IDENT " : "", mdb->atc_services ? "ATC " : "",
             mdb->heading_type == HT_MAGNETIC ? "magnetic heading" : "true heading");
 }
