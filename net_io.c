@@ -63,6 +63,7 @@
 
 #include "uat2esnt/uat2esnt.h"
 #include "uat2esnt/uat2mm.h"
+#include "uat2esnt/uat.h"
 
 #define DLE 0x10
 #define ETX 0x03
@@ -1770,6 +1771,15 @@ static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *wri
         *p++ = '3';
     } else if (msgLen == MODEAC_MSG_BYTES) {
         *p++ = '1';
+    } else if (msgLen == SHORT_FRAME_BYTES) {
+        *p++ = 0xec;
+        *p++ = 's';
+    } else if (msgLen == LONG_FRAME_BYTES) {
+        *p++ = 0xec;
+        *p++ = 'l';
+    } else if (msgLen == UPLINK_FRAME_BYTES) {
+        *p++ = 0xec;
+        *p++ = 'u';
     } else {
         return;
     }
@@ -4505,7 +4515,7 @@ static int decodeEncapsulatedUAT(struct client *c, char *msg, int remote, int64_
 
     int debugIncomplete = 0;
 
-    unsigned char frame[2048];
+    unsigned char frame[UPLINK_FRAME_BYTES];
     frame_type_t frametype;
     char *p = msg;
 
@@ -4519,10 +4529,10 @@ static int decodeEncapsulatedUAT(struct client *c, char *msg, int remote, int64_
         }
     } else if (*p == 's') {
         bytes = 30;
-        frametype = UAT_DOWNLINK;
+        frametype = UAT_SHORT;
     } else if (*p == 'l') {
         bytes = 48;
-        frametype = UAT_DOWNLINK;
+        frametype = UAT_LONG;
     } else {
         return 2;
     }
@@ -4614,7 +4624,7 @@ static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now
     MODES_NOTUSED(remote);
     MODES_NOTUSED(c);
 
-    unsigned char frame[2048];
+    unsigned char frame[UPLINK_FRAME_BYTES];
     frame_type_t frametype;
     float signal_strength;
     int msgLen = strlen(msg);

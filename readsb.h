@@ -984,8 +984,8 @@ extern struct _Modes Modes;
 struct modesMessage
 {
     // Generic fields
-    unsigned char msg[MODES_LONG_MSG_BYTES]; // Binary message.
-    unsigned char verbatim[MODES_LONG_MSG_BYTES]; // Binary message, as originally received before correction
+    unsigned char msg[48]; // Binary message.
+    unsigned char verbatim[48]; // Binary message, as originally received before correction
     double signalLevel; // RSSI, in the range [0..1], as a fraction of full-scale power
     struct client *client; // network client this message came from, NULL otherwise
     struct aircraft *aircraft; // tracked aircraft associated with this message or NULL

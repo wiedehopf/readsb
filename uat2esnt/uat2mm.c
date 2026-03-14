@@ -37,9 +37,17 @@ static int hexbyte(char *buf) {
 }
 
 int uat2mm(frame_type_t type, uint8_t *frame, float ss, int64_t now, struct modesMessage *mm) {
-    if (type == UAT_DOWNLINK) {
+    if (type == UAT_SHORT || type == UAT_LONG) {
         struct uat_adsb_mdb mdb;
         uat_decode_adsb_mdb(frame, &mdb);
+
+        if (type == UAT_SHORT) {
+            memcpy(mm->msg, frame, SHORT_FRAME_BYTES);
+            mm->msgbits = SHORT_FRAME_BITS;
+        } else if (type == UAT_LONG) {
+            memcpy(mm->msg, frame, LONG_FRAME_BYTES);
+            mm->msgbits = LONG_FRAME_BITS;
+        }
 
         mm->sysTimestamp = now;
         mm->signalLevel = ss;
@@ -266,7 +274,7 @@ int process_dump978(char *p, char *end, frame_type_t *frametype, uint8_t *frame,
     int len = 0;
 
     if (*p == '-')
-        *frametype = UAT_DOWNLINK;
+        *frametype = UAT_LONG; // cant distinguish between short and long message. assume long
     else if (*p == '+')
         *frametype = UAT_UPLINK;
     else
