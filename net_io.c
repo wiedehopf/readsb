@@ -4596,6 +4596,10 @@ static int decodeEncapsulatedUAT(struct client *c, char *msg, int remote, int64_
     }
 
     struct modesMessage *mm = netGetMM(mb);
+    mm->receiverId = c->receiverId;
+    if (unlikely(Modes.incrementId)) {
+        mm->receiverId += now / (10 * MINUTES);
+    }
 
     int success = uat2mm(frametype, frame, signalLevel, now, mm);
 
@@ -4622,7 +4626,6 @@ static int decodeEncapsulatedUAT(struct client *c, char *msg, int remote, int64_
 
 static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now, struct messageBuffer *mb) {
     MODES_NOTUSED(remote);
-    MODES_NOTUSED(c);
 
     unsigned char frame[UPLINK_FRAME_BYTES];
     frame_type_t frametype;
@@ -4633,6 +4636,11 @@ static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now
     process_dump978(msg, end, &frametype, frame, &signal_strength);
     double ss_W = pow(10.0, signal_strength / 10.0);
     struct modesMessage *mm = netGetMM(mb);
+    mm->receiverId = c->receiverId;
+    if (unlikely(Modes.incrementId)) {
+        mm->receiverId += now / (10 * MINUTES);
+    }
+
 
     int success = uat2mm(frametype, frame, ss_W, now, mm);
 
