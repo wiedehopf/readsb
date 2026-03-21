@@ -34,7 +34,6 @@ typedef enum { AQ_ADSB_ICAO=0, AQ_NATIONAL=1, AQ_TISB_ICAO=2, AQ_TISB_OTHER=3, A
 typedef enum { ALT_INVALID=0, ALT_BARO, ALT_GEO } altitude_type_t;
 typedef enum { UAT_AG_SUBSONIC=0, UAT_AG_SUPERSONIC=1, UAT_AG_GROUND=2, UAT_AG_RESERVED=3 } airground_state_t;
 typedef enum { TT_INVALID=0, TT_TRACK, TT_MAG_HEADING, TT_TRUE_HEADING } track_type_t;
-typedef enum { HT_INVALID=0, HT_MAGNETIC, HT_TRUE } uat_heading_type_t;
 typedef enum { CS_INVALID=0, CS_CALLSIGN, CS_SQUAWK } callsign_type_t;
 
 struct uat_adsb_mdb {
@@ -122,8 +121,6 @@ struct uat_adsb_mdb {
     uint8_t gva;
     uint32_t single_antenna: 1;
     uint32_t nicsupp: 1;
-
-    uat_heading_type_t heading_type;
 
     //
     // AUXSV

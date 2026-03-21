@@ -19,7 +19,6 @@
 #include <string.h>
 #include <assert.h>
 
-#include "uat.h"
 #include "uat_decode.h"
 
 static void uat_decode_hdr(uint8_t *frame, struct uat_adsb_mdb *mdb)
@@ -391,8 +390,7 @@ static void uat_display_ms(const struct uat_adsb_mdb *mdb, FILE *to)
             " NACv:              %u\n"
             " NICbaro:           %u\n"
             " Capabilities:      %s%s%s\n"
-            " Active modes:      %s%s%s\n"
-            " Target track type: %s\n",
+            " Active modes:      %s%s%s\n",
             emitter_category_names[mdb->emitter_category],
             mdb->callsign_type == CS_SQUAWK ? "squawk " : "",
             mdb->callsign_type == CS_INVALID ? "unavailable" : mdb->callsign,
@@ -404,8 +402,7 @@ static void uat_display_ms(const struct uat_adsb_mdb *mdb, FILE *to)
             mdb->nac_v,
             mdb->nic_baro,
             mdb->uat_in ? "UAT IN " : "", mdb->es_in ? "ES IN " : "", mdb->has_acas ? "ACAS " : "",
-            mdb->acas_ra_active ? "ACASRA " : "", mdb->ident_active ? "IDENT " : "", mdb->atc_services ? "ATC " : "",
-            mdb->heading_type == HT_MAGNETIC ? "magnetic heading" : "true heading");
+            mdb->acas_ra_active ? "ACASRA " : "", mdb->ident_active ? "IDENT " : "", mdb->atc_services ? "ATC " : "");
 }
 
 static void uat_decode_auxsv(uint8_t *frame, struct uat_adsb_mdb *mdb)

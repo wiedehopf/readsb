@@ -92,6 +92,46 @@ int uat2mm(frame_type_t type, uint8_t *frame, float ss, int64_t now, struct mode
 
     if (mdb.has_sv) {
         mm->msgtype = 34; // has position
+
+        switch (mdb.nic) {
+        case 1:
+            mm->decoded_rc = 37040;
+            break;
+        case 2:
+            mm->decoded_rc = 14816;
+            break;
+        case 3:
+            mm->decoded_rc = 7408;
+            break;
+        case 4:
+            mm->decoded_rc = 3704;
+            break;
+        case 5:
+            mm->decoded_rc = 1852;
+            break;
+        case 6:
+            mm->decoded_rc = 1112;
+            break;
+        case 7:
+            mm->decoded_rc = 371;
+            break;
+        case 8:
+            mm->decoded_rc = 186;
+            break;
+        case 9:
+            mm->decoded_rc = 75;
+            break;
+        case 10:
+            mm->decoded_rc = 25;
+            break;
+        case 11:
+            mm->decoded_rc = 8;
+            break;
+        default:
+            mm->decoded_rc = RC_UNKNOWN;
+            break;
+        }
+
         if (mdb.position_valid) {
             mm->decoded_lat = mdb.lat;
             mm->decoded_lon = mdb.lon;
@@ -200,52 +240,16 @@ int uat2mm(frame_type_t type, uint8_t *frame, float ss, int64_t now, struct mode
             break;
         }
 
-        switch (mdb.nic) {
-        case 1:
-            mm->decoded_rc = 37040;
-            break;
-        case 2:
-            mm->decoded_rc = 14816;
-            break;
-        case 3:
-            mm->decoded_rc = 7408;
-            break;
-        case 4:
-            mm->decoded_rc = 3704;
-            break;
-        case 5:
-            mm->decoded_rc = 1852;
-            break;
-        case 6:
-            mm->decoded_rc = 1112;
-            break;
-        case 7:
-            mm->decoded_rc = 371;
-            break;
-        case 8:
-            mm->decoded_rc = 186;
-            break;
-        case 9:
-            mm->decoded_rc = 75;
-            break;
-        case 10:
-            mm->decoded_rc = 25;
-            break;
-        case 11:
-            mm->decoded_rc = 8;
-            break;
-        default:
-            mm->decoded_rc = RC_UNKNOWN;
-            break;
-        }
         mm->accuracy.nac_p_valid = 1;
         mm->accuracy.nac_p = mdb.nac_p;
         mm->accuracy.nac_v_valid = 1;
         mm->accuracy.nac_v = mdb.nac_v;
         mm->accuracy.nic_baro_valid = 1;
         mm->accuracy.nic_baro = mdb.nic_baro;
-        mm->accuracy.sil_type = (mdb.silsupp == 1 ? SIL_PER_HOUR : SIL_PER_SAMPLE);
+        mm->accuracy.sil_type = (mdb.silsupp == 1 ? SIL_PER_SAMPLE : SIL_PER_HOUR);
         mm->accuracy.sil = mdb.sil;
+        mm->accuracy.gva_valid = 1;
+        mm->accuracy.gva = mdb.gva;
 
         mm->opstatus.valid = 1;
         mm->opstatus.version = mdb.uat_version;
