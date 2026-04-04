@@ -18,6 +18,8 @@ static inline const char *addrtype_enum_string(addrtype_t type) {
     switch (type) {
         case ADDR_ADSB_ICAO:
             return "adsb_icao";
+        case ADDR_UAT_ICAO:
+            return "uat_icao";
         case ADDR_ADSB_ICAO_NT:
             return "adsb_icao_nt";
         case ADDR_ADSR_ICAO:
@@ -36,6 +38,8 @@ static inline const char *addrtype_enum_string(addrtype_t type) {
 
         case ADDR_ADSB_OTHER:
             return "adsb_other";
+        case ADDR_UAT_OTHER:
+            return "uat_other";
         case ADDR_ADSR_OTHER:
             return "adsr_other";
         case ADDR_TISB_TRACKFILE:

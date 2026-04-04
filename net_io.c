@@ -62,6 +62,8 @@
 #include <poll.h>
 
 #include "uat2esnt/uat2esnt.h"
+#include "uat2esnt/uat2mm.h"
+#include "uat2esnt/uat.h"
 
 #define DLE 0x10
 #define ETX 0x03
@@ -1769,6 +1771,15 @@ static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *wri
         *p++ = '3';
     } else if (msgLen == MODEAC_MSG_BYTES) {
         *p++ = '1';
+    } else if (msgLen == SHORT_FRAME_BYTES) {
+        *p++ = 0xec;
+        *p++ = 's';
+    } else if (msgLen == LONG_FRAME_BYTES) {
+        *p++ = 0xec;
+        *p++ = 'l';
+    } else if (msgLen == UPLINK_FRAME_BYTES) {
+        *p++ = 0xec;
+        *p++ = 'u';
     } else {
         return;
     }
@@ -4482,6 +4493,7 @@ static int processHexMessage(struct client *c, char *hex, int remote, int64_t no
     return (0);
 }
 
+/*
 static void replayUatMsg(char *msg, int msgLen) {
     char *p = prepareWrite(&Modes.uat_replay_out, msgLen + 1);
     if (!p) {
@@ -4495,6 +4507,7 @@ static void replayUatMsg(char *msg, int msgLen) {
 
     return;
 }
+*/
 
 static int decodeEncapsulatedUAT(struct client *c, char *msg, int remote, int64_t now, struct messageBuffer *mb) {
     MODES_NOTUSED(remote);
@@ -4502,25 +4515,24 @@ static int decodeEncapsulatedUAT(struct client *c, char *msg, int remote, int64_
 
     int debugIncomplete = 0;
 
-    char buf[2048];
-    char *out = buf;
-    char *end = buf + sizeof(buf);
+    unsigned char frame[UPLINK_FRAME_BYTES];
+    frame_type_t frametype;
     char *p = msg;
 
     int bytes = 0;
     if (*p == 'u') {
         bytes = 552;
-        out = safe_snprintf(out, end, "+");
+        frametype = UAT_UPLINK;
         if (debugIncomplete) {
             fprintTimePrecise(stderr, mstime());
             fprintf(stderr, "uat uplink bytes in buffer: %d\n", (int) (c->eod - p));
         }
     } else if (*p == 's') {
         bytes = 30;
-        out = safe_snprintf(out, end, "-");
+        frametype = UAT_SHORT;
     } else if (*p == 'l') {
         bytes = 48;
-        out = safe_snprintf(out, end, "-");
+        frametype = UAT_LONG;
     } else {
         return 2;
     }
@@ -4547,7 +4559,6 @@ static int decodeEncapsulatedUAT(struct client *c, char *msg, int remote, int64_
         timestamp = timestamp << 8 | (((unsigned char) *p) & 255);
         p++;
     }
-
 
     double signalLevel = ((unsigned char) *p / 255.0);
     //fprintf(stderr, "level: %d %f\n", (unsigned char) *p, signalLevel);
@@ -4578,20 +4589,34 @@ static int decodeEncapsulatedUAT(struct client *c, char *msg, int remote, int64_
                 return -1;
             }
         }
-        printHexDigit(out, *p);
-        out += 2;
+        frame[processedBytes] = *p;
+
         p++;
         processedBytes++;
     }
 
-    out = safe_snprintf(out, end, ";");
-
-    if (signalLevel > 1.125e-5) {
-        out = safe_snprintf(out, end, "rssi=%.1f;", 10.0f * log10f(signalLevel));
+    struct modesMessage *mm = netGetMM(mb);
+    mm->receiverId = c->receiverId;
+    if (unlikely(Modes.incrementId)) {
+        mm->receiverId += now / (10 * MINUTES);
     }
 
-    //fprintf(stderr, "passing to decodeUatMessage: %s\n", buf);
-    decodeUatMessage(c, buf, 1, now, mb);
+    int success = uat2mm(frametype, frame, signalLevel, now, mm);
+
+    if (success) {
+        struct aircraft *a = aircraftGet(mm->addr);
+        if (!a) { // If it's a currently unknown aircraft....
+            a = aircraftCreate(mm->addr); // ., create a new record for it,
+        }
+        //ignore the first UAT message
+        if (now > a->seen + 300 * SECONDS) {
+            //fprintf(stderr, "IGNORING first UAT message from: %06x\n", a->addr);
+            a->seen = now;
+            return 0;
+        }
+        netUseMessage(mm);
+        //displayModesMessage(mm);
+    }
 
     if (p - msg == 0 && debugIncomplete) {
         fprintf(stderr, "uat_incomplete %d\n", __LINE__);
@@ -4602,43 +4627,36 @@ static int decodeEncapsulatedUAT(struct client *c, char *msg, int remote, int64_
 static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now, struct messageBuffer *mb) {
     MODES_NOTUSED(remote);
 
+    unsigned char frame[UPLINK_FRAME_BYTES];
+    frame_type_t frametype;
+    float signal_strength;
     int msgLen = strlen(msg);
     char *end = msg + msgLen;
-    char output[8192];
 
-    replayUatMsg(msg, msgLen);
+    process_dump978(msg, end, &frametype, frame, &signal_strength);
+    double ss_W = pow(10.0, signal_strength / 10.0);
+    struct modesMessage *mm = netGetMM(mb);
+    mm->receiverId = c->receiverId;
+    if (unlikely(Modes.incrementId)) {
+        mm->receiverId += now / (10 * MINUTES);
+    }
 
-    uat2esnt_convert_message(msg, end, output, output + sizeof(output));
 
-    char *som = output;
-    char *eod = som + strlen(som);
-    char *p;
+    int success = uat2mm(frametype, frame, ss_W, now, mm);
 
-    //fprintf(stderr, "START:\n%sEND\n", som);
-
-    while (((p = memchr(som, '\n', eod - som)) != NULL)) {
-        *p = '\0';
-
-        struct modesMessage *mm = netGetMM(mb);
-
-        //fprintf(stderr, "AVR:%s\n", som);
-        int success = decodeHexMessage(c, som, now, mm);
-
-        if (success) {
-            struct aircraft *a = aircraftGet(mm->addr);
-            if (!a) { // If it's a currently unknown aircraft....
-                a = aircraftCreate(mm->addr); // ., create a new record for it,
-            }
-            // ignore the first UAT message
-            if (now > a->seen + 300 * SECONDS) {
-                //fprintf(stderr, "IGNORING first UAT message from: %06x\n", a->addr);
-                a->seen = now;
-                return 0;
-            }
-            netUseMessage(mm);
-            //displayModesMessage(mm);
+    if (success) {
+        struct aircraft *a = aircraftGet(mm->addr);
+        if (!a) { // If it's a currently unknown aircraft....
+            a = aircraftCreate(mm->addr); // ., create a new record for it,
         }
-        som = p + 1;
+        //ignore the first UAT message
+        if (now > a->seen + 300 * SECONDS) {
+            //fprintf(stderr, "IGNORING first UAT message from: %06x\n", a->addr);
+            a->seen = now;
+            return 0;
+        }
+        netUseMessage(mm);
+        //displayModesMessage(mm);
     }
     return 0;
 }

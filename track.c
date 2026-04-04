@@ -1758,7 +1758,7 @@ static int altitude_to_feet(int raw, altitude_unit_t unit) {
 // check if we trust that this message is actually from the aircraft with this address
 // similar reasoning to icaoFilterAdd in mode_s.c
 static int addressReliable(struct modesMessage *mm) {
-    if (mm->msgtype == 17 || mm->msgtype == 18 || (mm->msgtype == 11 && mm->IID == 0) || mm->sbs_in) {
+    if (mm->msgtype == 17 || mm->msgtype == 18 || (mm->msgtype == 11 && mm->IID == 0) || mm->sbs_in || mm->source == SOURCE_UAT) {
         return 1;
     }
     return 0;
@@ -2191,6 +2191,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
     switch (mm->source) {
     case SOURCE_ADSB:
+    case SOURCE_UAT:
         message_version = &a->adsb_version;
         break;
     case SOURCE_TISB:
@@ -2673,6 +2674,20 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
                     a->addr,
                     trackDataAge(mm->sysTimestamp, &a->cpr_odd_valid),
                     trackDataAge(mm->sysTimestamp, &a->cpr_even_valid));
+        }
+    }
+
+    if (mm->source == SOURCE_UAT && mm->msgtype == 34) {
+        int usePosition = 0;
+        if (!speed_check(a, mm->source, mm->decoded_lat, mm->decoded_lon, mm, CPR_NONE)) {
+            mm->pos_bad = 1;
+            // speed check failed, do nothing
+        } else if (accept_data(&a->position_valid, mm->source, mm, a, REDUCE_DOUBLE)) {
+            usePosition = 1;
+        }
+        if (usePosition) {
+            incrementReliable(a, mm, now, 2);
+            setPosition(a, mm, now);
         }
     }
 

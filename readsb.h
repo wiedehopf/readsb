@@ -172,6 +172,7 @@ typedef enum
     SOURCE_MODE_S_CHECKED, /* data from a Mode S message with full CRC */
     SOURCE_TISB, /* data from a TIS-B extended squitter message */
     SOURCE_ADSR, /* data from a ADS-R extended squitter message */
+    SOURCE_UAT, /* data from a UAT message */
     SOURCE_ADSB, /* data from a ADS-B extended squitter message */
     SOURCE_PRIO, /* priority input */
 } datasource_t;
@@ -182,6 +183,7 @@ typedef enum
 typedef enum
 {
     ADDR_ADSB_ICAO = 0, /* ADS-B, ICAO address, transponder sourced */
+    ADDR_UAT_ICAO = 13, /* UAT, ICAO address */
     ADDR_ADSB_ICAO_NT = 1, /* ADS-B, ICAO address, non-transponder */
     ADDR_ADSR_ICAO = 2, /* ADS-R, ICAO address */
     ADDR_TISB_ICAO = 3, /* TIS-B, ICAO address */
@@ -192,17 +194,18 @@ typedef enum
     ADDR_MODE_S = 7,
 
     ADDR_ADSB_OTHER = 8, /* ADS-B, other address format */
+    ADDR_UAT_OTHER = 14, /* UAT, other address format */
     ADDR_ADSR_OTHER = 9, /* ADS-R, other address format */
     ADDR_TISB_TRACKFILE = 10, /* TIS-B, Mode A code + track file number */
     ADDR_TISB_OTHER = 11, /* TIS-B, other address format */
 
     ADDR_MODE_A = 12, /* Mode A */
 
-    ADDR_UNKNOWN = 13 /* unknown address format */
+    ADDR_UNKNOWN = 15 /* unknown address format */
 } addrtype_t;
 
 // number of types as defined above
-#define NUM_TYPES 14
+#define NUM_TYPES 16
 
 
 typedef enum
@@ -982,8 +985,8 @@ extern struct _Modes Modes;
 struct modesMessage
 {
     // Generic fields
-    unsigned char msg[MODES_LONG_MSG_BYTES]; // Binary message.
-    unsigned char verbatim[MODES_LONG_MSG_BYTES]; // Binary message, as originally received before correction
+    unsigned char msg[48]; // Binary message.
+    unsigned char verbatim[48]; // Binary message, as originally received before correction
     double signalLevel; // RSSI, in the range [0..1], as a fraction of full-scale power
     struct client *client; // network client this message came from, NULL otherwise
     struct aircraft *aircraft; // tracked aircraft associated with this message or NULL
