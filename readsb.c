@@ -189,6 +189,7 @@ static void configSetDefaults(void) {
     Modes.netReceiverId = 0;
     Modes.netIngest = 0;
     Modes.ingestLimitRate = 5420;
+    Modes.ingestLimitPositionRate = 300;
     Modes.json_trace_interval = 20 * 1000;
     Modes.traceLastMax = 96;
     Modes.beforeLandHighRes = 128;
@@ -2223,6 +2224,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 }
                 if (strcasecmp(token[0], "ingestLimitRate") == 0 && token[1]) {
                     Modes.ingestLimitRate = atoi(token[1]);
+                }
+                if (strcasecmp(token[0], "ingestLimitPositionRate") == 0 && token[1]) {
+                    Modes.ingestLimitPositionRate = atoi(token[1]);
                 }
                 if (strcasecmp(token[0], "sbs_override_squawk") == 0 && token[1]) {
                     Modes.sbsOverrideSquawk = atoi(token[1]);

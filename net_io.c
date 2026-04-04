@@ -4793,7 +4793,7 @@ static int readClient(struct client *c, int64_t now) {
 
     if (Modes.netIngest) {
         int windowSeconds = 2;
-        int aboveRate = (c->recentMessages > windowSeconds * Modes.ingestLimitRate);
+        int aboveRate = (c->recentMessages > windowSeconds * Modes.ingestLimitRate) || (c->recentPositions > windowSeconds * Modes.ingestLimitPositionRate);
         if (aboveRate) {
             c->unreasonable_messagerate = 1;
             if (now > c->unreasonableRateReset) {
@@ -4815,6 +4815,7 @@ static int readClient(struct client *c, int64_t now) {
             }
             c->recentMessagesReset = now + windowSeconds * SECONDS;
             c->recentMessages = 0;
+            c->recentPositions = 0;
         }
     }
 

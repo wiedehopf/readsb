@@ -800,6 +800,7 @@ struct _Modes
     int8_t json_separate_ground;
 
     int ingestLimitRate;
+    int ingestLimitPositionRate;
     int position_persistence; // Maximum number of consecutive implausible positions from global CPR to invalidate a known position
     int json_reliable;
 
