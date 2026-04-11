@@ -431,8 +431,8 @@ static inline void *calloc_or_exit(size_t alignment, size_t size, const char *fi
     return buf;
 }
 
-#define HUGE 1
-#define NOHUGE 0
+#define CM_HUGEPAGE 1
+#define CM_NO_HUGEPAGE 0
 
 static inline void *mmap_or_exit(size_t size, int huge, const char *file, int line) {
     void *buf = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);

@@ -38,7 +38,7 @@ static struct aircraft *allocAircraft() {
     if (!Modes.aircraftBack) {
         Modes.aircraft_data_size += aircraftBackAlloc;
         if (Modes.thp) {
-            Modes.aircraftBack = cmMmap(aircraftBackAlloc, HUGE);
+            Modes.aircraftBack = cmMmap(aircraftBackAlloc, CM_HUGEPAGE);
         } else {
             Modes.aircraftBack = cmalloc(aircraftBackAlloc);
         }
@@ -50,7 +50,7 @@ static struct aircraft *allocAircraft() {
         struct aircraftBack *prev = Modes.aircraftBack;
         Modes.aircraft_data_size += aircraftBackAlloc;
         if (Modes.thp) {
-            Modes.aircraftBack = cmMmap(aircraftBackAlloc, HUGE);
+            Modes.aircraftBack = cmMmap(aircraftBackAlloc, CM_HUGEPAGE);
         } else {
             Modes.aircraftBack = cmalloc(aircraftBackAlloc);
         }

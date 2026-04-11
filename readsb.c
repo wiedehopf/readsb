@@ -304,7 +304,7 @@ static void modesInit(void) {
             size += 2 * 1024 * 1024;
         }
         // allocate multiple of 2 MB so transparent hugepages work
-        Modes.aircraft = cmMmap(size, HUGE);
+        Modes.aircraft = cmMmap(size, CM_HUGEPAGE);
         memset(Modes.aircraft, 0x0, Modes.acBuckets * sizeof(struct aircraft *));
     } else {
         Modes.aircraft = cmCalloc(Modes.acBuckets * sizeof(struct aircraft *));
