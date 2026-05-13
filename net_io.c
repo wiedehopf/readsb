@@ -4554,8 +4554,6 @@ static int decodeEncapsulatedUAT(struct client *c, char *msg, int remote, int64_
     signalLevel = signalLevel * signalLevel;
     p++;
 
-    int processedBytes = 0;
-
     for (int j = 0; j < bytes; j++) {
         if (p >= c->eod) {
             // incomplete message
@@ -4581,7 +4579,6 @@ static int decodeEncapsulatedUAT(struct client *c, char *msg, int remote, int64_
         printHexDigit(out, *p);
         out += 2;
         p++;
-        processedBytes++;
     }
 
     out = safe_snprintf(out, end, ";");
