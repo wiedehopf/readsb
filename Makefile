@@ -8,6 +8,7 @@ PLUTOSDR ?= no
 SOAPYSDR ?= no
 AGGRESSIVE ?= no
 HAVE_BIASTEE ?= no
+SBS_RSSI ?= no
 # TRACKS_UUID saves the uuid for each position to historic / current traces (often multiple uuids will send the
 # same position, in this case the first uuid to contribute the position will be noted as only one
 # uuid is saved)
@@ -109,6 +110,10 @@ endif
 
 ifeq ($(WITH_UUIDS), yes)
     CFLAGS += -DWITH_UUIDS
+endif
+
+ifeq ($(SBS_RSSI), yes)
+    CFLAGS += -DENABLE_SBS_RSSI
 endif
 
 ifneq ($(RECENT_RECEIVER_IDS),)
