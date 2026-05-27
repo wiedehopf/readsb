@@ -3560,14 +3560,14 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, stru
             break;
     }
 
-#ifdef ENABLE_SBS_RSSI
-    // Field 23 is the RSSI in dBFS (if we have it)
-    if (mm->signalLevel > 0) {
-        p += sprintf(p, ",%.1f", 10.0 * log10(mm->signalLevel));
-    } else {
-        p += sprintf(p, ",");
+    if (Modes.sbs_rssi) {
+        // Field 23 is the RSSI in dBFS (if we have it)
+        if (mm->signalLevel > 0) {
+            p += sprintf(p, ",%.1f", 10.0 * log10(mm->signalLevel));
+        } else {
+            p += sprintf(p, ",");
+        }
     }
-#endif
 
     p += sprintf(p, "\r\n");
 
