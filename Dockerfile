@@ -7,15 +7,15 @@ RUN --mount=type=bind,source=.,target=/app/git \
     cp -aT /app/git $READSB_BUILD_DIR && \
     cd $READSB_BUILD_DIR && \
     [[ $(uname -m) == x86_64 ]] && MARCH=" -march=nehalem" || MARCH="" && \
-    make -j$(nproc) RTLSDR=yes OPTIMIZE="-O2 $MARCH" && \
+    make -j$(nproc) RTLSDR=yes SBS_RSSI=yes OPTIMIZE="-O2 $MARCH" && \
     mv readsb /usr/local/bin && \
     mv viewadsb /usr/local/bin && \
     chmod +x /usr/local/bin/viewadsb /usr/local/bin/readsb && \
     make clean && \
-    make -j$(nproc) WITH_UUIDS=yes OPTIMIZE="-O2 $MARCH" && \
+    make -j$(nproc) WITH_UUIDS=yes SBS_RSSI=yes OPTIMIZE="-O2 $MARCH" && \
     mv readsb /usr/local/bin/readsb-with-uuids && \
     make clean && \
-    make -j$(nproc) PRINT_UUIDS=yes TRACKS_UUID=yes OPTIMIZE="-O2 $MARCH" && \
+    make -j$(nproc) PRINT_UUIDS=yes TRACKS_UUID=yes SBS_RSSI=yes OPTIMIZE="-O2 $MARCH" && \
     mv readsb /usr/local/bin/readsb-uuid && \
     mv viewadsb /usr/local/bin/viewadsb-uuid && \
     chmod +x /usr/local/bin/viewadsb-uuid && \
