@@ -7,7 +7,7 @@ RUN --mount=type=bind,source=.,target=/app/git \
     cp -aT /app/git $READSB_BUILD_DIR && \
     cd $READSB_BUILD_DIR && \
     [[ $(uname -m) == x86_64 ]] && MARCH=" -march=nehalem" || MARCH="" && \
-    make -j$(nproc) RTLSDR=yes OPTIMIZE="-O2 $MARCH" && \
+    make -j$(nproc) RTLSDR=yes OPTIMIZE="-O2 $MARCH" &&\
     mv readsb /usr/local/bin && \
     mv viewadsb /usr/local/bin && \
     chmod +x /usr/local/bin/viewadsb /usr/local/bin/readsb && \
