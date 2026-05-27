@@ -1132,7 +1132,7 @@ void dump_beast_check(int64_t now) {
 
     char pathbuf[PATH_MAX];
 
-    if (0) {
+    if (Modes.beast_dated_dirs) {
         char datestring[20];
         strftime(datestring, sizeof(datestring), "%Y-%m-%d", &utc);
 
