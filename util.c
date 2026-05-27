@@ -1130,9 +1130,20 @@ void dump_beast_check(int64_t now) {
     char tstring[100];
     strftime (tstring, 100, "%H%M%S", &utc);
 
-
     char pathbuf[PATH_MAX];
-    snprintf(pathbuf, PATH_MAX, "%s/%sZ.zst", Modes.dump_beast_dir, tstring);
+
+    if (0) {
+        char datestring[20];
+        strftime(datestring, sizeof(datestring), "%Y-%m-%d", &utc);
+
+        char dirpath[PATH_MAX];
+        snprintf(dirpath, PATH_MAX, "%s/%s", Modes.dump_beast_dir, datestring);
+        mkdir(dirpath, 0755); // creates dated subdir; EEXIST is fine
+
+        snprintf(pathbuf, PATH_MAX, "%s/%sZ.zst", dirpath, tstring);
+    } else {
+        snprintf(pathbuf, PATH_MAX, "%s/%sZ.zst", Modes.dump_beast_dir, tstring);
+    }
 
     // unless we just restarted, delete the file
     if (!startup) {
