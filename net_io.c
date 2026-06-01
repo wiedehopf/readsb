@@ -3351,7 +3351,7 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, stru
     struct tm stTime_receive, stTime_now;
     int msgType;
 
-    p = prepareWrite(writer, 200);
+    p = prepareWrite(writer, Modes.sbs_rssi ? 250 : 200);
     if (!p)
         return;
 
@@ -3561,9 +3561,12 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, stru
     }
 
     if (Modes.sbs_rssi) {
-        // Field 23 is the RSSI in dBFS (if we have it)
+        // Field 23 is the RSSI in dBFS (if we have it).
+        // signalLevel is power (unsigned char / 255)^2, range [0, 1].
+        // Guard: clamp to a minimum to avoid log10(0) = -inf even if signalLevel
+        // is somehow a subnormal. Anything below 1e-10 is below receiver noise floor.
         if (mm->signalLevel > 0) {
-            p += sprintf(p, ",%.1f", 10.0 * log10(mm->signalLevel));
+            p += sprintf(p, ",%.1f", 10.0 * log10(fmax(mm->signalLevel, 1e-10)));
         } else {
             p += sprintf(p, ",");
         }
