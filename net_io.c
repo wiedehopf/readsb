@@ -3351,7 +3351,7 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, stru
     struct tm stTime_receive, stTime_now;
     int msgType;
 
-    p = prepareWrite(writer, Modes.sbs_rssi ? 250 : 200);
+    p = prepareWrite(writer, Modes.sbs_category ? 260 : (Modes.sbs_rssi ? 250 : 200));
     if (!p)
         return;
 
@@ -3560,13 +3560,24 @@ static void modesSendSBSOutput(struct modesMessage *mm, struct aircraft *a, stru
             break;
     }
 
-    if (Modes.sbs_rssi) {
-        // Field 23 is the RSSI in dBFS (if we have it).
+    if (Modes.sbs_rssi || Modes.sbs_category) {
+        // Field 23: RSSI in dBFS (if we have it).
         // signalLevel is power (unsigned char / 255)^2, range [0, 1].
         // Guard: clamp to a minimum to avoid log10(0) = -inf even if signalLevel
         // is somehow a subnormal. Anything below 1e-10 is below receiver noise floor.
-        if (mm->signalLevel > 0) {
+        if (Modes.sbs_rssi && mm->signalLevel > 0) {
             p += sprintf(p, ",%.1f", 10.0 * log10(fmax(mm->signalLevel, 1e-10)));
+        } else {
+            p += sprintf(p, ",");
+        }
+    }
+
+    if (Modes.sbs_category) {
+        // Field 24: aircraft category (A0-D7) from ADS-B identification message.
+        // Encoded as ((0x0E - metype) << 4) | mesub; output as two hex chars.
+        // Empty on message types that do not carry identification data.
+        if (mm->category_valid) {
+            p += sprintf(p, ",%02X", mm->category);
         } else {
             p += sprintf(p, ",");
         }
