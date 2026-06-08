@@ -770,7 +770,7 @@ struct _Modes
     int8_t dump_ignore_synthetic_now;
     int8_t syntethic_now_suppress_errors;
     int8_t ifile_no_synthetic;
-    int8_t sbs_rssi;
+    int8_t sbs_extra_fields; // --devel=sbs_extra_fields: append RSSI (field 23) and aircraft category (field 24) to SBS output
     int8_t tar1090_use_api;
     int8_t verbose;
 
