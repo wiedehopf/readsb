@@ -2183,8 +2183,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (strcasecmp(token[0], "ifile_no_synthetic") == 0) {
                     Modes.ifile_no_synthetic = 1;
                 }
-                if (strcasecmp(token[0], "sbs_rssi") == 0) {
-                    Modes.sbs_rssi = 1;
+                if (strcasecmp(token[0], "sbs_extra_fields") == 0) {
+                    Modes.sbs_extra_fields = 1;
                 }
                 if (strcasecmp(token[0], "beast_dated_dirs") == 0) {
                     Modes.beast_dated_dirs = 1;
