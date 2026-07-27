@@ -165,6 +165,7 @@ static struct argp_option optionsReadsb[] = {
     {"net-garbage", OptGarbage, "<ports>", 0, "timeout receivers, output messages from timed out receivers as beast on <ports>", 2},
     {"decode-threads", OptDecodeThreads, "<n>", 0, "Number of decode threads, either 1 or 2 (default: 1). Only use 2 when you have beast traffic > 200 MBit/s, expect 1.4x speedup for 2x CPU", 2},
     {"uuid-file", OptUuidFile, "<path>", 0, "path to UUID file", 2},
+    {"uuid", OptUuid, "<UUID>", 0, "UUID to send with beast_reduce_plus_out, generate one using this command: cat /proc/sys/kernel/random/uuid", 2},
     {"net-ro-size", OptNetRoSize, "<size>", 0, "TCP output flush size (maximum amount of internally buffered data before writing to network) (default: 1280)", 2},
     {"net-ro-interval", OptNetRoInterval, "<seconds>", 0, "TCP output flush interval in seconds (maximum delay between placing data in the output buffer and sending)(default: 0.05, valid values 0.0 - 1.0)", 2},
     {"net-ro-interval-beast-reduce", OptNetRoIntervalBeastReduce, "<seconds>", 0, "TCP output flush interval in seconds for beast-reduce outputs (default: value from --net-ro-interval, valid values 0.0 - 1.0)", 2},

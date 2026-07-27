@@ -1455,7 +1455,6 @@ static void cleanup_and_exit(int code) {
     sfree(Modes.net_output_asterix_ports);
     sfree(Modes.garbage_ports);
     sfree(Modes.beast_serial);
-    sfree(Modes.uuidFile);
     sfree(Modes.dbIndex);
     sfree(Modes.dbRaw.buffer);
     sfree(Modes.db);
@@ -2104,8 +2103,22 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.netIngest = 1;
             break;
         case OptUuidFile:
-            sfree(Modes.uuidFile);
-            Modes.uuidFile = strdup(arg);
+            // COMPAT note: do not error exit no matter the file validity
+            int fd = open(arg, O_RDONLY);
+            if (fd == -1) {
+                fprintf(stderr, "ERRROR: --uuid-file could not be opened! (%s)", strerror(errno));
+            } else {
+                int res = read(fd, Modes.uuid, sizeof(Modes.uuid));
+                if (res == -1) {
+                    fprintf(stderr, "ERRROR: --uuid-file could not be read! (%s)", strerror(errno));
+                }
+                close(fd);
+            }
+            Modes.uuid[sizeof(Modes.uuid) - 1] = '\0';
+            break;
+        case OptUuid:
+            strncpy(Modes.uuid, arg, sizeof(Modes.uuid));
+            Modes.uuid[sizeof(Modes.uuid) - 1] = '\0';
             break;
         case OptNetConnector:
             if (make_net_connector(arg)) {

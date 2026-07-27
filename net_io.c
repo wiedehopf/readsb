@@ -406,24 +406,19 @@ static struct client *createSocketClient(struct net_service *service, int fd, ch
 static int sendUUID(struct client *c, int64_t now) {
     struct net_connector *con = c->con;
     // sending UUID for beast_reduce_plus output
-    char uuid[150];
+    char uuid[48];
     uuid[0] = '\0';
     if ((c->sendq && c->sendq_len + 256 < c->sendq_max) && con
             && (con->enable_uuid_ping || Modes.debug_ping || Modes.debug_send_uuid)) {
 
-        int res = -1;
-
         if (con->uuid) {
-            strncpy(uuid, con->uuid, 135);
-            res = strlen(uuid);
-        } else if (Modes.uuidFile) {
-            int fd = open(Modes.uuidFile, O_RDONLY);
-            if (fd != -1) {
-                res = read(fd, uuid, 128);
-                close(fd);
-            }
+            strncpy(uuid, con->uuid, sizeof(uuid));
+        } else if (strlen(Modes.uuid) > 0) {
+            strncpy(uuid, Modes.uuid, sizeof(uuid));
         }
 
+        uuid[sizeof(uuid) - 1] = '\0';
+        int res = strlen(uuid);
         if (res >= 28) {
             if (uuid[res - 1] == '\n') {
                 // remove trailing newline
@@ -435,7 +430,10 @@ static int sendUUID(struct client *c, int64_t now) {
             c->sendq[c->sendq_len++] = 0xE4;
             // uuid is padded with 'f', always send 36 chars
             memset(c->sendq + c->sendq_len, 'f', 36);
-            strncpy(c->sendq + c->sendq_len, uuid, res);
+            // strncpy was throwing STUPID warnings .. so strcpy it is I guess, ty gcc
+            // to make it clear that we copy a max of 48 bytes, zero terminate again
+            uuid[sizeof(uuid) - 1] = '\0';
+            strcpy(c->sendq + c->sendq_len, uuid);
             c->sendq_len += 36;
         } else {
             fprintf(stderr, "ERROR: Not a valid UUID: '%s' (to generate a valid uuid use this command: cat /proc/sys/kernel/random/uuid)\n", uuid);

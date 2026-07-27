@@ -886,7 +886,7 @@ struct _Modes
     int net_connectors_count;
     int net_connectors_size;
     int64_t synthetic_now;
-    char *uuidFile;
+    char uuid[48]; // should only be 37 chars
     char *filename; // Input form file, --ifile option
     char *net_bind_address; // Bind address
     char *json_dir; // Path to json base directory, or NULL not to write json.
@@ -1364,6 +1364,7 @@ enum {
     OptGarbage,
     OptDecodeThreads,
     OptUuidFile,
+    OptUuid,
     OptRtlSdrEnableAgc,
     OptRtlSdrPpm,
     OptBeastSerial,
