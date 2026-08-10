@@ -449,6 +449,8 @@ static inline void *mmap_or_exit(size_t size, int huge, const char *file, int li
     if (buf && huge) {
         madvise(buf, size, MADV_HUGEPAGE);
     }
+#else
+    MODES_NOTUSED(huge);
 #endif
     return buf;
 }

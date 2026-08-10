@@ -2103,18 +2103,20 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             Modes.netIngest = 1;
             break;
         case OptUuidFile:
-            // COMPAT note: do not error exit no matter the file validity
-            int fd = open(arg, O_RDONLY);
-            if (fd == -1) {
-                fprintf(stderr, "ERRROR: --uuid-file could not be opened! (%s)", strerror(errno));
-            } else {
-                int res = read(fd, Modes.uuid, sizeof(Modes.uuid));
-                if (res == -1) {
-                    fprintf(stderr, "ERRROR: --uuid-file could not be read! (%s)", strerror(errno));
+            {
+                // COMPAT note: do not error exit no matter the file validity
+                int fd = open(arg, O_RDONLY);
+                if (fd == -1) {
+                    fprintf(stderr, "ERRROR: --uuid-file could not be opened! (%s)", strerror(errno));
+                } else {
+                    int res = read(fd, Modes.uuid, sizeof(Modes.uuid));
+                    if (res == -1) {
+                        fprintf(stderr, "ERRROR: --uuid-file could not be read! (%s)", strerror(errno));
+                    }
+                    close(fd);
                 }
-                close(fd);
+                Modes.uuid[sizeof(Modes.uuid) - 1] = '\0';
             }
-            Modes.uuid[sizeof(Modes.uuid) - 1] = '\0';
             break;
         case OptUuid:
             strncpy(Modes.uuid, arg, sizeof(Modes.uuid));
