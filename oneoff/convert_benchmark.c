@@ -24,6 +24,19 @@
 
 #include "../readsb.h"
 
+// MODES_MAG_BUF_SAMPLES went away when the SDR transfer size became a runtime
+// variable (Modes.sdr_buf_samples). The benchmark has no SDR, so use the
+// default buffer size readsb starts up with: sdr_buf_size / 2, 128 kiB / 2.
+#define MODES_MAG_BUF_SAMPLES (128 * 1024 / 2)
+
+// util.o references the global Modes state and setExit(), both of which live in
+// readsb.c. We can't link readsb.o here, it has its own main().
+struct _Modes Modes;
+
+void setExit(int arg) {
+    MODES_NOTUSED(arg);
+}
+
 static void **testdata_uc8;
 static void **testdata_sc16;
 static void **testdata_sc16q11;
