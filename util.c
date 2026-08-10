@@ -1178,7 +1178,7 @@ int32_t tokenize(char **restrict stringp, char *restrict delim, char **restrict 
 }
 
 void spinLock(volatile atomic_int *lock) {
-    atomic_int expected;
+    int expected;
     int calls = 0;
     do {
         expected = 0;
