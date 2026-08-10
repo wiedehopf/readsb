@@ -914,6 +914,7 @@ static int roundUp8(int value) {
 static int load_aircraft(char **p, char *end, int64_t now, threadpool_buffer_t *passbuffer, int strideStart, int strideEnd) {
     static int size_changed;
     int locked = 0;
+    int res = 0;
 
     ssize_t newSize = sizeof(struct aircraft);
 
@@ -1131,7 +1132,7 @@ static int load_aircraft(char **p, char *end, int64_t now, threadpool_buffer_t *
     }
 
 
-    int res = 0;
+    goto out;
 err:
     res = -1;
 out:
