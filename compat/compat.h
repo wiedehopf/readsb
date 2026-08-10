@@ -19,6 +19,8 @@
 # include <machine/endian.h>
 # define le16toh(x) OSSwapLittleToHostInt16(x)
 # define le32toh(x) OSSwapLittleToHostInt32(x)
+# define htole16(x) OSSwapHostToLittleInt16(x)
+# define htole32(x) OSSwapHostToLittleInt32(x)
 
 #include "apple/clock_compat.h"
 #include "apple/compat.h"
