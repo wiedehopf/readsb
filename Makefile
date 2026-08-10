@@ -200,7 +200,7 @@ viewadsb: readsb
 	cp readsb viewadsb
 
 clean:
-	rm -f *.o uat2esnt/*.o compat/clock_gettime/*.o compat/clock_nanosleep/*.o compat/apple/*.o readsb viewadsb cprtests crctests convert_benchmark
+	rm -f *.o uat2esnt/*.o oneoff/*.o compat/clock_gettime/*.o compat/clock_nanosleep/*.o compat/apple/*.o readsb viewadsb cprtests crctests oneoff/convert_benchmark
 
 test: cprtest crctest
 
@@ -217,10 +217,10 @@ crctests: crc.c crc.h
 	$(CC) $(CFLAGS) -DCRCDEBUG -o $@ $<
 
 benchmarks: oneoff/convert_benchmark
-	./convert_benchmark
+	./oneoff/convert_benchmark
 
-oneoff/convert_benchmark: oneoff/convert_benchmark.o convert.o util.o
-	$(CC) $(CFLAGS) -o $@ $^ -lm
+oneoff/convert_benchmark: oneoff/convert_benchmark.o convert.o util.o threadpool.o $(COMPAT)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 oneoff/decode_comm_b: oneoff/decode_comm_b.o comm_b.o ais_charset.o
 	$(CC) $(CFLAGS) -o $@ $^ -lm
