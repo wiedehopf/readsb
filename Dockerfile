@@ -22,7 +22,7 @@ RUN --mount=type=bind,source=.,target=/app/git \
     chmod +x /usr/local/bin/readsb-uuid && \
     rm -rf $READSB_BUILD_DIR && \
     mkdir -p  /usr/local/share/tar1090 && \
-    wget --tries=8 --waitretry=10 --retry-connrefused --retry-on-http-error=404,429,500,502,503,504 -O /usr/local/share/tar1090/aircraft.csv.gz https://github.com/wiedehopf/tar1090-db/raw/csv/aircraft.csv.gz && \
+    wget --tries=8 --waitretry=10 --retry-connrefused --retry-on-http-error=404,429,500,502,503,504 -O /usr/local/share/tar1090/aircraft.csv.gz https://raw.githubusercontent.com/wiedehopf/tar1090-db/csv/aircraft.csv.gz && \
     true
 
 FROM debian:bookworm-slim
