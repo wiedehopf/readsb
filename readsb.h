@@ -669,6 +669,7 @@ struct _Modes
     int64_t receiverCount;
     struct net_writer raw_out; // Raw output
     struct net_writer beast_out; // Beast-format output
+    struct net_writer kinetic_out; // Kinetic (SBS-3/BaseStation binary) output
     struct net_writer beast_reduce_out; // Reduced data Beast-format output
     struct net_writer beast_in; // for sending pings to clients sending us beast data
     struct net_writer garbage_out; // Beast-format output
@@ -786,6 +787,7 @@ struct _Modes
     int8_t readProxy;
     int8_t enableClientsJson;
     int8_t forward_mlat; // forward beast mlat messages to beast output ports
+    int8_t forward_mlat_kinetic; // forward mlat messages to the Kinetic output port, independent of forward_mlat (which also affects beast_out)
     int8_t forward_mlat_sbs; // forward mlat messages to sbs output ports
     int8_t beast_forward_noforward;
     int8_t beast_set_noforward_timestamp;
@@ -876,6 +878,7 @@ struct _Modes
     char *net_input_jaero_ports; // jaero SBS input ports
     char *net_input_beast_ports; // List of Beast input TCP ports
     char *net_output_beast_ports; // List of Beast output TCP ports
+    char *net_output_kinetic_ports; // List of Kinetic output TCP ports
     char *net_output_beast_reduce_ports; // List of Beast output TCP ports
     char *net_output_asterix_ports; // List of Asterix output TCP ports
     char *net_input_asterix_ports; // List of Asterix input TCP ports
@@ -1333,6 +1336,8 @@ enum {
     OptNetJaeroInPorts,
     OptNetBiPorts,
     OptNetBoPorts,
+    OptNetKineticPorts,
+    OptNetKineticForwardMlat,
     OptNetAsterixInPorts,
     OptNetAsterixOutPorts,
     OptNetAsterixReduce,

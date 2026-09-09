@@ -133,6 +133,8 @@ static struct argp_option optionsReadsb[] = {
     {"net-only", OptNetOnly, 0, 0, "Legacy Option, Enable networking, use --net instead", 2},
     {"net-bind-address", OptNetBindAddr, "<ip>", 0, "IP address to bind to (default: Any; Use 127.0.0.1 for private)", 2},
     {"net-bo-port", OptNetBoPorts, "<ports>", 0, "TCP Beast output listen ports / TCP server(default: 0)", 2},
+    {"net-kinetic-port", OptNetKineticPorts, "<ports>", 0, "TCP Kinetic (SBS-3/BaseStation binary) output listen ports / TCP server (default: 0)", 2},
+    {"net-kinetic-forward-mlat", OptNetKineticForwardMlat, 0, 0, "Forward mlat results to the Kinetic output port, independent of --forward-mlat (default: off)", 2},
     {"net-bi-port", OptNetBiPorts, "<ports>", 0, "TCP Beast input listen port / TCP server (default: 0)", 2},
     {"net-ro-port", OptNetRoPorts, "<ports>", 0, "TCP raw output listen port / TCP server (default: 0)", 2},
     {"net-ri-port", OptNetRiPorts, "<ports>", 0, "TCP raw input listen port / TCP server  (default: 0)", 2},

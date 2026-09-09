@@ -164,6 +164,7 @@ static void configSetDefaults(void) {
     Modes.net_input_beast_ports = strdup("0");
     Modes.net_input_planefinder_ports = strdup("0");
     Modes.net_output_beast_ports = strdup("0");
+    Modes.net_output_kinetic_ports = strdup("0");
     Modes.net_output_beast_reduce_ports = strdup("0");
     Modes.net_output_beast_reduce_interval = 250;
     Modes.beast_reduce_filter_altitude = -1;
@@ -1440,6 +1441,7 @@ static void cleanup_and_exit(int code) {
     sfree(Modes.net_input_beast_ports);
     sfree(Modes.net_input_planefinder_ports);
     sfree(Modes.net_output_beast_ports);
+    sfree(Modes.net_output_kinetic_ports);
     sfree(Modes.net_output_beast_reduce_ports);
     sfree(Modes.net_output_vrs_ports);
     sfree(Modes.net_input_raw_ports);
@@ -1981,6 +1983,13 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case OptNetBoPorts:
             sfree(Modes.net_output_beast_ports);
             Modes.net_output_beast_ports = strdup(arg);
+            break;
+        case OptNetKineticPorts:
+            sfree(Modes.net_output_kinetic_ports);
+            Modes.net_output_kinetic_ports = strdup(arg);
+            break;
+        case OptNetKineticForwardMlat:
+            Modes.forward_mlat_kinetic = 1;
             break;
         case OptNetBiPorts:
             sfree(Modes.net_input_beast_ports);
