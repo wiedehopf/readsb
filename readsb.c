@@ -1442,6 +1442,8 @@ static void cleanup_and_exit(int code) {
     sfree(Modes.net_input_planefinder_ports);
     sfree(Modes.net_output_beast_ports);
     sfree(Modes.net_output_kinetic_ports);
+    sfree(Modes.net_kinetic_filter_category);
+    sfree(Modes.net_kinetic_filter_hexcode);
     sfree(Modes.net_output_beast_reduce_ports);
     sfree(Modes.net_output_vrs_ports);
     sfree(Modes.net_input_raw_ports);
@@ -1990,6 +1992,14 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case OptNetKineticForwardMlat:
             Modes.forward_mlat_kinetic = 1;
+            break;
+        case OptNetKineticFilterCategory:
+            sfree(Modes.net_kinetic_filter_category);
+            Modes.net_kinetic_filter_category = strdup(arg);
+            break;
+        case OptNetKineticFilterHexcode:
+            sfree(Modes.net_kinetic_filter_hexcode);
+            Modes.net_kinetic_filter_hexcode = strdup(arg);
             break;
         case OptNetBiPorts:
             sfree(Modes.net_input_beast_ports);

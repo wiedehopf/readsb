@@ -135,6 +135,8 @@ static struct argp_option optionsReadsb[] = {
     {"net-bo-port", OptNetBoPorts, "<ports>", 0, "TCP Beast output listen ports / TCP server(default: 0)", 2},
     {"net-kinetic-port", OptNetKineticPorts, "<ports>", 0, "TCP Kinetic (SBS-3/BaseStation binary) output listen ports / TCP server (default: 0)", 2},
     {"net-kinetic-forward-mlat", OptNetKineticForwardMlat, 0, 0, "Forward mlat results to the Kinetic output port, independent of --forward-mlat (default: off)", 2},
+    {"net-kinetic-filter-category", OptNetKineticFilterCategory, "<list>", 0, "Kinetic output only: filter out ADS-B emitter categories, e.g. C0-C7,A1 (comma separated, ranges with '-', letters A-D, digits 0-7)", 2},
+    {"net-kinetic-filter-hexcode", OptNetKineticFilterHexcode, "<list>", 0, "Kinetic output only: filter out ICAO hex addresses, e.g. 3C8E01-3C8E05,3C3EB9 (comma separated, ranges with '-')", 2},
     {"net-bi-port", OptNetBiPorts, "<ports>", 0, "TCP Beast input listen port / TCP server (default: 0)", 2},
     {"net-ro-port", OptNetRoPorts, "<ports>", 0, "TCP raw output listen port / TCP server (default: 0)", 2},
     {"net-ri-port", OptNetRiPorts, "<ports>", 0, "TCP raw input listen port / TCP server  (default: 0)", 2},

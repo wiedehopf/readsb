@@ -901,6 +901,10 @@ static void initMessageBuffers() {
     }
 }
 
+// Forward declaration: defined further down alongside the rest of the
+// Kinetic protocol support code, but needed here already by modesInitNet().
+static void kineticFilterInit(void);
+
 void modesInitNet(void) {
     initMessageBuffers();
 
@@ -968,6 +972,7 @@ void modesInitNet(void) {
     // handles the login handshake directly and doesn't need to dispatch further.
     kinetic_out = serviceInit(&Modes.services_out, "Kinetic TCP output", &Modes.kinetic_out, no_heartbeat, no_heartbeat, READ_MODE_KINETIC_COMMAND, NULL, NULL);
     serviceListen(kinetic_out, Modes.net_bind_address, Modes.net_output_kinetic_ports, Modes.net_epfd);
+    kineticFilterInit();
 
     beast_reduce_out = serviceInit(&Modes.services_out, "BeastReduce TCP output", &Modes.beast_reduce_out, beast_heartbeat, no_heartbeat, READ_MODE_BEAST_COMMAND, NULL, handleBeastCommand);
     serviceListen(beast_reduce_out, Modes.net_bind_address, Modes.net_output_beast_reduce_ports, Modes.net_epfd);
@@ -1807,6 +1812,185 @@ static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *wri
     completeWrite(writer, p);
 }
 
+//
+//=========================================================================
+//
+// Kinetic-output-only filters. These deliberately live entirely within the
+// Kinetic code path (checked inside modesSendKineticOutput() below) and
+// have no effect whatsoever on beast_out/beast_reduce_out/raw_out/sbs_out --
+// filtering happens per-output-format, not globally on the message.
+//
+#define KINETIC_FILTER_MAX_RANGES 64
+
+struct kineticFilterRange {
+    int start;
+    int end;
+};
+
+static struct kineticFilterRange kineticCategoryFilter[KINETIC_FILTER_MAX_RANGES];
+static int kineticCategoryFilterCount = 0;
+
+static struct kineticFilterRange kineticHexcodeFilter[KINETIC_FILTER_MAX_RANGES];
+static int kineticHexcodeFilterCount = 0;
+
+// ADS-B emitter categories are encoded here as letterIndex*8 + digit, where
+// letterIndex is A=0, B=1, C=2, D=3 -- this turns "C0-C7" into a plain
+// integer range [16,23], matching the same scheme used to derive the
+// category from a live message (see kineticMessageCategory() below).
+static int kineticCategoryLetterIndex(char c) {
+    switch (toupper((unsigned char) c)) {
+        case 'A': return 0;
+        case 'B': return 1;
+        case 'C': return 2;
+        case 'D': return 3;
+        default: return -1;
+    }
+}
+
+// Parses a single category token, e.g. "C0", into its encoded integer.
+// Returns 0 on success, -1 on invalid format.
+static int kineticParseCategoryValue(const char *s, int *out) {
+    if (strlen(s) != 2) {
+        return -1;
+    }
+    int letterIndex = kineticCategoryLetterIndex(s[0]);
+    if (letterIndex < 0 || s[1] < '0' || s[1] > '7') {
+        return -1;
+    }
+    *out = letterIndex * 8 + (s[1] - '0');
+    return 0;
+}
+
+// Parses a comma-separated --net-kinetic-filter-category spec such as
+// "C0-C7,A1" into kineticCategoryFilter[]. Exits with an error message on
+// malformed input, same as readsb does for other malformed CLI arguments.
+static void kineticParseCategoryFilter(const char *spec) {
+    if (!spec || !*spec) {
+        return;
+    }
+    char *copy = strdup(spec);
+    char *saveptr = NULL;
+    char *token = strtok_r(copy, ",", &saveptr);
+    while (token) {
+        if (kineticCategoryFilterCount >= KINETIC_FILTER_MAX_RANGES) {
+            fprintf(stderr, "--net-kinetic-filter-category: too many entries (max %d)\n", KINETIC_FILTER_MAX_RANGES);
+            exit(1);
+        }
+        char *dash = strchr(token, '-');
+        int start, end;
+        if (dash) {
+            *dash = 0;
+            if (kineticParseCategoryValue(token, &start) != 0 || kineticParseCategoryValue(dash + 1, &end) != 0) {
+                fprintf(stderr, "--net-kinetic-filter-category: invalid range '%s-%s' (expected e.g. C0-C7)\n", token, dash + 1);
+                exit(1);
+            }
+        } else {
+            if (kineticParseCategoryValue(token, &start) != 0) {
+                fprintf(stderr, "--net-kinetic-filter-category: invalid value '%s' (expected e.g. C0)\n", token);
+                exit(1);
+            }
+            end = start;
+        }
+        if (start > end) {
+            int tmp = start; start = end; end = tmp;
+        }
+        kineticCategoryFilter[kineticCategoryFilterCount].start = start;
+        kineticCategoryFilter[kineticCategoryFilterCount].end = end;
+        kineticCategoryFilterCount++;
+        token = strtok_r(NULL, ",", &saveptr);
+    }
+    free(copy);
+}
+
+// Parses a comma-separated --net-kinetic-filter-hexcode spec such as
+// "3C8E01-3C8E05,3C3EB9" into kineticHexcodeFilter[].
+static void kineticParseHexcodeFilter(const char *spec) {
+    if (!spec || !*spec) {
+        return;
+    }
+    char *copy = strdup(spec);
+    char *saveptr = NULL;
+    char *token = strtok_r(copy, ",", &saveptr);
+    while (token) {
+        if (kineticHexcodeFilterCount >= KINETIC_FILTER_MAX_RANGES) {
+            fprintf(stderr, "--net-kinetic-filter-hexcode: too many entries (max %d)\n", KINETIC_FILTER_MAX_RANGES);
+            exit(1);
+        }
+        char *dash = strchr(token, '-');
+        char *endptr;
+        long start, end;
+        if (dash) {
+            *dash = 0;
+            start = strtol(token, &endptr, 16);
+            if (*endptr != 0 || endptr == token) {
+                fprintf(stderr, "--net-kinetic-filter-hexcode: invalid hex value '%s'\n", token);
+                exit(1);
+            }
+            end = strtol(dash + 1, &endptr, 16);
+            if (*endptr != 0 || endptr == dash + 1) {
+                fprintf(stderr, "--net-kinetic-filter-hexcode: invalid hex value '%s'\n", dash + 1);
+                exit(1);
+            }
+        } else {
+            start = strtol(token, &endptr, 16);
+            if (*endptr != 0 || endptr == token) {
+                fprintf(stderr, "--net-kinetic-filter-hexcode: invalid hex value '%s'\n", token);
+                exit(1);
+            }
+            end = start;
+        }
+        if (start > end) {
+            long tmp = start; start = end; end = tmp;
+        }
+        kineticHexcodeFilter[kineticHexcodeFilterCount].start = (int) start;
+        kineticHexcodeFilter[kineticHexcodeFilterCount].end = (int) end;
+        kineticHexcodeFilterCount++;
+        token = strtok_r(NULL, ",", &saveptr);
+    }
+    free(copy);
+}
+
+// Called once from modesInitNet() after CLI args are parsed.
+static void kineticFilterInit(void) {
+    kineticParseCategoryFilter(Modes.net_kinetic_filter_category);
+    kineticParseHexcodeFilter(Modes.net_kinetic_filter_hexcode);
+}
+
+static int kineticCategoryFiltered(int category) {
+    for (int i = 0; i < kineticCategoryFilterCount; i++) {
+        if (category >= kineticCategoryFilter[i].start && category <= kineticCategoryFilter[i].end) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int kineticHexcodeFiltered(int icao) {
+    for (int i = 0; i < kineticHexcodeFilterCount; i++) {
+        if (icao >= kineticHexcodeFilter[i].start && icao <= kineticHexcodeFilter[i].end) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// Extracts the ADS-B emitter category from a "Aircraft Identification and
+// Category" message (ME Type Code 1-4, first ME byte = msg[4]). Returns -1
+// if this message doesn't carry a category (any other TC).
+static int kineticMessageCategory(const unsigned char *msg) {
+    unsigned char meFirstByte = msg[4];
+    int tc = meFirstByte >> 3;
+    int letterIndex;
+    switch (tc) {
+        case 4: letterIndex = 0; break; // A
+        case 3: letterIndex = 1; break; // B
+        case 2: letterIndex = 2; break; // C
+        case 1: letterIndex = 3; break; // D
+        default: return -1;
+    }
+    return letterIndex * 8 + (meFirstByte & 0x07);
+}
+
 // Write Mode-S long (14 byte) / short (7 byte) messages in Kinetic
 // (SBS-3/BaseStation binary) format to TCP clients. Only DF17/18/19 (ADS-B),
 // other 112-bit DF, and 56-bit DF are forwarded -- Mode A/C is out of scope,
@@ -1824,6 +2008,29 @@ static void modesSendKineticOutput(struct modesMessage *mm, struct net_writer *w
     }
 
     unsigned char *msg = (Modes.net_verbatim ? mm->verbatim : mm->msg);
+
+    // ICAO hexcode filter (Kinetic output only). Applies only to DF types
+    // with an unencrypted 24-bit address field in byte 2-4 (DF11/17/18/19);
+    // for DF4/5/20/21 the address is folded into the parity and not safely
+    // readable here, so those are never touched by this filter.
+    if (kineticHexcodeFilterCount > 0 &&
+            (mm->msgtype == 11 || mm->msgtype == 17 || mm->msgtype == 18 || mm->msgtype == 19)) {
+        int icao = (msg[1] << 16) | (msg[2] << 8) | msg[3];
+        if (kineticHexcodeFiltered(icao)) {
+            return;
+        }
+    }
+
+    // ADS-B emitter category filter (Kinetic output only). Only DF17/18/19
+    // "Aircraft Identification and Category" messages (type byte 0x01,
+    // ME TC 1-4) carry a category; everything else is unaffected.
+    if (kineticCategoryFilterCount > 0 && type == 0x01) {
+        int category = kineticMessageCategory(msg);
+        if (category >= 0 && kineticCategoryFiltered(category)) {
+            return;
+        }
+    }
+
     unsigned char tsPrefix[4];
     kineticNextTsPrefix(tsPrefix);
 

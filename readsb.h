@@ -879,6 +879,8 @@ struct _Modes
     char *net_input_beast_ports; // List of Beast input TCP ports
     char *net_output_beast_ports; // List of Beast output TCP ports
     char *net_output_kinetic_ports; // List of Kinetic output TCP ports
+    char *net_kinetic_filter_category; // Kinetic output only: ADS-B emitter categories to filter out, e.g. "C0-C7,A1"
+    char *net_kinetic_filter_hexcode; // Kinetic output only: ICAO hex addresses to filter out, e.g. "3C8E01-3C8E05,3C3EB9"
     char *net_output_beast_reduce_ports; // List of Beast output TCP ports
     char *net_output_asterix_ports; // List of Asterix output TCP ports
     char *net_input_asterix_ports; // List of Asterix input TCP ports
@@ -1338,6 +1340,8 @@ enum {
     OptNetBoPorts,
     OptNetKineticPorts,
     OptNetKineticForwardMlat,
+    OptNetKineticFilterCategory,
+    OptNetKineticFilterHexcode,
     OptNetAsterixInPorts,
     OptNetAsterixOutPorts,
     OptNetAsterixReduce,

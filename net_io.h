@@ -44,7 +44,8 @@ typedef enum
     READ_MODE_BEAST_COMMAND,
     READ_MODE_ASCII,
     READ_MODE_ASTERIX,
-    READ_MODE_PLANEFINDER
+    READ_MODE_PLANEFINDER,
+    READ_MODE_KINETIC_COMMAND
 } read_mode_t;
 
 typedef struct {
@@ -109,6 +110,7 @@ struct client
     int8_t pingEnabled;
     int8_t modeac_requested; // 1 if this Beast output connection has asked for A/C
     int8_t receiverIdLocked; // receiverId has been transmitted by other side.
+    int8_t kineticLoggedIn; // 1 once this client completed the Kinetic login handshake
     int8_t unreasonable_messagerate;
     int8_t dropHalfDrop;
     int64_t dropHalfUntil;
