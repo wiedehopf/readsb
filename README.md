@@ -150,7 +150,7 @@ Websites using this software:
 - https://globe.adsb.fi/
 - https://globe.adsbexchange.com/
 
-Projects using this softare:
+Projects using this software:
 
 - https://sdr-enthusiasts.gitbook.io/ads-b/
 - https://github.com/sdr-enthusiasts/docker-adsb-ultrafeeder
