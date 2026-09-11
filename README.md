@@ -9,15 +9,16 @@ It's continually under development, expect bugs, segfaults and all the good stuf
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 see the LICENSE file for details
 
-
 ## how to install / build
 
 I'd recommend this script to automatically install it:
+
 - https://github.com/wiedehopf/adsb-scripts/wiki/Automatic-installation-for-readsb
 
 See the [Debian Package](#debian-package) section if you want to build the package yourself.
 
 Or check here on how to further install a webinterface and other useful stuff:
+
 - https://github.com/wiedehopf/adsb-wiki/wiki/Building-readsb-from-source
 - https://github.com/wiedehopf/adsb-wiki/wiki/Raspbian-Lite:-ADS-B-receiver
 
@@ -40,10 +41,13 @@ wiedehopf (this fork of Mictronics readsb)
 readsb connects to a listening server.
 
 Sending beast data (beast_out):
+
 ```
 --net-connector 192.168.2.22,30004,beast_out
 ```
+
 Receiving beast data (beast_in);
+
 ```
 --net-connector 192.168.2.28,30005,beast_in
 ```
@@ -51,16 +55,52 @@ Receiving beast data (beast_in);
 ### BeastReduce output
 
 Selectively forwards beast messages if the received data hasn't been forwarded in the last 125 ms (or `--net-beast-reduce-interval`).
-Data not related to the physical aircraft state are only forwarded every 500 ms (4 * `--net-beast-reduce-interval`).The messages of
+Data not related to the physical aircraft state are only forwarded every 500 ms (4 \* `--net-beast-reduce-interval`).The messages of
 this output are normal beast messages and compatible with every program able to receive beast messages.
 
 This is used by some aggregators to aggregate ADS-B data, an example net connector would be:
+
 ```
 --net-connector=feed.airplanes.live,30004,beast_reduce_plus_out,uuid=0033062d-e17e-4389-91a9-79ebb967fb4c
 ```
+
 The uuid is optional, if none is given, the uuid from --uuid-file is used, if that isn't present no uuid is sent.
 The beast_reduce_out net-connector will never send an uuid.
 The aggregator enables --net-receiver-id and --net-ingest on their readsb server, it's made to work with beast_reduce_plus_out.
+
+### Kinetic (SBS-3/BaseStation binary) output
+
+Emulates the binary protocol spoken by a Kinetic Avionics SBS-3 receiver, as reverse-engineered from
+a real device capture. This lets BaseStation (and other software that expects to talk to a physical
+SBS-3 over TCP) connect directly to readsb, instead of going through a separate protocol bridge.
+
+Enable it with a listen port:
+
+```
+--net-kinetic-port=10001
+```
+
+Any client connecting to that port is sent the two fixed SBS-3 login replies once it sends the
+expected login frame, after which it receives live traffic as Kinetic binary messages (Mode-S long/short
+and DF17/18/19 ADS-B frames), the same data readsb also has available as Beast/SBS/raw output.
+
+Optional settings:
+
+- `--net-kinetic-forward-mlat` also sends MLAT-derived positions on the Kinetic output, independent of
+  the general `--forward-mlat` switch (off by default, since not all BaseStation-compatible tools expect
+  MLAT data mixed into an SBS-3 feed).
+- `--net-kinetic-filter-category=<list>` drops ADS-B messages whose emitter category falls in the given
+  range(s), e.g. `C0-C3,C7`, if you want to hide certain aircraft types (gliders, UAVs, etc.) from Kinetic
+  clients specifically.
+- `--net-kinetic-filter-hexcode=<list>` drops messages for specific ICAO hex address ranges, e.g.
+  `3C8E01-3C8E05,3C3EB9`, again only affecting the Kinetic output.
+
+Both filters only apply to this output; every other output (Beast, SBS, raw, etc.) keeps seeing the
+full, unfiltered data.
+
+readsb also logs Kinetic client activity on the console independent of `--debug net`: a message when a
+client connects, another once it completes the SBS-3 login handshake, and one when it disconnects
+(noting if it never logged in) — useful for spotting misbehaving or unexpected BaseStation clients.
 
 ## Debian package
 
@@ -84,6 +124,7 @@ sudo dpkg -i ../readsb_*.deb
 - Build with all the support: `dpkg-buildpackage -b -ui -uc -us --build-profiles=with_sdrs`
 
 required build deps (omit last line if you're not building with the various SDR support)
+
 ```
 git build-essential debhelper pkg-config fakeroot help2man \
 libncurses-dev zlib1g-dev libzstd-dev libusb-1.0-0-dev \
@@ -100,11 +141,13 @@ install them (and a method for starting them) yourself.
 librtlsdr.
 
 On Raspbian 32 bit, mostly rpi2 and older you might want to use this to compile if you're running into CPU issues:
+
 ```
 make RTLSDR=yes OPTIMIZE="-Ofast -mcpu=arm1176jzf-s -mfpu=vfp"
 ```
 
 In general if you want to save on CPU cycles, you can try building with these options:
+
 ```
 make AIRCRAFT_HASH_BITS=11 RTLSDR=yes OPTIMIZE="-O3 -march=native"
 ```
@@ -122,13 +165,17 @@ For rtl-sdr devices a software gain algorithm is the default, it's optimized for
 On the command line it's activated using `--gain=auto` an is silent by default.
 `--gain=auto-verbose` can be used to enable log messages for gain changes.
 To tweak the internals, more parameters can be passed:
+
 ```
 --gain=auto-verbose,<lowestGain>,<noiseLowThreshold>,<noiseHighThreshold>,<loudThreshold>
 ```
+
 The defaults are:
+
 ```
 --gain=auto-verbose,0,34,36,243
 ```
+
 The thresholds are numbers 0 to 256, tweaking them requires some understanding of how it works.
 One option would be to change the noise thresholds up or down and then observe the log.
 There should be no need to tweak these parameters.
@@ -150,7 +197,7 @@ Websites using this software:
 - https://globe.adsb.fi/
 - https://globe.adsbexchange.com/
 
-Projects using this softare:
+Projects using this software:
 
 - https://sdr-enthusiasts.gitbook.io/ads-b/
 - https://github.com/sdr-enthusiasts/docker-adsb-ultrafeeder
@@ -170,9 +217,11 @@ Warning: the following will generate several thousand files a day and can use si
 disk space depending on your data source.
 
 The following command line options need to be added to for example the decoder options in `/etc/default/readsb`
+
 ```
 --write-globe-history /var/globe_history --heatmap 30
 ```
+
 To increase time resolution to maximum, you can add `--json-trace-interval=0.1` which will add every
 position received to traces. The heatmap interval can also be reduced from the default of 30
 seconds, i wouldn't recommend less than 5 seconds for that though.
@@ -183,11 +232,13 @@ Aggregators will generally use `--write-json-globe-index` as well but that's not
 `sudo mkdir /var/globe_history` and `sudo chown readsb /var/globe_history` are useful for that.
 
 You should also download
+
 ```
 wget -O /usr/local/share/tar1090/aircraft.csv.gz https://github.com/wiedehopf/tar1090-db/raw/csv/aircraft.csv.gz
 ```
 
 and add this command line option (for exaple via /etc/default/readsb):
+
 ```
 --db-file /usr/local/share/tar1090/aircraft.csv.gz
 ```
@@ -208,11 +259,12 @@ there.
 ## non-SDR data source
 
 If you don't want readsb to read data from the SDR, you'll also need to change the receiver options line to something like this:
+
 ```
 RECEIVER_OPTIONS="--net-only --net-connector 192.168.2.7,30005,beast_in"
 ```
-If you have another dump1090/readsb running on the same machine, you'll also need to change all the ports to avoid conflicts.
 
+If you have another dump1090/readsb running on the same machine, you'll also need to change all the ports to avoid conflicts.
 
 ## --debug=S: speed check debugging output
 
@@ -252,7 +304,6 @@ oh if you want that display:
 --debug=S
 you'll have to update, just disabled the MLAT speed check from displayign stuff ... because usually it's not interesting
 
-
 ## macOS
 
 Thank you to https://github.com/ind006/readsb_macos/ for all the shims needed to make this work.
@@ -268,16 +319,20 @@ This in turn depends on whether you're using macports or homebrew for those libs
 pre-set for homebrew.
 
 These packages are needed, possibly more:
+
 ```
 git librtlsdr libusb ncurses
 ```
+
 Build using:
+
 ```
 make -j4 RTLSDR=yes
 ```
 
 You can run it from the command line (try `screen -S readsb` and run it in there, press ctrl-A to detach the terminal)
 Example command line:
+
 ```sh
 ./readsb --quiet --net --device-type rtlsdr --gain auto
 # add console table of planes for a quick test:
@@ -297,6 +352,7 @@ Example command line:
 
 For a graphical interface, the tar1090 webinterface is recommended: https://github.com/wiedehopf/tar1090
 The install script won't work so i'd recommend the following basic webserver configuration:
+
 - serve the html directory as /tar1090
 - serve the write-json directory as /tar1090/data
 
@@ -306,13 +362,14 @@ wget -O ~/tar1090/aircraft.csv.gz https://github.com/wiedehopf/tar1090-db/raw/cs
 ```
 
 Simple http server using python reachable using http://localhost:8081
+
 ```
 cd ~/tar1090/html
 python3 -m http.server 8081
 ```
 
-
 Using nginx this would look something like this (replace USER appropriately):
+
 ```
 location /tar1090/data/ {
     alias /home/USER/tar1090/data/;
@@ -343,15 +400,14 @@ than 24h.
 The classical tar1090 uses traces created via a shell script and served at /tar1090/chunks but running that shell
 script is probably a hassle, so just use the above.
 
-
 ## readsb --help
 
 might be out of date, check the command on a freshly compiled version
 
 ```
-Usage: readsb [OPTIONS...] 
-readsb Mode-S/ADSB/TIS Receiver   
-Build options: ENABLE_RTLSDR 
+Usage: readsb [OPTIONS...]
+readsb Mode-S/ADSB/TIS Receiver
+Build options: ENABLE_RTLSDR
 
 
 General options:
@@ -425,6 +481,10 @@ Network options:
   --net-only                                                     Legacy Option, Enable networking, use --net instead
   --net-bind-address=<ip>                                        IP address to bind to (default: Any; Use 127.0.0.1 for private)
   --net-bo-port=<ports>                                          TCP Beast output listen ports / TCP server(default: 0)
+  --net-kinetic-port=<ports>                                     TCP Kinetic (SBS-3/BaseStation binary) output listen ports / TCP server (default: 0)
+  --net-kinetic-forward-mlat                                     Forward mlat results to the Kinetic output port, independent of --forward-mlat (default: off)
+  --net-kinetic-filter-category=<list>                           Kinetic output only: filter out ADS-B emitter categories, e.g. C0-C7,A1 (comma separated, ranges with '-', letters A-D, digits 0-7)
+  --net-kinetic-filter-hexcode=<list>                            Kinetic output only: filter out ICAO hex addresses, e.g. 3C8E01-3C8E05,3C3EB9 (comma separated, ranges with '-')
   --net-bi-port=<ports>                                          TCP Beast input listen port / TCP server (default: 0)
   --net-ro-port=<ports>                                          TCP raw output listen port / TCP server (default: 0)
   --net-ri-port=<ports>                                          TCP raw input listen port / TCP server  (default: 0)
@@ -497,7 +557,7 @@ Help options:
   --usage                                                        Give a short usage message
 
 Credits:
-antirez (original dump1090) 
+antirez (original dump1090)
 Malcom Robb (work on his dump1090 fork)
 mutability (forked to dump1090-mutability and further to dump1090-fa)
 Mictronics (readsb as a fork of dump1090-fa)
