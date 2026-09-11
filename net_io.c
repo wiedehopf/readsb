@@ -1207,6 +1207,13 @@ static void modesAcceptClients(struct client *c, int64_t now) {
                 fprintf(stderr, "%s: new c from %s port %s (fd %d)\n",
                         c->service->descr, c->host, c->port, fd);
             }
+            if (c->service->read_mode == READ_MODE_KINETIC_COMMAND) {
+                // Kinetic (BaseStation) clients get a console message unconditionally,
+                // independent of --debug net, so feeder operators can see when a
+                // BaseStation-compatible client (dis)connects without extra debug noise.
+                fprintf(stderr, "%s: Kinetic client connected: %s port %s (fd %d)\n",
+                        c->service->descr, c->host, c->port, fd);
+            }
         } else {
             fprintf(stderr, "%s: Fatal: createSocketClient shouldn't fail!\n", s->descr);
             exit(1);
@@ -4173,6 +4180,8 @@ static int readKineticCommand(struct client *c, int64_t now, struct messageBuffe
             anetWrite(c->fd, (char *) kineticLoginReplyDeviceInfo, sizeof(kineticLoginReplyDeviceInfo));
             anetWrite(c->fd, (char *) kineticLoginReplyReady, sizeof(kineticLoginReplyReady));
             c->kineticLoggedIn = 1;
+            fprintf(stderr, "%s: Kinetic client logged in: %s port %s (fd %d)\n",
+                    c->service->descr, c->host, c->port, c->fd);
             c->som = q + 4;
             return 0;
         }
@@ -5184,6 +5193,12 @@ static int readClient(struct client *c, int64_t now) {
             }
             fprintf(stderr, "%s: Remote server disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
                     c->service->descr, c->con->address, c->con->port, c->fd, c->sendq_len, c->buflen);
+        } else if (c->service->read_mode == READ_MODE_KINETIC_COMMAND) {
+            // Always report Kinetic client disconnects, regardless of --debug net,
+            // and note whether the login handshake ever completed.
+            fprintf(stderr, "%s: Kinetic client disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)%s\n",
+                    c->service->descr, c->host, c->port, c->fd, c->sendq_len, c->buflen,
+                    c->kineticLoggedIn ? "" : " (never logged in)");
         } else if (Modes.debug_net && !Modes.netIngest) {
             fprintf(stderr, "%s: Listen client disconnected: %s port %s (fd %d, SendQ %d, RecvQ %d)\n",
                     c->service->descr, c->host, c->port, c->fd, c->sendq_len, c->buflen);
