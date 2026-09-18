@@ -25,7 +25,7 @@ RUN --mount=type=bind,source=.,target=/app/git \
     wget --timeout 10 --tries=6 --retry-connrefused --retry-on-http-error=404,429,500,502,503,504 -O /usr/local/share/tar1090/aircraft.csv.gz https://raw.githubusercontent.com/wiedehopf/tar1090-db/csv/aircraft.csv.gz && \
     true
 
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 RUN \
     --mount=type=bind,from=builder,source=/,target=/builder/ \
     apt-get update && \
