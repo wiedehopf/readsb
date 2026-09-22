@@ -898,8 +898,11 @@ static int decodeBDS44(struct modesMessage *mm, bool store) {
             return 0;
         }
     }
-    else if (wind_speed == 0) {
+    else if (wind_speed_raw == 0 && wind_direction_raw == 0) {
         score += 2;
+    }
+    else {
+        return 0;
     }
     if (temperature_sign){
         temperature = (static_air_temperature_raw - pow(2, 10)) * 0.25;
@@ -922,8 +925,11 @@ static int decodeBDS44(struct modesMessage *mm, bool store) {
             return 0;
         }
     }
-    else if (static_pressure == 0) {
+    else if (static_pressure_raw == 0) {
         score += 1;
+    }
+    else {
+        return 0;
     }
     if (turbulence_valid){
         turbulence = (int)turbulence_raw;
@@ -934,8 +940,11 @@ static int decodeBDS44(struct modesMessage *mm, bool store) {
             return 0;
         }
     }
-    else if (turbulence == 0) {
+    else if (turbulence_raw == 0) {
         score += 1;
+    }
+    else {
+        return 0;
     }
     if (humidity_valid) {
         humidity = humidity_raw * (100.0f / 64);
@@ -946,8 +955,11 @@ static int decodeBDS44(struct modesMessage *mm, bool store) {
             return 0;
         }
     }
-    else if (humidity == 0) {
+    else if (humidity_raw == 0) {
         score += 1;
+    }
+    else {
+        return 0;
     }
     if (store) {
         mm->commb_format = COMMB_METEOROLOGICAL_ROUTINE;
