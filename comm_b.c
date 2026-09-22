@@ -623,7 +623,7 @@ static int decodeBDS50(struct modesMessage *mm, bool store) {
 
     // small penalty for inconsistent data
     if (gs_valid && tas_valid) {
-        int delta = abs((int)gs_valid - (int)tas_valid);
+        int delta = abs((int)gs - (int)tas);
         if (delta > 150) {
             score -= 6;
         }
