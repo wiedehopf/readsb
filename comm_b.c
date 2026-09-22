@@ -779,7 +779,24 @@ static int decodeBDS60(struct modesMessage *mm, bool store) {
 
     // small penalty for inconsistent data
 
-    // Should check IAS vs Mach at given altitude, but the maths is a little involved
+    // IAS vs Mach consistency at the pressure altitude carried by DF20 (ISA, CAS ~ IAS).
+    // A BDS 5,0 misclassified as 6,0 (or bit errors) fails this even when every
+    // field is individually within range.
+    if (ias_valid && mach_valid && mm->baro_alt_valid && mm->baro_alt_unit == UNIT_FEET
+            && mm->baro_alt > -1500 && mm->baro_alt < 60000) {
+        double h_m = mm->baro_alt * 0.3048;
+        double p_ratio;
+        if (h_m <= 11000.0) {
+            p_ratio = pow(1.0 - 2.25577e-5 * h_m, 5.25588);
+        } else {
+            p_ratio = 0.22336 * exp(-(h_m - 11000.0) / 6341.62);
+        }
+        double qc_p0 = p_ratio * (pow(1.0 + 0.2 * mach * mach, 3.5) - 1.0);
+        double cas = 661.47 * sqrt(5.0 * (pow(qc_p0 + 1.0, 2.0 / 7.0) - 1.0));
+        if (fabs(cas - (double) ias) > 25.0) {
+            score -= 12;
+        }
+    }
 
     if (baro_rate_valid && inertial_rate_valid) {
         int delta = abs(baro_rate - inertial_rate);
