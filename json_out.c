@@ -677,6 +677,12 @@ char *sprintAircraftObject(char *p, char *end, struct aircraft *a, int64_t now, 
         p = safe_snprintf(p, end, ",\"tas\":%u", a->tas);
     if (trackDataValid(&a->mach_valid))
         p = safe_snprintf(p, end, ",\"mach\":%.3f", a->mach);
+    // ages of the air-data fields (seconds): TAS comes from BDS 5,0 and Mach from BDS 6,0,
+    // consumers deriving temperature need to know how far apart the two samples are.
+    if (trackDataValid(&a->tas_valid))
+        p = safe_snprintf(p, end, ",\"tas_age\":%.1f", trackDataAge(now, &a->tas_valid) / 1000.0);
+    if (trackDataValid(&a->mach_valid))
+        p = safe_snprintf(p, end, ",\"mach_age\":%.1f", trackDataAge(now, &a->mach_valid) / 1000.0);
     if (now < a->wind_updated + TRACK_EXPIRE && abs(a->wind_altitude - a->baro_alt) < 500) {
         p = safe_snprintf(p, end, ",\"wd\":%.0f", a->wind_direction);
         p = safe_snprintf(p, end, ",\"ws\":%.0f", a->wind_speed);
