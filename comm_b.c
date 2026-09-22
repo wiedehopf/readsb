@@ -873,7 +873,7 @@ static int decodeBDS44(struct modesMessage *mm, bool store) {
         else {
             return 0;
         }
-        wind_direction = wind_direction_raw * (180 / 256);
+        wind_direction = wind_direction_raw * (180.0f / 256);
         if (wind_direction >= 0 && wind_direction <= 360){
             score += 9;
         }
