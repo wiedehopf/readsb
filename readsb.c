@@ -2201,6 +2201,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 if (strcasecmp(token[0], "sbs_extra_fields") == 0) {
                     Modes.sbs_extra_fields = 1;
                 }
+                if (strcasecmp(token[0], "json_age_fields") == 0) {
+                    // --devel=json_age_fields: add various data ages (might add more)
+                    Modes.json_age_fields = 1;
+                }
                 if (strcasecmp(token[0], "beast_dated_dirs") == 0) {
                     Modes.beast_dated_dirs = 1;
                 }
