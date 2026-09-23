@@ -3413,7 +3413,7 @@ static void calc_wind(struct aircraft *a, struct modesMessage *mm, int64_t now) 
         return;
     }
 
-    mm->wind_speed = ws;
+    mm->wind_speed = (int) nearbyint(ws); // wind_speed is an int, don't truncate
     mm->wind_direction = wd;
     mm->wind_valid = 1;
 }
