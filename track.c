@@ -597,7 +597,7 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
 
     if (speed > 10 && track_diff > -1 && a->trackUnreliable < 8) {
         track_bonus = speed * (90.0f - track_diff) / 90.0f;
-        track_bonus *= (surface ? 0.9f : 1.0f) * (1.0f - track_age / track_max_age);
+        track_bonus *= (surface ? 0.9f : 1.0f) * (1.0f - (float) track_age / track_max_age);
         if (a->gs < 10) {
             // don't allow negative "bonus" below 10 knots speed
             track_bonus = fmaxf(0.0f, track_bonus);
