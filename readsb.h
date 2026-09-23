@@ -1154,7 +1154,7 @@ struct modesMessage
     float calculated_track; // set in speed_check, -1 is invalid
 
     // meteorological
-    int wind_speed;
+    float wind_speed;
     float wind_direction;
     float oat;
     int static_pressure;
