@@ -52,10 +52,12 @@ static CommBDecoderFn comm_b_decoders[] = {
 void decodeCommB(struct modesMessage *mm) {
     mm->commb_format = COMMB_UNKNOWN;
 
-    // If DR or UM are set, this message is _probably_ noise
+    // If DR is set, this message is _probably_ noise
     // as nothing really seems to use the multisite broadcast stuff?
-    // Also skip anything that had errors corrected
-    if (mm->DR != 0 || mm->UM != 0 || mm->correctedbits > 0) {
+    // Also skip anything that had errors corrected.
+    // UM is not checked: decodeModesMessage decodes UM after calling
+    // decodeCommB, so mm->UM is always 0 here and the check never acted.
+    if (mm->DR != 0 || mm->correctedbits > 0) {
         return;
     }
 
