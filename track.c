@@ -3430,6 +3430,12 @@ static void calc_temp(struct aircraft *a, int64_t now) {
     double oat = (fraction * fraction * 288.15) - 273.15;
     double tat = -273.15 + ((oat + 273.15) * (1 + 0.2 * a->mach * a->mach));
 
+    if (oat < -100 || oat > 60) {
+        // Filter out wildly unrealistic temperatures (TAS / Mach pair from
+        // different registers or a misclassified BDS 6,0), same as calc_wind
+        return;
+    }
+
     a->oat = oat;
     a->tat = tat;
     a->oat_updated = now;
