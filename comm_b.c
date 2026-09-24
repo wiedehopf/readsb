@@ -967,7 +967,7 @@ static int decodeBDS44(struct modesMessage *mm, bool store) {
         mm->commb_format = COMMB_METEOROLOGICAL_ROUTINE;
         mm->met_source_valid = 1;
         mm->met_source = met_source;
-        if (wind_valid) { 
+        if (wind_valid && !(wind_speed == 0 && wind_direction == 0)) {
             mm->wind_valid = 1;
             mm->wind_speed = wind_speed;
             mm->wind_direction = wind_direction;
