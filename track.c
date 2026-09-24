@@ -2335,6 +2335,9 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
         a->geom_delta = mm->geom_delta;
     }
 
+    if (0 && mm->wind_valid) {
+        fprintf(stderr, "mm->wind_valid %06x ws %3.0f wd %3.0f\n", a->addr, mm->wind_speed, mm->wind_direction);
+    }
     if (mm->heading_valid) {
         heading_type_t htype = mm->heading_type;
         if (htype == HEADING_MAGNETIC_OR_TRUE) {
@@ -2345,6 +2348,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
 
         if (htype == HEADING_GROUND_TRACK && accept_data(&a->track_valid, mm->source, mm, a, REDUCE_OFTEN)) {
             a->track = mm->heading;
+            calc_wind(a, mm, now);
         } else if (htype == HEADING_MAGNETIC) {
             double dec;
             int err = declination(a, &dec, now);
@@ -2362,6 +2366,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             }
         } else if (htype == HEADING_TRUE && accept_data(&a->true_heading_valid, mm->source, mm, a, REDUCE_OFTEN)) {
             a->true_heading = mm->heading;
+            calc_wind(a, mm, now);
         }
     }
 
@@ -2385,11 +2390,10 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
     }
 
     if (mm->tas_valid
-            && !(trackDataValid(&a->ias_valid) && mm->tas < a->ias)
+            && !(trackDataValid(&a->ias_valid) && (float) mm->tas < 0.7 * a->ias)
             && accept_data(&a->tas_valid, mm->source, mm, a, REDUCE_OFTEN)) {
         a->tas = mm->tas;
         calc_temp(a, now);
-        calc_wind(a, mm, now);
     }
 
     if (mm->mach_valid && accept_data(&a->mach_valid, mm->source, mm, a, REDUCE_OFTEN)) {
@@ -3356,27 +3360,36 @@ static void adjustExpire(struct aircraft *a, int64_t timeout) {
 */
 
 static void calc_wind(struct aircraft *a, struct modesMessage *mm, int64_t now) {
-    uint32_t focus = 0xc0ffeeba;
-
-    if (a->addr == focus)
-        fprintf(stderr, "%"PRIu64" %"PRIu64" %"PRIu64" %"PRIu64"\n", trackDataAge(now, &a->tas_valid), trackDataAge(now, &a->true_heading_valid),
-                trackDataAge(now, &a->gs_valid), trackDataAge(now, &a->track_valid));
-
-    if (!trackDataValid(&a->position_valid) || a->airground == AG_GROUND)
+    if (a->airground == AG_GROUND)
         return;
-
-    if (now < a->wind_updated + 1 * SECONDS) {
-        // don't do wind calculation more often than necessary, precision isn't THAT good anyhow
-        return;
-    }
 
     if (trackDataAge(now, &a->tas_valid) > TRACK_WT_TIMEOUT
             || trackDataAge(now, &a->gs_valid) > TRACK_WT_TIMEOUT
-            || trackDataAge(now, &a->track_valid) > TRACK_WT_TIMEOUT / 2
             || trackDataAge(now, &a->true_heading_valid) > TRACK_WT_TIMEOUT / 2
+            || trackDataAge(now, &a->track_valid) > TRACK_WT_TIMEOUT / 2
        ) {
         return;
     }
+
+    int discard = 0;
+    if (now < a->wind_updated + 700) {
+        // don't do wind calculation more often than necessary, precision isn't THAT good anyhow
+        discard = 1;
+    }
+
+    uint32_t focus = 0x0;
+    if (focus && a->addr == focus) {
+        fprintTime(stderr, now);
+        fprintf(stderr, "  %4"PRIu64" %4"PRIu64" %4"PRIu64" %4"PRIu64" %d\n",
+                trackDataAge(now, &a->tas_valid), trackDataAge(now, &a->gs_valid),
+                trackDataAge(now, &a->true_heading_valid), trackDataAge(now, &a->track_valid),
+                discard);
+    }
+
+    if (discard) {
+        return;
+    }
+
 
     // don't use this code for now
     /*
