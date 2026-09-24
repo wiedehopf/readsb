@@ -2350,11 +2350,11 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             a->track = mm->heading;
             calc_wind(a, mm, now);
         } else if (htype == HEADING_MAGNETIC) {
-            double dec;
-            int err = declination(a, &dec, now);
             if (accept_data(&a->mag_heading_valid, mm->source, mm, a, REDUCE_OFTEN)) {
                 a->mag_heading = mm->heading;
 
+                double dec;
+                int err = declination(a, &dec, now);
                 // don't accept more than 45 degree crab when deriving the true heading
                 if (
                         (!trackDataValid(&a->track_valid) || fabs(norm_diff(mm->heading + dec - a->track, 180)) < 45)
@@ -3461,6 +3461,10 @@ static inline int declination(struct aircraft *a, double *dec, int64_t now) {
     if (now < a->updatedDeclination + 5 * SECONDS) {
         *dec = a->magneticDeclination;
         return 0;
+    }
+
+    if (!trackDataValid(&a->baro_alt_valid) || !trackDataValid(&a->position_valid)) {
+        return 1;
     }
 
     double year;
