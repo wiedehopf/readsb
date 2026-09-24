@@ -2394,6 +2394,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             && accept_data(&a->tas_valid, mm->source, mm, a, REDUCE_OFTEN)) {
         a->tas = mm->tas;
         calc_temp(a, now);
+        calc_wind(a, mm, now);
     }
 
     if (mm->mach_valid && accept_data(&a->mach_valid, mm->source, mm, a, REDUCE_OFTEN)) {
