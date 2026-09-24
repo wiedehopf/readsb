@@ -3450,6 +3450,14 @@ static inline int declination(struct aircraft *a, double *dec, int64_t now) {
         return 0;
     }
 
+    // without a valid position a->lat / a->lon are zero (or stale) and the
+    // declination would be that of (0, 0) in the Gulf of Guinea: -3.8 deg
+    // instead of the local value (e.g. -7.1 deg at SKCL, Colombia)
+    if (!trackDataValid(&a->position_valid)) {
+        *dec = 0.0;
+        return 1;
+    }
+
     double year;
     time_t now_t = now/1000;
 
