@@ -64,7 +64,7 @@ static void showPositionDebug(struct aircraft *a, struct modesMessage *mm, int64
 static void position_bad(struct modesMessage *mm, struct aircraft *a);
 static void calc_wind(struct aircraft *a, struct modesMessage *mm, int64_t now);
 static void calc_temp(struct aircraft *a, int64_t now);
-static inline int declination(struct aircraft *a, double *dec, int64_t now);
+static inline int updateDeclination(struct aircraft *a, int64_t now);
 static const char *source_string(datasource_t source);
 static void incrementReliable(struct aircraft *a, struct modesMessage *mm, int64_t now, int odd);
 
@@ -2353,14 +2353,14 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             if (accept_data(&a->mag_heading_valid, mm->source, mm, a, REDUCE_OFTEN)) {
                 a->mag_heading = mm->heading;
 
-                double dec;
-                int err = declination(a, &dec, now);
+                int err = updateDeclination(a, now);
+
                 // don't accept more than 45 degree crab when deriving the true heading
                 if (
-                        (!trackDataValid(&a->track_valid) || fabs(norm_diff(mm->heading + dec - a->track, 180)) < 45)
+                        (!trackDataValid(&a->track_valid) || fabs(norm_diff(mm->heading + a->magneticDeclination - a->track, 180)) < 45)
                         && !err && accept_data(&a->true_heading_valid, SOURCE_INDIRECT, mm, a, REDUCE_OFTEN)
                    ) {
-                    a->true_heading = norm_angle(mm->heading + dec, 180);
+                    a->true_heading = norm_angle(mm->heading + a->magneticDeclination, 180);
                     calc_wind(a, mm, now);
                 }
             }
@@ -3464,11 +3464,12 @@ static void calc_temp(struct aircraft *a, int64_t now) {
     a->tat_updated = now;
 }
 
-static inline int declination(struct aircraft *a, double *dec, int64_t now) {
+static inline int updateDeclination(struct aircraft *a, int64_t now) {
+    double decStorage = 0;
+    double *dec = &decStorage;
     // only update delination every 30 seconds (per plane)
     // it doesn't change that much assuming the plane doesn't move huge distances in that time
     if (now < a->updatedDeclination + 5 * SECONDS) {
-        *dec = a->magneticDeclination;
         return 0;
     }
 
