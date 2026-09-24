@@ -3371,6 +3371,15 @@ static void calc_wind(struct aircraft *a, struct modesMessage *mm, int64_t now) 
         return;
     }
 
+    // wind data calculated when the aircraft turning is often bad
+    // don't attempt to calculate when it is known that the aircraft is in a turn
+    if (trackDataValid(&a->roll_valid) && fabs(a->roll) > 10.0f) {
+        return;
+    }
+    if (trackDataValid(&a->track_rate_valid) && fabs(a->track_rate) > 0.5f) {
+        return;
+    }
+
     int discard = 0;
     if (now < a->wind_updated + 700) {
         // don't do wind calculation more often than necessary, precision isn't THAT good anyhow
