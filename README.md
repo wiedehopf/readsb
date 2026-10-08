@@ -68,40 +68,6 @@ The uuid is optional, if none is given, the uuid from --uuid-file is used, if th
 The beast_reduce_out net-connector will never send an uuid.
 The aggregator enables --net-receiver-id and --net-ingest on their readsb server, it's made to work with beast_reduce_plus_out.
 
-### Kinetic (SBS-3/BaseStation binary) output
-
-Emulates the binary protocol spoken by a Kinetic Avionics SBS-3 receiver, as reverse-engineered from
-a real device capture. This lets BaseStation (and other software that expects to talk to a physical
-SBS-3 over TCP) connect directly to readsb, instead of going through a separate protocol bridge.
-
-Enable it with a listen port:
-
-```
---net-kinetic-port=10001
-```
-
-Any client connecting to that port is sent the two fixed SBS-3 login replies once it sends the
-expected login frame, after which it receives live traffic as Kinetic binary messages (Mode-S long/short
-and DF17/18/19 ADS-B frames), the same data readsb also has available as Beast/SBS/raw output.
-
-Optional settings:
-
-- `--net-kinetic-forward-mlat` also sends MLAT-derived positions on the Kinetic output, independent of
-  the general `--forward-mlat` switch (off by default, since not all BaseStation-compatible tools expect
-  MLAT data mixed into an SBS-3 feed).
-- `--net-kinetic-filter-category=<list>` drops ADS-B messages whose emitter category falls in the given
-  range(s), e.g. `C0-C3,C7`, if you want to hide certain aircraft types (gliders, UAVs, etc.) from Kinetic
-  clients specifically.
-- `--net-kinetic-filter-hexcode=<list>` drops messages for specific ICAO hex address ranges, e.g.
-  `3C8E01-3C8E05,3C3EB9`, again only affecting the Kinetic output.
-
-Both filters only apply to this output; every other output (Beast, SBS, raw, etc.) keeps seeing the
-full, unfiltered data.
-
-readsb also logs Kinetic client activity on the console independent of `--debug net`: a message when a
-client connects, another once it completes the SBS-3 login handshake, and one when it disconnects
-(noting if it never logged in) — useful for spotting misbehaving or unexpected BaseStation clients.
-
 ## Debian package
 
 - Build and install with rtlsdr support:
@@ -399,6 +365,41 @@ than 24h.
 
 The classical tar1090 uses traces created via a shell script and served at /tar1090/chunks but running that shell
 script is probably a hassle, so just use the above.
+
+### Kinetic (SBS-3/BaseStation binary) output
+
+Emulates the binary protocol spoken by a Kinetic Avionics SBS-3 receiver, as reverse-engineered from
+a real device capture. This lets BaseStation (and other software that expects to talk to a physical
+SBS-3 over TCP) connect directly to readsb, instead of going through a separate protocol bridge.
+
+Enable it with a listen port:
+
+```
+--net-kinetic-port=10001
+```
+
+Any client connecting to that port is sent the two fixed SBS-3 login replies once it sends the
+expected login frame, after which it receives live traffic as Kinetic binary messages (Mode-S long/short
+and DF17/18/19 ADS-B frames), the same data readsb also has available as Beast/SBS/raw output.
+
+Optional settings:
+
+- `--net-kinetic-forward-mlat` also sends MLAT-derived positions on the Kinetic output, independent of
+  the general `--forward-mlat` switch (off by default, since not all BaseStation-compatible tools expect
+  MLAT data mixed into an SBS-3 feed).
+- `--net-kinetic-filter-category=<list>` drops ADS-B messages whose emitter category falls in the given
+  range(s), e.g. `C0-C3,C7`, if you want to hide certain aircraft types (gliders, UAVs, etc.) from Kinetic
+  clients specifically.
+- `--net-kinetic-filter-hexcode=<list>` drops messages for specific ICAO hex address ranges, e.g.
+  `3C8E01-3C8E05,3C3EB9`, again only affecting the Kinetic output.
+
+Both filters only apply to this output; every other output (Beast, SBS, raw, etc.) keeps seeing the
+full, unfiltered data.
+
+readsb also logs Kinetic client activity on the console independent of `--debug net`: a message when a
+client connects, another once it completes the SBS-3 login handshake, and one when it disconnects
+(noting if it never logged in) — useful for spotting misbehaving or unexpected BaseStation clients.
+
 
 ## readsb --help
 
