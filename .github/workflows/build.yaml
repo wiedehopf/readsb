@@ -1,0 +1,56 @@
+name: Build and test
+
+on:
+  push:
+    branches: [dev, sid]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.os }} / ${{ matrix.cc }} / RTLSDR=${{ matrix.rtlsdr }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            cc: gcc
+            rtlsdr: "no"
+          - os: ubuntu-22.04
+            cc: clang
+            rtlsdr: "no"
+          - os: ubuntu-24.04
+            cc: gcc
+            rtlsdr: "no"
+          - os: ubuntu-24.04
+            cc: clang
+            rtlsdr: "no"
+          - os: ubuntu-24.04
+            cc: gcc
+            rtlsdr: "yes"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libncurses-dev zlib1g-dev libzstd-dev
+          if [ "${{ matrix.rtlsdr }}" = "yes" ]; then
+            sudo apt-get install -y --no-install-recommends librtlsdr-dev libusb-1.0-0-dev
+          fi
+
+      - name: Build
+        run: make -j"$(nproc)" CC=${{ matrix.cc }} RTLSDR=${{ matrix.rtlsdr }}
+
+      - name: Test
+        run: make test CC=${{ matrix.cc }}
