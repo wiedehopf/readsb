@@ -202,13 +202,15 @@ viewadsb: readsb
 clean:
 	rm -f *.o uat2esnt/*.o oneoff/*.o compat/clock_gettime/*.o compat/clock_nanosleep/*.o compat/apple/*.o readsb viewadsb cprtests crctests oneoff/convert_benchmark
 
+.PHONY: test cprtest crctest
+
 test: cprtest crctest
 
 cprtest: cprtests
 	./cprtests
 
-crctest: cprtests
-	./cprtests
+crctest: crctests
+	./crctests 1 2
 
 cprtests: cpr.o cprtests.o
 	$(CC) $(CFLAGS) -o $@ $^ -lm
