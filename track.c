@@ -2699,7 +2699,7 @@ struct aircraft *trackUpdateFromMessage(struct modesMessage *mm) {
             // avoid using already received positions for JAERO input
         } else if (mm->receiver_distance > Modes.maxRange && mm->source != SOURCE_JAERO) {
             // ignore positions out of receiver range unless it's jaero
-        } else if (mm->source == SOURCE_MLAT && mm->mlatEPU > 2 * a->mlatEPU
+        } else if (mm->source == SOURCE_MLAT && a->mlatEPU > 0 && mm->mlatEPU > 2 * a->mlatEPU
                 && imin((int)(3000.0f * logf((float)mm->mlatEPU / (float)a->mlatEPU)), TRACE_STALE * 3 / 4) > (int64_t) trackDataAge(mm->sysTimestamp, &a->pos_reliable_valid)
                 ) {
             // don't use less accurate MLAT positions unless some time has elapsed
