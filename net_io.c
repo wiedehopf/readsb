@@ -1183,12 +1183,13 @@ static void modesAcceptClients(struct client *c, int64_t now) {
 
         if (Modes.modesClientCount > Modes.max_fds_net) {
             // drop new modes clients if the count gets near resource limits
-            anetCloseSocket(c->fd);
+            anetCloseSocket(fd);
             static int64_t antiSpam;
             if (now > antiSpam) {
                 antiSpam = now + 30 * SECONDS;
                 fprintf(stderr, "<3> Can't accept new connection, limited to %d clients, consider increasing ulimit!\n", Modes.max_fds_net);
             }
+            continue;
         }
 
         c = createSocketClient(s, fd, NULL);
