@@ -5691,7 +5691,8 @@ static int readBeast(struct client *c, int64_t now, struct messageBuffer *mb) {
                     // incomplete uuid
                     break;
                 } else {
-                    // malformed uuid
+                    // malformed uuid, skip
+                    c->som++;
                     continue;
                 }
             }
