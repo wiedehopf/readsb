@@ -3014,23 +3014,12 @@ static void miscStuff(int64_t now) {
     if (Modes.json_dir && now > next_clients_json) {
         next_clients_json = now + 10 * SECONDS;
 
-        // the decode thread adds, closes and frees clients and receivers under its lock
-        struct char_buffer clients = { 0 };
-        struct char_buffer receivers = { 0 };
-        pthread_mutex_lock(&Threads.decode.mutex);
         if (Modes.netIngest || Modes.enableClientsJson) {
-            clients = generateClientsJson();
+            free(writeJsonToFile(Modes.json_dir, "clients.json", generateClientsJson()).buffer);
         }
-        if (Modes.netReceiverIdJson) {
-            receivers = generateReceiversJson();
-        }
-        pthread_mutex_unlock(&Threads.decode.mutex);
 
-        if (clients.buffer) {
-            free(writeJsonToFile(Modes.json_dir, "clients.json", clients).buffer);
-        }
-        if (receivers.buffer) {
-            free(writeJsonToFile(Modes.json_dir, "receivers.json", receivers).buffer);
+        if (Modes.netReceiverIdJson) {
+            free(writeJsonToFile(Modes.json_dir, "receivers.json", generateReceiversJson()).buffer);
         }
 
         return;
