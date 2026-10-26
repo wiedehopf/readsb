@@ -533,6 +533,8 @@ void priorityTasksRun() {
         if (now > next_free_clients) {
             next_free_clients = now + free_client_interval;
 
+            // this can't happen at the same time as generateClientsJson and generateReceiversJson
+            // thus it has been moved to this section where all other threads are locked
             netFreeClientsReceivers(free_client_interval);
         }
     }
