@@ -4699,7 +4699,7 @@ static int decodeHexMessage(struct client *c, char *hex, int64_t now, struct mod
         hex[l - 1] = '\0';
         l--;
     }
-    while (isspace(*hex)) {
+    while (l && isspace(*hex)) {
         hex++;
         l--;
     }
