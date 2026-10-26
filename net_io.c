@@ -6112,12 +6112,28 @@ static void serviceFreeClients(struct net_service *s) {
 }
 
 // Unlink and free closed clients
-static void netFreeClients() {
+void netFreeClientsReceivers(int64_t interval) {
     for (struct net_service *service = Modes.services_out.services; service->descr; service++) {
         serviceFreeClients(service);
     }
     for (struct net_service *service = Modes.services_in.services; service->descr; service++) {
         serviceFreeClients(service);
+    }
+
+    if (Modes.receiverTable) {
+        static uint32_t upcount;
+        int nParts = RECEIVER_MAINTENANCE_INTERVAL / interval;
+        receiverTimeout((upcount % nParts), nParts, mstime());
+        upcount++;
+
+        if (Modes.receiverCount > Modes.receiver_table_size * 3 / 4 && Modes.receiver_table_hash_bits < 16) {
+            // we clear the table, rehashing would be nicer but more complex
+            // this should be fine
+            receiverCleanup();
+            Modes.receiver_table_hash_bits = 16;
+            receiverInit();
+            fprintf(stderr, "receiverTable table size increased to: %d\n", Modes.receiver_table_size);
+        }
     }
 }
 
@@ -6369,31 +6385,6 @@ void modesNetPeriodicWork(void) {
             Modes.next_reconnect_callback = now + Modes.net_connector_delay_min;
         }
         serviceReconnectCallback(now);
-    }
-
-    static int64_t next_free_clients;
-    int64_t free_client_interval = 1 * SECONDS;
-    if (now > next_free_clients) {
-        next_free_clients = now + free_client_interval;
-
-
-        netFreeClients();
-
-        if (Modes.receiverTable) {
-            static uint32_t upcount;
-            int nParts = RECEIVER_MAINTENANCE_INTERVAL / free_client_interval;
-            receiverTimeout((upcount % nParts), nParts, now);
-            upcount++;
-
-            if (Modes.receiverCount > Modes.receiver_table_size * 3 / 4 && Modes.receiver_table_hash_bits < 16) {
-                // we clear the table, rehashing would be nicer but more complex
-                // this should be fine
-                receiverCleanup();
-                Modes.receiver_table_hash_bits = 16;
-                receiverInit();
-                fprintf(stderr, "receiverTable table size increased to: %d\n", Modes.receiver_table_size);
-            }
-        }
     }
 
     int64_t elapsed3 = lapWatch(&watch);

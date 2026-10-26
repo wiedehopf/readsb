@@ -526,6 +526,17 @@ void priorityTasksRun() {
         statsUpdate(now); // needs to happen under lock
     }
 
+
+    if (Modes.net) {
+        static int64_t next_free_clients;
+        int64_t free_client_interval = 1 * SECONDS;
+        if (now > next_free_clients) {
+            next_free_clients = now + free_client_interval;
+
+            netFreeClientsReceivers(free_client_interval);
+        }
+    }
+
     int64_t elapsed2 = lapWatch(&watch);
 
     Modes.currentTask = "unlocking";
