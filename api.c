@@ -1227,7 +1227,7 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
     query++;
 
     // find end of query
-    char *eoq = memchr(query, ' ', request->len);
+    char *eoq = memchr(query, ' ', request->len - (query - req));
     if (!eoq) {
         return invalid;
     }
