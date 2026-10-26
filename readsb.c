@@ -2735,6 +2735,10 @@ static void configAfterParse() {
         fprintf(stderr, "automatically clamping --net-buffer to 7 which is %d bytes\n", MODES_NET_SNDBUF_SIZE << MODES_NET_SNDBUF_MAX);
         Modes.net_sndbuf_size = MODES_NET_SNDBUF_MAX;
     }
+    if (Modes.net_sndbuf_size < 0) {
+        fprintf(stderr, "automatically clamping --net-buffer to 0 which is %d bytes\n", MODES_NET_SNDBUF_SIZE);
+        Modes.net_sndbuf_size = 0;
+    }
 
     Modes.netBufSize = MODES_NET_SNDBUF_SIZE << Modes.net_sndbuf_size;
 
