@@ -4774,13 +4774,20 @@ static int decodeHexMessage(struct client *c, char *hex, int64_t now, struct mod
                 if (l < 12)
                     return (0);
                 for (j = 0; j < 12; j++) {
-                    mm->timestamp = (mm->timestamp << 4) | hexDigitVal(*hex);
+                    int digit = hexDigitVal(*hex);
+                    if (digit < 0)
+                        return (0);
+                    mm->timestamp = (mm->timestamp << 4) | digit;
                     hex++;
                     l--;
                 }
                 if (l < 2)
                     return (0);
-                mm->signalLevel = ((hexDigitVal(hex[0]) << 4) | hexDigitVal(hex[1])) / 255.0;
+                int high = hexDigitVal(hex[0]);
+                int low = hexDigitVal(hex[1]);
+                if (high < 0 || low < 0)
+                    return (0);
+                mm->signalLevel = ((high << 4) | low) / 255.0;
                 hex += 2;
                 l -= 2;
                 mm->signalLevel = mm->signalLevel * mm->signalLevel;
@@ -4797,7 +4804,10 @@ static int decodeHexMessage(struct client *c, char *hex, int64_t now, struct mod
                 if (l <= 12) // if we have only enough hex for the timestamp or less it's invalid
                     return (0);
                 for (j = 0; j < 12; j++) {
-                    mm->timestamp = (mm->timestamp << 4) | hexDigitVal(*hex);
+                    int digit = hexDigitVal(*hex);
+                    if (digit < 0)
+                        return (0);
+                    mm->timestamp = (mm->timestamp << 4) | digit;
                     hex++;
                 }
 
