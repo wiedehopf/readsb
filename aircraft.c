@@ -734,8 +734,11 @@ int dbUpdate(int64_t now) {
 
     return 1;
 DBU0:
+    // gzclose() also closes fd, which gzdopen() took over
     if (gzfp)
         gzclose(gzfp);
+    else
+        close(fd);
     free(cb.buffer);
     free(Modes.db2);
     free(Modes.db2Index);
@@ -743,7 +746,6 @@ DBU0:
     Modes.db2Index = NULL;
     Modes.db2Raw.buffer = NULL;
     Modes.db2Raw.len = 0;
-    close(fd);
     return 1;
 }
 
