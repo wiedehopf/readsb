@@ -2253,22 +2253,24 @@ static uint64_t readAsterixTime(char **p) {
 //
 // Read Asterix High Precision Time
 //
+// *timeStamp is in milliseconds; the field holds the fraction of the second (LSB 2^-30 s)
+// and whether the whole second is the same as in *timeStamp, one later or one earlier (FSI)
 static void readAsterixHighPrecisionTime(uint64_t *timeStamp, char **p) {
     uint8_t fsi = (**p & 0xc0) >> 6;
     double offset = ((**p & 0x3f) << 24) + ((*(*p + 1) & 0xff) << 16) + ((*(*p + 2) & 0xff) << 8) + (*(*p + 3) & 0xff);
     (*p) += 4;
-    offset = offset * pow(2, -27);
-    uint64_t wholesecond = (int)(*timeStamp / 1000) * 1000;
+    offset = offset * pow(2, -30);
+    uint64_t wholesecond = (*timeStamp / 1000) * 1000;
     switch(fsi)
     {
     	case 1:
-	    wholesecond += 1;
+	    wholesecond += 1000;
 	    break;
 	case 2:
-	    wholesecond -= 1;
+	    wholesecond -= 1000;
 	    break;
     }
-    *timeStamp = wholesecond + offset;
+    *timeStamp = wholesecond + (uint64_t) (offset * 1000);
 }
 
 //
