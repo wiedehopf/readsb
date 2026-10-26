@@ -4703,6 +4703,8 @@ static int decodeHexMessage(struct client *c, char *hex, int64_t now, struct mod
         hex++;
         l--;
     }
+    if (l <= 0)
+        return (0); // empty line
 
     // https://www.aerobits.pl/wp-content/uploads/2021/07/OEM_MC_Datasheet.pdf
     // *RAW_FRAME;(SIGS,SIGQ,TS)\r\n
