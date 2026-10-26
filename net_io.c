@@ -4773,6 +4773,8 @@ static int decodeHexMessage(struct client *c, char *hex, int64_t now, struct mod
 
                 if (l < 12)
                     return (0);
+                // replaces a timestamp from an Aerobits (SIGS,SIGQ,TS) suffix
+                mm->timestamp = 0;
                 for (j = 0; j < 12; j++) {
                     int digit = hexDigitVal(*hex);
                     if (digit < 0)
@@ -4803,6 +4805,8 @@ static int decodeHexMessage(struct client *c, char *hex, int64_t now, struct mod
 
                 if (l <= 12) // if we have only enough hex for the timestamp or less it's invalid
                     return (0);
+                // replaces a timestamp from an Aerobits (SIGS,SIGQ,TS) suffix
+                mm->timestamp = 0;
                 for (j = 0; j < 12; j++) {
                     int digit = hexDigitVal(*hex);
                     if (digit < 0)
