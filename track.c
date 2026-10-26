@@ -819,7 +819,8 @@ static int doGlobalCPR(struct aircraft *a, struct modesMessage *mm, double *lat,
                 a->cpr_odd_lat, a->cpr_odd_lon,
                 fflag,
                 lat, lon);
-        double refDistance = greatcircle(reflat, reflon, *lat, *lon, 0);
+        // lat / lon are only set when the decode succeeded
+        double refDistance = (result == 0) ? greatcircle(reflat, reflon, *lat, *lon, 0) : 0;
         if (refDistance > 450e3) {
             if (0 && (a->addr == Modes.cpr_focus || Modes.debug_cpr)) {
                 fprintf(stderr, "%06x CPRsurface ref %d refDistance: %4.0f km (%4.0f, %4.0f) allow_ac_rel %d\n", a->addr, ref, refDistance / 1000.0, reflat, reflon, a->surfaceCPR_allow_ac_rel);
