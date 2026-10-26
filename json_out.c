@@ -2337,6 +2337,7 @@ struct char_buffer generateClientsJson() {
         for (struct client *c = service->clients; c; c = c->next) {
             if (!c->service)
                 continue;
+            // don't dereference c->service, it could become NULL during a client close
 
             // check if we have enough space
             if ((p + 1000) >= end) {
@@ -2352,7 +2353,7 @@ struct char_buffer generateClientsJson() {
             //fprintf(stderr, "printing rId %016"PRIx64"%016"PRIx64" %s\n", c->receiverId, c->receiverId2, uuid);
 
             double elapsed = (now - c->connectedSince) / 1000.0;
-            int reduceSignaled = c->service->writer == &Modes.beast_in
+            int reduceSignaled = service->writer == &Modes.beast_in
                 && c->pingReceived + 120 * SECONDS > now;
             p = safe_snprintf(p, end, "[\"%s\",\"%49s\",%6.2f,%6.0f,%8.3f,%7.3f, %d,%5.0f, %10lld],\n",
                     uuid,
