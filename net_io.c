@@ -2293,10 +2293,14 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
     mm->sbs_in = 1;
     mm->signalLevel = 0;
     category = *p; // Get the category
+    // readAsterix() has checked that the whole record is in the buffer
+    char *end = p + (((uint8_t) p[1] << 8) | (uint8_t) p[2]);
     p += 3;
+    // discard records whose fields run past their declared length
+#define ASTERIX_NEED(n) do { if (end - p < (n)) return 0; } while (0)
 
     uint8_t fspec[FSPEC_MAX];
-    readFspec(fspec, &p, c->eod);
+    readFspec(fspec, &p, end);
 
     mm->receiverId = c->receiverId;
     if (unlikely(Modes.incrementId)) {
@@ -2309,12 +2313,13 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 return -1;
             }
             if (fspec[0] & 0x80){ // ID021/010 Data Source Identification
+                ASTERIX_NEED(2);
                 p += 2;
             }
             uint8_t addrtype = 3;
             if (fspec[0] & 0x40){ // ID021/040 Target Report Descriptor
                 uint8_t trd[FSPEC_MAX];
-                readFspec(trd, &p, c->eod);
+                readFspec(trd, &p, end);
                 addrtype = (trd[0] & 0xE0) >> 5;
                 if (!(trd[0] & 0x18)){
                     mm->alt_q_bit = 1;
@@ -2327,15 +2332,19 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 }
             }
             if (fspec[0] & 0x20){ // I021/161 Track Number
+                ASTERIX_NEED(2);
                 p += 2;
             }
             if (fspec[0] & 0x10){ // I021/015 Service Identification
+                ASTERIX_NEED(1);
                 p += 1;
             }
             if (fspec[0] & 0x8){ // I021/071 Time of Applicability for Position 3
+                ASTERIX_NEED(3);
                 mm->sysTimestamp = readAsterixTime(&p);
             }
             if (fspec[0] & 0x4){ // I021/130 Position in WGS-84 co-ordinates
+                ASTERIX_NEED(6);
                 int lat = (*p & 0xff) << 16;
                 lat += (*(p + 1) & 0xff) << 8;
                 lat += (*(p + 2) & 0xff);
@@ -2359,6 +2368,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 }
             }
             if (fspec[0] & 0x2){ // I021/131 Position in WGS-84 co-ordinates, high res.
+                ASTERIX_NEED(8);
                 int lat = (*p & 0xff) << 24;
                 lat += (*(p + 1) & 0xff) << 16;
                 lat += (*(p + 2) & 0xff) << 8;
@@ -2378,6 +2388,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 }
             }
             if (fspec[1] & 0x80){ // I021/072 Time of Applicability for Velocity
+                ASTERIX_NEED(3);
                 if (mm->sysTimestamp == -1){
                     mm->sysTimestamp = readAsterixTime(&p);
                 }
@@ -2386,6 +2397,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 }
             }
             if (fspec[1] & 0x40){ // I021/150 Air Speed
+                ASTERIX_NEED(2);
                 uint16_t raw_speed = (*p & 0x7f) << 8;
                 raw_speed += *(p + 1) & 0xff;
                 if (*p & 0x80){ //Mach
@@ -2399,6 +2411,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 p += 2;
             }
             if (fspec[1] & 0x20){ // I021/151 True Airspeed
+                ASTERIX_NEED(2);
                 uint16_t raw_speed = (*p & 0x7f) << 8;
                 raw_speed += *(p + 1) & 0xff;
                 if (!(*p & 0x80)){
@@ -2408,12 +2421,14 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 p += 2;
             }
             // I021/080 Target Address
+            ASTERIX_NEED(3);
             mm->addr = (((*p & 0xff) << 16) + ((*(p + 1) & 0xff) << 8) + (*(p + 2) & 0xff)) & 0xffffff;
             if (addrtype == 3){
                 mm->addr |= MODES_NON_ICAO_ADDRESS;
             }
             p += 3;
             if (fspec[1] & 0x8){ // I021/073 Time of Message Reception of Position
+                ASTERIX_NEED((fspec[1] & 0x4) ? 7 : 3);
                 if (mm->cpr_decoded || mm->sbs_pos_valid){
                     uint64_t ts = readAsterixTime(&p);
                     if (fspec[1] & 0x4){ // I021/074 Time of Message Reception of Position=High Precision
@@ -2431,6 +2446,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 }
             }
             if (fspec[1] & 0x2){ // I021/075 Time of Message Reception of Velocity
+                ASTERIX_NEED((fspec[2] & 0x80) ? 7 : 3);
                 if (mm->ias_valid || mm->mach_valid || mm->gs_valid){
                     uint64_t ts = readAsterixTime(&p);
                     if (fspec[2] & 0x80){ // I021/076 Time of Message Reception of Velocity=High Precision
@@ -2448,6 +2464,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 }
             }
             if (fspec[2] & 0x40){ // I021/140 Geometric Height
+                ASTERIX_NEED(2);
                 int16_t raw_alt = (((*p & 0xff) << 8) + (*(p + 1) & 0xff));
                 double alt = raw_alt * 6.25;
                 if (alt >= -1500 && alt <= 150000){
@@ -2468,7 +2485,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
             uint8_t gva = 0;
             //uint8_t pic;
             if (fspec[2] & 0x20){ // I021/090 Quality Indicators
-                readFspec(qi, &p, c->eod);
+                readFspec(qi, &p, end);
                 //nucp_or_nic = (qi[0] & 0x1e) >> 1;
                 nucr_or_nacv = (qi[0] & 0xe0) >> 5;
                 mm->accuracy.nac_v_valid = true;
@@ -2496,6 +2513,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 }
             }
             if (fspec[2] & 0x10){ // I021/210 MOPS Version
+                ASTERIX_NEED(1);
                 mm->opstatus.valid = true;
                 mm->opstatus.version = ((*p) & 0x38) >> 3;
                 uint8_t ltt = (*p) & 0x7;
@@ -2550,18 +2568,21 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 }
             }
             if (fspec[2] & 0x8){ // I021/070 Mode 3/A Code
+                ASTERIX_NEED(2);
                 mm->squawkHex = (((*p & 0xe) << 11) + ((*p & 0x1) << 10) + ((*(p + 1) & 0xC0) << 2) + ((*(p + 1) & 0x38) << 1) + ((*(p + 1) & 0x7))) ;
                 mm->squawkDec = squawkHex2Dec(mm->squawkHex);
                 mm->squawk_valid = true;
                 p += 2;
             }
             if (fspec[2] & 0x4){ // I021/230 Roll Angle
+                ASTERIX_NEED(2);
                 int16_t roll = ((*p & 0xff) << 8) + (*(p + 1) & 0xff);
                 mm->roll = roll * 0.01;
                 mm->roll_valid = true;
                 p += 2;
             }
             if (fspec[2] & 0x2){ // I021/145 Flight Level
+                ASTERIX_NEED(2);
                 int16_t alt = ((*p & 0xff) << 8) + (*(p + 1) & 0xff);
                 mm->baro_alt_valid = true;
                 mm->baro_alt = alt * 25;
@@ -2569,6 +2590,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 p += 2;
             }
             if (fspec[3] & 0x80){ // I021/152 Magnetic Heading
+                ASTERIX_NEED(2);
                 mm->heading_valid = true;
                 mm->heading_type = HEADING_MAGNETIC;
                 uint16_t heading = ((*p & 0xff) << 8) + (*(p + 1) & 0xff);
@@ -2576,6 +2598,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 p += 2;
             }
             if (fspec[3] & 0x40){ // I021/200 Target Status
+                ASTERIX_NEED(1);
                 mm->spi_valid = true;
                 mm->alert_valid = true;
                 mm->emergency_valid = true;
@@ -2587,6 +2610,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 p++;
             }
             if (fspec[3] & 0x20){ // ID021/155 Barometric Vertical Rate
+                ASTERIX_NEED(2);
                 if (*p & 0x80){ //range exceeded
                     p += 2;
                 }
@@ -2598,6 +2622,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 }
             }
             if (fspec[3] & 0x10){ // ID021/157 Geometric Vertical Rate
+                ASTERIX_NEED(2);
                 if (*p & 0x80){ //range exceeded
                     p += 2;
                 }
@@ -2609,6 +2634,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 }
             }
             if (fspec[3] & 0x8){ // ID021/160 Airborne Ground Vector
+                ASTERIX_NEED(4);
                 if (*p & 0x80){ //range exceeded
                     p += 4;
                 }
@@ -2625,15 +2651,18 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 }
             }
             if (fspec[3] & 0x4){ // ID021/165 Track Angle Rate
+                ASTERIX_NEED(2);
                 p += 2;
             }
             if (fspec[3] & 0x2){ // ID021/077 Time of Report Transmission
+                ASTERIX_NEED(3);
                 uint64_t tt = readAsterixTime(&p);
                 if (mm->sysTimestamp == -1){
                     mm->sysTimestamp = tt;
                 }
             }
             if (fspec[4] & 0x80){ // ID021/170 Target Identification
+                ASTERIX_NEED(6);
                 uint64_t cs = ((uint64_t)(*p & 0xff) << 40) + ((uint64_t)(*(p + 1) & 0xff) << 32) + ((uint64_t)(*(p + 2) & 0xff) << 24) + ((uint64_t)(*(p + 3) & 0xff) << 16) + ((uint64_t)(*(p + 4) & 0xff) << 8) + (uint64_t)(*(p + 5) & 0xff);
                 char *callsign = mm->callsign;
                 callsign[0] = ais_charset[((cs & 0xFC0000000000) >> 42)];
@@ -2662,6 +2691,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 p += 6;
             }
             if (fspec[4] & 0x40){ // ID021/020 Emitter Category
+                ASTERIX_NEED(1);
                 int tc = 0;
                 int ca = 0;
                 uint8_t ecat = *p++ & 0xFF;
@@ -2734,10 +2764,11 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
 
             if (fspec[4] & 0x20) { // I021/220 Met Information
                 uint8_t met[FSPEC_MAX];
-                readFspec(met, &p, c->eod);
+                readFspec(met, &p, end);
             }
 
             if (fspec[4] & 0x10) { // I021/146 Selected Altitude
+                ASTERIX_NEED(2);
                 if (*p & 0x80 && *p & 0x60) {
                     int16_t alt = (*p & 0x1F) << 8;
                     alt += *(p + 1) & 0xFF;
@@ -2763,6 +2794,7 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
     //mm->decoded_nic = 0;
     //mm->decoded_rc = RC_UNKNOWN;
     return 0;
+#undef ASTERIX_NEED
 }
 
 
