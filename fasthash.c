@@ -23,6 +23,7 @@
    SOFTWARE.
 */
 
+#include <string.h>
 #include "fasthash.h"
 
 #undef FT
@@ -44,19 +45,21 @@
 uint64_t fasthash64(const void *buf, size_t len, uint64_t seed)
 {
     const uint64_t    m = 0x880355f21e6d1965ULL;
-    const uint64_t *pos = (const uint64_t *)buf;
-    const uint64_t *end = pos + (len / 8);
+    // buf is not required to be aligned, use byte offsets and memcpy
+    const unsigned char *pos = (const unsigned char *)buf;
+    const unsigned char *end = pos + (len / 8) * sizeof(uint64_t);
     const unsigned char *pos2;
     uint64_t h = seed ^ (len * m);
     uint64_t v;
 
     while (pos != end) {
-        v  = *pos++;
+        memcpy(&v, pos, sizeof(v));
+        pos += sizeof(v);
         h ^= mix(v);
         h *= m;
     }
 
-    pos2 = (const unsigned char*)pos;
+    pos2 = pos;
     v = 0;
 
     switch (len & 7) {
