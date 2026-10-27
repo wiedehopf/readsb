@@ -1001,7 +1001,7 @@ void modesInitNet(void) {
 
     int sbs_port_len = strlen(Modes.net_output_sbs_ports);
     int pos = sbs_port_len - 1;
-    if (sbs_port_len <= 5 && Modes.net_output_sbs_ports[pos] == '5') {
+    if (sbs_port_len > 0 && sbs_port_len <= 5 && Modes.net_output_sbs_ports[pos] == '5') {
 
         char *replay = strdup(Modes.net_output_sbs_ports);
         replay[pos] = '6';
@@ -1038,7 +1038,7 @@ void modesInitNet(void) {
 
     sbs_port_len = strlen(Modes.net_input_sbs_ports);
     pos = sbs_port_len - 1;
-    if (sbs_port_len <= 5 && Modes.net_input_sbs_ports[pos] == '6') {
+    if (sbs_port_len > 0 && sbs_port_len <= 5 && Modes.net_input_sbs_ports[pos] == '6') {
         char *mlat = strdup(Modes.net_input_sbs_ports);
         mlat[pos] = '7';
         serviceListen(sbs_in_mlat, Modes.net_bind_address, mlat, Modes.net_epfd);
