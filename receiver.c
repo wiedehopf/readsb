@@ -89,9 +89,10 @@ void receiverTimeout(int part, int nParts, int64_t now) {
     if (!Modes.receiverTable) {
         return;
     }
-    int stride = Modes.receiver_table_size / nParts;
-    int start = stride * part;
-    int end = start + stride;
+    // proportional ranges cover the whole table even when it isn't a multiple of nParts
+    int64_t size = Modes.receiver_table_size;
+    int start = size * part / nParts;
+    int end = size * (part + 1) / nParts;
     //fprintf(stderr, "START: %8d END: %8d\n", start, end);
     for (int i = start; i < end; i++) {
         struct receiver **r = &Modes.receiverTable[i];
