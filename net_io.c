@@ -6372,7 +6372,7 @@ void modesNetPeriodicWork(void) {
     }
 
     /* Beast input from local Modes-S Beast via USB */
-    if (Modes.sdrInitialized && (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS)) {
+    if (Modes.sdrInitialized && (Modes.sdr_type == SDR_MODESBEAST || Modes.sdr_type == SDR_GNS) && Modes.beast_fd >= 0) {
         if (!Modes.serial_client) {
             if (1 || Modes.debug_serial) {
                 fprintTimePrecise(stderr, mstime());
@@ -6392,6 +6392,10 @@ void modesNetPeriodicWork(void) {
         if (!Modes.serial_client->service) {
             fprintf(stderr, "Serial client closed unexpectedly, exiting!\n");
             setExit(2);
+            // netFreeClients() frees the closed client and its fd is closed:
+            // neither may be used again while the exit is pending
+            Modes.serial_client = NULL;
+            Modes.beast_fd = -1;
         }
     }
 
