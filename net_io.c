@@ -6161,11 +6161,17 @@ static void serviceFreeClients(struct net_service *s) {
 
 // Unlink and free closed clients
 void netFreeClientsReceivers(int64_t interval) {
-    for (struct net_service *service = Modes.services_out.services; service->descr; service++) {
-        serviceFreeClients(service);
+    // priorityTasksRun() can run before the decode thread has called
+    // modesInitNet(): the service groups only exist from then on.
+    if (Modes.services_out.services) {
+        for (struct net_service *service = Modes.services_out.services; service->descr; service++) {
+            serviceFreeClients(service);
+        }
     }
-    for (struct net_service *service = Modes.services_in.services; service->descr; service++) {
-        serviceFreeClients(service);
+    if (Modes.services_in.services) {
+        for (struct net_service *service = Modes.services_in.services; service->descr; service++) {
+            serviceFreeClients(service);
+        }
     }
 
     if (Modes.receiverTable) {
