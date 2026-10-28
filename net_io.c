@@ -156,6 +156,8 @@ static struct net_service *serviceInit(struct net_service_group *group, const ch
     }
 
     if (!group->services) {
+        fprintf(stderr, "FATAL: group->services alloc failed\n");
+        exit(1);
     }
 
     group->len++;
