@@ -1162,6 +1162,8 @@ void modesInitNet(void) {
             dump_beast_check(mstime());
         }
     }
+
+    Modes.net_initialized = 1;
 }
 
 
@@ -6163,11 +6165,13 @@ static void serviceFreeClients(struct net_service *s) {
 
 // Unlink and free closed clients
 void netFreeClientsReceivers(int64_t interval) {
-    for (struct net_service *service = Modes.services_out.services; service->descr; service++) {
-        serviceFreeClients(service);
-    }
-    for (struct net_service *service = Modes.services_in.services; service->descr; service++) {
-        serviceFreeClients(service);
+    if (Modes.net_initialized) {
+        for (struct net_service *service = Modes.services_out.services; service->descr; service++) {
+            serviceFreeClients(service);
+        }
+        for (struct net_service *service = Modes.services_in.services; service->descr; service++) {
+            serviceFreeClients(service);
+        }
     }
 
     if (Modes.receiverTable) {

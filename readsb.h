@@ -803,6 +803,7 @@ struct _Modes
 
     int8_t net; // Enable networking
     int8_t net_only; // Enable just networking
+    int8_t net_initialized;
     int8_t jsonLongtype;
     int8_t viewadsb;
     int8_t sbsReduce; // apply beast reduce logic to SBS messages
