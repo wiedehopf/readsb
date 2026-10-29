@@ -1057,7 +1057,8 @@ static void apiCloseCon(struct apiCon *con, struct apiThread *thread) {
     }
 
     int fd = con->fd;
-    if (con->events && epoll_ctl(thread->epfd, EPOLL_CTL_DEL, fd, NULL)) {
+    // the event is gone already on a normal client disconnect, ENOENT is expected
+    if (con->events && epoll_ctl(thread->epfd, EPOLL_CTL_DEL, fd, NULL) && errno != ENOENT) {
         fprintf(stderr, "apiCloseCon: EPOLL_CTL_DEL %d: %s\n", fd, strerror(errno));
     }
     con->events = 0;
