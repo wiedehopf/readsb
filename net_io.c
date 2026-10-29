@@ -1076,7 +1076,10 @@ void modesInitNet(void) {
         unlink(commandSocketFile);
         snprintf(commandSocket, PATH_MAX, "unix:%s/cmd.sock", Modes.json_dir);
         serviceListen(commandService, Modes.net_bind_address, commandSocket, Modes.net_epfd);
-        chmod(commandSocket, 0600);
+        // commandSocket is "unix:<path>", the chmod has to use the file path
+        if (chmod(commandSocketFile, 0600)) {
+            fprintf(stderr, "command input: chmod %s: %s\n", commandSocketFile, strerror(errno));
+        }
     }
 
     raw_in = serviceInit(&Modes.services_in, "Raw TCP input", NULL, no_heartbeat, raw_heartbeat, READ_MODE_ASCII, "\n", processHexMessage);
