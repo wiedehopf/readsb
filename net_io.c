@@ -3506,7 +3506,9 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now, 
     // field 13, groundspeed
     if (t[13] && strlen(t[13]) > 0) {
         double tmp = strtod(t[13], &endptr);
-        if (endptr != t[13] && isfinite(tmp)) {
+        // 1e308 is a finite double but becomes inf when stored in the float
+        // below, which ends up as "gs":inf in aircraft.json
+        if (endptr != t[13] && isfinite(tmp) && tmp >= 0 && tmp <= 6000) {
             mm->gs_valid = 1;
             mm->gs.v0 = tmp;
         } else {
