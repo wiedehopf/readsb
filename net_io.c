@@ -4343,6 +4343,10 @@ static int handleCommandSocket(struct client *c, char *p, int remote, int64_t no
     MODES_NOTUSED(mb);
     char *saveptr = NULL;
     char *cmd = strtok_r(p, " ", &saveptr);
+    if (!cmd) {
+        // empty line, nothing to do
+        return 0;
+    }
     if (strcmp(cmd, "deleteTrace") == 0) {
         char *t1 = strtok_r(NULL, " ", &saveptr);
         char *t2 = strtok_r(NULL, " ", &saveptr);
