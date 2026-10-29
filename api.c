@@ -1214,13 +1214,15 @@ static int parseDoubles(char *start, char *end, double *results, int max) {
 }
 
 // expects lower cased input
-static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *request, struct apiOptions *options, struct apiThread *thread) {
+static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *request, char *req_line_end,
+        struct apiOptions *options, struct apiThread *thread) {
     struct char_buffer invalid = { 0 };
 
     char *req = request->buffer;
 
     // GET URL HTTPVERSION
-    char *query = memchr(req, '?', request->len);
+    // the query belongs to the request line, don't look for it in the headers
+    char *query = memchr(req, '?', req_line_end - req);
     if (!query) {
         return invalid;
     }
@@ -1228,7 +1230,7 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
     query++;
 
     // find end of query
-    char *eoq = memchr(query, ' ', request->len - (query - req));
+    char *eoq = memchr(query, ' ', req_line_end - query);
     if (!eoq) {
         return invalid;
     }
@@ -1760,7 +1762,7 @@ static void apiReadRequest(struct apiCon *con, struct apiThread *thread) {
     }
 
     con->content_type = "multipart/mixed";
-    struct char_buffer reply = parseFetch(con, request, options, thread);
+    struct char_buffer reply = parseFetch(con, request, protocol, options, thread);
     if (reply.len == 0) {
         //fprintf(stderr, "parseFetch returned invalid\n");
         send400(con->fd, con->keepalive);
