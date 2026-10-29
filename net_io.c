@@ -2314,7 +2314,9 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
     switch(category){
         case 21: // ADS-B Message
             if(!(fspec[1] & 0x10)){ // no address. this is useless to us
-                return -1;
+                // discard the record, the stream is still valid: readAsterix()
+                // closes the client on any non-zero return
+                return 0;
             }
             if (fspec[0] & 0x80){ // ID021/010 Data Source Identification
                 ASTERIX_NEED(2);
