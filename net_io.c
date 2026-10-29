@@ -4484,12 +4484,14 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now, 
      */
     mm->remote = remote;
 
-    mm->timestamp = 0;
     // Grab the timestamp (big endian format)
-    for (j = 0; j < 6; j++) {
-        ch = *p++;
-        mm->timestamp = mm->timestamp << 8 | (ch & 255);
-    }
+    mm->timestamp = ((uint64_t) (unsigned char) p[0] << 40)
+        | ((uint64_t) (unsigned char) p[1] << 32)
+        | ((uint64_t) (unsigned char) p[2] << 24)
+        | ((uint64_t) (unsigned char) p[3] << 16)
+        | ((uint64_t) (unsigned char) p[4] << 8)
+        | ((uint64_t) (unsigned char) p[5]);
+    p += 6;
 
     // record reception time as the time we read it.
     mm->sysTimestamp = now;
@@ -4511,9 +4513,8 @@ static int decodeBinMessage(struct client *c, char *p, int remote, int64_t now, 
             Modes.stats_current.strong_signal_count++; // signal power above -3dBFS
     }
 
-    for (j = 0; j < msgLen; j++) { // and the data
-        msg[j] = ch = *p++;
-    }
+    memcpy(msg, p, msgLen); // the data, the escapes are already removed
+    p += msgLen;
 
     int result = -10;
     if (msgLen == MODEAC_MSG_BYTES) { // ModeA or ModeC
