@@ -5429,8 +5429,18 @@ static int readAsterix(struct client *c, int64_t now, struct messageBuffer *mb) 
         // where char is signed — a byte value > 127 would otherwise sign-extend
         // to a negative int before the shift, corrupting msgLen.
         uint16_t msgLen = ((uint8_t)*(p + 1) << 8) | (uint8_t)*(p + 2);
-        if (msgLen < 3 || c->som + msgLen > c->eod) {
-            // invalid or incomplete messages
+        if (msgLen < 3) {
+            // a length below 3 can never become valid, and ASTERIX has no
+            // resynchronisation marker, so the stream is lost
+            if (Modes.debug_net) {
+                fprintf(stderr, "%s: Closing connection from %s port %s, invalid ASTERIX length %u\n",
+                        c->service->descr, c->host, c->port, msgLen);
+            }
+            modesCloseClient(c);
+            return -1;
+        }
+        if (c->som + msgLen > c->eod) {
+            // incomplete message, wait for more data
             break;
         }
         char *end = c->som + msgLen;
