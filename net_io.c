@@ -5527,7 +5527,11 @@ static int readBeast(struct client *c, int64_t now, struct messageBuffer *mb) {
         fprintf(stderr, " orphaned bytes: %5d orphaned for: %8.3f\n", c->orphaned_bytes, (now - c->orphaned_bytes_ts) / 1000.0);
     }
 
-    while (c->som < c->eod && ((p = memchr(c->som, (char) 0x1a, c->eod - c->som)) != NULL)) { // The first byte of buffer 'should' be 0x1a
+    while (c->som < c->eod) {
+        // the next byte usually is the 0x1a we are looking for, skip the memchr call then
+        p = ((unsigned char) *c->som == 0x1a) ? c->som : memchr(c->som, (char) 0x1a, c->eod - c->som);
+        if (!p)
+            break;
 
         if (p > c->som) {
             garbageIncrement(c, p - c->som, __LINE__);
