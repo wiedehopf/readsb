@@ -1205,10 +1205,11 @@ static int parseDoubles(char *start, char *end, double *results, int max) {
         if (count >= max) {
             return -1;
         }
-        results[count++] = strtod(sot, &endptr);
-        if (eot != endptr) {
+        double value = strtod(sot, &endptr);
+        if (eot != endptr || !isfinite(value)) {
             return -1;
         }
+        results[count++] = value;
     }
     return count;
 }
@@ -1268,7 +1269,9 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                     return invalid;
 
                 for (int i = 0; i < 4; i++) {
-                    if (box[i] > 180 || box[i] < -180)
+                    // latitude for the first two values, longitude for the rest
+                    double limit = (i < 2) ? 90 : 180;
+                    if (box[i] > limit || box[i] < -limit)
                         return invalid;
                 }
                 if (box[0] > box[1])
@@ -1297,6 +1300,9 @@ static struct char_buffer parseFetch(struct apiCon *con, struct char_buffer *req
                 if (circle->lat > 90 || circle->lat < -90)
                     return invalid;
                 if (circle->lon > 180 || circle->lon < -180)
+                    return invalid;
+                // negative or larger than half the earth circumference
+                if (circle->radius < 0 || circle->radius > 20037500)
                     return invalid;
 
             } else if (byteMatchStrict(option, "find_hex") || byteMatchStrict(option, "hexlist")) {
