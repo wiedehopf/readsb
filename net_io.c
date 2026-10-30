@@ -5622,6 +5622,10 @@ static int readBeast(struct client *c, int64_t now, struct messageBuffer *mb) {
             //fprintf(stderr, "%ld %ld\n", (long) now, (long) (c->eod - c->som));
 
             c->som = p; // set start of next message
+            if (p >= c->eod) {
+                // the synthetic timestamp was the last thing in the buffer
+                break;
+            }
             if (*p != 0x1A) {
                 //fprintf(stderr, "..\n");
                 c->som++;
