@@ -3272,12 +3272,12 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (Modes.json_globe_index && !Modes.omitGlobeFiles) {
-        threadCreate(&Threads.globeBin, NULL, globeBinEntryPoint, NULL);
-    }
-
     if (Modes.json_dir) {
         threadCreate(&Threads.json, NULL, jsonEntryPoint, NULL);
+
+        if (Modes.json_globe_index && !Modes.omitGlobeFiles) {
+            threadCreate(&Threads.globeBin, NULL, globeBinEntryPoint, NULL);
+        }
 
         if (Modes.json_globe_index && !Modes.omitGlobeFiles && !Modes.tar1090_no_globe) {
             // globe_xxxx.json
