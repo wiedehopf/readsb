@@ -2774,6 +2774,25 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
             if (fspec[4] & 0x20) { // I021/220 Met Information
                 uint8_t met[FSPEC_MAX];
                 readFspec(met, &p, end);
+
+                // skip the fields present in the primary subfield, otherwise
+                // the following items are read from the met data
+                if (met[0] & 0x80) { // WS Wind Speed
+                    ASTERIX_NEED(2);
+                    p += 2;
+                }
+                if (met[0] & 0x40) { // WD Wind Direction
+                    ASTERIX_NEED(2);
+                    p += 2;
+                }
+                if (met[0] & 0x20) { // TMP Temperature
+                    ASTERIX_NEED(2);
+                    p += 2;
+                }
+                if (met[0] & 0x10) { // TRB Turbulence
+                    ASTERIX_NEED(1);
+                    p += 1;
+                }
             }
 
             if (fspec[4] & 0x10) { // I021/146 Selected Altitude
