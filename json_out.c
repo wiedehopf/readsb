@@ -2352,12 +2352,16 @@ struct char_buffer generateClientsJson() {
             sprint_uuid(c->receiverId, c->receiverId2, uuid);
             //fprintf(stderr, "printing rId %016"PRIx64"%016"PRIx64" %s\n", c->receiverId, c->receiverId2, uuid);
 
+            // the proxy string comes from a PROXY protocol header on the network
+            char proxy[sizeof(c->proxy_string) * 6 + 16];
+            jsonEscapeString(c->proxy_string, proxy, sizeof(proxy));
+
             double elapsed = (now - c->connectedSince) / 1000.0;
             int reduceSignaled = service->writer == &Modes.beast_in
                 && c->pingReceived + 120 * SECONDS > now;
             p = safe_snprintf(p, end, "[\"%s\",\"%49s\",%6.2f,%6.0f,%8.3f,%7.3f, %d,%5.0f, %10lld],\n",
                     uuid,
-                    c->proxy_string,
+                    proxy,
                     c->bytesReceived / 128.0 / elapsed,
                     elapsed,
                     (double) c->messageCounter / elapsed,
