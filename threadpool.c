@@ -197,7 +197,7 @@ void threadpool_run(threadpool_t *pool, threadpool_task_t* tasks, uint32_t count
 static unsigned get_seed() {
     struct timespec time;
     clock_gettime(CLOCK_REALTIME, &time);
-    return (time.tv_sec ^ time.tv_nsec ^ (getpid() << 16) ^ (uintptr_t) pthread_self());
+    return (time.tv_sec ^ time.tv_nsec ^ ((uint32_t) getpid() << 16) ^ (uintptr_t) pthread_self());
 }
 
 static void *threadpool_threadproc(void *arg)
