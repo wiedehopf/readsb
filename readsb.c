@@ -1767,7 +1767,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             int count = parseLongs(arg, dfs, dfs_size);
             for (int i = 0; i < count; i++)
             {
-                Modes.filterDFbitset |= (1 << dfs[i]);
+                // DF is a 5 bit field, anything else is not a valid filter value
+                if (dfs[i] >= 0 && dfs[i] < 32)
+                    Modes.filterDFbitset |= (1u << dfs[i]);
             }
             fprintf(stderr, "filter-DF: %s\n", arg);
 #undef dfs_size
