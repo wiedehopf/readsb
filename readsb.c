@@ -3394,8 +3394,12 @@ int main(int argc, char **argv) {
 
         if (Modes.json_globe_index) {
             threadSignalJoin(&Threads.globeJson);
-            threadSignalJoin(&Threads.globeBin);
         }
+    }
+
+    // globeBin is started for --write-json-globe-index even without --write-json
+    if (Modes.json_globe_index) {
+        threadSignalJoin(&Threads.globeBin);
     }
 
     // after miscThread for the moment
