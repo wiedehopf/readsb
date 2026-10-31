@@ -2378,12 +2378,12 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
             }
             if (fspec[0] & 0x2){ // I021/131 Position in WGS-84 co-ordinates, high res.
                 ASTERIX_NEED(8);
-                int lat = (*p & 0xff) << 24;
+                int lat = (int) ((uint32_t) (*p & 0xff) << 24);
                 lat += (*(p + 1) & 0xff) << 16;
                 lat += (*(p + 2) & 0xff) << 8;
                 lat += (*(p + 3) & 0xff);
                 p += 4;
-                int lon = *p << 24;
+                int lon = (int) ((uint32_t) (uint8_t) *p << 24);
                 lon += (*(p + 1) & 0xff) << 16;
                 lon += (*(p + 2) & 0xff) << 8;
                 lon += (*(p + 3) & 0xff);
