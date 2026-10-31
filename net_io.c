@@ -6773,7 +6773,7 @@ static char *read_uuid(struct client *c, char *p, char *eod) {
 
 static void outputMessage(struct modesMessage *mm) {
     // filter messages with unwanted DF types (sbs_in are unknown DF type, filter them all, this is arbitrary but no one cares anyway)
-    if (Modes.filterDF && (mm->sbs_in || !(Modes.filterDFbitset & (1 << mm->msgtype)))) {
+    if (Modes.filterDF && (mm->sbs_in || !(Modes.filterDFbitset & (1u << mm->msgtype)))) {
         return;
     }
     if (!Modes.net) {
