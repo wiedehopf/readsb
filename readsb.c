@@ -3383,20 +3383,14 @@ int main(int argc, char **argv) {
 
     threadSignalJoin(&Threads.misc);
 
-    if (Modes.sdr_type != SDR_NONE) {
-        threadSignalJoin(&Threads.reader);
-    }
+    threadSignalJoin(&Threads.reader);
 
     threadSignalJoin(&Threads.upkeep);
 
-    if (Modes.json_dir) {
-        threadSignalJoin(&Threads.json);
+    threadSignalJoin(&Threads.json);
 
-        if (Modes.json_globe_index) {
-            threadSignalJoin(&Threads.globeJson);
-            threadSignalJoin(&Threads.globeBin);
-        }
-    }
+    threadSignalJoin(&Threads.globeJson);
+    threadSignalJoin(&Threads.globeBin);
 
     // after miscThread for the moment
     if (Modes.api) {

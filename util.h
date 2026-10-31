@@ -54,6 +54,7 @@ typedef struct {
     pthread_mutex_t mutex;
     pthread_cond_t cond;
     char *name;
+    int8_t created;
     int8_t joined;
     int8_t joinFailed;
 } threadT;
