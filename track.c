@@ -579,11 +579,12 @@ static int speed_check(struct aircraft *a, datasource_t source, double lat, doub
             track_diff = fabs(norm_diff(track - calc_track, 180));
         }
     }
-
-    if (track_diff > 70.0f && speed > 10) {
-        mm->trackUnreliable = +1;
-    } else if (track_diff > -1) {
-        mm->trackUnreliable = -1;
+    if (track_diff > -1) {
+        if (track_diff > 70.0f && speed > 10) {
+            mm->trackUnreliable = +1;
+        } else {
+            mm->trackUnreliable = -1;
+        }
     }
 
     if (!posReliable(a)) {
