@@ -785,7 +785,7 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
 
     p = bind_ports;
     while (p && *p) {
-        int newfds[16];
+        int newfds[64];
         int nfds, i;
 
         int is_unix = 0;
