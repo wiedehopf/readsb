@@ -842,6 +842,8 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
             }
         }
 
+        Modes.modesClientCount += nfds;
+
         char listenString[1024];
         snprintf(listenString, 1023, "%5s: %s port", buf, service->descr);
         fprintf(stderr, "%-38s\n", listenString);
