@@ -833,12 +833,16 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
         } else {
             //nfds = anetTcpServer(Modes.aneterr, buf, bind_addr, newfds, sizeof (newfds), SOCK_NONBLOCK, getSNDBUF(service), getRCVBUF(service));
             // explicitely setting tcp buffers causes failure of linux tcp window auto tuning ... it just doesn't work well without the auto tuning
+            Modes.aneterr[0] = '\0';
             nfds = anetTcpServer(Modes.aneterr, buf, bind_addr, newfds, sizeof (newfds) / sizeof (newfds[0]),
                     SOCK_NONBLOCK, -1, -1);
             if (nfds == ANET_ERR) {
                 fprintf(stderr, "Error opening the listening port %s (%s): %s\n",
                         buf, service->descr, Modes.aneterr);
                 exit(1);
+            } else if (Modes.aneterr[0] != '\0') {
+                fprintf(stderr, "Error listening on some of the addresses for %s (%s): %s\n",
+                        buf, service->descr, Modes.aneterr);
             }
         }
 

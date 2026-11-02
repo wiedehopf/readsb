@@ -373,12 +373,15 @@ int anetTcpServer(char *err, char *service, char *bindaddr, int *fds, int nfds, 
     }
 
     for (p = gai_result; p != NULL && i < nfds; p = p->ai_next) {
-        if ((s = anetCreateSocket(err, p->ai_family, flags)) == ANET_ERR)
+        if ((s = anetCreateSocket(err, p->ai_family, flags)) == ANET_ERR) {
+            fprintf(stderr, "Error: anetTcpServer unable to create socket: %s\n", err);
             continue;
+        }
 
         anetSetBuffers(s, sndsize, rcvsize);
 
         if (anetListen(err, s, p->ai_addr, p->ai_addrlen) == ANET_ERR) {
+            fprintf(stderr, "Error: anetTcpServer unable to listen on %s: %s\n", bindaddr, err);
             continue;
         }
 
