@@ -3525,7 +3525,7 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now, 
     // field 12, altitude
     if (t[12] && strlen(t[12]) > 0) {
         double tmp = strtod(t[12], &endptr);
-        if (endptr != t[12] && isfinite(tmp)) {
+        if (endptr != t[12] && isfinite(tmp) && fabs(tmp) <= 100000) {
             mm->baro_alt = tmp;
             mm->baro_alt_valid = 1;
             mm->baro_alt_unit = UNIT_FEET;
@@ -3550,7 +3550,8 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now, 
     //field 14, heading
     if (t[14] && strlen(t[14]) > 0) {
         mm->heading = strtod(t[14], &endptr);
-        if (endptr != t[14] && isfinite(mm->heading)) {
+        if (endptr != t[14] && isfinite(mm->heading)
+                && mm->heading >= 0 && mm->heading <= 360) {
             mm->heading_valid = 1;
             mm->heading_type = HEADING_GROUND_TRACK;
         } else {
@@ -3578,7 +3579,7 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now, 
     // field 17 vertical rate, assume baro
     if (t[17] && strlen(t[17]) > 0) {
         double tmp = strtod(t[17], &endptr);
-        if (endptr != t[17] && isfinite(tmp)) {
+        if (endptr != t[17] && isfinite(tmp) && fabs(tmp) <= 100000) {
             mm->baro_rate = tmp;
             mm->baro_rate_valid = 1;
         } else {
