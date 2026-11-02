@@ -381,7 +381,7 @@ static struct client *createSocketClient(struct net_service *service, int fd, ch
         service->writer->connections++;
     }
     service->connections++;
-    Modes.modesClientCount++;
+    Modes.openSockets++;
 
     c->next = service->clients;
     service->clients = c;
@@ -846,7 +846,7 @@ void serviceListen(struct net_service *service, char *bind_addr, char *bind_port
             }
         }
 
-        Modes.modesClientCount += nfds;
+        Modes.openSockets += nfds;
 
         char listenString[1024];
         snprintf(listenString, 1023, "%5s: %s port", buf, service->descr);
@@ -1189,7 +1189,7 @@ static void modesAcceptClients(int listen_fd, struct net_service *s, int64_t now
     errno = 0;
     while ((fd = anetGenericAccept(Modes.aneterr, listen_fd, saddr, &slen, SOCK_NONBLOCK)) >= 0) {
 
-        if (Modes.modesClientCount > Modes.max_fds_net) {
+        if (Modes.openSockets > Modes.max_fds_net) {
             // drop new modes clients if the count gets near resource limits
             anetCloseSocket(fd);
             static int64_t antiSpam;
@@ -1269,7 +1269,7 @@ static void modesCloseClient(struct client *c) {
         anetCloseSocket(c->fd);
     }
     c->service->connections--;
-    Modes.modesClientCount--;
+    Modes.openSockets--;
     if (c->service->writer) {
         c->service->writer->connections--;
     }

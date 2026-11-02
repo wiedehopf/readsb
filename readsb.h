@@ -628,7 +628,7 @@ struct _Modes
     int max_fds;
     int max_fds_api;
     int max_fds_net;
-    int modesClientCount;
+    int openSockets;
     int api_fds_per_thread;
     int total_aircraft_count;
     int json_aircraft_count;
