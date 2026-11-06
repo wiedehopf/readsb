@@ -2848,11 +2848,11 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
                 }
                 p += 2;
             }
+            if (mm->sysTimestamp == -1){
+                mm->sysTimestamp = mstime();
+            }
             netUseMessage(mm);
             break;
-    }
-    if (mm->sysTimestamp == -1){
-        mm->sysTimestamp = mstime();
     }
     //mm->decoded_nic = 0;
     //mm->decoded_rc = RC_UNKNOWN;
