@@ -3089,6 +3089,12 @@ static void _sigaction_range(struct sigaction *sa, int first, int last) {
         if (sig == SIGKILL || sig == SIGSTOP) {
             continue;
         }
+        // Ignoring a fault makes the faulting instruction repeat forever, and abort() /
+        // assert() must end the process: keep the default (or a sanitizer's) handler.
+        if (sig == SIGSEGV || sig == SIGBUS || sig == SIGFPE || sig == SIGILL
+                || sig == SIGABRT || sig == SIGTRAP || sig == SIGSYS) {
+            continue;
+        }
         if (sigaction(sig, sa, NULL)) {
             fprintf(stderr, "sigaction(%s[%i]) failed: %s\n", strsignal(sig), sig, strerror(errno));
         }
