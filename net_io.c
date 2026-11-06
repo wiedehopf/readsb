@@ -1778,9 +1778,10 @@ static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *wri
     // 0x1a 0xe3 receiverId(2*8) 0x1a msgType timestamp+signal(2*7) message(2*msgLen)
     char *p = prepareWrite(writer, (2 + 2 * 8 + 2 + 2 * 7) + 2 * msgLen);
     unsigned char ch;
-    int j;
     int sig;
     unsigned char *msg = (Modes.net_verbatim ? mm->verbatim : mm->msg);
+    unsigned char raw[6 + 1 + MODES_LONG_MSG_BYTES];
+    int rawLen = 0;
 
     if (!p)
         return;
@@ -1811,23 +1812,44 @@ static void modesSendBeastOutput(struct modesMessage *mm, struct net_writer *wri
         return;
     }
 
-    /* timestamp, big-endian */
-    p = netTimestamp(p, mm->timestamp);
+    // timestamp, big-endian
+    uint64_t timestamp = (uint64_t) mm->timestamp;
+    for (int i = 5; i >= 0; i--) {
+        raw[rawLen++] = (unsigned char) (timestamp >> (8 * i));
+    }
 
     sig = nearbyint(sqrt(mm->signalLevel) * 255);
     if (mm->signalLevel > 0 && sig < 1)
         sig = 1;
     if (sig > 255)
         sig = 255;
-    *p++ = ch = (char) sig;
-    if (0x1A == ch) {
-        *p++ = ch;
-    }
+    raw[rawLen++] = (unsigned char) sig;
 
-    for (j = 0; j < msgLen; j++) {
-        *p++ = (ch = msg[j]);
-        if (0x1A == ch) {
-            *p++ = ch;
+    memcpy(raw + rawLen, msg, (size_t) msgLen);
+    rawLen += msgLen;
+
+    if (!memchr(raw, 0x1A, (size_t) rawLen)) {
+        switch (rawLen) {
+        case MODES_SHORT_MSG_BYTES + 7:
+            memcpy(p, raw, MODES_SHORT_MSG_BYTES + 7);
+            break;
+        case MODES_LONG_MSG_BYTES + 7:
+            memcpy(p, raw, MODES_LONG_MSG_BYTES + 7);
+            break;
+        case MODEAC_MSG_BYTES + 7:
+            memcpy(p, raw, MODEAC_MSG_BYTES + 7);
+            break;
+        default:
+            memcpy(p, raw, (size_t) rawLen);
+            break;
+        }
+        p += rawLen;
+    } else {
+        for (int i = 0; i < rawLen; i++) {
+            *p++ = ch = (char) raw[i];
+            if (0x1A == ch) {
+                *p++ = ch;
+            }
         }
     }
 
