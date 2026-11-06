@@ -526,8 +526,14 @@ static void checkServiceConnected(struct net_connector *con, int64_t now) {
     con->c = c;
 
     int uuid_sent = (sendUUID(c, now) == 0);
+    if (!c->service) {
+        // flushClient() closed the client on a send error
+        return;
+    }
 
-    sendFiveHeartbeats(c, now);
+    if (sendFiveHeartbeats(c, now) < 0) {
+        return;
+    }
 
     if ((c->sendq && c->sendq_len + 256 < c->sendq_max)
                 && strcmp(con->protocol, "gpsd_in") == 0) {
