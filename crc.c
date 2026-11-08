@@ -64,6 +64,11 @@ static void initLookupTables() {
     }
 }
 
+uint32_t modesChecksumBitSyndrome(int bit) {
+    assert(bit >= 0 && bit < 112);
+    return single_bit_syndrome[bit];
+}
+
 uint32_t modesChecksum(uint8_t *message, int bits) {
     uint32_t rem = 0;
     int i;

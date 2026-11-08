@@ -271,33 +271,47 @@ static int correct_aa_field(uint32_t *addr, struct errorinfo *ei) {
 static unsigned char all_zeros[14] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 
-// fix possible 1 bit errors in the DF type for DF17 only
-// return orig first msg byte if we changed the msgtype / first byte
-static inline __attribute__((always_inline)) unsigned char fixDF17msgtype(unsigned char *msg, int *msgtype) {
-    if (!Modes.fixDF || !Modes.nfix_crc) {
-        return 0;
-    }
-    unsigned char origByte;
-    switch (*msgtype) {
-        // possible values for msgtype with a single bit error of DF17
+// possible values for msgtype with a single bit error of DF17
+static inline int fixDF17Candidate(int msgtype) {
+    switch (msgtype) {
         case 1: case 25: case 21: case 19: case 16:
-
-            origByte = msg[0];
-            msg[0] &= 7; // keep last 3 bits, set first 5 bits to 0
-            msg[0] |= (17 << 3); // set first 5 bits to a value of 17
-
-            int res = modesChecksum(msg, MODES_LONG_MSG_BITS);
-            if (res == 0) {
-                *msgtype = 17;
-                return origByte;
-            }
-
-            msg[0] = origByte;
-            return 0;
-
+            return 1;
         default:
             return 0;
     }
+}
+
+// fix possible 1 bit errors in the DF type for DF17 only
+// return orig first msg byte if we changed the msgtype / first byte
+// crc is the CRC of the unmodified 112 bit message
+static inline __attribute__((always_inline)) unsigned char fixDF17msgtype(unsigned char *msg, int *msgtype, uint32_t crc) {
+    if (!Modes.fixDF || !Modes.nfix_crc) {
+        return 0;
+    }
+    if (!fixDF17Candidate(*msgtype)) {
+        return 0;
+    }
+
+    unsigned char origByte = msg[0];
+    unsigned char newByte = (origByte & 7) | (17 << 3);
+    unsigned char diff = origByte ^ newByte;
+
+    // The CRC is linear: the CRC of the message with the DF rewritten to 17
+    // is the original CRC XOR the syndromes of the changed DF bits.
+    uint32_t syndrome = 0;
+    for (int bit = 0; bit < 5; bit++) {
+        if (diff & (0x80 >> bit)) {
+            syndrome ^= modesChecksumBitSyndrome(bit);
+        }
+    }
+
+    if ((crc ^ syndrome) != 0) {
+        return 0;
+    }
+
+    msg[0] = newByte;
+    *msgtype = 17;
+    return origByte;
 }
 
 static void setSquawkFromID13(struct modesMessage *mm, int ID13Field) {
@@ -307,7 +321,9 @@ static void setSquawkFromID13(struct modesMessage *mm, int ID13Field) {
 }
 
 int scoreModesMessage(unsigned char *msg, int validbits) {
-    int msgtype, msgbits, crc, iid;
+    int msgtype, msgbits, iid;
+    uint32_t crc = 0;
+    int have_crc = 0;
     uint32_t addr;
     struct errorinfo *ei;
 
@@ -316,8 +332,11 @@ int scoreModesMessage(unsigned char *msg, int validbits) {
 
     msgtype = getbits(msg, 1, 5); // Downlink Format
 
-    if (validbits >= MODES_LONG_MSG_BITS) {
-        unsigned char origByte = fixDF17msgtype(msg, &msgtype);
+    if (validbits >= MODES_LONG_MSG_BITS && Modes.fixDF && Modes.nfix_crc
+            && fixDF17Candidate(msgtype)) {
+        crc = modesChecksum(msg, MODES_LONG_MSG_BITS);
+        have_crc = 1;
+        unsigned char origByte = fixDF17msgtype(msg, &msgtype, crc);
         if (origByte) {
             msg[0] = origByte; // restore byte
             // DF17 message with 1 bit error, return the correct score
@@ -337,7 +356,9 @@ int scoreModesMessage(unsigned char *msg, int validbits) {
     if (!memcmp(all_zeros, msg, MODES_SHORT_MSG_BYTES))
         return -2;
 
-    crc = modesChecksum(msg, msgbits);
+    if (!have_crc || msgbits != MODES_LONG_MSG_BITS) {
+        crc = modesChecksum(msg, msgbits);
+    }
 
     switch (msgtype) {
         case 0: // short air-air surveillance
@@ -457,13 +478,25 @@ int decodeModesMessage(struct modesMessage *mm) {
     mm->msgtype = getbits(msg, 1, 5); // Downlink Format
     mm->correctedbits = 0;
 
+    uint32_t crc = 0;
+    int have_crc = 0;
+
     // try and fix possible bit errors in DF type that could be DF17
-    if (fixDF17msgtype(msg, &mm->msgtype)) {
-        mm->correctedbits = 1;
+    if (Modes.fixDF && Modes.nfix_crc && fixDF17Candidate(mm->msgtype)) {
+        crc = modesChecksum(msg, MODES_LONG_MSG_BITS);
+        have_crc = 1;
+        if (fixDF17msgtype(msg, &mm->msgtype, crc)) {
+            mm->correctedbits = 1;
+            crc = 0; // the rewritten DF17 message has a valid CRC
+        }
     }
 
     mm->msgbits = modesMessageLenByType(mm->msgtype);
-    mm->crc = modesChecksum(msg, mm->msgbits);
+    if (have_crc && mm->msgbits == MODES_LONG_MSG_BITS) {
+        mm->crc = crc;
+    } else {
+        mm->crc = modesChecksum(msg, mm->msgbits);
+    }
     mm->addr = HEX_UNKNOWN; // set non zero default address
     mm->maybe_addr = HEX_UNKNOWN; // set non zero default address
     mm->addrtype = ADDR_UNKNOWN;
