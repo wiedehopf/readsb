@@ -905,13 +905,13 @@ static inline void apiGenerateJson(struct apiBuffer *buffer, int64_t now) {
         entry->nextHex = buffer->hexHash[hash];
         buffer->hexHash[hash] = entry;
 
-        if (strlen(entry->bin.registration) > 0) {
+        if (entry->bin.registration[0] != '\0') {
             hash = regHash(entry->bin.registration, buffer);
             entry->nextReg = buffer->regHash[hash];
             buffer->regHash[hash] = entry;
         }
 
-        if (strlen(entry->bin.callsign) > 0) {
+        if (entry->bin.callsign[0] != '\0') {
             hash = callsignHash(entry->bin.callsign, buffer);
             entry->nextCallsign = buffer->callsignHash[hash];
             buffer->callsignHash[hash] = entry;
