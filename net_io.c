@@ -5175,6 +5175,16 @@ static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now
     return 0;
 }
 
+// Keep client-controlled bytes on one log line.
+static void sanitizeLogString(char *s) {
+    for (; *s; s++) {
+        unsigned char ch = (unsigned char) *s;
+        if (ch < 0x20 || ch == 0x7f) {
+            *s = '?';
+        }
+    }
+}
+
 static const char *hexDumpString(const char *str, int strlen, char *buf, int buflen) {
     int max = buflen / 4 - 4;
     if (max <= 0) {
@@ -5986,7 +5996,8 @@ static int readProxy(struct client *c) {
         *eop = '\0';
         strncpy(c->proxy_string, proxy + 6, sizeof(c->proxy_string) - 1);
         c->proxy_string[sizeof(c->proxy_string) - 1] = '\0'; // make sure it's null terminated
-                                                             //fprintf(stderr, "%s\n", c->proxy_string);
+        sanitizeLogString(c->proxy_string);
+        //fprintf(stderr, "%s\n", c->proxy_string);
         *eop = '\r';
 
         // expected string example: "PROXY TCP4 172.12.2.132 172.191.123.45 40223 30005"
@@ -6736,6 +6747,11 @@ static char *read_uuid(struct client *c, char *p, char *eod) {
 
     unsigned char ch;
     char *start = p;
+    int rawLen = imin(36, eod - start);
+    char raw[37];
+    memcpy(raw, start, rawLen);
+    raw[rawLen] = '\0';
+    sanitizeLogString(raw);
     uint64_t receiverId = 0;
     uint64_t receiverId2 = 0;
     // read ascii to binary
@@ -6787,7 +6803,7 @@ static char *read_uuid(struct client *c, char *p, char *eod) {
         if (1 || valid > 5) {
             char uuid[64]; // needs 36 chars and null byte
             sprint_uuid(receiverId, receiverId2, uuid);
-            fprintf(stderr, "read_uuid() incomplete (%s): UUID |%.*s| -> |%s|\n", breakReason, (int) imin(36, eod - start), start, uuid);
+            fprintf(stderr, "read_uuid() incomplete (%s): UUID |%s| -> |%s|\n", breakReason, raw, uuid);
         }
     }
 
@@ -6799,7 +6815,7 @@ static char *read_uuid(struct client *c, char *p, char *eod) {
         if (Modes.debug_uuid) {
             char uuid[64]; // needs 36 chars and null byte
             sprint_uuid(receiverId, receiverId2, uuid);
-            fprintf(stderr, "reading UUID |%.*s| -> |%s|\n", (int) imin(36, eod - start), start, uuid);
+            fprintf(stderr, "reading UUID |%s| -> |%s|\n", raw, uuid);
             //fprintf(stderr, "ADDR %s,%s rId %016"PRIx64" UUID %.*s\n", c->host, c->port, c->receiverId, (int) imin(eod - start, 36), start);
         }
         lockReceiverId(c);
