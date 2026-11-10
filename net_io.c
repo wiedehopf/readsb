@@ -79,6 +79,7 @@ static int decodeUatMessage(struct client *c, char *msg, int remote, int64_t now
 static int decodeEncapsulatedUAT(struct client *c, char *msg, int remote, int64_t now, struct messageBuffer *mb);
 static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now, struct messageBuffer *mb);
 static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t now, struct messageBuffer *mb);
+static int decodeAsterixRecord(struct client *c, unsigned char category, char *p, char *end, int remote, int64_t now, struct messageBuffer *mb);
 static int decodeSbsLineMlat(struct client *c, char *line, int remote, int64_t now, struct messageBuffer *mb) {
     MODES_NOTUSED(remote);
     return decodeSbsLine(c, line, 64 + SOURCE_MLAT, now, mb);
@@ -2320,10 +2321,129 @@ static void readAsterixHighPrecisionTime(uint64_t *timeStamp, char **p) {
 //
 // Read ASTERIX input from TCP clients
 //
+// CAT021 item lengths in UAP/FSPEC order.  The decoder does not need to
+// understand an item to find the next record, but it does need its length.
+// Returns the record length, or 0 for a truncated/unsupported record.
+static int asterixCat021RecordLen(char *p, char *end) {
+    char *start = p;
+    uint8_t fspec[FSPEC_MAX];
+    readFspec(fspec, &p, end);
+
+#define ASTERIX_SKIP(n) do { if (end - p < (n)) return 0; p += (n); } while (0)
+
+    if (fspec[0] & 0x80) ASTERIX_SKIP(2);  // 010
+    if (fspec[0] & 0x40) {                 // 040 variable
+        uint8_t trd[FSPEC_MAX];
+        readFspec(trd, &p, end);
+    }
+    if (fspec[0] & 0x20) ASTERIX_SKIP(2);  // 161
+    if (fspec[0] & 0x10) ASTERIX_SKIP(1);  // 015
+    if (fspec[0] & 0x08) ASTERIX_SKIP(3);  // 071
+    if (fspec[0] & 0x04) ASTERIX_SKIP(6);  // 130
+    if (fspec[0] & 0x02) ASTERIX_SKIP(8);  // 131
+
+    if (fspec[1] & 0x80) ASTERIX_SKIP(3);  // 072
+    if (fspec[1] & 0x40) ASTERIX_SKIP(2);  // 150
+    if (fspec[1] & 0x20) ASTERIX_SKIP(2);  // 151
+    if (fspec[1] & 0x10) ASTERIX_SKIP(3);  // 080
+    if (fspec[1] & 0x08) ASTERIX_SKIP(3);  // 073
+    if (fspec[1] & 0x04) {                 // 074
+        if (!(fspec[1] & 0x08)) return 0;
+        ASTERIX_SKIP(4);
+    }
+    if (fspec[1] & 0x02) {                 // 075
+        ASTERIX_SKIP(3);
+        if (fspec[2] & 0x80) ASTERIX_SKIP(4); // 076
+    } else if (fspec[2] & 0x80) {
+        return 0;
+    }
+
+    if (fspec[2] & 0x40) ASTERIX_SKIP(2);  // 140
+    if (fspec[2] & 0x20) {                 // 090 variable
+        uint8_t qi[FSPEC_MAX];
+        readFspec(qi, &p, end);
+    }
+    if (fspec[2] & 0x10) ASTERIX_SKIP(1);  // 210
+    if (fspec[2] & 0x08) ASTERIX_SKIP(2);  // 070
+    if (fspec[2] & 0x04) ASTERIX_SKIP(2);  // 230
+    if (fspec[2] & 0x02) ASTERIX_SKIP(2);  // 145
+
+    if (fspec[3] & 0x80) ASTERIX_SKIP(2);  // 152
+    if (fspec[3] & 0x40) ASTERIX_SKIP(1);  // 200
+    if (fspec[3] & 0x20) ASTERIX_SKIP(2);  // 155
+    if (fspec[3] & 0x10) ASTERIX_SKIP(2);  // 157
+    if (fspec[3] & 0x08) ASTERIX_SKIP(4);  // 160
+    if (fspec[3] & 0x04) ASTERIX_SKIP(2);  // 165
+    if (fspec[3] & 0x02) ASTERIX_SKIP(3);  // 077
+
+    if (fspec[4] & 0x80) ASTERIX_SKIP(6);  // 170
+    if (fspec[4] & 0x40) ASTERIX_SKIP(1);  // 020
+    if (fspec[4] & 0x20) {                 // 220 met information
+        uint8_t met[FSPEC_MAX];
+        readFspec(met, &p, end);
+        if (met[0] & 0x0F) return 0;       // spares/FX not understood
+        if (met[0] & 0x80) ASTERIX_SKIP(2); // WS
+        if (met[0] & 0x40) ASTERIX_SKIP(2); // WD
+        if (met[0] & 0x20) ASTERIX_SKIP(2); // TMP
+        if (met[0] & 0x10) ASTERIX_SKIP(1); // TRB
+    }
+    if (fspec[4] & 0x10) ASTERIX_SKIP(2);  // 146
+    if (fspec[4] & 0x08) ASTERIX_SKIP(2);  // 148
+    if (fspec[4] & 0x04) return 0;         // 110 compound, not understood
+    if (fspec[4] & 0x02) ASTERIX_SKIP(1);  // 016
+
+    if (fspec[5] & 0x80) ASTERIX_SKIP(1);  // 008
+    if (fspec[5] & 0x40) return 0;         // 271 variable, not understood
+    if (fspec[5] & 0x20) ASTERIX_SKIP(1);  // 132
+    if (fspec[5] & 0x10) {                 // 250, one length byte + N*8
+        if (end - p < 1) return 0;
+        uint8_t n = *p++;
+        if (n > (end - p) / 8) return 0;
+        p += n * 8;
+    }
+    if (fspec[5] & 0x08) ASTERIX_SKIP(7);  // 260
+    if (fspec[5] & 0x04) ASTERIX_SKIP(1);  // 400
+    if (fspec[5] & 0x02) return 0;         // 295 variable, not understood
+    if (fspec[6]) return 0;                 // RE/SP or unknown extension
+
+    return p - start;
+#undef ASTERIX_SKIP
+}
+
 static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t now, struct messageBuffer *mb) {
+    unsigned char category = *p;
+    // readAsterix() has checked that the whole block is in the buffer
+    char *end = p + (((uint8_t) p[1] << 8) | (uint8_t) p[2]);
+    p += 3;
+
+    if (category != 21) {
+        return decodeAsterixRecord(c, category, p, end, remote, now, mb);
+    }
+
+    int decoded_any = 0;
+    while (p < end) {
+        int rec_len = asterixCat021RecordLen(p, end);
+        if (rec_len <= 0) {
+            // Unsupported/malformed record: keep the old single-record
+            // behavior for the first one, otherwise skip the rest of block.
+            if (!decoded_any) {
+                return decodeAsterixRecord(c, category, p, end, remote, now, mb);
+            }
+            return 0;
+        }
+        int res = decodeAsterixRecord(c, category, p, p + rec_len, remote, now, mb);
+        if (res) {
+            return res;
+        }
+        decoded_any = 1;
+        p += rec_len;
+    }
+    return 0;
+}
+
+static int decodeAsterixRecord(struct client *c, unsigned char category, char *p, char *end, int remote, int64_t now, struct messageBuffer *mb) {
     //uint16_t msgLen = (*(p + 1) << 8) + *(p + 2);
     //int j;
-    unsigned char category;
     struct modesMessage *mm = netGetMM(mb);
     mm->client = c;
     MODES_NOTUSED(c);
@@ -2334,10 +2454,6 @@ static int decodeAsterixMessage(struct client *c, char *p, int remote, int64_t n
     mm->remote = 1;
     mm->sbs_in = 1;
     mm->signalLevel = 0;
-    category = *p; // Get the category
-    // readAsterix() has checked that the whole record is in the buffer
-    char *end = p + (((uint8_t) p[1] << 8) | (uint8_t) p[2]);
-    p += 3;
     // discard records whose fields run past their declared length
 #define ASTERIX_NEED(n) do { if (end - p < (n)) return 0; } while (0)
 
