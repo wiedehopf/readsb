@@ -613,6 +613,9 @@ double greatcircle(double lat0, double lon0, double lat1, double lon1, int appro
 
     double dlat = fabs(lat1 - lat0);
     double dlon = fabs(lon1 - lon0);
+    // the shortest longitude difference may cross the antimeridian
+    if (dlon > M_PI)
+        dlon = 2 * M_PI - dlon;
 
     double hav = 0;
     if (CHECK_APPROXIMATIONS) {
