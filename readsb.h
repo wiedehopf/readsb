@@ -1436,6 +1436,17 @@ extern "C"
     // Provided by readsb.c & viewadsb.c
     void receiverPositionChanged (float lat, float lon, float alt);
 
+// --filter-DF selects DF 0..31 through Modes.filterDFbitset. Messages without a DF
+// (sbs_in) and Mode A/C, whose msgtype is outside that range, are filtered too when
+// the filter is on; shifting the bitset by such a type would be undefined.
+static inline int filteredByDF(const struct modesMessage *mm) {
+    if (!Modes.filterDF)
+        return 0;
+    if (mm->sbs_in || mm->msgtype < 0 || mm->msgtype > 31)
+        return 1;
+    return !(Modes.filterDFbitset & (1u << mm->msgtype));
+}
+
 #ifdef __cplusplus
 }
 #endif
