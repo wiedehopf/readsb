@@ -713,7 +713,6 @@ struct _Modes
     struct apiBuffer apiBuffer[2];
     atomic_int *apiFlip;
     struct apiThread *apiThread;
-    pthread_mutex_t apiFlipMutex; // mutex to read apiFlip
 
     float messageRate;
     uint32_t messageRateAcc[MESSAGE_RATE_CALC_POINTS];
