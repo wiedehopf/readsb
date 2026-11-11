@@ -476,11 +476,17 @@ static struct apiEntry *apiAlloc(int count) {
     return buf;
 }
 
+static struct char_buffer apiReqBuffer(struct apiThread *thread, struct apiOptions *options, struct apiBuffer *buffer);
+
 static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *options) {
+    struct apiBuffer *buffer = &Modes.apiBuffer[atomic_load(&Modes.apiFlip[thread->index])];
+    pthread_rwlock_rdlock(&buffer->lock);
+    struct char_buffer cb = apiReqBuffer(thread, options, buffer);
+    pthread_rwlock_unlock(&buffer->lock);
+    return cb;
+}
 
-    int flip = atomic_load(&Modes.apiFlip[thread->index]);
-
-    struct apiBuffer *buffer = &Modes.apiBuffer[flip];
+static struct char_buffer apiReqBuffer(struct apiThread *thread, struct apiOptions *options, struct apiBuffer *buffer) {
     struct apiEntry *haystack;
     int haylen;
     struct range pos_range;
@@ -944,6 +950,7 @@ static int apiUpdate() {
     // always clear and update the inactive apiBuffer
     int flip = (atomic_load(&Modes.apiFlip[0]) + 1) % 2;
     struct apiBuffer *buffer = &Modes.apiBuffer[flip];
+    // the write lock for this buffer was taken at the end of the previous update
 
     // reset buffer lengths
     buffer->len = 0;
@@ -1030,10 +1037,17 @@ static int apiUpdate() {
 
     buffer->timestamp = now;
 
+    pthread_rwlock_unlock(&buffer->lock);
+
     // doesn't matter which of the 2 buffers the api req will use they are both pretty current
     for (int i = 0; i < Modes.apiThreadCount; i++) {
         atomic_store(&Modes.apiFlip[i], flip);
     }
+
+    // Take the write lock for the buffer the next update rebuilds.  A reader that
+    // is still on that buffer makes us wait here, after the new data is published,
+    // and never before.
+    pthread_rwlock_wrlock(&Modes.apiBuffer[(flip + 1) % 2].lock);
 
     pthread_cond_signal(&Threads.json.cond);
     pthread_cond_signal(&Threads.globeJson.cond);
@@ -2043,6 +2057,10 @@ static void *apiUpdateEntryPoint(void *arg) {
     srandom(get_seed());
     pthread_mutex_lock(&Threads.apiUpdate.mutex);
 
+    // apiUpdate() rebuilds under the write lock for the next buffer, taken at the
+    // end of the previous update; take the first one here, in this thread
+    pthread_rwlock_wrlock(&Modes.apiBuffer[(atomic_load(&Modes.apiFlip[0]) + 1) % 2].lock);
+
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
     struct timespec cpu_timer;
@@ -2089,6 +2107,8 @@ static void *apiUpdateEntryPoint(void *arg) {
             elapsed = mstime() - waitStarted;
         } while (!Modes.exit && elapsed < remaining);
     }
+    // apiUpdate() leaves the write lock for the next rebuild held
+    pthread_rwlock_unlock(&Modes.apiBuffer[(atomic_load(&Modes.apiFlip[0]) + 1) % 2].lock);
     pthread_mutex_unlock(&Threads.apiUpdate.mutex);
     return NULL;
 }
@@ -2108,7 +2128,16 @@ void apiBufferInit() {
     Modes.apiFlip = cmalloc(size);
     memset(Modes.apiFlip, 0x0, size);
 
+    for (int i = 0; i < 2; i++) {
+        pthread_rwlock_init(&Modes.apiBuffer[i].lock, NULL);
+    }
+    // apiUpdate() rebuilds under a write lock taken by the previous update
+    pthread_rwlock_wrlock(&Modes.apiBuffer[(atomic_load(&Modes.apiFlip[0]) + 1) % 2].lock);
+
     apiUpdate(); // run an initial apiUpdate
+
+    // the update thread takes the lock for its first rebuild itself
+    pthread_rwlock_unlock(&Modes.apiBuffer[(atomic_load(&Modes.apiFlip[0]) + 1) % 2].lock);
 
     Modes.apiBufferInitDone++;
     if (Modes.apiBufferInitDone != 1) {
@@ -2131,6 +2160,7 @@ void apiBufferCleanup() {
         sfree(Modes.apiBuffer[i].hexHash);
         sfree(Modes.apiBuffer[i].regHash);
         sfree(Modes.apiBuffer[i].callsignHash);
+        pthread_rwlock_destroy(&Modes.apiBuffer[i].lock);
     }
 
     sfree(Modes.apiThread);
@@ -2197,12 +2227,18 @@ void apiCleanup() {
     }
 }
 
+static struct char_buffer apiGenerateAircraftJsonBuffer(threadpool_buffer_t *pbuffer, struct apiBuffer *buffer);
+
 struct char_buffer apiGenerateAircraftJson(threadpool_buffer_t *pbuffer) {
+    struct apiBuffer *buffer = &Modes.apiBuffer[atomic_load(&Modes.apiFlip[0])];
+    pthread_rwlock_rdlock(&buffer->lock);
+    struct char_buffer cb = apiGenerateAircraftJsonBuffer(pbuffer, buffer);
+    pthread_rwlock_unlock(&buffer->lock);
+    return cb;
+}
+
+static struct char_buffer apiGenerateAircraftJsonBuffer(threadpool_buffer_t *pbuffer, struct apiBuffer *buffer) {
     struct char_buffer cb = { 0 };
-
-    int flip = atomic_load(&Modes.apiFlip[0]);
-
-    struct apiBuffer *buffer = &Modes.apiBuffer[flip];
 
     ssize_t alloc = buffer->jsonLen + 8 * 1024;
 
@@ -2238,14 +2274,20 @@ struct char_buffer apiGenerateAircraftJson(threadpool_buffer_t *pbuffer) {
     return cb;
 }
 
+static struct char_buffer apiGenerateGlobeJsonBuffer(int globe_index, threadpool_buffer_t *pbuffer, struct apiBuffer *buffer);
+
 struct char_buffer apiGenerateGlobeJson(int globe_index, threadpool_buffer_t *pbuffer) {
+    struct apiBuffer *buffer = &Modes.apiBuffer[atomic_load(&Modes.apiFlip[0])];
+    pthread_rwlock_rdlock(&buffer->lock);
+    struct char_buffer cb = apiGenerateGlobeJsonBuffer(globe_index, pbuffer, buffer);
+    pthread_rwlock_unlock(&buffer->lock);
+    return cb;
+}
+
+static struct char_buffer apiGenerateGlobeJsonBuffer(int globe_index, threadpool_buffer_t *pbuffer, struct apiBuffer *buffer) {
     assert (globe_index <= GLOBE_MAX_INDEX);
 
     struct char_buffer cb = { 0 };
-
-    int flip = atomic_load(&Modes.apiFlip[0]);
-
-    struct apiBuffer *buffer = &Modes.apiBuffer[flip];
 
     ssize_t alloc = 16 * 1024 + buffer->jsonLen;
 
