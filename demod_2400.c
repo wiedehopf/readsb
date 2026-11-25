@@ -309,6 +309,11 @@ void demodulate2400(struct mag_buf *mag) {
     if (nwords + 1 > premaskWords) {
         free(premask);
         premask = cmalloc((nwords + 1) * sizeof(uint64_t));
+        if (!premask) {
+            // cmalloc() has already scheduled the exit, skip this buffer
+            premaskWords = 0;
+            return;
+        }
         premaskWords = nwords + 1;
     }
     for (uint32_t w = 0; w < nwords; w++) {
