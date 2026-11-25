@@ -297,6 +297,41 @@ void demodulate2400(struct mag_buf *mag) {
     const uint32_t noiseLowThreshold = Modes.noiseLowThreshold * Modes.noiseLowThreshold * statsWindow;
     const uint32_t noiseHighThreshold = Modes.noiseHighThreshold * Modes.noiseHighThreshold * statsWindow;
 
+    // Evaluate the cheap preamble pre-check for every start position up front, as a bitmask
+    // and without branches. On noise it passes for ~1 in 7 positions at random, so testing it
+    // with a branch per position mispredicts most of the time.
+    // The scan below looks at up to 10 positions from any pa < stop (it may run past stop,
+    // the trailing samples make that safe), so positions up to mlen + 9 are needed.
+    // One spare word at the end: the scan always reads the word after the current one.
+    static uint64_t *premask;
+    static uint32_t premaskWords;
+    uint32_t nwords = (mlen + 10 + 63) / 64;
+    if (nwords + 1 > premaskWords) {
+        free(premask);
+        premask = cmalloc((nwords + 1) * sizeof(uint64_t));
+        premaskWords = nwords + 1;
+    }
+    for (uint32_t w = 0; w < nwords; w++) {
+        const uint16_t *p = m + w * 64;
+        // fixed trip count and no loop-carried state, so compilers vectorize this even at -O2
+        uint8_t pass[64];
+        for (uint32_t j = 0; j < 64; j++) {
+            pass[j] = (p[j + 1] > p[j + 7]) & (p[j + 12] > p[j + 14]) & (p[j + 12] > p[j + 15]);
+        }
+        // pack 8 bytes of 0/1 into 8 bits, byte i -> bit i (needs byte i in the low end of the load)
+        uint64_t bits = 0;
+        for (uint32_t k = 0; k < 8; k++) {
+            uint64_t eight;
+            memcpy(&eight, pass + 8 * k, 8);
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+            eight = __builtin_bswap64(eight);
+#endif
+            bits |= ((eight * 0x0102040810204080ULL) >> 56) << (8 * k);
+        }
+        premask[w] = bits;
+    }
+    premask[nwords] = 0;
+
     for (; pa < stop; pa++) {
         int32_t pa_mag, base_noise, ref_level;
         int msglen;
@@ -330,20 +365,23 @@ void demodulate2400(struct mag_buf *mag) {
             statsProgress = pa + statsWindow;
         }
 
-        if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
-        pa++; if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
-        pa++; if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
-        pa++; if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
-        pa++; if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
-        pa++; if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
-        pa++; if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
-        pa++; if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
-        pa++; if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
-        pa++; if (pa[1] > pa[7] && pa[12] > pa[14] && pa[12] > pa[15]) { goto after_pre; }
+        // Go to the first passing position among pa .. pa + 9, or, if none passes,
+        // move on by 10 (9 here plus the loop's pa++).
+        {
+            uint32_t idx = pa - m;
+            uint32_t b = idx & 63;
+            // bits b .. b + 9, continuing into the next word; (x << 1) << (63 - b) is x << (64 - b)
+            // without the undefined shift by 64 when b == 0
+            uint64_t window = (premask[idx >> 6] >> b) | ((premask[(idx >> 6) + 1] << 1) << (63 - b));
+            window &= 0x3FF;
+            if (!window) {
+                pa += 9;
+                continue;
+            }
+            pa += __builtin_ctzll(window);
+        }
 
-        continue;
 
-after_pre:
         // ... but we must NOT decode if have ran past stop
         if (!(pa < stop))
             continue;
