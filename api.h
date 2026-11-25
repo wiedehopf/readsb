@@ -125,6 +125,8 @@ struct apiBuffer {
     struct apiEntry **callsignHash;
     uint32_t focus;
     int aircraftJsonCount;
+    // readers hold it while they use the buffer; apiUpdate() takes it to rebuild
+    pthread_rwlock_t lock;
 };
 
 struct apiThread {
