@@ -97,7 +97,7 @@ static uint32_t valid_df_long_bitset;         // set of acceptable DF values for
 
 static uint32_t generate_damage_set(uint8_t df, unsigned damage_bits)
 {
-    uint32_t result = (1 << df);
+    uint32_t result = (1u << df);
     if (!damage_bits)
         return result;
 
@@ -117,7 +117,7 @@ static void init_bitsets()
 
 #ifdef ENABLE_DF24
     if (1)
-        valid_df_long_bitset |= (1 << 24) | (1 << 25) | (1 << 26) | (1 << 27) | (1 << 28) | (1 << 29) | (1 << 30) | (1 << 31);
+        valid_df_long_bitset |= (1u << 24) | (1u << 25) | (1u << 26) | (1u << 27) | (1u << 28) | (1u << 29) | (1u << 30) | (1u << 31);
 #endif
 
     // if we can also repair DF damage, include those corrections
@@ -225,9 +225,9 @@ static void score_phase(int try_phase, uint16_t *pa, unsigned char **bestmsg, in
     // inspect DF field early, only continue processing
     // messages where the DF appears valid
     uint32_t df = ((uint8_t) (*msg)[0]) >> 3;
-    if (valid_df_long_bitset & (1 << df)) {
+    if (valid_df_long_bitset & (1u << df)) {
         bytelen = MODES_LONG_MSG_BYTES;
-    } else if (valid_df_short_bitset & (1 << df)) {
+    } else if (valid_df_short_bitset & (1u << df)) {
         bytelen = MODES_SHORT_MSG_BYTES;
     } else {
         score = -2;
