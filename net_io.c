@@ -415,9 +415,9 @@ static int sendUUID(struct client *c, int64_t now) {
             && (con->enable_uuid_ping || Modes.debug_ping || Modes.debug_send_uuid)) {
 
         if (con->uuid) {
-            strncpy(uuid, con->uuid, sizeof(uuid));
+            snprintf(uuid, sizeof(uuid), "%s", con->uuid);
         } else if (strlen(Modes.uuid) > 0) {
-            strncpy(uuid, Modes.uuid, sizeof(uuid));
+            snprintf(uuid, sizeof(uuid), "%s", Modes.uuid);
         }
 
         uuid[sizeof(uuid) - 1] = '\0';
@@ -4429,6 +4429,9 @@ static int handle_gpsd(struct client *c, char *p, int remote, int64_t now, struc
     struct char_buffer msg;
     msg.alloc = strlen(p) + 128;
     msg.buffer = cmalloc(msg.alloc);
+    if (!msg.buffer) {
+        return 0;
+    }
     sprintf(msg.buffer, "%s\n", p);
     msg.len = strlen(msg.buffer);
 
