@@ -348,11 +348,6 @@ void demodulate2400(struct mag_buf *mag) {
         // phase 6: 0/4\2 2/4\0 0 0 0 2/4\0/5\1 0 0 0 0 0 0 X2
         // phase 7: 0/3 3\1/5\0 0 0 0 1/5\0/4\2 0 0 0 0 0 0 X3
 
-        // do a pre-check to reduce CPU usage
-        // some silly unrolling that cuts CPU cycles
-        // due to plenty room in the message buffer for decoding
-        // we can with pa go beyond stop without a buffer overrun ...
-
         if (Modes.autoGain && pa >= statsProgress) {
             uint32_t magSum = 0;
             for (uint32_t i = 0; i < statsWindow; i++) {
