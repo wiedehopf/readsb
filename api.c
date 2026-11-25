@@ -476,11 +476,22 @@ static struct apiEntry *apiAlloc(int count) {
     return buf;
 }
 
-static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *options) {
+// Read locks the buffer the flip points at without blocking on the lock.  The locks
+// are initialised once (checked in apiBufferInit()), so tryrdlock can only fail with
+// EBUSY or EAGAIN: apiUpdate() is rebuilding the buffer because the flip moved on
+// after it was loaded, or the reader count is saturated.  Both are transient, so
+// reload the flip and retry.  A reader descheduled after the load may also lock a
+// buffer that was rebuilt meanwhile; that is a complete, newer snapshot.
+static struct apiBuffer *apiBufferAcquire(int flipIndex) {
+    for (;;) {
+        struct apiBuffer *buffer = &Modes.apiBuffer[atomic_load(&Modes.apiFlip[flipIndex])];
+        if (pthread_rwlock_tryrdlock(&buffer->lock) == 0) {
+            return buffer;
+        }
+    }
+}
 
-    int flip = atomic_load(&Modes.apiFlip[thread->index]);
-
-    struct apiBuffer *buffer = &Modes.apiBuffer[flip];
+static struct char_buffer apiReqBuffer(struct apiThread *thread, struct apiOptions *options, struct apiBuffer *buffer) {
     struct apiEntry *haystack;
     int haylen;
     struct range pos_range;
@@ -830,6 +841,13 @@ static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *op
     return cb;
 }
 
+static struct char_buffer apiReq(struct apiThread *thread, struct apiOptions *options) {
+    struct apiBuffer *buffer = apiBufferAcquire(thread->index);
+    struct char_buffer cb = apiReqBuffer(thread, options, buffer);
+    pthread_rwlock_unlock(&buffer->lock);
+    return cb;
+}
+
 static inline int apiAdd(struct apiBuffer *buffer, struct aircraft *a, int64_t now) {
     if (!(includeAircraftJson(now, a)))
         return 0;
@@ -945,6 +963,12 @@ static int apiUpdate() {
     int flip = (atomic_load(&Modes.apiFlip[0]) + 1) % 2;
     struct apiBuffer *buffer = &Modes.apiBuffer[flip];
 
+    // a reader still holds the inactive buffer: keep serving the current one for
+    // another interval rather than wait for it
+    if (pthread_rwlock_trywrlock(&buffer->lock) != 0) {
+        return 0;
+    }
+
     // reset buffer lengths
     buffer->len = 0;
     buffer->len_flag = 0;
@@ -1029,6 +1053,8 @@ static int apiUpdate() {
     buffer->list_flag_pos_range = findLonRange(-180 * 1E6, 180 * 1E6, buffer->list_flag, buffer->len_flag);
 
     buffer->timestamp = now;
+
+    pthread_rwlock_unlock(&buffer->lock);
 
     // doesn't matter which of the 2 buffers the api req will use they are both pretty current
     for (int i = 0; i < Modes.apiThreadCount; i++) {
@@ -2108,6 +2134,14 @@ void apiBufferInit() {
     Modes.apiFlip = cmalloc(size);
     memset(Modes.apiFlip, 0x0, size);
 
+    for (int i = 0; i < 2; i++) {
+        // apiBufferAcquire() and apiUpdate() rely on the lock being valid
+        if (pthread_rwlock_init(&Modes.apiBuffer[i].lock, NULL) != 0) {
+            fprintf(stderr, "FATAL: apiBufferInit: pthread_rwlock_init failed\n");
+            exit(1);
+        }
+    }
+
     apiUpdate(); // run an initial apiUpdate
 
     Modes.apiBufferInitDone++;
@@ -2131,6 +2165,7 @@ void apiBufferCleanup() {
         sfree(Modes.apiBuffer[i].hexHash);
         sfree(Modes.apiBuffer[i].regHash);
         sfree(Modes.apiBuffer[i].callsignHash);
+        pthread_rwlock_destroy(&Modes.apiBuffer[i].lock);
     }
 
     sfree(Modes.apiThread);
@@ -2197,12 +2232,8 @@ void apiCleanup() {
     }
 }
 
-struct char_buffer apiGenerateAircraftJson(threadpool_buffer_t *pbuffer) {
+static struct char_buffer apiGenerateAircraftJsonBuffer(threadpool_buffer_t *pbuffer, struct apiBuffer *buffer) {
     struct char_buffer cb = { 0 };
-
-    int flip = atomic_load(&Modes.apiFlip[0]);
-
-    struct apiBuffer *buffer = &Modes.apiBuffer[flip];
 
     ssize_t alloc = buffer->jsonLen + 8 * 1024;
 
@@ -2238,14 +2269,17 @@ struct char_buffer apiGenerateAircraftJson(threadpool_buffer_t *pbuffer) {
     return cb;
 }
 
-struct char_buffer apiGenerateGlobeJson(int globe_index, threadpool_buffer_t *pbuffer) {
+struct char_buffer apiGenerateAircraftJson(threadpool_buffer_t *pbuffer) {
+    struct apiBuffer *buffer = apiBufferAcquire(0);
+    struct char_buffer cb = apiGenerateAircraftJsonBuffer(pbuffer, buffer);
+    pthread_rwlock_unlock(&buffer->lock);
+    return cb;
+}
+
+static struct char_buffer apiGenerateGlobeJsonBuffer(int globe_index, threadpool_buffer_t *pbuffer, struct apiBuffer *buffer) {
     assert (globe_index <= GLOBE_MAX_INDEX);
 
     struct char_buffer cb = { 0 };
-
-    int flip = atomic_load(&Modes.apiFlip[0]);
-
-    struct apiBuffer *buffer = &Modes.apiBuffer[flip];
 
     ssize_t alloc = 16 * 1024 + buffer->jsonLen;
 
@@ -2319,5 +2353,12 @@ struct char_buffer apiGenerateGlobeJson(int globe_index, threadpool_buffer_t *pb
 
     cb.len = p - buf;
     cb.buffer = buf;
+    return cb;
+}
+
+struct char_buffer apiGenerateGlobeJson(int globe_index, threadpool_buffer_t *pbuffer) {
+    struct apiBuffer *buffer = apiBufferAcquire(0);
+    struct char_buffer cb = apiGenerateGlobeJsonBuffer(globe_index, pbuffer, buffer);
+    pthread_rwlock_unlock(&buffer->lock);
     return cb;
 }
