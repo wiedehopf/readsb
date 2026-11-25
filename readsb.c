@@ -2153,7 +2153,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             }
             break;
         case OptUuid:
-            strncpy(Modes.uuid, arg, sizeof(Modes.uuid));
+            snprintf(Modes.uuid, sizeof(Modes.uuid), "%s", arg);
             Modes.uuid[sizeof(Modes.uuid) - 1] = '\0';
             break;
         case OptNetConnector:
