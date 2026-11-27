@@ -3594,7 +3594,7 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now, 
 
     mm->sbsMsgType = atoi(t[2]);
 
-    if (!t[5] || strlen(t[5]) < 6 || strlen(t[5]) > 7) // icao must be 6 characters
+    if (!t[5] || strlen(t[5]) > 7) // icao: up to 6 hex digits, ~ prefix for non-icao
         goto basestation_invalid;
 
     char *icao = t[5];
@@ -3602,6 +3602,19 @@ static int decodeSbsLine(struct client *c, char *line, int remote, int64_t now, 
     if (icao[0] == '~') {
         icao++;
         non_icao = 1;
+    }
+
+    // some SBS sources drop leading zeros (ADSBHub sends 009A53 as 9A53)
+    // left-pad 1 to 5 hex digits to 6, 6 or more digits parse as before
+    char icao_padded[7];
+    size_t icao_len = strlen(icao);
+    if (icao_len == 0)
+        goto basestation_invalid;
+    if (icao_len < 6) {
+        memset(icao_padded, '0', 6 - icao_len);
+        memcpy(icao_padded + 6 - icao_len, icao, icao_len);
+        icao_padded[6] = '\0';
+        icao = icao_padded;
     }
     unsigned char *chars = (unsigned char *) &(mm->addr);
     for (int j = 0; j < 6; j += 2) {
